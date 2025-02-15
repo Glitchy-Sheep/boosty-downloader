@@ -1,0 +1,28 @@
+[project]
+name = "boosty-downloader"
+version = "0.1.0"
+description = ""
+authors = [
+    { name = "Roman Berezkin", email = "Glitchy-Sheep@users.noreply.github.com" },
+]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "asyncio (>=3.4.3,<4.0.0)",
+    "aiofiles (>=24.1.0,<25.0.0)",
+    "aiohttp (>=3.11.12,<4.0.0)",
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.9.6"
+pyright = "^1.1.394"
+pytest = "^8.3.4"
+
+
+[tool.poetry]
+packages = [{ include = "boosty_downloader" }]

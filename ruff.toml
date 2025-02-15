@@ -1,0 +1,26 @@
+# match black
+
+line-length = 88
+select = [
+    "ALL", # include all the rules, including new ones
+]
+ignore = [
+    "E501",   # line too long    
+    "D102",   # missing docstring in public method
+    "D212",   # multiline docstring should start at the first line (personal preference)
+    "D107",   # missing docstring in __init__ (lol why)
+    "D400",   # first line should end with a period (sometimes mess with markdown or code blocks)
+    "D415",   # first line should end with a period (same as above but trickier)
+    "RUF001", # unused variable
+    "G004",   # don't log f-strings (personal preference)
+]
+
+[lint.per-file-ignores]
+"test/*" = ["D", "ANN201", "S101", "PLR2004", "INP001"]
+"__init__.py" = ["D104"]
+
+[format]
+quote-style = "single"
+
+[lint.flake8-quotes]
+inline-quotes = "single"
