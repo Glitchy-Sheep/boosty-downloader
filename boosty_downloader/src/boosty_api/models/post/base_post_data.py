@@ -15,3 +15,8 @@ class BasePostData(BaseModel, ABC):
     """Base model for any data in posts"""
 
     type: PostDataType
+
+    class Config:
+        """Basic config for our data"""
+
+        frozen = True

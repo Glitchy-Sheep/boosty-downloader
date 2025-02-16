@@ -2,6 +2,8 @@
 
 from datetime import datetime
 
+from pydantic import ConfigDict
+from pydantic.alias_generators import to_camel
 from pydantic.main import BaseModel
 
 from boosty_downloader.src.boosty_api.models.post.base_post_data import BasePostData
@@ -16,3 +18,9 @@ class Post(BaseModel):
     has_access: bool
 
     data: list[BasePostData]
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+    )
