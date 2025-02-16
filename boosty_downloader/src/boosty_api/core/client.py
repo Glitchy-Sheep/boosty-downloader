@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
-import aiohttp
+import asyncio
+from typing import TYPE_CHECKING
 
 from boosty_downloader.src.boosty_api.models.post.extra import Extra
 from boosty_downloader.src.boosty_api.models.post.post import Post
 from boosty_downloader.src.boosty_api.models.post.posts_request import PostsResponse
 from boosty_downloader.src.boosty_api.utils.filter_none_params import filter_none_params
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+    import aiohttp
 
 
 class BoostyAPIClient:
@@ -51,3 +57,22 @@ class BoostyAPIClient:
             posts=posts,
             extra=extra,
         )
+
+    async def iterate_over_posts(
+        self,
+        author_name: str,
+        delay_seconds: float = 0,
+    ) -> AsyncGenerator[PostsResponse, None]:
+        """
+        Infinite generator iterating over posts of the specified author.
+
+        The generator will yield all posts of the author, paginating internally.
+        """
+        offset = None
+        while True:
+            await asyncio.sleep(delay_seconds)
+            response = await self.get_author_posts(author_name, offset)
+            yield response
+            if response.extra.is_last:
+                break
+            offset = response.extra.offset
