@@ -1,12 +1,12 @@
 """Usual video links (on youtube and other services)"""
 
-from boosty_api.models.post.post_data_type import PostDataType
+from typing import Literal
 
-from boosty_downloader.src.boosty_api.models.post.base_post_data import BasePostData
+from pydantic import BaseModel
 
 
-class PostDataVideo(BasePostData):
+class PostDataVideo(BaseModel):
     """Video content piece in posts"""
 
-    type = PostDataType.video
+    type: Literal['video']
     url: str

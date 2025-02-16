@@ -1,12 +1,13 @@
 """The module with file representation of posts data"""
 
-from boosty_api.models.post.base_post_data import BasePostData
-from boosty_api.models.post.post_data_type import PostDataType
+from typing import Literal
+
+from pydantic import BaseModel
 
 
-class PostDataFile(BasePostData):
+class PostDataFile(BaseModel):
     """File content piece in posts"""
 
-    type = PostDataType.file
+    type: Literal['file']
     url: str
     title: str

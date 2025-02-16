@@ -1,13 +1,14 @@
 """Module with link representation of posts data"""
 
-from boosty_api.models.post.base_post_data import BasePostData
-from boosty_api.models.post.post_data_type import PostDataType
+from typing import Literal
+
+from pydantic import BaseModel
 
 
-class PostDataLink(BasePostData):
+class PostDataLink(BaseModel):
     """Link content piece in posts"""
 
-    type = PostDataType.link
+    type: Literal['link']
     url: str
     content: str
     explicit: bool

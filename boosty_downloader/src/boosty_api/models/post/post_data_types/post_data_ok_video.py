@@ -1,11 +1,13 @@
 """Module with ok video representation of posts data"""
 
-from datetime import timedelta
-from enum import Enum
+from __future__ import annotations
 
-from boosty_api.models.post.base_post_data import BasePostData
-from boosty_api.models.post.post_data_type import PostDataType
-from pydantic import BaseModel
+from datetime import timedelta  # noqa: TC003 Pydantic should know this type fully
+from enum import Enum
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict
+from pydantic.alias_generators import to_camel
 
 
 class OkVideoType(Enum):
@@ -39,10 +41,11 @@ class OkVideoUrl(BaseModel):
     type: OkVideoType
 
 
-class PostDataOkVideo(BasePostData):
+class PostDataOkVideo(BaseModel):
     """Ok video content piece in posts"""
 
-    type = PostDataType.ok_video
+    type: Literal['ok_video']
+
     title: str
     failover_host: str
     duration: timedelta
@@ -50,3 +53,9 @@ class PostDataOkVideo(BasePostData):
     upload_status: str
     complete: bool
     player_urls: list[OkVideoUrl]
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+    )

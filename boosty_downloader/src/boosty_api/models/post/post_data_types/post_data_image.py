@@ -1,13 +1,14 @@
 """The module with image representation of posts data"""
 
-from boosty_downloader.src.boosty_api.models.post.base_post_data import BasePostData
-from boosty_downloader.src.boosty_api.models.post.post_data_type import PostDataType
+from typing import Literal
+
+from pydantic import BaseModel
 
 
-class PostDataImage(BasePostData):
+class PostDataImage(BaseModel):
     """Image content piece in posts"""
 
-    type = PostDataType.image
+    type: Literal['image']
     url: str
     width: int
     height: int

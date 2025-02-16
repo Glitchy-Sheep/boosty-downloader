@@ -1,12 +1,14 @@
 """The module with textual representation of posts data"""
 
-from boosty_downloader.src.boosty_api.models.post.base_post_data import BasePostData
-from boosty_downloader.src.boosty_api.models.post.post_data_type import PostDataType
+from typing import Literal
+
+from pydantic import BaseModel
 
 
-class PostDataText(BasePostData):
+class PostDataText(BaseModel):
     """Textual content piece in posts"""
 
-    type = PostDataType.text
+    type: Literal['text']
+
     content: str
     modificator: str
