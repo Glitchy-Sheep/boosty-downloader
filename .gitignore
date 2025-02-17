@@ -3,7 +3,10 @@
 
 test/data
 
+# ------------- USER DEFINED --------------- #
 lab/
+config.yaml
+
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
