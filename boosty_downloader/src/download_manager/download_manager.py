@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import http
 import json
+import mimetypes
 from typing import TYPE_CHECKING
+
+from yarl import URL
 
 from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_file import (
     PostDataFile,
@@ -25,16 +29,28 @@ from boosty_downloader.src.download_manager.utils.path_sanitizer import sanitize
 if TYPE_CHECKING:
     from pathlib import Path
 
+    import aiohttp
+
     from boosty_downloader.src.boosty_api.core.client import BoostyAPIClient
     from boosty_downloader.src.boosty_api.models.post.post import Post
+    from boosty_downloader.src.loggers.base import Logger
 
 
 class BoostyDownloadManager:
     """Main class which handles the download process"""
 
-    def __init__(self, api_client: BoostyAPIClient, target_directory: Path) -> None:
+    def __init__(
+        self,
+        *,
+        session: aiohttp.ClientSession,
+        api_client: BoostyAPIClient,
+        target_directory: Path,
+        logger: Logger,
+    ) -> None:
+        self.logger = logger
+        self.session = session
         self._api_client = api_client
-        self._target_directory: Path = target_directory.absolute()
+        self._target_directory = target_directory.absolute()
         self.prepare_target_directory(self._target_directory)
 
     def prepare_target_directory(self, target_directory: Path) -> None:
@@ -48,6 +64,7 @@ class BoostyDownloadManager:
     ) -> None:
         post_text_file = destination_directory / 'post.txt'
         post_text_file.parent.mkdir(parents=True, exist_ok=True)
+        self.logger.wait(f'Extracting post data: {len(textual_content)} chunks')
 
         # Merge all the text and link fragments into one file
         with post_text_file.open(mode='w+', encoding='utf-8') as f:
@@ -67,8 +84,32 @@ class BoostyDownloadManager:
 
                 f.write(clean_text + '\n')
 
-    async def download_images(self, images: list[PostDataImage]) -> None:
-        pass
+    async def download_images(
+        self,
+        *,
+        destination_directory: Path,
+        images: list[PostDataImage],
+    ) -> None:
+        images_directory = destination_directory / 'images'
+        images_directory.mkdir(parents=True, exist_ok=True)
+
+        for image in images:
+            url = URL(image.url).with_query(None)
+            image_filename = images_directory / url.path.split('/')[-1]
+            self.logger.wait(f'Downloading post image: {image.url}')
+
+            async with self.session.get(url) as response:
+                if response.status != http.HTTPStatus.OK:
+                    continue
+
+                content_type = response.headers.get('Content-Type')
+                if content_type:
+                    ext = mimetypes.guess_extension(content_type)
+                    if ext is not None:
+                        image_filename = image_filename.with_suffix(ext)
+
+                with image_filename.open(mode='wb') as f:
+                    f.write(await response.content.read())
 
     async def download_videos(self, videos: list[PostDataVideo]) -> None:
         pass
@@ -119,11 +160,16 @@ class BoostyDownloadManager:
             if isinstance(data_chunk, PostDataFile) and data_chunk.url
         ]
 
+        self.logger.info(f'Downloading post {post_name}')
+
         await self.download_textual_content(
             destination_directory=author_directory / post_directory,
             textual_content=textual_content,
         )
-        await self.download_images(images)
+        await self.download_images(
+            destination_directory=author_directory / post_directory,
+            images=images,
+        )
         await self.download_videos(videos)
         await self.download_files(files)
 

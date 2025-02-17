@@ -2,4 +2,5 @@
 
 from boosty_downloader.src.loggers.base import Logger
 
-boosty_logger = Logger('BoostyAPI')
+api_logger = Logger('BoostyAPI')
+downloader_logger = Logger('Boosty_Downloader')
