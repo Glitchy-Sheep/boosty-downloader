@@ -1172,7 +1172,29 @@ idna = ">=2.0"
 multidict = ">=4.0"
 propcache = ">=0.2.0"
 
+[[package]]
+name = "yt-dlp"
+version = "2025.1.26"
+description = "A feature-rich command-line audio/video downloader"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "yt_dlp-2025.1.26-py3-none-any.whl", hash = "sha256:3e76bd896b9f96601021ca192ca0fbdd195e3c3dcc28302a3a34c9bc4979da7b"},
+    {file = "yt_dlp-2025.1.26.tar.gz", hash = "sha256:1c9738266921ad43c568ad01ac3362fb7c7af549276fbec92bd72f140da16240"},
+]
+
+[package.extras]
+build = ["build", "hatchling", "pip", "setuptools (>=71.0.2)", "wheel"]
+curl-cffi = ["curl-cffi (==0.5.10)", "curl-cffi (>=0.5.10,!=0.6.*,<0.7.2)"]
+default = ["brotli", "brotlicffi", "certifi", "mutagen", "pycryptodomex", "requests (>=2.32.2,<3)", "urllib3 (>=1.26.17,<3)", "websockets (>=13.0)"]
+dev = ["autopep8 (>=2.0,<3.0)", "pre-commit", "pytest (>=8.1,<9.0)", "pytest-rerunfailures (>=14.0,<15.0)", "ruff (>=0.9.0,<0.10.0)"]
+pyinstaller = ["pyinstaller (>=6.11.1)"]
+secretstorage = ["cffi", "secretstorage"]
+static-analysis = ["autopep8 (>=2.0,<3.0)", "ruff (>=0.9.0,<0.10.0)"]
+test = ["pytest (>=8.1,<9.0)", "pytest-rerunfailures (>=14.0,<15.0)"]
+
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10"
-content-hash = "bfb516931bb124775be98894f6523374e36c94dcc72a21f4991ea737c70e6a6b"
+content-hash = "b2df9f796c7608d5bdfe7aebcf4d68e8288bdd5c9580823cf7fa0ceebcbe3acb"
