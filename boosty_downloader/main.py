@@ -16,6 +16,9 @@ from boosty_downloader.src.configuration.config import config
 from boosty_downloader.src.download_manager.download_manager import (
     BoostyDownloadManager,
 )
+from boosty_downloader.src.download_manager.external_videos_downloader import (
+    ExternalVideosDownloader,
+)
 from boosty_downloader.src.loggers.logger_instances import downloader_logger
 
 
@@ -42,6 +45,7 @@ async def main(
             api_client=boosty_api_client,
             target_directory=destionation_directory,
             logger=downloader_logger,
+            external_videos_downloader=ExternalVideosDownloader(),
         )
 
         await downloader.download_all_posts(username)

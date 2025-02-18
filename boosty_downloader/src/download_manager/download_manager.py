@@ -24,6 +24,10 @@ from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_text
 from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_video import (
     PostDataVideo,
 )
+from boosty_downloader.src.download_manager.external_videos_downloader import (
+    ExternalVideosDownloader,
+    FailedToDownloadExternalVideoError,
+)
 from boosty_downloader.src.download_manager.utils.path_sanitizer import sanitize_string
 
 if TYPE_CHECKING:
@@ -45,12 +49,14 @@ class BoostyDownloadManager:
         session: aiohttp.ClientSession,
         api_client: BoostyAPIClient,
         target_directory: Path,
+        external_videos_downloader: ExternalVideosDownloader,
         logger: Logger,
     ) -> None:
         self.logger = logger
         self.session = session
         self._api_client = api_client
         self._target_directory = target_directory.absolute()
+        self.external_videos_downloader = external_videos_downloader
         self.prepare_target_directory(self._target_directory)
 
     def prepare_target_directory(self, target_directory: Path) -> None:
@@ -90,6 +96,9 @@ class BoostyDownloadManager:
         destination_directory: Path,
         images: list[PostDataImage],
     ) -> None:
+        if len(images) == 0:
+            return
+
         images_directory = destination_directory / 'images'
         images_directory.mkdir(parents=True, exist_ok=True)
 
@@ -111,8 +120,47 @@ class BoostyDownloadManager:
                 with image_filename.open(mode='wb') as f:
                     f.write(await response.content.read())
 
-    async def download_videos(self, videos: list[PostDataVideo]) -> None:
-        pass
+    def _log_unsuccessful_video_download(
+        self,
+        destination_directory: Path,
+        video_url: str,
+    ) -> None:
+        unsuccessful_log = destination_directory / 'unsuccessful_videos.txt'
+        self.logger.warning(f'Video url will be logged to the {unsuccessful_log}')
+
+        if video_url in (line.strip() for line in unsuccessful_log.open().readlines()):
+            return
+
+        with unsuccessful_log.open(mode='a', encoding='utf-8') as f:
+            f.write(f'{video_url}\n')
+
+    async def download_videos(
+        self,
+        destination_directory: Path,
+        videos: list[PostDataVideo],
+    ) -> None:
+        if len(videos) == 0:
+            return
+
+        videos_directory = destination_directory / 'videos'
+        videos_directory.mkdir(parents=True, exist_ok=True)
+
+        for video in videos:
+            if not self.external_videos_downloader.is_supported_video(video.url):
+                self.logger.warning(f'Video url is not supported: {video.url}')
+                self._log_unsuccessful_video_download(destination_directory, video.url)
+                continue
+
+            self.logger.info(f'Downloading external video: {video.url}')
+            try:
+                self.external_videos_downloader.download_video(
+                    video.url,
+                    videos_directory,
+                )
+            except FailedToDownloadExternalVideoError:
+                self.logger.warning(f'Failed to download external video: {video.url}')
+                self._log_unsuccessful_video_download(destination_directory, video.url)
+                continue
 
     async def download_files(self, files: list[PostDataFile]) -> None:
         pass
@@ -170,7 +218,10 @@ class BoostyDownloadManager:
             destination_directory=author_directory / post_directory,
             images=images,
         )
-        await self.download_videos(videos)
+        await self.download_videos(
+            destination_directory=author_directory / post_directory,
+            videos=videos,
+        )
         await self.download_files(files)
 
     async def download_all_posts(self, username: str) -> None:
