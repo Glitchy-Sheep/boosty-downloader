@@ -21,6 +21,8 @@ class Post(BaseModel):
     created_at: datetime
     has_access: bool
 
+    signed_query: str
+
     data: list[BasePostData]
 
     model_config = ConfigDict(

@@ -7,6 +7,7 @@ import json
 import mimetypes
 from typing import TYPE_CHECKING
 
+import aiofiles
 from yarl import URL
 
 from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_file import (
@@ -162,8 +163,35 @@ class BoostyDownloadManager:
                 self._log_unsuccessful_video_download(destination_directory, video.url)
                 continue
 
-    async def download_files(self, files: list[PostDataFile]) -> None:
-        pass
+    async def download_files(
+        self,
+        destination_directory: Path,
+        files: list[PostDataFile],
+        signed_query: str,
+    ) -> None:
+        if len(files) == 0:
+            return
+
+        files_directory = destination_directory / 'files'
+        files_directory.mkdir(parents=True, exist_ok=True)
+
+        for file in files:
+            self.logger.info(f'Downloading file: {file.url}')
+
+            access_url = f'{file.url}{signed_query}'
+
+            async with self.session.get(access_url) as response:
+                if response.status != http.HTTPStatus.OK:
+                    self.logger.warning(f'Failed to download file: {file.url}')
+                    self.logger.warning(
+                        f'STATUS: {response.status}, ERROR: {response.reason}',
+                    )
+                    continue
+
+                filename = files_directory / file.title
+                async with aiofiles.open(filename, mode='wb') as f:
+                    while chunk := await response.content.read(1024 * 1024):
+                        await f.write(chunk)
 
     async def download_single_post(self, username: str, post: Post) -> None:
         author_directory = self._target_directory / username
@@ -222,7 +250,11 @@ class BoostyDownloadManager:
             destination_directory=author_directory / post_directory,
             videos=videos,
         )
-        await self.download_files(files)
+        await self.download_files(
+            destination_directory=author_directory / post_directory,
+            files=files,
+            signed_query=post.signed_query,
+        )
 
     async def download_all_posts(self, username: str) -> None:
         async for response in self._api_client.iterate_over_posts(
