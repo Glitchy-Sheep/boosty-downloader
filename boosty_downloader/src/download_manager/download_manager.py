@@ -238,6 +238,11 @@ class BoostyDownloadManager:
 
         self.logger.info(f'Downloading post {post_name}')
 
+        await self.download_files(
+            destination_directory=author_directory / post_directory,
+            files=files,
+            signed_query=post.signed_query,
+        )
         await self.download_textual_content(
             destination_directory=author_directory / post_directory,
             textual_content=textual_content,
@@ -249,11 +254,6 @@ class BoostyDownloadManager:
         await self.download_videos(
             destination_directory=author_directory / post_directory,
             videos=videos,
-        )
-        await self.download_files(
-            destination_directory=author_directory / post_directory,
-            files=files,
-            signed_query=post.signed_query,
         )
 
     async def download_all_posts(self, username: str) -> None:
