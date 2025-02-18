@@ -5,6 +5,11 @@ test/data
 
 # ------------- USER DEFINED --------------- #
 lab/
+
+# For local downloading tests
+boosty-downloads/
+
+# Credentials
 config.yaml
 
 
