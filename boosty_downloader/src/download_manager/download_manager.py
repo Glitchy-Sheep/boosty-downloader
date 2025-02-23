@@ -8,6 +8,7 @@ import mimetypes
 from typing import TYPE_CHECKING
 
 import aiofiles
+from rich.progress import Progress
 from yarl import URL
 
 from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_file import (
@@ -18,6 +19,9 @@ from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_imag
 )
 from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_link import (
     PostDataLink,
+)
+from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_ok_video import (
+    PostDataOkVideo,
 )
 from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_text import (
     PostDataText,
@@ -30,6 +34,7 @@ from boosty_downloader.src.download_manager.external_videos_downloader import (
     FailedToDownloadExternalVideoError,
 )
 from boosty_downloader.src.download_manager.utils.path_sanitizer import sanitize_string
+from test.boosty_downloader.download_manager.ok_video_ranking_test import get_best_video
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -163,6 +168,45 @@ class BoostyDownloadManager:
                 self._log_unsuccessful_video_download(destination_directory, video.url)
                 continue
 
+    async def download_boosty_videos(
+        self,
+        destination_directory: Path,
+        boosty_videos: list[PostDataOkVideo],
+    ) -> None:
+        if len(boosty_videos) == 0:
+            return
+
+        videos_directory = destination_directory / 'videos'
+        videos_directory.mkdir(parents=True, exist_ok=True)
+
+        for video in boosty_videos:
+            best_video = get_best_video(video.player_urls)
+            if best_video is None:
+                self.logger.warning(
+                    f'Failed to download boosty video: {video.title}, no valid url found',
+                )
+                continue
+
+            async with self.session.get(best_video.url) as response:
+                if response.status != http.HTTPStatus.OK:
+                    continue
+
+                file_name = sanitize_string(f'{video.title}.mp4')
+                file_path = videos_directory / file_name
+
+                self.logger.info(f'Downloading boosty video: {video.title}')
+
+                with Progress() as progress:
+                    async with aiofiles.open(file_path, mode='wb') as file:
+                        total_size = int(response.headers.get('Content-Length', 0))
+                        task_id = progress.add_task(
+                            description='Downloading video',
+                            total=total_size,
+                        )
+                        async for chunk in response.content.iter_chunked(8192):
+                            await file.write(chunk)
+                            progress.update(task_id, advance=len(chunk))
+
     async def download_files(
         self,
         destination_directory: Path,
@@ -224,10 +268,16 @@ class BoostyDownloadManager:
             if isinstance(data_chunk, PostDataImage) and data_chunk.url
         ]
 
-        videos: list[PostDataVideo] = [
+        external_videos: list[PostDataVideo] = [
             data_chunk
             for data_chunk in post.data
             if isinstance(data_chunk, PostDataVideo) and data_chunk.url
+        ]
+
+        boosty_videos: list[PostDataOkVideo] = [
+            data_chunk
+            for data_chunk in post.data
+            if isinstance(data_chunk, PostDataOkVideo)
         ]
 
         files: list[PostDataFile] = [
@@ -253,7 +303,11 @@ class BoostyDownloadManager:
         )
         await self.download_videos(
             destination_directory=author_directory / post_directory,
-            videos=videos,
+            videos=external_videos,
+        )
+        await self.download_boosty_videos(
+            destination_directory=author_directory / post_directory,
+            boosty_videos=boosty_videos,
         )
 
     async def download_all_posts(self, username: str) -> None:
