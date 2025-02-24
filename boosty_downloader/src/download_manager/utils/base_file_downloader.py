@@ -39,6 +39,8 @@ class DownloadFileConfig(BaseModel):
     destination: Path
     on_status_update: Callable[[DownloadingStatus], None] = lambda _: None
 
+    guess_extension: bool = True
+
 
 class DownloadFailureError(Exception):
     """Exception raised when the download failed for any reason"""
@@ -56,7 +58,7 @@ async def download_file(
         file_path = dl_config.destination / filename
 
         content_type = response.content_type
-        if content_type:
+        if content_type and dl_config.guess_extension:
             ext = mimetypes.guess_extension(content_type)
             if ext is not None:
                 file_path = file_path.with_suffix(ext)
