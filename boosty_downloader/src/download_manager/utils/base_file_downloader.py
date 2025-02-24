@@ -29,24 +29,31 @@ class DownloadingStatus(BaseModel):
     name: str
 
 
+class DownloadFileConfig(BaseModel):
+    """General configuration for the file download"""
+
+    session: aiohttp.ClientSession
+    url: str
+
+    filename: str
+    destination: Path
+    on_status_update: Callable[[DownloadingStatus], None] = lambda _: None
+
+
 class DownloadFailureError(Exception):
     """Exception raised when the download failed for any reason"""
 
 
 async def download_file(
-    session: aiohttp.ClientSession,
-    url: str,
-    filename: str,
-    destination: Path,
-    on_status_update: Callable[[DownloadingStatus], None],
+    dl_config: DownloadFileConfig,
 ) -> None:
     """Download files and report the downloading process via callback"""
-    async with session.get(url) as response:
+    async with dl_config.session.get(dl_config.url) as response:
         if response.status != http.HTTPStatus.OK:
             raise DownloadFailureError
 
-        filename = sanitize_string(filename)
-        file_path = destination / filename
+        filename = sanitize_string(dl_config.filename)
+        file_path = dl_config.destination / filename
 
         content_type = response.content_type
         if content_type:
@@ -61,7 +68,7 @@ async def download_file(
 
             async for chunk in response.content.iter_chunked(8192):
                 total_downloaded += len(chunk)
-                on_status_update(
+                dl_config.on_status_update(
                     DownloadingStatus(
                         name=filename,
                         total_bytes=total_size,
