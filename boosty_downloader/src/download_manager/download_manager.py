@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
-import http
-import json
-import mimetypes
 from typing import TYPE_CHECKING
 
-import aiofiles
+from pydantic import BaseModel
 from rich.progress import Progress
-from yarl import URL
 
 from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_file import (
     PostDataFile,
@@ -17,24 +13,26 @@ from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_file
 from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_image import (
     PostDataImage,
 )
-from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_link import (
-    PostDataLink,
-)
 from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_ok_video import (
+    OkVideoType,
     PostDataOkVideo,
-)
-from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_text import (
-    PostDataText,
 )
 from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_video import (
     PostDataVideo,
 )
-from boosty_downloader.src.download_manager.external_videos_downloader import (
-    ExternalVideosDownloader,
-    FailedToDownloadExternalVideoError,
+from boosty_downloader.src.download_manager.content_downloaders.boosty_video_downloader import (
+    download_boosty_videos,
+)
+from boosty_downloader.src.download_manager.content_downloaders.external_video_downloader import (
+    download_external_videos,
+)
+from boosty_downloader.src.download_manager.content_downloaders.files_downloader import (
+    download_boosty_files,
+)
+from boosty_downloader.src.download_manager.content_downloaders.images_downloader import (
+    download_boosty_images,
 )
 from boosty_downloader.src.download_manager.utils.path_sanitizer import sanitize_string
-from test.boosty_downloader.download_manager.ok_video_ranking_test import get_best_video
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -43,7 +41,35 @@ if TYPE_CHECKING:
 
     from boosty_downloader.src.boosty_api.core.client import BoostyAPIClient
     from boosty_downloader.src.boosty_api.models.post.post import Post
+    from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_link import (
+        PostDataLink,
+    )
+    from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_text import (
+        PostDataText,
+    )
+    from boosty_downloader.src.download_manager.external_videos_downloader import (
+        ExternalVideosDownloader,
+    )
     from boosty_downloader.src.loggers.base import Logger
+
+
+class PostData(BaseModel):
+    """
+    Group content chunk by their type
+
+    We need this class for content separation from continious post data list.
+    """
+
+    # Other media
+    files: list[PostDataFile] = []
+    images: list[PostDataImage] = []
+
+    # Video content
+    ok_videos: list[PostDataOkVideo] = []
+    videos: list[PostDataVideo] = []
+
+    # Textual content
+    textuals: list[PostDataText | PostDataLink] = []
 
 
 class BoostyDownloadManager:
@@ -65,177 +91,29 @@ class BoostyDownloadManager:
         self.external_videos_downloader = external_videos_downloader
         self.prepare_target_directory(self._target_directory)
 
+        self.progress = Progress()
+
     def prepare_target_directory(self, target_directory: Path) -> None:
         target_directory.mkdir(parents=True, exist_ok=True)
 
-    async def download_textual_content(
-        self,
-        *,
-        destination_directory: Path,
-        textual_content: list[PostDataText | PostDataLink],
-    ) -> None:
-        post_text_file = destination_directory / 'post.txt'
-        post_text_file.parent.mkdir(parents=True, exist_ok=True)
-        self.logger.wait(f'Extracting post data: {len(textual_content)} chunks')
+    def separate_post_content(self, post: Post) -> PostData:
+        content_chunks = post.data
 
-        # Merge all the text and link fragments into one file
-        with post_text_file.open(mode='w+', encoding='utf-8') as f:
-            for text_chunk in textual_content:
-                try:
-                    json_data: list[str] = json.loads(text_chunk.content)
-                except json.JSONDecodeError:
-                    continue
+        post_data = PostData()
 
-                if len(json_data) == 0:
-                    continue
+        for chunk in content_chunks:
+            if isinstance(chunk, PostDataFile):
+                post_data.files.append(chunk)
+            elif isinstance(chunk, PostDataImage):
+                post_data.images.append(chunk)
+            elif isinstance(chunk, PostDataOkVideo):
+                post_data.ok_videos.append(chunk)
+            elif isinstance(chunk, PostDataVideo):
+                post_data.videos.append(chunk)
+            else:  # remaning Link or Text block
+                post_data.textuals.append(chunk)
 
-                clean_text = str(json_data[0])
-
-                if isinstance(text_chunk, PostDataLink):
-                    clean_text += f' [{text_chunk.url}]'
-
-                f.write(clean_text + '\n')
-
-    async def download_images(
-        self,
-        *,
-        destination_directory: Path,
-        images: list[PostDataImage],
-    ) -> None:
-        if len(images) == 0:
-            return
-
-        images_directory = destination_directory / 'images'
-        images_directory.mkdir(parents=True, exist_ok=True)
-
-        for image in images:
-            url = URL(image.url).with_query(None)
-            image_filename = images_directory / url.path.split('/')[-1]
-            self.logger.wait(f'Downloading post image: {image.url}')
-
-            async with self.session.get(url) as response:
-                if response.status != http.HTTPStatus.OK:
-                    continue
-
-                content_type = response.headers.get('Content-Type')
-                if content_type:
-                    ext = mimetypes.guess_extension(content_type)
-                    if ext is not None:
-                        image_filename = image_filename.with_suffix(ext)
-
-                with image_filename.open(mode='wb') as f:
-                    f.write(await response.content.read())
-
-    def _log_unsuccessful_video_download(
-        self,
-        destination_directory: Path,
-        video_url: str,
-    ) -> None:
-        unsuccessful_log = destination_directory / 'unsuccessful_videos.txt'
-        self.logger.warning(f'Video url will be logged to the {unsuccessful_log}')
-
-        if video_url in (line.strip() for line in unsuccessful_log.open().readlines()):
-            return
-
-        with unsuccessful_log.open(mode='a', encoding='utf-8') as f:
-            f.write(f'{video_url}\n')
-
-    async def download_videos(
-        self,
-        destination_directory: Path,
-        videos: list[PostDataVideo],
-    ) -> None:
-        if len(videos) == 0:
-            return
-
-        videos_directory = destination_directory / 'videos'
-        videos_directory.mkdir(parents=True, exist_ok=True)
-
-        for video in videos:
-            if not self.external_videos_downloader.is_supported_video(video.url):
-                self.logger.warning(f'Video url is not supported: {video.url}')
-                self._log_unsuccessful_video_download(destination_directory, video.url)
-                continue
-
-            self.logger.info(f'Downloading external video: {video.url}')
-            try:
-                self.external_videos_downloader.download_video(
-                    video.url,
-                    videos_directory,
-                )
-            except FailedToDownloadExternalVideoError:
-                self.logger.warning(f'Failed to download external video: {video.url}')
-                self._log_unsuccessful_video_download(destination_directory, video.url)
-                continue
-
-    async def download_boosty_videos(
-        self,
-        destination_directory: Path,
-        boosty_videos: list[PostDataOkVideo],
-    ) -> None:
-        if len(boosty_videos) == 0:
-            return
-
-        videos_directory = destination_directory / 'videos'
-        videos_directory.mkdir(parents=True, exist_ok=True)
-
-        for video in boosty_videos:
-            best_video = get_best_video(video.player_urls)
-            if best_video is None:
-                self.logger.warning(
-                    f'Failed to download boosty video: {video.title}, no valid url found',
-                )
-                continue
-
-            async with self.session.get(best_video.url) as response:
-                if response.status != http.HTTPStatus.OK:
-                    continue
-
-                file_name = sanitize_string(f'{video.title}.mp4')
-                file_path = videos_directory / file_name
-
-                self.logger.info(f'Downloading boosty video: {video.title}')
-
-                with Progress() as progress:
-                    async with aiofiles.open(file_path, mode='wb') as file:
-                        total_size = int(response.headers.get('Content-Length', 0))
-                        task_id = progress.add_task(
-                            description='Downloading video',
-                            total=total_size,
-                        )
-                        async for chunk in response.content.iter_chunked(8192):
-                            await file.write(chunk)
-                            progress.update(task_id, advance=len(chunk))
-
-    async def download_files(
-        self,
-        destination_directory: Path,
-        files: list[PostDataFile],
-        signed_query: str,
-    ) -> None:
-        if len(files) == 0:
-            return
-
-        files_directory = destination_directory / 'files'
-        files_directory.mkdir(parents=True, exist_ok=True)
-
-        for file in files:
-            self.logger.info(f'Downloading file: {file.url}')
-
-            access_url = f'{file.url}{signed_query}'
-
-            async with self.session.get(access_url) as response:
-                if response.status != http.HTTPStatus.OK:
-                    self.logger.warning(f'Failed to download file: {file.url}')
-                    self.logger.warning(
-                        f'STATUS: {response.status}, ERROR: {response.reason}',
-                    )
-                    continue
-
-                filename = files_directory / file.title
-                async with aiofiles.open(filename, mode='wb') as f:
-                    while chunk := await response.content.read(1024 * 1024):
-                        await f.write(chunk)
+        return post_data
 
     async def download_single_post(self, username: str, post: Post) -> None:
         author_directory = self._target_directory / username
@@ -255,67 +133,75 @@ class BoostyDownloadManager:
         post_directory = author_directory / post_name
         post_directory.mkdir(parents=True, exist_ok=True)
 
-        # Link will be injected into texts
-        textual_content: list[PostDataText | PostDataLink] = [
-            data_chunk
-            for data_chunk in post.data
-            if isinstance(data_chunk, (PostDataText, PostDataLink))
-        ]
-
-        images: list[PostDataImage] = [
-            data_chunk
-            for data_chunk in post.data
-            if isinstance(data_chunk, PostDataImage) and data_chunk.url
-        ]
-
-        external_videos: list[PostDataVideo] = [
-            data_chunk
-            for data_chunk in post.data
-            if isinstance(data_chunk, PostDataVideo) and data_chunk.url
-        ]
-
-        boosty_videos: list[PostDataOkVideo] = [
-            data_chunk
-            for data_chunk in post.data
-            if isinstance(data_chunk, PostDataOkVideo)
-        ]
-
-        files: list[PostDataFile] = [
-            data_chunk
-            for data_chunk in post.data
-            if isinstance(data_chunk, PostDataFile) and data_chunk.url
-        ]
+        post_data = self.separate_post_content(post)
 
         self.logger.info(f'Downloading post {post_name}')
 
-        await self.download_files(
-            destination_directory=author_directory / post_directory,
-            files=files,
+        await download_boosty_files(
+            session=self.session,
+            destination=author_directory / post_directory / 'files',
+            files=post_data.files,
             signed_query=post.signed_query,
+            on_status_update=lambda status: self.logger.wait(
+                str(status.downloaded_bytes),
+            ),
         )
-        await self.download_textual_content(
-            destination_directory=author_directory / post_directory,
-            textual_content=textual_content,
+
+        await download_boosty_images(
+            session=self.session,
+            destination=author_directory / post_directory / 'images',
+            images=post_data.images,
+            on_status_update=lambda status: self.logger.wait(
+                str(status.downloaded_bytes),
+            ),
         )
-        await self.download_images(
-            destination_directory=author_directory / post_directory,
-            images=images,
+
+        await download_boosty_videos(
+            session=self.session,
+            boosty_videos=post_data.ok_videos,
+            destination=author_directory / post_directory / 'videos',
+            preferred_quality=OkVideoType.medium,
+            on_status_update=lambda status: self.logger.wait(
+                str(status.downloaded_bytes),
+            ),
         )
-        await self.download_videos(
-            destination_directory=author_directory / post_directory,
-            videos=external_videos,
-        )
-        await self.download_boosty_videos(
-            destination_directory=author_directory / post_directory,
-            boosty_videos=boosty_videos,
+
+        await download_external_videos(
+            destination=author_directory / post_directory,
+            videos=post_data.videos,
+            external_videos_downloader=self.external_videos_downloader,
         )
 
     async def download_all_posts(self, username: str) -> None:
+        # Get all posts and its total count
+        self.logger.wait(
+            '[bold yellow]NOTICE[/bold yellow]: This may take a while, be patient',
+        )
+        self.logger.info(
+            'Count of posts is not known during downloding because of the API limitations.',
+        )
+        self.logger.info(
+            'But you will notified about the progress during download.',
+        )
+
+        total_posts = 0
+        current_post = 0
+
         async for response in self._api_client.iterate_over_posts(
             username,
-            delay_seconds=1.5,
+            delay_seconds=1,
         ):
             posts = response.posts
+            total_posts += len(posts)
+
+            self.logger.info(
+                f'Got new posts page: NEW({len(posts)}) TOTAL({total_posts})',
+            )
 
             for post in posts:
-                await self.download_single_post(username, post)
+                current_post += 1
+                title = post.title or f'No title (id_{post.id[:8]})'
+                self.logger.info(
+                    f'Downloading post ({current_post}/{total_posts}):  {title}',
+                )
+                await self.download_single_post(post=post, username=username)
