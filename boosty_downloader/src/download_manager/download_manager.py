@@ -118,12 +118,6 @@ class BoostyDownloadManager:
     async def download_single_post(self, username: str, post: Post) -> None:
         author_directory = self._target_directory / username
 
-        # If post has name the format is:
-        # DATE - POST
-        #
-        # Otherwise:
-        # DATE - No title (id_PART_OF_ID_FOR_UNIQUENESS)
-
         post_title = post.title
         if len(post.title) == 0:
             post_title = f'No title (id_{post.id[:8]})'
@@ -134,8 +128,6 @@ class BoostyDownloadManager:
         post_directory.mkdir(parents=True, exist_ok=True)
 
         post_data = self.separate_post_content(post)
-
-        self.logger.info(f'Downloading post {post_name}')
 
         await download_boosty_files(
             session=self.session,
@@ -167,7 +159,7 @@ class BoostyDownloadManager:
         )
 
         await download_external_videos(
-            destination=author_directory / post_directory,
+            destination=author_directory / post_directory / 'external_videos',
             videos=post_data.videos,
             external_videos_downloader=self.external_videos_downloader,
         )
@@ -178,7 +170,7 @@ class BoostyDownloadManager:
             '[bold yellow]NOTICE[/bold yellow]: This may take a while, be patient',
         )
         self.logger.info(
-            'Count of posts is not known during downloding because of the API limitations.',
+            'Total count of posts is not known during downloding because of the API limitations.',
         )
         self.logger.info(
             'But you will notified about the progress during download.',
