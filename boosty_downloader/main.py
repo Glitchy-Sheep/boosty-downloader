@@ -37,18 +37,21 @@ async def main(
         destionation_directory = Path('./boosty-downloads').absolute()
         boosty_api_client = BoostyAPIClient(session)
 
-        downloader = BoostyDownloadManager(
-            session=aiohttp.ClientSession(
-                headers=session.headers,
-                cookie_jar=session.cookie_jar,
-            ),
-            api_client=boosty_api_client,
-            target_directory=destionation_directory,
-            logger=downloader_logger,
-            external_videos_downloader=ExternalVideosDownloader(),
-        )
+        async with aiohttp.ClientSession(
+            # Don't use BASE_URL here (for other domains)
+            # NOTE: Maybe should be refactored somehow to use same session
+            headers=session.headers,
+            cookie_jar=session.cookie_jar,
+        ) as direct_session:
+            downloader = BoostyDownloadManager(
+                session=direct_session,
+                api_client=boosty_api_client,
+                target_directory=destionation_directory,
+                logger=downloader_logger,
+                external_videos_downloader=ExternalVideosDownloader(),
+            )
 
-        await downloader.download_all_posts(username)
+            await downloader.download_all_posts(username)
 
 
 def main_wrapper(
