@@ -4,20 +4,20 @@ from __future__ import annotations
 
 import http
 import mimetypes
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable
 
 import aiofiles
-from pydantic import BaseModel
+from aiohttp import ClientSession  # noqa: TC002 Pydantic should know this type fully
 
 from boosty_downloader.src.download_manager.utils.path_sanitizer import sanitize_string
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import aiohttp
 
-
-class DownloadingStatus(BaseModel):
+@dataclass
+class DownloadingStatus:
     """
     Model for status of the download.
 
@@ -29,10 +29,11 @@ class DownloadingStatus(BaseModel):
     name: str
 
 
-class DownloadFileConfig(BaseModel):
+@dataclass
+class DownloadFileConfig:
     """General configuration for the file download"""
 
-    session: aiohttp.ClientSession
+    session: ClientSession
     url: str
 
     filename: str
