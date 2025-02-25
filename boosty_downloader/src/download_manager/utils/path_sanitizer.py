@@ -6,5 +6,5 @@ import re
 def sanitize_string(path: str) -> str:
     """Sanitizes a path by replacing unsafe characters with underscores"""
     # Convert path to a string and sanitize it
-    unsafe_chars = r'[<>:"/\\|?*.]'
+    unsafe_chars = r'[<>:"/\\|?*]'
     return re.sub(unsafe_chars, '_', str(path))
