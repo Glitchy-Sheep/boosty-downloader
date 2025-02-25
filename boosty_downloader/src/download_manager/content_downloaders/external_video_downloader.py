@@ -1,3 +1,5 @@
+"""The module provides tools to download videos from YouTube and Vimeo as external sources of videos."""
+
 from pathlib import Path
 
 from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_video import (

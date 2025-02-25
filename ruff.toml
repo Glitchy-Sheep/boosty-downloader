@@ -1,10 +1,10 @@
 # match black
 
 line-length = 88
-select = [
+lint.select = [
     "ALL", # include all the rules, including new ones
 ]
-ignore = [
+lint.ignore = [
     "E501",   # line too long    
     "D102",   # missing docstring in public method
     "D212",   # multiline docstring should start at the first line (personal preference)
@@ -13,6 +13,7 @@ ignore = [
     "D415",   # first line should end with a period (same as above but trickier)
     "RUF001", # unused variable
     "G004",   # don't log f-strings (personal preference)
+    "D203",   # incorrected blank line before class is incompatible with D211
 ]
 
 [lint.per-file-ignores]
