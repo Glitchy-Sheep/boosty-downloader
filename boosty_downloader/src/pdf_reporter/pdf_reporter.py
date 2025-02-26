@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from io import StringIO
 from typing import TYPE_CHECKING
 
-from reportlab import platypus
 from reportlab.lib import utils
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import mm
@@ -64,11 +64,20 @@ class PDFReport:
         self.styles = getSampleStyleSheet()
         self.styles['Normal'].fontName = font.fontName
 
+        self.paragraph_buffer: StringIO = StringIO()
+
+    def _unload_textual_buffer(self) -> None:
+        value = self.paragraph_buffer.getvalue()
+        if not value:
+            return
+        paragraph = Paragraph(value, self.styles['Normal'])
+        self.elements.append(paragraph)
+        self.elements.append(Spacer(1, 5 * mm))
+        self.paragraph_buffer = StringIO()
+
     def add_text(self, text: NormalText) -> None:
         """Add a text to the report right after the last added element"""
-        paragraph = Paragraph(text.text, self.styles['Normal'])
-        self.elements.append(paragraph)
-        self.elements.append(Spacer(1, 5 * mm))  # Добавляем немного пространства
+        self.paragraph_buffer.write(text.text)
 
     def add_image(self, image_path: str, width: int = 200) -> None:
         """
@@ -76,6 +85,8 @@ class PDFReport:
 
         - width 200 is usually enough for full A4 page width.
         """
+        self._unload_textual_buffer()
+
         img = utils.ImageReader(image_path)
         iw, ih = img.getSize()
         aspect = ih / iw
@@ -84,29 +95,18 @@ class PDFReport:
         self.elements.append(image)
         self.elements.append(Spacer(1, 5 * mm))  # Добавляем немного пространства
 
-    def add_link(self, url: str, text: str) -> None:
+    def add_link(self, text: NormalText, url: str) -> None:
         """Add a link to the report right after the last added element"""
-        address = (
-            '<font color="blue"><link href="' + url + '">' + text + '</link></font>'
+        text.text = (
+            '<font color="blue"><link href="'
+            + url
+            + '">'
+            + text.text
+            + '</link></font>'
         )
-        self.elements.append(
-            platypus.Paragraph(
-                address,
-                self.styles['Normal'],
-            ),
-        )
-
-    def add_multitext(self, parts: list[NormalText | HyperlinkText]) -> None:
-        formatted_text = ''
-        for part in parts:
-            if isinstance(part, NormalText):
-                formatted_text += part.text
-            else:
-                formatted_text += f'<font color="blue"><link href="{part.url}">{part.text}</link></font>'
-        paragraph = Paragraph(formatted_text, self.styles['Normal'])
-        self.elements.append(paragraph)
-        self.elements.append(Spacer(1, 5 * mm))
+        self.add_text(text)
 
     def save(self) -> None:
         """Save the whole document to the file"""
+        self._unload_textual_buffer()
         self.document_template.build(self.elements)
