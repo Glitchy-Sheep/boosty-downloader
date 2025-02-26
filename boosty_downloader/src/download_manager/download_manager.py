@@ -11,15 +11,25 @@ from yarl import URL
 from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_file import (
     PostDataFile,
 )
-from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_image import (
-    PostDataImage,
+from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_link import (
+    PostDataLink,
 )
 from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_ok_video import (
     OkVideoType,
     PostDataOkVideo,
 )
+from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_text import (
+    PostDataText,
+)
 from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_video import (
     PostDataVideo,
+)
+from boosty_downloader.src.download_manager.content_extractors.textual_post_extractor import (
+    extract_textual_content,
+)
+from boosty_downloader.src.download_manager.html_reporter.html_reporter import (
+    HTMLReport,
+    NormalText,
 )
 from boosty_downloader.src.download_manager.ok_video_ranking import get_best_video
 from boosty_downloader.src.download_manager.utils.base_file_downloader import (
@@ -38,11 +48,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from boosty_downloader.src.boosty_api.models.post.post import Post
-    from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_link import (
-        PostDataLink,
-    )
-    from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_text import (
-        PostDataText,
+    from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_image import (
+        PostDataImage,
     )
     from boosty_downloader.src.download_manager.download_manager_config import (
         GeneralOptions,
@@ -63,14 +70,15 @@ class PostData:
 
     # Other media
     files: list[PostDataFile] = field(default_factory=list)
-    images: list[PostDataImage] = field(default_factory=list)
 
     # Video content
     ok_videos: list[PostDataOkVideo] = field(default_factory=list)
     videos: list[PostDataVideo] = field(default_factory=list)
 
-    # Textual content
-    textuals: list[PostDataText | PostDataLink] = field(default_factory=list)
+    # For generating post document
+    post_content: list[PostDataText | PostDataLink | PostDataImage] = field(
+        default_factory=list,
+    )
 
 
 class BoostyDownloadManager:
@@ -111,16 +119,80 @@ class BoostyDownloadManager:
         for chunk in content_chunks:
             if isinstance(chunk, PostDataFile):
                 post_data.files.append(chunk)
-            elif isinstance(chunk, PostDataImage):
-                post_data.images.append(chunk)
             elif isinstance(chunk, PostDataOkVideo):
                 post_data.ok_videos.append(chunk)
             elif isinstance(chunk, PostDataVideo):
                 post_data.videos.append(chunk)
-            else:  # remaning Link or Text block
-                post_data.textuals.append(chunk)
+            else:  # remaning Link, Text, Image blocks
+                post_data.post_content.append(chunk)
 
         return post_data
+
+    async def save_post_content(
+        self,
+        destination: Path,
+        post_content: list[PostDataText | PostDataLink | PostDataImage],
+    ) -> None:
+        if post_content:
+            self.logger.info(
+                f'Found {len(post_content)} post content chunks, saving...',
+            )
+            destination.mkdir(parents=True, exist_ok=True)
+        else:
+            return
+
+        post_file_path = destination / 'post_content.html'
+
+        images_directory = destination / 'images'
+
+        post = HTMLReport(filename=post_file_path)
+
+        self.logger.wait(
+            f'Generating post content at {post_file_path.parent / post_file_path.name}',
+        )
+
+        for chunk in post_content:
+            if isinstance(chunk, PostDataText):
+                text = extract_textual_content(chunk.content)
+                post.add_text(NormalText(text))
+            elif isinstance(chunk, PostDataLink):
+                text = extract_textual_content(chunk.content)
+                post.add_link(NormalText(text), chunk.url)
+                post.new_paragraph()
+            else:  # Image
+                images_directory.mkdir(parents=True, exist_ok=True)
+                image = chunk
+
+                filename = URL(image.url).name
+
+                # Will be updated by downloader callback
+                current_task = self.progress.add_task(
+                    filename,
+                    total=None,
+                )
+
+                dl_config = DownloadFileConfig(
+                    session=self.session,
+                    url=image.url,
+                    filename=filename,
+                    destination=images_directory,
+                    on_status_update=lambda status,
+                    task_id=current_task,
+                    filename=filename: self.progress.update(
+                        task_id=task_id,
+                        total=status.total_bytes,
+                        current=status.downloaded_bytes,
+                        description=f'{filename} ({human_readable_size(status.downloaded_bytes or 0)}/{human_readable_size(status.total_bytes)})',
+                    ),
+                    guess_extension=True,
+                )
+
+                out_file = await download_file(dl_config=dl_config)
+                if out_file.exists():
+                    post.add_image('./images/' + out_file.name)
+                self.progress.remove_task(current_task)
+
+        post.save()
 
     async def download_files(
         self,
@@ -230,55 +302,6 @@ class BoostyDownloadManager:
             )
         self.progress.remove_task(total_task)
 
-    async def download_images(
-        self,
-        destination: Path,
-        images: list[PostDataImage],
-    ) -> None:
-        if images:
-            self.logger.info(f'Found {len(images)} images for the post, downloading...')
-            destination.mkdir(parents=True, exist_ok=True)
-        else:
-            return
-
-        total_task = self.progress.add_task(
-            f'Downloading images ({0}/{len(images)})',
-            total=len(images),
-        )
-
-        for image in images:
-            filename = URL(image.url).name
-
-            # Will be updated by downloader callback
-            current_task = self.progress.add_task(
-                filename,
-                total=None,
-            )
-
-            dl_config = DownloadFileConfig(
-                session=self.session,
-                url=image.url,
-                filename=filename,
-                destination=destination,
-                on_status_update=lambda status,
-                task_id=current_task,
-                filename=filename: self.progress.update(
-                    task_id=task_id,
-                    total=status.total_bytes,
-                    current=status.downloaded_bytes,
-                    description=f'{filename} ({human_readable_size(status.downloaded_bytes or 0)}/{human_readable_size(status.total_bytes)})',
-                ),
-                guess_extension=True,
-            )
-            await download_file(dl_config=dl_config)
-            self.progress.remove_task(current_task)
-            self.progress.update(
-                task_id=total_task,
-                description=f'Downloading images ({images.index(image) + 1}/{len(images)})',
-                advance=1,
-            )
-        self.progress.remove_task(total_task)
-
     async def download_external_videos(
         self,
         destination: Path,
@@ -324,10 +347,16 @@ class BoostyDownloadManager:
         if len(post.title) == 0:
             post_title = f'No title (id_{post.id[:8]})'
 
-        post_name = f'{post.created_at.date()} - {sanitize_string(post_title).strip()}'
+        post_title = sanitize_string(post_title).replace('.', '').strip()
+        post_name = f'{post.created_at.date()} - {post_title}'
         post_directory = author_directory / post_name
         post_directory.mkdir(parents=True, exist_ok=True)
         post_data = self.separate_post_content(post)
+
+        await self.save_post_content(
+            destination=author_directory / post_directory,
+            post_content=post_data.post_content,
+        )
 
         await self.download_files(
             destination=author_directory / post_directory / 'files',
@@ -342,18 +371,10 @@ class BoostyDownloadManager:
             preferred_quality=OkVideoType.medium,
         )
 
-        await self.download_images(
-            destination=author_directory / post_directory / 'images',
-            images=post_data.images,
-        )
-
         await self.download_external_videos(
             destination=author_directory / post_directory / 'external_videos',
             videos=post_data.videos,
         )
-
-        # TODO: Extract post textuals (links and texts) to a separate file
-        # we should do this in some convenient manner for the end user
 
     async def download_all_posts(self, username: str) -> None:
         # Get all posts and its total count
