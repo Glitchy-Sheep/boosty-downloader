@@ -49,7 +49,7 @@ class DownloadFailureError(Exception):
 
 async def download_file(
     dl_config: DownloadFileConfig,
-) -> None:
+) -> Path:
     """Download files and report the downloading process via callback"""
     async with dl_config.session.get(dl_config.url) as response:
         if response.status != http.HTTPStatus.OK:
@@ -79,3 +79,5 @@ async def download_file(
                     ),
                 )
                 await file.write(chunk)
+
+        return file_path
