@@ -29,6 +29,7 @@ class BoostyAPIClient:
     async def get_author_posts(
         self,
         author_name: str,
+        limit: int,
         offset: str | None = None,
     ) -> PostsResponse:
         """
@@ -45,6 +46,7 @@ class BoostyAPIClient:
             params=filter_none_params(
                 {
                     'offset': offset,
+                    'limit': limit,
                 },
             ),
         )
@@ -62,6 +64,7 @@ class BoostyAPIClient:
         self,
         author_name: str,
         delay_seconds: float = 0,
+        posts_per_page: int = 5,
     ) -> AsyncGenerator[PostsResponse, None]:
         """
         Infinite generator iterating over posts of the specified author.
@@ -71,7 +74,11 @@ class BoostyAPIClient:
         offset = None
         while True:
             await asyncio.sleep(delay_seconds)
-            response = await self.get_author_posts(author_name, offset)
+            response = await self.get_author_posts(
+                author_name,
+                offset=offset,
+                limit=posts_per_page,
+            )
             yield response
             if response.extra.is_last:
                 break
