@@ -3,19 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from reportlab import platypus
 from reportlab.lib import utils
-from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import mm
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Flowable, Image, Paragraph, SimpleDocTemplate, Spacer
 
-# TODO: make this thing more modular and configurable
-report_font = TTFont('NotoSans', 'NotoSans-Regular.ttf')
-pdfmetrics.registerFont(report_font)  # type: ignore (3rd party library w/o annotations)
+if TYPE_CHECKING:
+    from reportlab.pdfbase.ttfonts import TTFont
 
 
 @dataclass
@@ -35,30 +32,37 @@ class HyperlinkText:
 
 class PDFReport:
     """
-    Module for generating PDF reports with text and image blocks.
+    Representation of the document, which can be saved to the file
 
-    All the elements are added to the report sequentially one after another.
+    You must register font before using it:
+
+    ```python
+    pdfmetrics.registerFont(font)
+    ```
+
+    You can add text/links/images to the document, they will be added one after another.
     """
 
-    def _init_font(self) -> None:
-        """Prepare font for the report"""
-        self.styles = getSampleStyleSheet()
-        self.styles['Normal'].fontName = 'NotoSans'
-
-    def __init__(self, filename: str, margin: int = 20) -> None:
-        """Create PDFReporter instance, file will be created after save() call"""
-        self._init_font()
-        self.filename = filename
-        self.margin = margin * mm
-        self.elements: list[Flowable] = []
-        self.doc = SimpleDocTemplate(
+    def __init__(
+        self,
+        font: TTFont,
+        filename: str,
+        margin: int,
+        page_format: tuple[float, float],
+    ) -> None:
+        self.font = font
+        self.document_template = SimpleDocTemplate(
             filename,
-            pagesize=A4,
-            leftMargin=self.margin,
-            rightMargin=self.margin,
-            topMargin=self.margin,
-            bottomMargin=self.margin,
+            pagesize=page_format,
+            leftMargin=margin * mm,
+            rightMargin=margin * mm,
+            topMargin=margin * mm,
+            bottomMargin=margin * mm,
         )
+        self.elements: list[Flowable] = []
+
+        self.styles = getSampleStyleSheet()
+        self.styles['Normal'].fontName = font.fontName
 
     def add_text(self, text: NormalText) -> None:
         """Add a text to the report right after the last added element"""
@@ -104,5 +108,5 @@ class PDFReport:
         self.elements.append(Spacer(1, 5 * mm))
 
     def save(self) -> None:
-        """Save the whole document using added elements (from add_text and add_image)"""
-        self.doc.build(list(self.elements))
+        """Save the whole document to the file"""
+        self.document_template.build(self.elements)
