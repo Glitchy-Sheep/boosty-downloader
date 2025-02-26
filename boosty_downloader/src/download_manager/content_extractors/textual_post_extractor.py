@@ -23,6 +23,6 @@ def extract_textual_content(
 
     clean_text = str(json_data[0])
 
-    buffer.write(clean_text + '\n')
+    buffer.write(clean_text)
 
     return buffer.getvalue()

@@ -305,6 +305,7 @@ class BoostyDownloadManager:
 
     async def download_external_videos(
         self,
+        post: Post,
         destination: Path,
         videos: list[PostDataVideo],
     ) -> None:
@@ -331,6 +332,9 @@ class BoostyDownloadManager:
                     destination,
                 )
             except FailedToDownloadExternalVideoError:
+                await self.fail_downloads_logger.add_error(
+                    f'Failed to download video {video.url} from post {post.title} which url is {BOOSTY_POST_BASE_URL / post.id}',
+                )
                 continue
 
     async def download_single_post(
@@ -368,6 +372,7 @@ class BoostyDownloadManager:
         )
 
         await self.download_external_videos(
+            post=post,
             destination=author_directory / post_directory / 'external_videos',
             videos=post_data.videos,
         )

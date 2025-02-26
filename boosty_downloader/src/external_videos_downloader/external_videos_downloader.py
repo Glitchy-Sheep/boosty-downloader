@@ -3,6 +3,7 @@
 import re
 from pathlib import Path
 
+from yt_dlp.utils import DownloadError
 from yt_dlp.YoutubeDL import YoutubeDL
 
 
@@ -34,7 +35,10 @@ class ExternalVideosDownloader:
         options['outtmpl'] = str(destination_directory / '%(title)s.%(ext)s')
 
         with YoutubeDL(params=options) as ydl:
-            res = ydl.download([url])  # type: ignore 3rd party library w/o annotations
-            success_status_code = 0
-            if res != success_status_code:
-                raise FailedToDownloadExternalVideoError
+            try:
+                res = ydl.download([url])  # type: ignore 3rd party library w/o annotations
+                success_status_code = 0
+                if res != success_status_code:
+                    raise FailedToDownloadExternalVideoError
+            except DownloadError as e:
+                raise FailedToDownloadExternalVideoError from e
