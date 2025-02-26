@@ -16,9 +16,15 @@ from boosty_downloader.src.configuration.config import config
 from boosty_downloader.src.download_manager.download_manager import (
     BoostyDownloadManager,
 )
+from boosty_downloader.src.download_manager.download_manager_config import (
+    GeneralOptions,
+    LoggerDependencies,
+    NetworkDependencies,
+)
 from boosty_downloader.src.download_manager.external_videos_downloader import (
     ExternalVideosDownloader,
 )
+from boosty_downloader.src.loggers.failed_downloads_logger import FailedDownloadsLogger
 from boosty_downloader.src.loggers.logger_instances import downloader_logger
 
 
@@ -44,11 +50,22 @@ async def main(
             cookie_jar=session.cookie_jar,
         ) as direct_session:
             downloader = BoostyDownloadManager(
-                session=direct_session,
-                api_client=boosty_api_client,
-                target_directory=destionation_directory,
-                logger=downloader_logger,
-                external_videos_downloader=ExternalVideosDownloader(),
+                general_options=GeneralOptions(
+                    target_directory=destionation_directory,
+                ),
+                network_dependencies=NetworkDependencies(
+                    session=direct_session,
+                    api_client=boosty_api_client,
+                    external_videos_downloader=ExternalVideosDownloader(),
+                ),
+                logger_dependencies=LoggerDependencies(
+                    logger=downloader_logger,
+                    failed_downloads_logger=FailedDownloadsLogger(
+                        file_path=destionation_directory
+                        / username
+                        / 'failed_downloads.txt',
+                    ),
+                ),
             )
 
             await downloader.download_all_posts(username)

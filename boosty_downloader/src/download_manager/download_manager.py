@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel
 from rich.progress import Progress
 from yarl import URL
 
@@ -29,14 +29,14 @@ from boosty_downloader.src.download_manager.utils.base_file_downloader import (
     DownloadFileConfig,
     download_file,
 )
+from boosty_downloader.src.download_manager.utils.human_readable_size import (
+    human_readable_size,
+)
 from boosty_downloader.src.download_manager.utils.path_sanitizer import sanitize_string
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import aiohttp
-
-    from boosty_downloader.src.boosty_api.core.client import BoostyAPIClient
     from boosty_downloader.src.boosty_api.models.post.post import Post
     from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_link import (
         PostDataLink,
@@ -44,13 +44,17 @@ if TYPE_CHECKING:
     from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_text import (
         PostDataText,
     )
-    from boosty_downloader.src.download_manager.external_videos_downloader import (
-        ExternalVideosDownloader,
+    from boosty_downloader.src.download_manager.download_manager_config import (
+        GeneralOptions,
+        LoggerDependencies,
+        NetworkDependencies,
     )
-    from boosty_downloader.src.loggers.base import Logger
+
+BOOSTY_POST_BASE_URL = URL('https://boosty.to/post')
 
 
-class PostData(BaseModel):
+@dataclass
+class PostData:
     """
     Group content chunk by their type
 
@@ -58,15 +62,15 @@ class PostData(BaseModel):
     """
 
     # Other media
-    files: list[PostDataFile] = []
-    images: list[PostDataImage] = []
+    files: list[PostDataFile] = field(default_factory=list)
+    images: list[PostDataImage] = field(default_factory=list)
 
     # Video content
-    ok_videos: list[PostDataOkVideo] = []
-    videos: list[PostDataVideo] = []
+    ok_videos: list[PostDataOkVideo] = field(default_factory=list)
+    videos: list[PostDataVideo] = field(default_factory=list)
 
     # Textual content
-    textuals: list[PostDataText | PostDataLink] = []
+    textuals: list[PostDataText | PostDataLink] = field(default_factory=list)
 
 
 class BoostyDownloadManager:
@@ -75,20 +79,26 @@ class BoostyDownloadManager:
     def __init__(
         self,
         *,
-        session: aiohttp.ClientSession,
-        api_client: BoostyAPIClient,
-        target_directory: Path,
-        external_videos_downloader: ExternalVideosDownloader,
-        logger: Logger,
+        general_options: GeneralOptions,
+        logger_dependencies: LoggerDependencies,
+        network_dependencies: NetworkDependencies,
     ) -> None:
-        self.logger = logger
-        self.session = session
-        self._api_client = api_client
-        self._target_directory = target_directory.absolute()
-        self.external_videos_downloader = external_videos_downloader
+        self.logger = logger_dependencies.logger
+        self.fail_downloads_logger = logger_dependencies.failed_downloads_logger
+
+        self.session = network_dependencies.session
+        self._api_client = network_dependencies.api_client
+        self._target_directory = general_options.target_directory.absolute()
+        self.external_videos_downloader = (
+            network_dependencies.external_videos_downloader
+        )
         self.prepare_target_directory(self._target_directory)
 
-        self.progress = Progress()
+        # Will track progress for multiple tasks (files, videos, etc)
+        self.progress = Progress(
+            transient=True,
+            console=self.logger.console,
+        )
 
     def prepare_target_directory(self, target_directory: Path) -> None:
         target_directory.mkdir(parents=True, exist_ok=True)
@@ -118,106 +128,180 @@ class BoostyDownloadManager:
         post: Post,
         files: list[PostDataFile],
     ) -> None:
-        destination.mkdir(parents=True, exist_ok=True)
+        if files:
+            self.logger.info(f'Found {len(files)} files for the post, downloading...')
+            destination.mkdir(parents=True, exist_ok=True)
+        else:
+            return
 
-        for file in files:
+        total_task = self.progress.add_task(
+            f'Downloading files (0/{len(files)})',
+            total=len(files),
+        )
+
+        for idx, file in enumerate(files):
+            # Will be updated by downloader callback
+            current_task = self.progress.add_task(
+                file.title,
+                total=None,
+            )
+
             dl_config = DownloadFileConfig(
                 session=self.session,
                 url=file.url + post.signed_query,
                 filename=file.title,
                 destination=destination,
-                on_status_update=lambda status: self.logger.wait(
-                    str(status.downloaded_bytes),
+                on_status_update=lambda status,
+                task_id=current_task,
+                filename=file.title: self.progress.update(
+                    task_id=task_id,
+                    completed=status.downloaded_bytes,
+                    total=status.total_bytes,
+                    description=f'{filename} ({human_readable_size(status.downloaded_bytes or 0)}/{human_readable_size(status.total_bytes)})',
                 ),
                 guess_extension=False,  # Extensions are already taken from the title
             )
+
             await download_file(dl_config=dl_config)
+            self.progress.remove_task(current_task)
+            self.progress.update(
+                task_id=total_task,
+                description=f'Downloading files ({idx + 1}/{len(files)})',
+                advance=1,
+            )
+        self.progress.remove_task(total_task)
 
     async def download_boosty_videos(
         self,
         destination: Path,
+        post: Post,
         boosty_videos: list[PostDataOkVideo],
         preferred_quality: OkVideoType,
     ) -> None:
-        destination.mkdir(parents=True, exist_ok=True)
+        if boosty_videos:
+            self.logger.info(
+                f'Found {len(boosty_videos)} boosty videos for the post, downloading...',
+            )
+            destination.mkdir(parents=True, exist_ok=True)
+        else:
+            return
 
-        for video in boosty_videos:
+        total_task = self.progress.add_task(
+            f'Downloading boosty videos (0/{len(boosty_videos)})',
+            total=len(boosty_videos),
+        )
+
+        for idx, video in enumerate(boosty_videos):
             best_video = get_best_video(video.player_urls, preferred_quality)
             if best_video is None:
-                return  # TODO: Handle no video case (logging?)
+                await self.fail_downloads_logger.add_error(
+                    f'Failed to find video for {video.title} from post {post.title} which url is {BOOSTY_POST_BASE_URL / post.id}',
+                )
+                continue
+
+            # Will be updated by downloader callback
+            current_task = self.progress.add_task(
+                video.title,
+                total=None,
+            )
 
             dl_config = DownloadFileConfig(
                 session=self.session,
                 url=best_video.url,
                 filename=video.title,
                 destination=destination,
-                on_status_update=lambda status: self.logger.wait(
-                    str(status.downloaded_bytes),
+                on_status_update=lambda status,
+                task_id=current_task,
+                filename=video.title: self.progress.update(
+                    task_id=task_id,
+                    total=status.total_bytes,
+                    current=status.downloaded_bytes,
+                    description=f'{filename} ({human_readable_size(status.downloaded_bytes or 0)}/{human_readable_size(status.total_bytes)})',
                 ),
                 guess_extension=True,
             )
 
             await download_file(dl_config=dl_config)
+            self.progress.remove_task(current_task)
+            self.progress.update(
+                task_id=total_task,
+                description=f'Downloading boosty videos ({idx + 1}/{len(boosty_videos)})',
+                advance=1,
+            )
+        self.progress.remove_task(total_task)
 
     async def download_images(
         self,
         destination: Path,
         images: list[PostDataImage],
     ) -> None:
-        destination.mkdir(parents=True, exist_ok=True)
+        if images:
+            self.logger.info(f'Found {len(images)} images for the post, downloading...')
+            destination.mkdir(parents=True, exist_ok=True)
+        else:
+            return
+
+        total_task = self.progress.add_task(
+            f'Downloading images ({0}/{len(images)})',
+            total=len(images),
+        )
 
         for image in images:
             filename = URL(image.url).name
+
+            # Will be updated by downloader callback
+            current_task = self.progress.add_task(
+                filename,
+                total=None,
+            )
+
             dl_config = DownloadFileConfig(
                 session=self.session,
                 url=image.url,
                 filename=filename,
                 destination=destination,
-                on_status_update=lambda status: self.logger.wait(
-                    str(status.downloaded_bytes),
+                on_status_update=lambda status,
+                task_id=current_task,
+                filename=filename: self.progress.update(
+                    task_id=task_id,
+                    total=status.total_bytes,
+                    current=status.downloaded_bytes,
+                    description=f'{filename} ({human_readable_size(status.downloaded_bytes or 0)}/{human_readable_size(status.total_bytes)})',
                 ),
                 guess_extension=True,
             )
             await download_file(dl_config=dl_config)
-
-    async def download_videos(
-        self,
-        destination: Path,
-        ok_videos: list[PostDataOkVideo],
-    ) -> None:
-        destination.mkdir(parents=True, exist_ok=True)
-
-        for video in ok_videos:
-            best_video = get_best_video(video.player_urls, OkVideoType.medium)
-            if best_video is None:
-                # TODO: Handle no video case (logging?)
-                return
-
-            dl_config = DownloadFileConfig(
-                session=self.session,
-                url=best_video.url,
-                filename=video.title,
-                destination=destination,
-                on_status_update=lambda status: self.logger.wait(
-                    str(status.downloaded_bytes),
-                ),
-                guess_extension=True,
+            self.progress.remove_task(current_task)
+            self.progress.update(
+                task_id=total_task,
+                description=f'Downloading images ({images.index(image) + 1}/{len(images)})',
+                advance=1,
             )
-
-            await download_file(dl_config=dl_config)
+        self.progress.remove_task(total_task)
 
     async def download_external_videos(
         self,
         destination: Path,
         videos: list[PostDataVideo],
     ) -> None:
-        destination.mkdir(parents=True, exist_ok=True)
+        if videos:
+            self.logger.info(
+                f'Found {len(videos)} external videos for the post, downloading...',
+            )
+            destination.mkdir(parents=True, exist_ok=True)
+        else:
+            return
 
-        for video in videos:
+        # Don't use progress indicator here because of sys.stderr / stdout collissionds
+        # just let ytdl do the work and print the progress to the console by itself
+        for idx, video in enumerate(videos):
             if not self.external_videos_downloader.is_supported_video(video.url):
                 continue
 
             try:
+                self.logger.wait(
+                    f'Start youtube-dl for ({idx}/{len(videos)}) video please wait: ({video.url})',
+                )
                 self.external_videos_downloader.download_video(
                     video.url,
                     destination,
@@ -251,9 +335,11 @@ class BoostyDownloadManager:
             files=post_data.files,
         )
 
-        await self.download_videos(
-            destination=author_directory / post_directory / 'videos',
-            ok_videos=post_data.ok_videos,
+        await self.download_boosty_videos(
+            destination=author_directory / post_directory / 'boosty_videos',
+            post=post,
+            boosty_videos=post_data.ok_videos,
+            preferred_quality=OkVideoType.medium,
         )
 
         await self.download_images(
@@ -284,21 +370,22 @@ class BoostyDownloadManager:
         total_posts = 0
         current_post = 0
 
-        async for response in self._api_client.iterate_over_posts(
-            username,
-            delay_seconds=1,
-        ):
-            posts = response.posts
-            total_posts += len(posts)
+        with self.progress:
+            async for response in self._api_client.iterate_over_posts(
+                username,
+                delay_seconds=1,
+            ):
+                posts = response.posts
+                total_posts += len(posts)
 
-            self.logger.info(
-                f'Got new posts page: NEW({len(posts)}) TOTAL({total_posts})',
-            )
-
-            for post in posts:
-                current_post += 1
-                title = post.title or f'No title (id_{post.id[:8]})'
                 self.logger.info(
-                    f'Downloading post ({current_post}/{total_posts}):  {title}',
+                    f'Got new posts page: NEW({len(posts)}) TOTAL({total_posts})',
                 )
-                await self.download_single_post(post=post, username=username)
+
+                for post in posts:
+                    current_post += 1
+                    title = post.title or f'No title (id_{post.id[:8]})'
+                    self.logger.info(
+                        f'Downloading post ({current_post}/{total_posts}):  {title}',
+                    )
+                    await self.download_single_post(post=post, username=username)

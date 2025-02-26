@@ -38,6 +38,7 @@ class Logger:
         self._log = logging.getLogger(prefix)
         self._log.setLevel(logging.DEBUG)
         self._log.addHandler(handler)
+        self.console = self._handler.console
 
     def _log_message(self, level: int, msg: str, *, highlight: bool = True) -> None:
         if highlight:
