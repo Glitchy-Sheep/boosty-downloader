@@ -13,8 +13,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Flowable, Image, Paragraph, SimpleDocTemplate, Spacer
 
-# Регистрация шрифта NotoSans для полной поддержки UTF-8
-
+# TODO: make this thing more modular and configurable
 report_font = TTFont('NotoSans', 'NotoSans-Regular.ttf')
 pdfmetrics.registerFont(report_font)  # type: ignore (3rd party library w/o annotations)
 

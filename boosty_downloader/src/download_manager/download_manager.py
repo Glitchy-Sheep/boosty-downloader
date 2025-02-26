@@ -21,9 +21,6 @@ from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_ok_v
 from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_video import (
     PostDataVideo,
 )
-from boosty_downloader.src.download_manager.external_videos_downloader import (
-    FailedToDownloadExternalVideoError,
-)
 from boosty_downloader.src.download_manager.ok_video_ranking import get_best_video
 from boosty_downloader.src.download_manager.utils.base_file_downloader import (
     DownloadFileConfig,
@@ -33,6 +30,9 @@ from boosty_downloader.src.download_manager.utils.human_readable_size import (
     human_readable_size,
 )
 from boosty_downloader.src.download_manager.utils.path_sanitizer import sanitize_string
+from boosty_downloader.src.external_videos_downloader.external_videos_downloader import (
+    FailedToDownloadExternalVideoError,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path

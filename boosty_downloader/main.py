@@ -12,7 +12,6 @@ from boosty_downloader.src.boosty_api.utils.auth_parsers import (
     parse_auth_header,
     parse_session_cookie,
 )
-from boosty_downloader.src.configuration.config import config
 from boosty_downloader.src.download_manager.download_manager import (
     BoostyDownloadManager,
 )
@@ -21,11 +20,12 @@ from boosty_downloader.src.download_manager.download_manager_config import (
     LoggerDependencies,
     NetworkDependencies,
 )
-from boosty_downloader.src.download_manager.external_videos_downloader import (
+from boosty_downloader.src.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
 )
 from boosty_downloader.src.loggers.failed_downloads_logger import FailedDownloadsLogger
 from boosty_downloader.src.loggers.logger_instances import downloader_logger
+from boosty_downloader.src.yaml_configuration.config import config
 
 
 async def main(

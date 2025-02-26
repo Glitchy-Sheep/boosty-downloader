@@ -6,7 +6,7 @@ from pathlib import Path
 from aiohttp import ClientSession
 
 from boosty_downloader.src.boosty_api.core.client import BoostyAPIClient
-from boosty_downloader.src.download_manager.external_videos_downloader import (
+from boosty_downloader.src.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
 )
 from boosty_downloader.src.loggers.base import Logger
