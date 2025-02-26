@@ -24,15 +24,15 @@ from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_text
 from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_video import (
     PostDataVideo,
 )
-from boosty_downloader.src.download_manager.content_extractors.textual_post_extractor import (
-    extract_textual_content,
-)
-from boosty_downloader.src.download_manager.html_reporter.html_reporter import (
+from boosty_downloader.src.download_manager.html_reporter import (
     HTMLReport,
     NormalText,
 )
 from boosty_downloader.src.download_manager.ok_video_ranking import get_best_video
 from boosty_downloader.src.download_manager.post_cache import PostCache
+from boosty_downloader.src.download_manager.textual_post_extractor import (
+    extract_textual_content,
+)
 from boosty_downloader.src.download_manager.utils.base_file_downloader import (
     DownloadFileConfig,
     download_file,
