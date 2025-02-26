@@ -32,6 +32,7 @@ from boosty_downloader.src.download_manager.html_reporter.html_reporter import (
     NormalText,
 )
 from boosty_downloader.src.download_manager.ok_video_ranking import get_best_video
+from boosty_downloader.src.download_manager.post_cache import PostCache
 from boosty_downloader.src.download_manager.utils.base_file_downloader import (
     DownloadFileConfig,
     download_file,
@@ -332,7 +333,12 @@ class BoostyDownloadManager:
             except FailedToDownloadExternalVideoError:
                 continue
 
-    async def download_single_post(self, username: str, post: Post) -> None:
+    async def download_single_post(
+        self,
+        post: Post,
+        author_directory: Path,
+        post_directory: Path,
+    ) -> None:
         """
         Download a single post and all its content including:
 
@@ -341,16 +347,6 @@ class BoostyDownloadManager:
             3. Images
             4. External videos (from YouTube and Vimeo)
         """
-        author_directory = self._target_directory / username
-
-        post_title = post.title
-        if len(post.title) == 0:
-            post_title = f'No title (id_{post.id[:8]})'
-
-        post_title = sanitize_string(post_title).replace('.', '').strip()
-        post_name = f'{post.created_at.date()} - {post_title}'
-        post_directory = author_directory / post_name
-        post_directory.mkdir(parents=True, exist_ok=True)
         post_data = self.separate_post_content(post)
 
         await self.save_post_content(
@@ -391,6 +387,11 @@ class BoostyDownloadManager:
         total_posts = 0
         current_post = 0
 
+        author_directory = self._target_directory / username
+        author_directory.mkdir(parents=True, exist_ok=True)
+
+        self._post_cache = PostCache(author_directory)
+
         with self.progress:
             async for response in self._api_client.iterate_over_posts(
                 username,
@@ -406,7 +407,37 @@ class BoostyDownloadManager:
                 for post in posts:
                     current_post += 1
                     title = post.title or f'No title (id_{post.id[:8]})'
+                    author_directory = self._target_directory / username
+
+                    post_title = post.title
+                    if len(post.title) == 0:
+                        post_title = f'No title (id_{post.id[:8]})'
+
+                    post_title = sanitize_string(post_title).replace('.', '').strip()
+                    post_name = f'{post.created_at.date()} - {post_title}'
+                    post_directory = author_directory / post_name
+                    post_directory.mkdir(parents=True, exist_ok=True)
+
+                    if self._post_cache.has_same_post(
+                        title=post_name,
+                        updated_at=post.updated_at,
+                    ):
+                        self.logger.info(
+                            f'Skipping post {title} because it was already downloaded',
+                        )
+                        continue
+
                     self.logger.info(
                         f'Downloading post ({current_post}/{total_posts}):  {title}',
                     )
-                    await self.download_single_post(post=post, username=username)
+
+                    await self.download_single_post(
+                        post=post,
+                        author_directory=author_directory,
+                        post_directory=post_directory,
+                    )
+
+                    self._post_cache.add_post_cache(
+                        title=post_name,
+                        updated_at=post.updated_at,
+                    )
