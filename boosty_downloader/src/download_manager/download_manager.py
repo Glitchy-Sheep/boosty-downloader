@@ -24,6 +24,9 @@ from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_text
 from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_video import (
     PostDataVideo,
 )
+from boosty_downloader.src.download_manager.download_manager_config import (
+    DownloadContentTypeFilter,
+)
 from boosty_downloader.src.download_manager.html_reporter import (
     HTMLReport,
     NormalText,
@@ -107,6 +110,8 @@ class BoostyDownloadManager:
         self.logger = logger_dependencies.logger
         self.fail_downloads_logger = logger_dependencies.failed_downloads_logger
 
+        self.content_filter = general_options.download_content_type_filter
+
         self.session = network_dependencies.session
         self._api_client = network_dependencies.api_client
         self._target_directory = general_options.target_directory.absolute()
@@ -124,7 +129,7 @@ class BoostyDownloadManager:
     def _prepare_target_directory(self, target_directory: Path) -> None:
         target_directory.mkdir(parents=True, exist_ok=True)
 
-    def generate_post_location(self, username: str, post: Post) -> PostLocation:
+    def _generate_post_location(self, username: str, post: Post) -> PostLocation:
         title = post.title or f'No title (id_{post.id[:8]})'
         author_directory = self._target_directory / username
 
@@ -135,7 +140,6 @@ class BoostyDownloadManager:
         post_title = sanitize_string(post_title).replace('.', '').strip()
         post_name = f'{post.created_at.date()} - {post_title}'
         post_directory = author_directory / post_name
-        post_directory.mkdir(parents=True, exist_ok=True)
 
         return self.PostLocation(
             title=title,
@@ -143,7 +147,7 @@ class BoostyDownloadManager:
             post_directory=post_directory,
         )
 
-    def separate_post_content(self, post: Post) -> PostData:
+    def _separate_post_content(self, post: Post) -> PostData:
         content_chunks = post.data
 
         post_data = PostData()
@@ -160,7 +164,7 @@ class BoostyDownloadManager:
 
         return post_data
 
-    async def save_post_content(
+    async def _save_post_content(
         self,
         destination: Path,
         post_content: list[PostDataText | PostDataLink | PostDataImage],
@@ -228,7 +232,7 @@ class BoostyDownloadManager:
 
         post.save()
 
-    async def download_files(
+    async def _download_files(
         self,
         destination: Path,
         post: Post,
@@ -280,7 +284,7 @@ class BoostyDownloadManager:
             )
         self.progress.remove_task(total_task)
 
-    async def download_boosty_videos(
+    async def _download_boosty_videos(
         self,
         destination: Path,
         post: Post,
@@ -340,7 +344,7 @@ class BoostyDownloadManager:
             )
         self.progress.remove_task(total_task)
 
-    async def download_external_videos(
+    async def _download_external_videos(
         self,
         post: Post,
         destination: Path,
@@ -380,7 +384,7 @@ class BoostyDownloadManager:
                 )
                 continue
 
-    async def download_single_post(
+    async def _download_single_post(
         self,
         username: str,
         post: Post,
@@ -393,33 +397,37 @@ class BoostyDownloadManager:
             3. Images
             4. External videos (from YouTube and Vimeo)
         """
-        post_data = self.separate_post_content(post)
+        post_data = self._separate_post_content(post)
 
-        post_location_info = self.generate_post_location(username, post)
+        post_location_info = self._generate_post_location(username, post)
 
-        await self.save_post_content(
-            destination=post_location_info.post_directory,
-            post_content=post_data.post_content,
-        )
+        if DownloadContentTypeFilter.post_content in self.content_filter:
+            await self._save_post_content(
+                destination=post_location_info.post_directory,
+                post_content=post_data.post_content,
+            )
 
-        await self.download_files(
-            destination=post_location_info.post_directory / 'files',
-            post=post,
-            files=post_data.files,
-        )
+        if DownloadContentTypeFilter.files in self.content_filter:
+            await self._download_files(
+                destination=post_location_info.post_directory / 'files',
+                post=post,
+                files=post_data.files,
+            )
 
-        await self.download_boosty_videos(
-            destination=post_location_info.post_directory / 'boosty_videos',
-            post=post,
-            boosty_videos=post_data.ok_videos,
-            preferred_quality=OkVideoType.medium,
-        )
+        if DownloadContentTypeFilter.boosty_videos in self.content_filter:
+            await self._download_boosty_videos(
+                destination=post_location_info.post_directory / 'boosty_videos',
+                post=post,
+                boosty_videos=post_data.ok_videos,
+                preferred_quality=OkVideoType.medium,
+            )
 
-        await self.download_external_videos(
-            post=post,
-            destination=post_location_info.post_directory / 'external_videos',
-            videos=post_data.videos,
-        )
+        if DownloadContentTypeFilter.external_videos in self.content_filter:
+            await self._download_external_videos(
+                post=post,
+                destination=post_location_info.post_directory / 'external_videos',
+                videos=post_data.videos,
+            )
 
     async def clean_cache(self, username: str) -> None:
         db_file = self._target_directory / username / PostCache.DEFAULT_CACHE_FILENAME
@@ -463,7 +471,7 @@ class BoostyDownloadManager:
                 )
                 if post.id == target_post_id:
                     self.logger.wait('FOUND post by id, downloading...')
-                    await self.download_single_post(
+                    await self._download_single_post(
                         username=username,
                         post=post,
                     )
@@ -510,7 +518,7 @@ class BoostyDownloadManager:
 
                 for post in posts:
                     current_post += 1
-                    post_location_info = self.generate_post_location(
+                    post_location_info = self._generate_post_location(
                         username=username,
                         post=post,
                     )
@@ -525,10 +533,10 @@ class BoostyDownloadManager:
                         continue
 
                     self.logger.info(
-                        f'Downloading post ({current_post}/{total_posts}):  {post_location_info.title}',
+                        f'Processing post ({current_post}/{total_posts}):  {post_location_info.title}',
                     )
 
-                    await self.download_single_post(
+                    await self._download_single_post(
                         username=username,
                         post=post,
                     )

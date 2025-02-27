@@ -20,6 +20,7 @@ from boosty_downloader.src.download_manager.download_manager import (
     BoostyDownloadManager,
 )
 from boosty_downloader.src.download_manager.download_manager_config import (
+    DownloadContentTypeFilter,
     GeneralOptions,
     LoggerDependencies,
     NetworkDependencies,
@@ -31,6 +32,12 @@ from boosty_downloader.src.loggers.failed_downloads_logger import FailedDownload
 from boosty_downloader.src.loggers.logger_instances import downloader_logger
 from boosty_downloader.src.yaml_configuration.config import config
 
+app = typer.Typer(
+    no_args_is_help=True,
+    add_completion=False,
+    rich_markup_mode='rich',
+)
+
 
 async def main(
     *,
@@ -38,6 +45,7 @@ async def main(
     post_url: str | None,
     check_total_count: bool,
     clean_cache: bool,
+    content_type_filter: list[DownloadContentTypeFilter],
 ) -> None:
     """Download all posts from the specified user"""
     cookie_string = config.auth.cookie
@@ -80,6 +88,7 @@ async def main(
             downloader = BoostyDownloadManager(
                 general_options=GeneralOptions(
                     target_directory=destionation_directory,
+                    download_content_type_filter=content_type_filter,
                 ),
                 network_dependencies=NetworkDependencies(
                     session=retry_client,
@@ -111,6 +120,7 @@ async def main(
             await downloader.download_all_posts(username)
 
 
+@app.command()
 def main_wrapper(
     *,
     username: Annotated[
@@ -125,6 +135,14 @@ def main_wrapper(
             help='Download only the specified post if possible',
         ),
     ] = None,
+    content_type_filter: Annotated[
+        list[DownloadContentTypeFilter],
+        typer.Option(
+            '--content-type-filter',
+            '-f',
+            help='Filter the download by content type',
+        ),
+    ] = list(DownloadContentTypeFilter),  # noqa: B006
     check_total_count: Annotated[
         bool,
         typer.Option(
@@ -142,16 +160,40 @@ def main_wrapper(
         ),
     ] = False,
 ) -> None:
-    """Wrap main function because typer can't run async functions directly"""
+    """
+    CLI Tool to download posts from Boosty by author username.
+
+    You can use the --post-url option to download only the specified post.
+    Otherwise all posts will be downloaded from the newest to the oldest.
+
+    [bold green]If you want only specific content you can use filters like this:[/bold green]
+
+    [bold]This will download only files and post content[/bold]:
+
+        [italic]python main.py --username -f files -f post_content[/italic]
+    """
     asyncio.run(
         main(
             username=username,
             check_total_count=check_total_count,
             clean_cache=clean_cache,
             post_url=post_url,
+            content_type_filter=content_type_filter,
         ),
     )
 
 
+def bootstrap() -> None:
+    """
+    Run main entry point of the whole app.
+
+    This run typer CLI using app() config.
+
+    It doesn't run the app directly, but through main_wrapper,
+    because main app by itself is async and can't be run directly with typer.
+    """
+    app()
+
+
 if __name__ == '__main__':
-    typer.run(main_wrapper)
+    bootstrap()

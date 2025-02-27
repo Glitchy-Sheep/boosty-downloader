@@ -1,6 +1,7 @@
 """All necessary dependency containers for the main class"""
 
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 
 from aiohttp_retry import RetryClient
@@ -30,8 +31,18 @@ class NetworkDependencies:
     external_videos_downloader: ExternalVideosDownloader
 
 
+class DownloadContentTypeFilter(Enum):
+    """Class that holds content type filters for the download manager (such as videos, images, etc)"""
+
+    boosty_videos = 'boosty_videos'
+    external_videos = 'external_videos'
+    post_content = 'post_content'
+    files = 'files'
+
+
 @dataclass
 class GeneralOptions:
     """Class that holds general options for the download manager (such as paths)"""
 
     target_directory: Path
+    download_content_type_filter: list[DownloadContentTypeFilter]
