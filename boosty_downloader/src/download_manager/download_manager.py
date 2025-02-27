@@ -335,6 +335,9 @@ class BoostyDownloadManager:
                 await self.fail_downloads_logger.add_error(
                     f'Failed to download video {video.url} from post {post.title} which url is {BOOSTY_POST_BASE_URL / post.id}',
                 )
+                self.logger.error(  # noqa: TRY400 (log expected exception)
+                    f'Failed to download video {video.url} it was added to the log {self.fail_downloads_logger.file_path}',
+                )
                 continue
 
     async def download_single_post(
