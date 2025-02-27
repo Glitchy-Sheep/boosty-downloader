@@ -35,26 +35,47 @@ async def main(
     cookie_string = config.auth.cookie
     auth_header = config.auth.auth_header
 
+    retry_options = ExponentialRetry(
+        attempts=5,
+        exceptions={
+            aiohttp.ClientConnectorError,
+            aiohttp.ClientOSError,
+            aiohttp.ServerDisconnectedError,
+            aiohttp.ClientResponseError,
+            aiohttp.ClientConnectionError,
+        },
+    )
+
     async with aiohttp.ClientSession(
         base_url=BASE_URL,
         headers=await parse_auth_header(auth_header),
         cookie_jar=await parse_session_cookie(cookie_string),
     ) as session:
         destionation_directory = Path('./boosty-downloads').absolute()
-        boosty_api_client = BoostyAPIClient(session)
+        boosty_api_client = BoostyAPIClient(
+            RetryClient(session, retry_options=retry_options),
+        )
 
         async with aiohttp.ClientSession(
             # Don't use BASE_URL here (for other domains)
             # NOTE: Maybe should be refactored somehow to use same session
             headers=session.headers,
             cookie_jar=session.cookie_jar,
+            timeout=aiohttp.ClientTimeout(total=None),
+            trust_env=True,
         ) as direct_session:
+            retry_client = RetryClient(
+                direct_session,
+                retry_options=retry_options,
+                logger=downloader_logger.logging_logger_obj,
+            )
+
             downloader = BoostyDownloadManager(
                 general_options=GeneralOptions(
                     target_directory=destionation_directory,
                 ),
                 network_dependencies=NetworkDependencies(
-                    session=direct_session,
+                    session=retry_client,
                     api_client=boosty_api_client,
                     external_videos_downloader=ExternalVideosDownloader(),
                 ),

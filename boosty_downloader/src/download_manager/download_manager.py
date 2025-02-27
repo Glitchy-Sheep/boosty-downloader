@@ -401,6 +401,7 @@ class BoostyDownloadManager:
             async for response in self._api_client.iterate_over_posts(
                 username,
                 delay_seconds=1,
+                posts_per_page=5,
             ):
                 posts = response.posts
                 total_posts += len(posts)

@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from aiohttp import ClientSession
+from aiohttp_retry import RetryClient
 
 from boosty_downloader.src.boosty_api.core.client import BoostyAPIClient
 from boosty_downloader.src.external_videos_downloader.external_videos_downloader import (
@@ -25,7 +25,7 @@ class LoggerDependencies:
 class NetworkDependencies:
     """Class that holds network dependencies for the download manager"""
 
-    session: ClientSession
+    session: RetryClient
     api_client: BoostyAPIClient
     external_videos_downloader: ExternalVideosDownloader
 

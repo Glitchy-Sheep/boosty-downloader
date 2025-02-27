@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable
 
 import aiofiles
-from aiohttp import ClientSession  # noqa: TC002 Pydantic should know this type fully
+from aiohttp_retry import RetryClient
 
 from boosty_downloader.src.download_manager.utils.path_sanitizer import sanitize_string
 
@@ -33,7 +33,7 @@ class DownloadingStatus:
 class DownloadFileConfig:
     """General configuration for the file download"""
 
-    session: ClientSession
+    session: RetryClient
     url: str
 
     filename: str
@@ -69,7 +69,7 @@ async def download_file(
         async with aiofiles.open(file_path, mode='wb') as file:
             total_size = response.content_length
 
-            async for chunk in response.content.iter_chunked(8192):
+            async for chunk in response.content.iter_chunked(524288):
                 total_downloaded += len(chunk)
                 dl_config.on_status_update(
                     DownloadingStatus(
