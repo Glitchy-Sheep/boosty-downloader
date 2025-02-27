@@ -380,6 +380,20 @@ class BoostyDownloadManager:
             videos=post_data.videos,
         )
 
+    async def only_check_total_posts(self, username: str) -> None:
+        total = 0
+        async for response in self._api_client.iterate_over_posts(
+            username,
+            delay_seconds=1,
+            posts_per_page=100,
+        ):
+            total += len(response.posts)
+            self.logger.wait(
+                f'Collecting posts count... NEW({len(response.posts)}) TOTAL({total})',
+            )
+
+        self.logger.success(f'Total count of posts found: {total}')
+
     async def download_all_posts(self, username: str) -> None:
         # Get all posts and its total count
         self.logger.wait(

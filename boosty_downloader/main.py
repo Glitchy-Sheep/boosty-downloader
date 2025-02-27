@@ -2,9 +2,11 @@
 
 import asyncio
 from pathlib import Path
+from typing import Annotated
 
 import aiohttp
 import typer
+from aiohttp_retry import ExponentialRetry, RetryClient
 
 from boosty_downloader.src.boosty_api.core.client import BoostyAPIClient
 from boosty_downloader.src.boosty_api.core.endpoints import BASE_URL
@@ -29,7 +31,9 @@ from boosty_downloader.src.yaml_configuration.config import config
 
 
 async def main(
+    *,
     username: str,
+    check_total_count: bool,
 ) -> None:
     """Download all posts from the specified user"""
     cookie_string = config.auth.cookie
@@ -89,14 +93,35 @@ async def main(
                 ),
             )
 
+            if check_total_count:
+                await downloader.only_check_total_posts(username)
+                return
+
             await downloader.download_all_posts(username)
 
 
 def main_wrapper(
-    username: str = typer.Option(),
+    *,
+    username: Annotated[
+        str,
+        typer.Option(),
+    ],
+    check_total_count: Annotated[
+        bool,
+        typer.Option(
+            '--check-total-count',
+            '-c',
+            help='Check total count of posts and exit, no download',
+        ),
+    ] = False,
 ) -> None:
     """Wrap main function because typer can't run async functions directly"""
-    asyncio.run(main(username))
+    asyncio.run(
+        main(
+            username=username,
+            check_total_count=check_total_count,
+        ),
+    )
 
 
 if __name__ == '__main__':
