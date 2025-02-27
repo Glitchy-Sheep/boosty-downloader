@@ -1,6 +1,6 @@
 [project]
 name = "boosty-downloader"
-version = "0.1.0"
+version = "1.0.0"
 description = ""
 authors = [
     { name = "Roman Berezkin", email = "Glitchy-Sheep@users.noreply.github.com" },
@@ -20,6 +20,8 @@ dependencies = [
     "aiohttp-retry (>=2.9.1,<3.0.0)",
 ]
 
+[project.scripts]
+boosty-downloader = "boosty_downloader.main:bootstrap"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
@@ -32,4 +34,10 @@ pytest = "^8.3.4"
 
 
 [tool.poetry]
+name = "boosty-downloader"
+version = "1.0.0"
+description = "Download any type of content from boosty.to"
+authors = ["Roman Berezkin"]
+readme = "README.md"
+
 packages = [{ include = "boosty_downloader" }]
