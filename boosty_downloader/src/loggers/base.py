@@ -41,31 +41,63 @@ class Logger:
         self.console = self._handler.console
         self.logging_logger_obj = self._log
 
-    def _log_message(self, level: int, msg: str, *, highlight: bool = True) -> None:
+    def _log_message(
+        self,
+        level: int,
+        msg: str,
+        *,
+        highlight: bool = True,
+        tab_level: int = 0,
+    ) -> None:
         if highlight:
-            self._log.log(level, msg)
+            self._log.log(level, '\t' * tab_level + msg)
         else:
-            self._handler.console.log(msg, highlight=False)
+            self._handler.console.log('\t' * tab_level + msg, highlight=False)
 
-    def info(self, msg: str, *, highlight: bool = True) -> None:
+    def info(self, msg: str, *, highlight: bool = True, tab_level: int = 0) -> None:
         prefix = f'[cyan]{self.prefix}[/cyan][blue].INFO 🔹[/blue]:'
-        self._log_message(logging.INFO, f'{prefix} {msg}', highlight=highlight)
+        self._log_message(
+            logging.INFO,
+            f'{prefix} {msg}',
+            highlight=highlight,
+            tab_level=tab_level,
+        )
 
-    def success(self, msg: str, *, highlight: bool = True) -> None:
+    def success(self, msg: str, *, highlight: bool = True, tab_level: int = 0) -> None:
         prefix = f'[cyan]{self.prefix}[/cyan][green].SUCCESS ✔[/green]:'
-        self._log_message(logging.INFO, f'{prefix} {msg}', highlight=highlight)
+        self._log_message(
+            logging.INFO,
+            f'{prefix} {msg}',
+            highlight=highlight,
+            tab_level=tab_level,
+        )
 
-    def error(self, msg: str, *, highlight: bool = True) -> None:
+    def error(self, msg: str, *, highlight: bool = True, tab_level: int = 0) -> None:
         prefix = f'[cyan]{self.prefix}[/cyan][bold red].ERROR ❌[/bold red]:'
-        self._log_message(logging.ERROR, f'{prefix} {msg}', highlight=highlight)
+        self._log_message(
+            logging.ERROR,
+            f'{prefix} {msg}',
+            highlight=highlight,
+            tab_level=tab_level,
+        )
 
-    def wait(self, msg: str, *, highlight: bool = True) -> None:
+    def wait(self, msg: str, *, highlight: bool = True, tab_level: int = 0) -> None:
         prefix = f'[cyan]{self.prefix}[/cyan][yellow].WAIT ⏳[/yellow]:'
-        self._log_message(logging.INFO, f'{prefix} {msg}', highlight=highlight)
+        self._log_message(
+            logging.INFO,
+            f'{prefix} {msg}',
+            highlight=highlight,
+            tab_level=tab_level,
+        )
 
-    def warning(self, msg: str, *, highlight: bool = True) -> None:
+    def warning(self, msg: str, *, highlight: bool = True, tab_level: int = 0) -> None:
         prefix = f'[cyan]{self.prefix}[/cyan][bold yellow].WARNING ⚠ [/bold yellow]:'
-        self._log_message(logging.WARNING, f'{prefix} {msg}', highlight=highlight)
+        self._log_message(
+            logging.WARNING,
+            f'{prefix} {msg}',
+            highlight=highlight,
+            tab_level=tab_level,
+        )
 
 
 log = Logger(prefix='boosty_downloader')

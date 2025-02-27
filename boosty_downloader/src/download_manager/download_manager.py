@@ -137,6 +137,7 @@ class BoostyDownloadManager:
         if post_content:
             self.logger.info(
                 f'Found {len(post_content)} post content chunks, saving...',
+                tab_level=1,
             )
             destination.mkdir(parents=True, exist_ok=True)
         else:
@@ -150,6 +151,7 @@ class BoostyDownloadManager:
 
         self.logger.wait(
             f'Generating post content at {post_file_path.parent / post_file_path.name}',
+            tab_level=1,
         )
 
         for chunk in post_content:
@@ -202,7 +204,10 @@ class BoostyDownloadManager:
         files: list[PostDataFile],
     ) -> None:
         if files:
-            self.logger.info(f'Found {len(files)} files for the post, downloading...')
+            self.logger.info(
+                f'Found {len(files)} files for the post, downloading...',
+                tab_level=1,
+            )
             destination.mkdir(parents=True, exist_ok=True)
         else:
             return
@@ -254,6 +259,7 @@ class BoostyDownloadManager:
         if boosty_videos:
             self.logger.info(
                 f'Found {len(boosty_videos)} boosty videos for the post, downloading...',
+                tab_level=1,
             )
             destination.mkdir(parents=True, exist_ok=True)
         else:
@@ -312,6 +318,7 @@ class BoostyDownloadManager:
         if videos:
             self.logger.info(
                 f'Found {len(videos)} external videos for the post, downloading...',
+                tab_level=1,
             )
             destination.mkdir(parents=True, exist_ok=True)
         else:
@@ -326,6 +333,7 @@ class BoostyDownloadManager:
             try:
                 self.logger.wait(
                     f'Start youtube-dl for ({idx}/{len(videos)}) video please wait: ({video.url})',
+                    tab_level=1,
                 )
                 self.external_videos_downloader.download_video(
                     video.url,
@@ -337,6 +345,7 @@ class BoostyDownloadManager:
                 )
                 self.logger.error(  # noqa: TRY400 (log expected exception)
                     f'Failed to download video {video.url} it was added to the log {self.fail_downloads_logger.file_path}',
+                    tab_level=1,
                 )
                 continue
 

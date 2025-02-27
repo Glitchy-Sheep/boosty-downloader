@@ -71,7 +71,6 @@ async def main(
             retry_client = RetryClient(
                 direct_session,
                 retry_options=retry_options,
-                logger=downloader_logger.logging_logger_obj,
             )
 
             downloader = BoostyDownloadManager(
