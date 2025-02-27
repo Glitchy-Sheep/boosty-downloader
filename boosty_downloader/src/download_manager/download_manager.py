@@ -85,6 +85,18 @@ class PostData:
 class BoostyDownloadManager:
     """Main class which handles the download process"""
 
+    @dataclass
+    class PostLocation:
+        """Configuration for downloading post location"""
+
+        title: str
+        username: str
+        post_directory: Path
+
+        @property
+        def author_directory(self) -> Path:
+            return self.post_directory.parent
+
     def __init__(
         self,
         *,
@@ -101,7 +113,7 @@ class BoostyDownloadManager:
         self.external_videos_downloader = (
             network_dependencies.external_videos_downloader
         )
-        self.prepare_target_directory(self._target_directory)
+        self._prepare_target_directory(self._target_directory)
 
         # Will track progress for multiple tasks (files, videos, etc)
         self.progress = Progress(
@@ -109,8 +121,27 @@ class BoostyDownloadManager:
             console=self.logger.console,
         )
 
-    def prepare_target_directory(self, target_directory: Path) -> None:
+    def _prepare_target_directory(self, target_directory: Path) -> None:
         target_directory.mkdir(parents=True, exist_ok=True)
+
+    def generate_post_location(self, username: str, post: Post) -> PostLocation:
+        title = post.title or f'No title (id_{post.id[:8]})'
+        author_directory = self._target_directory / username
+
+        post_title = post.title
+        if len(post.title) == 0:
+            post_title = f'No title (id_{post.id[:8]})'
+
+        post_title = sanitize_string(post_title).replace('.', '').strip()
+        post_name = f'{post.created_at.date()} - {post_title}'
+        post_directory = author_directory / post_name
+        post_directory.mkdir(parents=True, exist_ok=True)
+
+        return self.PostLocation(
+            title=title,
+            username=username,
+            post_directory=post_directory,
+        )
 
     def separate_post_content(self, post: Post) -> PostData:
         content_chunks = post.data
@@ -351,9 +382,8 @@ class BoostyDownloadManager:
 
     async def download_single_post(
         self,
+        username: str,
         post: Post,
-        author_directory: Path,
-        post_directory: Path,
     ) -> None:
         """
         Download a single post and all its content including:
@@ -365,19 +395,21 @@ class BoostyDownloadManager:
         """
         post_data = self.separate_post_content(post)
 
+        post_location_info = self.generate_post_location(username, post)
+
         await self.save_post_content(
-            destination=author_directory / post_directory,
+            destination=post_location_info.post_directory,
             post_content=post_data.post_content,
         )
 
         await self.download_files(
-            destination=author_directory / post_directory / 'files',
+            destination=post_location_info.post_directory / 'files',
             post=post,
             files=post_data.files,
         )
 
         await self.download_boosty_videos(
-            destination=author_directory / post_directory / 'boosty_videos',
+            destination=post_location_info.post_directory / 'boosty_videos',
             post=post,
             boosty_videos=post_data.ok_videos,
             preferred_quality=OkVideoType.medium,
@@ -385,7 +417,7 @@ class BoostyDownloadManager:
 
         await self.download_external_videos(
             post=post,
-            destination=author_directory / post_directory / 'external_videos',
+            destination=post_location_info.post_directory / 'external_videos',
             videos=post_data.videos,
         )
 
@@ -415,7 +447,38 @@ class BoostyDownloadManager:
 
         self.logger.success(f'Total count of posts found: {total}')
 
-    async def download_all_posts(self, username: str) -> None:
+    async def download_post_by_url(self, username: str, url: str) -> None:
+        target_post_id = url.split('/')[-1].split('?')[0]
+
+        self.logger.info(f'Extracted post id from url: {target_post_id}')
+
+        async for response in self._api_client.iterate_over_posts(
+            username,
+            delay_seconds=1,
+            posts_per_page=100,
+        ):
+            for post in response.posts:
+                self.logger.info(
+                    f'Searching for post by its id, please wait: {post.id}...',
+                )
+                if post.id == target_post_id:
+                    self.logger.wait('FOUND post by id, downloading...')
+                    await self.download_single_post(
+                        username=username,
+                        post=post,
+                    )
+                    self.logger.success('Post downloaded successfully!')
+                    return
+
+        self.logger.error('Post not found, please check the url and username.')
+        self.logger.error(
+            'If this happends even after correcting the url, please open an issue.',
+        )
+
+    async def download_all_posts(
+        self,
+        username: str,
+    ) -> None:
         # Get all posts and its total count
         self.logger.wait(
             '[bold yellow]NOTICE[/bold yellow]: This may take a while, be patient',
@@ -430,10 +493,7 @@ class BoostyDownloadManager:
         total_posts = 0
         current_post = 0
 
-        author_directory = self._target_directory / username
-        author_directory.mkdir(parents=True, exist_ok=True)
-
-        self._post_cache = PostCache(author_directory)
+        self._post_cache = PostCache(self._target_directory / username)
 
         with self.progress:
             async for response in self._api_client.iterate_over_posts(
@@ -450,38 +510,32 @@ class BoostyDownloadManager:
 
                 for post in posts:
                     current_post += 1
-                    title = post.title or f'No title (id_{post.id[:8]})'
-                    author_directory = self._target_directory / username
-
-                    post_title = post.title
-                    if len(post.title) == 0:
-                        post_title = f'No title (id_{post.id[:8]})'
-
-                    post_title = sanitize_string(post_title).replace('.', '').strip()
-                    post_name = f'{post.created_at.date()} - {post_title}'
-                    post_directory = author_directory / post_name
-                    post_directory.mkdir(parents=True, exist_ok=True)
+                    post_location_info = self.generate_post_location(
+                        username=username,
+                        post=post,
+                    )
 
                     if self._post_cache.has_same_post(
-                        title=post_name,
+                        title=post_location_info.title,
                         updated_at=post.updated_at,
                     ):
                         self.logger.info(
-                            f'Skipping post {title} because it was already downloaded',
+                            f'Skipping post {post_location_info.title} because it was already downloaded',
                         )
                         continue
 
                     self.logger.info(
-                        f'Downloading post ({current_post}/{total_posts}):  {title}',
+                        f'Downloading post ({current_post}/{total_posts}):  {post_location_info.title}',
                     )
 
                     await self.download_single_post(
+                        username=username,
                         post=post,
-                        author_directory=author_directory,
-                        post_directory=post_directory,
                     )
 
                     self._post_cache.add_post_cache(
-                        title=post_name,
+                        title=post_location_info.title,
                         updated_at=post.updated_at,
                     )
+
+        self.logger.success('Finished downloading posts!')

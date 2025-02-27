@@ -1,5 +1,7 @@
 """Main entrypoint of the app"""
 
+from __future__ import annotations
+
 import asyncio
 from pathlib import Path
 from typing import Annotated
@@ -33,6 +35,7 @@ from boosty_downloader.src.yaml_configuration.config import config
 async def main(
     *,
     username: str,
+    post_url: str | None,
     check_total_count: bool,
     clean_cache: bool,
 ) -> None:
@@ -101,6 +104,10 @@ async def main(
                 await downloader.clean_cache(username)
                 return
 
+            if post_url is not None:
+                await downloader.download_post_by_url(username, post_url)
+                return
+
             await downloader.download_all_posts(username)
 
 
@@ -110,6 +117,14 @@ def main_wrapper(
         str,
         typer.Option(),
     ],
+    post_url: Annotated[
+        str | None,
+        typer.Option(
+            '--post-url',
+            '-p',
+            help='Download only the specified post if possible',
+        ),
+    ] = None,
     check_total_count: Annotated[
         bool,
         typer.Option(
@@ -133,6 +148,7 @@ def main_wrapper(
             username=username,
             check_total_count=check_total_count,
             clean_cache=clean_cache,
+            post_url=post_url,
         ),
     )
 
