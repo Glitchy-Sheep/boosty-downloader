@@ -389,6 +389,18 @@ class BoostyDownloadManager:
             videos=post_data.videos,
         )
 
+    async def clean_cache(self, username: str) -> None:
+        db_file = self._target_directory / username / PostCache.DEFAULT_CACHE_FILENAME
+        if db_file.exists():
+            self.logger.success(
+                f'Removing posts cache: {db_file} for username {username}',
+            )
+            db_file.unlink()
+        else:
+            self.logger.info(
+                f'Posts cache not found: {db_file} for username {username}',
+            )
+
     async def only_check_total_posts(self, username: str) -> None:
         total = 0
         async for response in self._api_client.iterate_over_posts(

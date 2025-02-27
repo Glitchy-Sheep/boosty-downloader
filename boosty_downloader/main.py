@@ -34,6 +34,7 @@ async def main(
     *,
     username: str,
     check_total_count: bool,
+    clean_cache: bool,
 ) -> None:
     """Download all posts from the specified user"""
     cookie_string = config.auth.cookie
@@ -96,6 +97,10 @@ async def main(
                 await downloader.only_check_total_posts(username)
                 return
 
+            if clean_cache:
+                await downloader.clean_cache(username)
+                return
+
             await downloader.download_all_posts(username)
 
 
@@ -108,9 +113,17 @@ def main_wrapper(
     check_total_count: Annotated[
         bool,
         typer.Option(
-            '--check-total-count',
-            '-c',
+            '--total-post-check',
+            '-t',
             help='Check total count of posts and exit, no download',
+        ),
+    ] = False,
+    clean_cache: Annotated[
+        bool,
+        typer.Option(
+            '--clean-cache',
+            '-c',
+            help='Remove posts cache for selected username, so all posts will be redownloaded',
         ),
     ] = False,
 ) -> None:
@@ -119,6 +132,7 @@ def main_wrapper(
         main(
             username=username,
             check_total_count=check_total_count,
+            clean_cache=clean_cache,
         ),
     )
 

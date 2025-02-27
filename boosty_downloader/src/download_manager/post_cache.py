@@ -12,6 +12,8 @@ class PostCache:
     It uses SQLite database for storing the data.
     """
 
+    DEFAULT_CACHE_FILENAME = 'post_cache.db'
+
     def __init__(self, destination: Path) -> None:
         """
         Initialize the PostCache with the provided destination folder.
@@ -19,7 +21,7 @@ class PostCache:
         If the database doesn't exist, it will be created automatically.
         """
         self.destination = destination
-        self.db_file: Path = self.destination / 'post_cache.db'
+        self.db_file: Path = self.destination / self.DEFAULT_CACHE_FILENAME
         self.db_file.parent.mkdir(parents=True, exist_ok=True)
 
         if not self.db_file.exists():
