@@ -504,7 +504,7 @@ class BoostyDownloadManager:
             '[bold yellow]NOTICE[/bold yellow]: This may take a while, be patient',
         )
         self.logger.info(
-            'Total count of posts is not known during downloding because of the API limitations.',
+            'Total count of posts is not known during downloading because of the API limitations.',
         )
         self.logger.info(
             'But you will notified about the progress during download.',
