@@ -7,6 +7,9 @@ from pathlib import Path
 from aiohttp_retry import RetryClient
 
 from boosty_downloader.src.boosty_api.core.client import BoostyAPIClient
+from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_ok_video import (
+    OkVideoType,
+)
 from boosty_downloader.src.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
 )
@@ -40,10 +43,31 @@ class DownloadContentTypeFilter(Enum):
     files = 'files'
 
 
+class VideoQualityOption(Enum):
+    """Preferred video quality option for cli"""
+
+    smallest_size = 'smallest_size'
+    low = 'low'
+    medium = 'medium'
+    high = 'high'
+    highest = 'highest'
+
+    def to_ok_video_type(self) -> OkVideoType:
+        mapping = {
+            VideoQualityOption.smallest_size: OkVideoType.lowest,
+            VideoQualityOption.low: OkVideoType.low,
+            VideoQualityOption.medium: OkVideoType.medium,
+            VideoQualityOption.high: OkVideoType.high,
+            VideoQualityOption.highest: OkVideoType.ultra_hd,
+        }
+        return mapping[self]
+
+
 @dataclass
 class GeneralOptions:
     """Class that holds general options for the download manager (such as paths)"""
 
     target_directory: Path
-    download_content_type_filter: list[DownloadContentTypeFilter]
+    download_content_type_filters: list[DownloadContentTypeFilter]
     request_delay_seconds: float
+    preferred_video_quality: VideoQualityOption

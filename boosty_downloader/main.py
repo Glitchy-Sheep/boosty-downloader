@@ -24,6 +24,7 @@ from boosty_downloader.src.download_manager.download_manager_config import (
     GeneralOptions,
     LoggerDependencies,
     NetworkDependencies,
+    VideoQualityOption,
 )
 from boosty_downloader.src.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
@@ -46,6 +47,7 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
     check_total_count: bool,
     clean_cache: bool,
     content_type_filter: list[DownloadContentTypeFilter],
+    preferred_video_quality: VideoQualityOption,
     request_delay_seconds: float,
 ) -> None:
     """Download all posts from the specified user"""
@@ -91,8 +93,9 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
             downloader = BoostyDownloadManager(
                 general_options=GeneralOptions(
                     target_directory=destionation_directory,
-                    download_content_type_filter=content_type_filter,
+                    download_content_type_filters=content_type_filter,
                     request_delay_seconds=request_delay_seconds,
+                    preferred_video_quality=preferred_video_quality,
                 ),
                 network_dependencies=NetworkDependencies(
                     session=retry_client,
@@ -156,6 +159,14 @@ def main_wrapper(  # noqa: PLR0913 (too many arguments because of typer)
             help='Filter the download by content type [[bold]files, post_content, boosty_videos, external_videos[/bold]]',
         ),
     ] = None,
+    preferred_video_quality: Annotated[
+        VideoQualityOption,
+        typer.Option(
+            '--preferred-video-quality',
+            '-q',
+            help='Preferred video quality option for downloader, will be considered during choosing video links, but if there is no suitable video quality - the best available will be used',
+        ),
+    ] = VideoQualityOption.medium,
     check_total_count: Annotated[
         bool,
         typer.Option(
@@ -174,19 +185,26 @@ def main_wrapper(  # noqa: PLR0913 (too many arguments because of typer)
     ] = False,
 ) -> None:
     """
-    CLI Tool to download posts from Boosty by author username.
+    [bold]ABOUT:[/bold]
 
-    You can use the --post-url option to download only the specified post.
-    Otherwise all posts will be downloaded from the newest to the oldest.
+    ======
+        CLI Tool to download posts from Boosty by author username.
+        You can use the --post-url option to download only the specified post.
+        Otherwise all posts will be downloaded from the newest to the oldest.
 
-    [bold green]If you want only specific content you can use filters like this:[/bold green]
+    [bold]CONTENT FILTERING:[/bold]
 
-    [bold]This will download only files and post content[/bold]:
+        You can specify several -f flags to choose what content to download.
+        By default all flags are enabled.
+        [italic]boosty-downloader --username <USERNAME> -f files -f post_content[/italic]
 
-        [italic]boosty-downloader --username -f files -f post_content[/italic]
+    [bold yellow]ABOUT RATE LIMITING:[/bold yellow]
 
-    [bold]If you have error messages often[/bold], try to refresh auth/cookie with new one after re-login.
-    Or increase [bold]request delay seconds[/bold] (default is 2.5).
+        [bold]If you have error messages often[/bold], try to refresh auth/cookie with new one after re-login.
+        Or increase [bold]request delay seconds[/bold] (default is 2.5).
+        Also some wait can be helpful too, if you are restricted by the boosty.to itself.
+
+        Anyways, remember, don't be rude and don't spam the API.
     """
     asyncio.run(
         main(
@@ -197,6 +215,7 @@ def main_wrapper(  # noqa: PLR0913 (too many arguments because of typer)
             content_type_filter=content_type_filter
             if content_type_filter
             else list(DownloadContentTypeFilter),
+            preferred_video_quality=preferred_video_quality,
             request_delay_seconds=request_delay_seconds,
         ),
     )

@@ -110,8 +110,7 @@ class BoostyDownloadManager:
         self.logger = logger_dependencies.logger
         self.fail_downloads_logger = logger_dependencies.failed_downloads_logger
 
-        self.content_filter = general_options.download_content_type_filter
-        self.request_delay_seconds = general_options.request_delay_seconds
+        self.general_options = general_options
 
         self.session = network_dependencies.session
         self._api_client = network_dependencies.api_client
@@ -402,28 +401,40 @@ class BoostyDownloadManager:
 
         post_location_info = self._generate_post_location(username, post)
 
-        if DownloadContentTypeFilter.post_content in self.content_filter:
+        if (
+            DownloadContentTypeFilter.post_content
+            in self.general_options.download_content_type_filters
+        ):
             await self._save_post_content(
                 destination=post_location_info.post_directory,
                 post_content=post_data.post_content,
             )
 
-        if DownloadContentTypeFilter.files in self.content_filter:
+        if (
+            DownloadContentTypeFilter.files
+            in self.general_options.download_content_type_filters
+        ):
             await self._download_files(
                 destination=post_location_info.post_directory / 'files',
                 post=post,
                 files=post_data.files,
             )
 
-        if DownloadContentTypeFilter.boosty_videos in self.content_filter:
+        if (
+            DownloadContentTypeFilter.boosty_videos
+            in self.general_options.download_content_type_filters
+        ):
             await self._download_boosty_videos(
                 destination=post_location_info.post_directory / 'boosty_videos',
                 post=post,
                 boosty_videos=post_data.ok_videos,
-                preferred_quality=OkVideoType.medium,
+                preferred_quality=self.general_options.preferred_video_quality.to_ok_video_type(),
             )
 
-        if DownloadContentTypeFilter.external_videos in self.content_filter:
+        if (
+            DownloadContentTypeFilter.external_videos
+            in self.general_options.download_content_type_filters
+        ):
             await self._download_external_videos(
                 post=post,
                 destination=post_location_info.post_directory / 'external_videos',
@@ -446,7 +457,7 @@ class BoostyDownloadManager:
         total = 0
         async for response in self._api_client.iterate_over_posts(
             username,
-            delay_seconds=self.request_delay_seconds,
+            delay_seconds=self.general_options.request_delay_seconds,
             posts_per_page=100,
         ):
             total += len(response.posts)
@@ -463,7 +474,7 @@ class BoostyDownloadManager:
 
         async for response in self._api_client.iterate_over_posts(
             username,
-            delay_seconds=self.request_delay_seconds,
+            delay_seconds=self.general_options.request_delay_seconds,
             posts_per_page=100,
         ):
             for post in response.posts:
@@ -500,7 +511,8 @@ class BoostyDownloadManager:
         )
         self.logger.info('-' * 80)
         self.logger.info(
-            f'Script will download: {[elem.name for elem in self.content_filter]}',
+            'Script will download:'
+            f'{[elem.name for elem in self.general_options.download_content_type_filters]}',
         )
         self.logger.info('-' * 80)
 
@@ -512,7 +524,7 @@ class BoostyDownloadManager:
         with self.progress:
             async for response in self._api_client.iterate_over_posts(
                 username,
-                delay_seconds=self.request_delay_seconds,
+                delay_seconds=self.general_options.request_delay_seconds,
                 posts_per_page=5,
             ):
                 posts = response.posts
