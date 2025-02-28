@@ -3,8 +3,8 @@
 import re
 
 
-def sanitize_string(path: str) -> str:
-    """Sanitizes a path by replacing unsafe characters with underscores"""
+def sanitize_string(string: str) -> str:
+    """Remove unsafe filesystem characters from a string"""
     # Convert path to a string and sanitize it
     unsafe_chars = r'[<>:"/\\|?*]'
-    return re.sub(unsafe_chars, '_', str(path))
+    return re.sub(unsafe_chars, '', str(string))
