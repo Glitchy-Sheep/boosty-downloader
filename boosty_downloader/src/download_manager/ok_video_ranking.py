@@ -74,7 +74,6 @@ def get_quality_ranking() -> RankingDict[OkVideoType]:
     return quality_ranking
 
 
-# NOTE: We could pass video_ranking as parameter here in the future
 def get_best_video(
     video_urls: list[OkVideoUrl],
     preferred_quality: OkVideoType = OkVideoType.medium,
