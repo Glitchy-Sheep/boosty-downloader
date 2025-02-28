@@ -136,13 +136,13 @@ def main_wrapper(
         ),
     ] = None,
     content_type_filter: Annotated[
-        list[DownloadContentTypeFilter],
+        list[DownloadContentTypeFilter] | None,
         typer.Option(
             '--content-type-filter',
             '-f',
-            help='Filter the download by content type',
+            help='Filter the download by content type [[bold]files, post_content, boosty_videos, external_videos[/bold]]',
         ),
-    ] = list(DownloadContentTypeFilter),  # noqa: B006
+    ] = None,
     check_total_count: Annotated[
         bool,
         typer.Option(
@@ -170,7 +170,7 @@ def main_wrapper(
 
     [bold]This will download only files and post content[/bold]:
 
-        [italic]python main.py --username -f files -f post_content[/italic]
+        [italic]boosty-downloader --username -f files -f post_content[/italic]
     """
     asyncio.run(
         main(
@@ -178,7 +178,9 @@ def main_wrapper(
             check_total_count=check_total_count,
             clean_cache=clean_cache,
             post_url=post_url,
-            content_type_filter=content_type_filter,
+            content_type_filter=content_type_filter
+            if content_type_filter
+            else list(DownloadContentTypeFilter),
         ),
     )
 

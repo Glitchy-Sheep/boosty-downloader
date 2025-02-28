@@ -497,6 +497,11 @@ class BoostyDownloadManager:
         self.logger.info(
             'But you will notified about the progress during download.',
         )
+        self.logger.info('-' * 80)
+        self.logger.info(
+            f'Script will download: {[elem.name for elem in self.content_filter]}',
+        )
+        self.logger.info('-' * 80)
 
         total_posts = 0
         current_post = 0
