@@ -7,5 +7,4 @@ auth:
   auth_header: ''
 downloading_settings:
   target_directory: ./boosty-downloads
-  requests_delay_seconds: 3
 """
