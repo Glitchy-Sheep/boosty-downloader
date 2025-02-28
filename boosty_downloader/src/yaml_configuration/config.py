@@ -71,24 +71,24 @@ def create_sample_config_file() -> None:
         f.write(DEFAULT_YAML_CONFIG_VALUE)
 
 
-try:
-    config = Config()
-except ValidationError:
-    # If can't be parsed correctly
-    create_sample_config_file()
-    downloader_logger.error('Config is invalid (could not be parsed)')
-    downloader_logger.error(
-        '[bold yellow]Make sure you fill `auth_header` and `cookie` with yours, they are required[/bold yellow]',
-    )
-    downloader_logger.success(
-        f'Recreated it at [green bold]{CONFIG_LOCATION.absolute()}[/green bold]',
-    )
-    sys.exit(1)
-
-if not CONFIG_LOCATION.exists():
-    create_sample_config_file()
-    downloader_logger.error("Config doesn't exist")
-    downloader_logger.success(
-        f'Created a sample config file at {CONFIG_LOCATION.absolute()}, please fill `auth_header` and `cookie` with yours before running the app',
-    )
-    sys.exit(1)
+def init_config() -> Config:
+    try:
+        if not CONFIG_LOCATION.exists():
+            create_sample_config_file()
+            downloader_logger.error("Config doesn't exist")
+            downloader_logger.success(
+                f'Created a sample config file at {CONFIG_LOCATION.absolute()}, please fill `auth_header` and `cookie` with yours before running the app',
+            )
+            sys.exit(1)
+        return Config()
+    except ValidationError:
+        # If can't be parsed correctly
+        create_sample_config_file()
+        downloader_logger.error('Config is invalid (could not be parsed)')
+        downloader_logger.error(
+            '[bold yellow]Make sure you fill `auth_header` and `cookie` with yours, they are required[/bold yellow]',
+        )
+        downloader_logger.success(
+            f'Recreated it at [green bold]{CONFIG_LOCATION.absolute()}[/green bold]',
+        )
+        sys.exit(1)

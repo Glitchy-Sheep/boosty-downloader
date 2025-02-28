@@ -30,7 +30,7 @@ from boosty_downloader.src.external_videos_downloader.external_videos_downloader
 )
 from boosty_downloader.src.loggers.failed_downloads_logger import FailedDownloadsLogger
 from boosty_downloader.src.loggers.logger_instances import downloader_logger
-from boosty_downloader.src.yaml_configuration.config import config
+from boosty_downloader.src.yaml_configuration.config import init_config
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -48,6 +48,8 @@ async def main(
     content_type_filter: list[DownloadContentTypeFilter],
 ) -> None:
     """Download all posts from the specified user"""
+    config = init_config()
+
     cookie_string = config.auth.cookie
     auth_header = config.auth.auth_header
 
