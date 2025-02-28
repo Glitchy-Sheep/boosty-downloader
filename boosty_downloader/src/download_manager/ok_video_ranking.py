@@ -10,7 +10,7 @@ from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_ok_v
     OkVideoUrl,
 )
 
-KT = TypeVar('KT')  # Key type
+KT = TypeVar('KT')
 
 
 class RankingDict(Generic[KT]):
