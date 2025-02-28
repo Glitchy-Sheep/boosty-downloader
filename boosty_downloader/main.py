@@ -39,13 +39,14 @@ app = typer.Typer(
 )
 
 
-async def main(
+async def main(  # noqa: PLR0913 (too many arguments because of typer)
     *,
     username: str,
     post_url: str | None,
     check_total_count: bool,
     clean_cache: bool,
     content_type_filter: list[DownloadContentTypeFilter],
+    request_delay_seconds: float,
 ) -> None:
     """Download all posts from the specified user"""
     config = init_config()
@@ -91,6 +92,7 @@ async def main(
                 general_options=GeneralOptions(
                     target_directory=destionation_directory,
                     download_content_type_filter=content_type_filter,
+                    request_delay_seconds=request_delay_seconds,
                 ),
                 network_dependencies=NetworkDependencies(
                     session=retry_client,
@@ -123,12 +125,21 @@ async def main(
 
 
 @app.command()
-def main_wrapper(
+def main_wrapper(  # noqa: PLR0913 (too many arguments because of typer)
     *,
     username: Annotated[
         str,
         typer.Option(),
     ],
+    request_delay_seconds: Annotated[
+        float,
+        typer.Option(
+            '--request-delay-seconds',
+            '-d',
+            help='Delay between requests to the API, in seconds',
+            min=1,
+        ),
+    ] = 2.5,
     post_url: Annotated[
         str | None,
         typer.Option(
@@ -173,6 +184,9 @@ def main_wrapper(
     [bold]This will download only files and post content[/bold]:
 
         [italic]boosty-downloader --username -f files -f post_content[/italic]
+
+    [bold]If you have error messages often[/bold], try to refresh auth/cookie with new one after re-login.
+    Or increase [bold]request delay seconds[/bold] (default is 2.5).
     """
     asyncio.run(
         main(
@@ -183,6 +197,7 @@ def main_wrapper(
             content_type_filter=content_type_filter
             if content_type_filter
             else list(DownloadContentTypeFilter),
+            request_delay_seconds=request_delay_seconds,
         ),
     )
 

@@ -46,3 +46,4 @@ class GeneralOptions:
 
     target_directory: Path
     download_content_type_filter: list[DownloadContentTypeFilter]
+    request_delay_seconds: float

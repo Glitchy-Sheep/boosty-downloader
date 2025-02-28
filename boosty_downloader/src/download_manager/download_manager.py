@@ -111,6 +111,7 @@ class BoostyDownloadManager:
         self.fail_downloads_logger = logger_dependencies.failed_downloads_logger
 
         self.content_filter = general_options.download_content_type_filter
+        self.request_delay_seconds = general_options.request_delay_seconds
 
         self.session = network_dependencies.session
         self._api_client = network_dependencies.api_client
@@ -445,7 +446,7 @@ class BoostyDownloadManager:
         total = 0
         async for response in self._api_client.iterate_over_posts(
             username,
-            delay_seconds=1,
+            delay_seconds=self.request_delay_seconds,
             posts_per_page=100,
         ):
             total += len(response.posts)
@@ -462,7 +463,7 @@ class BoostyDownloadManager:
 
         async for response in self._api_client.iterate_over_posts(
             username,
-            delay_seconds=1,
+            delay_seconds=self.request_delay_seconds,
             posts_per_page=100,
         ):
             for post in response.posts:
@@ -511,7 +512,7 @@ class BoostyDownloadManager:
         with self.progress:
             async for response in self._api_client.iterate_over_posts(
                 username,
-                delay_seconds=1,
+                delay_seconds=self.request_delay_seconds,
                 posts_per_page=5,
             ):
                 posts = response.posts
