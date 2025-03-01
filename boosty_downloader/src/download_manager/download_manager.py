@@ -84,21 +84,22 @@ class PostData:
         default_factory=list,
     )
 
+@dataclass
+class PostLocation:
+    """Configuration for downloading post location"""
+
+    title: str
+    username: str
+    post_directory: Path
+
+    @property
+    def author_directory(self) -> Path:
+        return self.post_directory.parent
+
 
 class BoostyDownloadManager:
     """Main class which handles the download process"""
 
-    @dataclass
-    class PostLocation:
-        """Configuration for downloading post location"""
-
-        title: str
-        username: str
-        post_directory: Path
-
-        @property
-        def author_directory(self) -> Path:
-            return self.post_directory.parent
 
     def __init__(
         self,
@@ -136,7 +137,7 @@ class BoostyDownloadManager:
         post_name = f'{post.created_at.date()} - {post_title}'
         post_directory = author_directory / post_name
 
-        return self.PostLocation(
+        return PostLocation(
             title=title,
             username=username,
             post_directory=post_directory,
