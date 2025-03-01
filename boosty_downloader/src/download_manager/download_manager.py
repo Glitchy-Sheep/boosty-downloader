@@ -100,7 +100,6 @@ class PostLocation:
 class BoostyDownloadManager:
     """Main class which handles the download process"""
 
-
     def __init__(
         self,
         *,

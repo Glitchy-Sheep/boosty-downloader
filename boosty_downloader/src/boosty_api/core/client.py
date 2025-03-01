@@ -5,8 +5,6 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
-from aiohttp_retry import RetryClient
-
 from boosty_downloader.src.boosty_api.models.post.extra import Extra
 from boosty_downloader.src.boosty_api.models.post.post import Post
 from boosty_downloader.src.boosty_api.models.post.posts_request import PostsResponse
@@ -14,6 +12,8 @@ from boosty_downloader.src.boosty_api.utils.filter_none_params import filter_non
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
+
+    from aiohttp_retry import RetryClient
 
 
 class BoostyAPIClient:

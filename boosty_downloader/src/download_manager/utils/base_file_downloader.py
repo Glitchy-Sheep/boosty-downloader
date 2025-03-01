@@ -8,12 +8,13 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable
 
 import aiofiles
-from aiohttp_retry import RetryClient
 
 from boosty_downloader.src.download_manager.utils.path_sanitizer import sanitize_string
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from aiohttp_retry import RetryClient
 
 
 @dataclass

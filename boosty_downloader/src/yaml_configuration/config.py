@@ -71,6 +71,7 @@ def create_sample_config_file() -> None:
 
 
 def init_config() -> Config:
+    """Initialize the config file with a sample if it doesn't exist"""
     try:
         if not CONFIG_LOCATION.exists():
             create_sample_config_file()
