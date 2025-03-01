@@ -24,17 +24,12 @@ from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_text
 from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_video import (
     PostDataVideo,
 )
+from boosty_downloader.src.boosty_api.utils.textual_post_extractor import (
+    extract_textual_content,
+)
+from boosty_downloader.src.caching.post_cache import PostCache
 from boosty_downloader.src.download_manager.download_manager_config import (
     DownloadContentTypeFilter,
-)
-from boosty_downloader.src.download_manager.html_reporter import (
-    HTMLReport,
-    NormalText,
-)
-from boosty_downloader.src.download_manager.ok_video_ranking import get_best_video
-from boosty_downloader.src.download_manager.post_cache import PostCache
-from boosty_downloader.src.download_manager.textual_post_extractor import (
-    extract_textual_content,
 )
 from boosty_downloader.src.download_manager.utils.base_file_downloader import (
     DownloadFileConfig,
@@ -43,10 +38,12 @@ from boosty_downloader.src.download_manager.utils.base_file_downloader import (
 from boosty_downloader.src.download_manager.utils.human_readable_size import (
     human_readable_size,
 )
+from boosty_downloader.src.download_manager.utils.ok_video_ranking import get_best_video
 from boosty_downloader.src.download_manager.utils.path_sanitizer import sanitize_string
 from boosty_downloader.src.external_videos_downloader.external_videos_downloader import (
     FailedToDownloadExternalVideoError,
 )
+from boosty_downloader.src.html_reporter.html_reporter import HTMLReport, NormalText
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -83,6 +80,7 @@ class PostData:
     post_content: list[PostDataText | PostDataLink | PostDataImage] = field(
         default_factory=list,
     )
+
 
 @dataclass
 class PostLocation:
@@ -357,7 +355,9 @@ class BoostyDownloadManager:
         # Don't use progress indicator here because of sys.stderr / stdout collissionds
         # just let ytdl do the work and print the progress to the console by itself
         for idx, video in enumerate(videos):
-            if not self._network_dependencies.external_videos_downloader.is_supported_video(video.url):
+            if not self._network_dependencies.external_videos_downloader.is_supported_video(
+                video.url,
+            ):
                 continue
 
             try:
@@ -517,7 +517,9 @@ class BoostyDownloadManager:
         self._post_cache = PostCache(self._target_directory / username)
 
         with self.progress:
-            async for response in self._network_dependencies.api_client.iterate_over_posts(
+            async for (
+                response
+            ) in self._network_dependencies.api_client.iterate_over_posts(
                 username,
                 delay_seconds=self._general_options.request_delay_seconds,
                 posts_per_page=5,

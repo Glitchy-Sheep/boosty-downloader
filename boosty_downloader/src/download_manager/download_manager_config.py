@@ -43,7 +43,7 @@ class DownloadContentTypeFilter(Enum):
     files = 'files'
 
 
-class VideoQualityOption(Enum):
+class VideoQualityOption(str, Enum):
     """Preferred video quality option for cli"""
 
     smallest_size = 'smallest_size'
