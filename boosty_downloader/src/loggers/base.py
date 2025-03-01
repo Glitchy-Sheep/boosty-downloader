@@ -4,10 +4,12 @@ import io
 import logging
 import sys
 
-from rich.console import Console
 from rich.logging import RichHandler
 
+# Detect if running in a terminal
 is_terminal = sys.stdout.isatty()
+
+# Ensure proper UTF-8 handling in non-interactive environments
 if not is_terminal and 'pytest' not in sys.modules:
     sys.stdout = io.TextIOWrapper(
         sys.stdout.buffer,
@@ -15,70 +17,87 @@ if not is_terminal and 'pytest' not in sys.modules:
         line_buffering=True,
     )
 
-_console = Console(log_path=False)
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(levelname)s %(message)s',
-    handlers=[
-        logging.StreamHandler()
-        if is_terminal
-        else RichHandler(
-            console=_console,
-            show_path=False,
-            markup=True,
-        ),
-    ],
-)
-
 
 class Logger:
-    """Wrapper around the logging library with some extra features."""
+    """Enhanced logger with Rich for colorful output while keeping severity levels."""
 
     def __init__(self, prefix: str) -> None:
-        self._log = logging.getLogger(__name__)
-        self.console = _console
         self.prefix = prefix
 
-    def info(
+        # Avoid adding duplicate handlers
+        handler = RichHandler(
+            log_time_format='[%H:%M:%S]',
+            markup=True,
+            show_time=True,
+            rich_tracebacks=True,
+            show_path=False,
+            show_level=False,
+        )
+
+        self._handler = handler
+        self._log = logging.getLogger(prefix)
+        self._log.setLevel(logging.DEBUG)
+        self._log.addHandler(handler)
+        self.console = self._handler.console
+        self.logging_logger_obj = self._log
+
+    def _log_message(
         self,
+        level: int,
         msg: str,
         *,
-        should_log: bool = True,
         highlight: bool = True,
+        tab_level: int = 0,
     ) -> None:
-        if should_log:
-            self.console.log(f'[{self.prefix}] ℹ  {msg}', highlight=highlight)
+        if highlight:
+            self._log.log(level, '\t' * tab_level + msg)
+        else:
+            self._handler.console.log('\t' * tab_level + msg, highlight=False)
 
-    def success(
-        self,
-        msg: str,
-        *,
-        should_log: bool = True,
-        highlight: bool = True,
-    ) -> None:
-        if should_log:
-            self.console.log(f'[{self.prefix}] - ✔ {msg}', highlight=highlight)
+    def info(self, msg: str, *, highlight: bool = True, tab_level: int = 0) -> None:
+        prefix = f'[cyan]{self.prefix}[/cyan][blue].INFO 🔹[/blue]:'
+        self._log_message(
+            logging.INFO,
+            f'{prefix} {msg}',
+            highlight=highlight,
+            tab_level=tab_level,
+        )
 
-    def error(
-        self,
-        msg: str,
-        *,
-        should_log: bool = True,
-        highlight: bool = True,
-    ) -> None:
-        if should_log:
-            self.console.log(f'[{self.prefix}] - ❌ {msg}', highlight=highlight)
+    def success(self, msg: str, *, highlight: bool = True, tab_level: int = 0) -> None:
+        prefix = f'[cyan]{self.prefix}[/cyan][green].SUCCESS ✔[/green]:'
+        self._log_message(
+            logging.INFO,
+            f'{prefix} {msg}',
+            highlight=highlight,
+            tab_level=tab_level,
+        )
 
-    def wait(
-        self,
-        msg: str,
-        *,
-        should_log: bool = True,
-        highlight: bool = True,
-    ) -> None:
-        if should_log:
-            self.console.log(f'[{self.prefix}] - ⏳ {msg}', highlight=highlight)
+    def error(self, msg: str, *, highlight: bool = True, tab_level: int = 0) -> None:
+        prefix = f'[cyan]{self.prefix}[/cyan][bold red].ERROR ❌[/bold red]:'
+        self._log_message(
+            logging.ERROR,
+            f'{prefix} {msg}',
+            highlight=highlight,
+            tab_level=tab_level,
+        )
 
-    def skip_lines(self, count: int) -> None:
-        self.console.print('\n' * count, end='')
+    def wait(self, msg: str, *, highlight: bool = True, tab_level: int = 0) -> None:
+        prefix = f'[cyan]{self.prefix}[/cyan][yellow].WAIT ⏳[/yellow]:'
+        self._log_message(
+            logging.INFO,
+            f'{prefix} {msg}',
+            highlight=highlight,
+            tab_level=tab_level,
+        )
+
+    def warning(self, msg: str, *, highlight: bool = True, tab_level: int = 0) -> None:
+        prefix = f'[cyan]{self.prefix}[/cyan][bold yellow].WARNING ⚠ [/bold yellow]:'
+        self._log_message(
+            logging.WARNING,
+            f'{prefix} {msg}',
+            highlight=highlight,
+            tab_level=tab_level,
+        )
+
+
+log = Logger(prefix='boosty_downloader')

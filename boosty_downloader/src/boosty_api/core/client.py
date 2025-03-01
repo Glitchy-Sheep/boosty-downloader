@@ -13,7 +13,15 @@ from boosty_downloader.src.boosty_api.utils.filter_none_params import filter_non
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
-    import aiohttp
+    from aiohttp_retry import RetryClient
+
+
+class BoostyAPIError(Exception):
+    """Base class for all Boosty API related errors."""
+
+
+class BoostyAPINoUsernameError(BoostyAPIError):
+    """Raised when no username is specified."""
 
 
 class BoostyAPIClient:
@@ -23,12 +31,13 @@ class BoostyAPIClient:
     It handles the connection and makes requests to the API.
     """
 
-    def __init__(self, session: aiohttp.ClientSession) -> None:
+    def __init__(self, session: RetryClient) -> None:
         self.session = session
 
     async def get_author_posts(
         self,
         author_name: str,
+        limit: int,
         offset: str | None = None,
     ) -> PostsResponse:
         """
@@ -45,12 +54,19 @@ class BoostyAPIClient:
             params=filter_none_params(
                 {
                     'offset': offset,
+                    'limit': limit,
                 },
             ),
         )
         posts_data = await posts_raw.json()
 
-        posts: list[Post] = [Post.model_validate(post) for post in posts_data['data']]
+        try:
+            posts: list[Post] = [
+                Post.model_validate(post) for post in posts_data['data']
+            ]
+        except KeyError as e:
+            raise BoostyAPINoUsernameError from e
+
         extra: Extra = Extra.model_validate(posts_data['extra'])
 
         return PostsResponse(
@@ -62,6 +78,7 @@ class BoostyAPIClient:
         self,
         author_name: str,
         delay_seconds: float = 0,
+        posts_per_page: int = 5,
     ) -> AsyncGenerator[PostsResponse, None]:
         """
         Infinite generator iterating over posts of the specified author.
@@ -71,7 +88,11 @@ class BoostyAPIClient:
         offset = None
         while True:
             await asyncio.sleep(delay_seconds)
-            response = await self.get_author_posts(author_name, offset)
+            response = await self.get_author_posts(
+                author_name,
+                offset=offset,
+                limit=posts_per_page,
+            )
             yield response
             if response.extra.is_last:
                 break

@@ -19,7 +19,10 @@ class Post(BaseModel):
     id: str
     title: str
     created_at: datetime
+    updated_at: datetime
     has_access: bool
+
+    signed_query: str
 
     data: list[BasePostData]
 
