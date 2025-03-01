@@ -10,7 +10,10 @@ import aiohttp
 import typer
 from aiohttp_retry import ExponentialRetry, RetryClient
 
-from boosty_downloader.src.boosty_api.core.client import BoostyAPIClient
+from boosty_downloader.src.boosty_api.core.client import (
+    BoostyAPIClient,
+    BoostyAPINoUsernameError,
+)
 from boosty_downloader.src.boosty_api.core.endpoints import BASE_URL
 from boosty_downloader.src.boosty_api.utils.auth_parsers import (
     parse_auth_header,
@@ -29,6 +32,7 @@ from boosty_downloader.src.download_manager.download_manager_config import (
 from boosty_downloader.src.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
 )
+from boosty_downloader.src.loggers import logger_instances
 from boosty_downloader.src.loggers.failed_downloads_logger import FailedDownloadsLogger
 from boosty_downloader.src.loggers.logger_instances import downloader_logger
 from boosty_downloader.src.yaml_configuration.config import init_config
@@ -230,7 +234,10 @@ def bootstrap() -> None:
     It doesn't run the app directly, but through main_wrapper,
     because main app by itself is async and can't be run directly with typer.
     """
-    app()
+    try:
+        app()
+    except BoostyAPINoUsernameError:
+        logger_instances.downloader_logger.error('Username not found')
 
 
 if __name__ == '__main__':

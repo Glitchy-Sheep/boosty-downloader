@@ -16,6 +16,14 @@ if TYPE_CHECKING:
     from aiohttp_retry import RetryClient
 
 
+class BoostyAPIError(Exception):
+    """Base class for all Boosty API related errors."""
+
+
+class BoostyAPINoUsernameError(BoostyAPIError):
+    """Raised when no username is specified."""
+
+
 class BoostyAPIClient:
     """
     Main client class for the Boosty API.
@@ -52,7 +60,13 @@ class BoostyAPIClient:
         )
         posts_data = await posts_raw.json()
 
-        posts: list[Post] = [Post.model_validate(post) for post in posts_data['data']]
+        try:
+            posts: list[Post] = [
+                Post.model_validate(post) for post in posts_data['data']
+            ]
+        except KeyError as e:
+            raise BoostyAPINoUsernameError from e
+
         extra: Extra = Extra.model_validate(posts_data['extra'])
 
         return PostsResponse(
