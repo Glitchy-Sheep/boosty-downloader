@@ -536,6 +536,12 @@ class BoostyDownloadManager:
 
                 for post in posts:
                     current_post += 1
+                    if not post.has_access:
+                        self.logger.info(
+                            f'Skipping post {post.title} because it is not accessible due to your subscription level',
+                        )
+                        continue
+
                     post_location_info = self._generate_post_location(
                         username=username,
                         post=post,
