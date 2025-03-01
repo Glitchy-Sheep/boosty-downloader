@@ -110,14 +110,9 @@ class BoostyDownloadManager:
         self.logger = logger_dependencies.logger
         self.fail_downloads_logger = logger_dependencies.failed_downloads_logger
 
-        self.general_options = general_options
-
-        self.session = network_dependencies.session
-        self._api_client = network_dependencies.api_client
+        self._general_options = general_options
+        self._network_dependencies = network_dependencies
         self._target_directory = general_options.target_directory.absolute()
-        self.external_videos_downloader = (
-            network_dependencies.external_videos_downloader
-        )
         self._prepare_target_directory(self._target_directory)
 
         # Will track progress for multiple tasks (files, videos, etc)
@@ -210,7 +205,7 @@ class BoostyDownloadManager:
                 )
 
                 dl_config = DownloadFileConfig(
-                    session=self.session,
+                    session=self._network_dependencies.session,
                     url=image.url,
                     filename=filename,
                     destination=images_directory,
@@ -260,7 +255,7 @@ class BoostyDownloadManager:
             )
 
             dl_config = DownloadFileConfig(
-                session=self.session,
+                session=self._network_dependencies.session,
                 url=file.url + post.signed_query,
                 filename=file.title,
                 destination=destination,
@@ -320,7 +315,7 @@ class BoostyDownloadManager:
             )
 
             dl_config = DownloadFileConfig(
-                session=self.session,
+                session=self._network_dependencies.session,
                 url=best_video.url,
                 filename=video.title,
                 destination=destination,
@@ -362,7 +357,7 @@ class BoostyDownloadManager:
         # Don't use progress indicator here because of sys.stderr / stdout collissionds
         # just let ytdl do the work and print the progress to the console by itself
         for idx, video in enumerate(videos):
-            if not self.external_videos_downloader.is_supported_video(video.url):
+            if not self._network_dependencies.external_videos_downloader.is_supported_video(video.url):
                 continue
 
             try:
@@ -370,7 +365,7 @@ class BoostyDownloadManager:
                     f'Start youtube-dl for ({idx}/{len(videos)}) video please wait: ({video.url})',
                     tab_level=1,
                 )
-                self.external_videos_downloader.download_video(
+                self._network_dependencies.external_videos_downloader.download_video(
                     video.url,
                     destination,
                 )
@@ -403,7 +398,7 @@ class BoostyDownloadManager:
 
         if (
             DownloadContentTypeFilter.post_content
-            in self.general_options.download_content_type_filters
+            in self._general_options.download_content_type_filters
         ):
             await self._save_post_content(
                 destination=post_location_info.post_directory,
@@ -412,7 +407,7 @@ class BoostyDownloadManager:
 
         if (
             DownloadContentTypeFilter.files
-            in self.general_options.download_content_type_filters
+            in self._general_options.download_content_type_filters
         ):
             await self._download_files(
                 destination=post_location_info.post_directory / 'files',
@@ -422,18 +417,18 @@ class BoostyDownloadManager:
 
         if (
             DownloadContentTypeFilter.boosty_videos
-            in self.general_options.download_content_type_filters
+            in self._general_options.download_content_type_filters
         ):
             await self._download_boosty_videos(
                 destination=post_location_info.post_directory / 'boosty_videos',
                 post=post,
                 boosty_videos=post_data.ok_videos,
-                preferred_quality=self.general_options.preferred_video_quality.to_ok_video_type(),
+                preferred_quality=self._general_options.preferred_video_quality.to_ok_video_type(),
             )
 
         if (
             DownloadContentTypeFilter.external_videos
-            in self.general_options.download_content_type_filters
+            in self._general_options.download_content_type_filters
         ):
             await self._download_external_videos(
                 post=post,
@@ -455,9 +450,9 @@ class BoostyDownloadManager:
 
     async def only_check_total_posts(self, username: str) -> None:
         total = 0
-        async for response in self._api_client.iterate_over_posts(
+        async for response in self._network_dependencies.api_client.iterate_over_posts(
             username,
-            delay_seconds=self.general_options.request_delay_seconds,
+            delay_seconds=self._general_options.request_delay_seconds,
             posts_per_page=100,
         ):
             total += len(response.posts)
@@ -472,9 +467,9 @@ class BoostyDownloadManager:
 
         self.logger.info(f'Extracted post id from url: {target_post_id}')
 
-        async for response in self._api_client.iterate_over_posts(
+        async for response in self._network_dependencies.api_client.iterate_over_posts(
             username,
-            delay_seconds=self.general_options.request_delay_seconds,
+            delay_seconds=self._general_options.request_delay_seconds,
             posts_per_page=100,
         ):
             for post in response.posts:
@@ -512,7 +507,7 @@ class BoostyDownloadManager:
         self.logger.info('-' * 80)
         self.logger.info(
             'Script will download:'
-            f'{[elem.name for elem in self.general_options.download_content_type_filters]}',
+            f'{[elem.name for elem in self._general_options.download_content_type_filters]}',
         )
         self.logger.info('-' * 80)
 
@@ -522,9 +517,9 @@ class BoostyDownloadManager:
         self._post_cache = PostCache(self._target_directory / username)
 
         with self.progress:
-            async for response in self._api_client.iterate_over_posts(
+            async for response in self._network_dependencies.api_client.iterate_over_posts(
                 username,
-                delay_seconds=self.general_options.request_delay_seconds,
+                delay_seconds=self._general_options.request_delay_seconds,
                 posts_per_page=5,
             ):
                 posts = response.posts
