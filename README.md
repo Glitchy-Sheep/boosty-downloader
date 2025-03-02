@@ -1,6 +1,6 @@
 
 <p align="center">
-    <img src="assets/boosty-black-badge.png" style="width: 80%; "/>
+    <img src="https://raw.githubusercontent.com/Glitchy-Sheep/boosty-downloader/main/assets/boosty-black-badge.png" style="width: 80%; "/>
 </p>
 
 # 🖥️ About
@@ -41,8 +41,8 @@ The post content itself is saved in html with a little bit of styling.
 
 ## 📸 Screenshots & Usage
 
-<img src="assets/usage.png">
-<img src="assets/screenshot.png">
+<img src="https://raw.githubusercontent.com/Glitchy-Sheep/boosty-downloader/main/assets/usage.png">
+<img src="https://raw.githubusercontent.com/Glitchy-Sheep/boosty-downloader/main/assets/screenshot.png">
 
 
 ## 🛠️ Installation
@@ -80,13 +80,13 @@ The post content itself is saved in html with a little bit of styling.
 3. Navigate to any author you have access to and scroll post a little.
 4. Copy auth token and cookie from browser network tab.
 
-<img src="assets/auth_guide.png">
+<img src="https://raw.githubusercontent.com/Glitchy-Sheep/boosty-downloader/main/assets/auth_guide.png">
 
 ### Step 2: Paste the cookie and auth header into the config file
 
 This config will be created during first run of the app in the current working directory.
 
-<img src="assets/config_guide.png">
+<img src="https://raw.githubusercontent.com/Glitchy-Sheep/boosty-downloader/main/assets/config_guide.png">
 
 ### Step 3: Run the utility
 
@@ -95,8 +95,6 @@ Now you can just download your content with the following command:
 ```bash
 boosty-downloader --username YOUR_CREATOR_NAME
 ```
-
-
 
 ## 📜 License
 
