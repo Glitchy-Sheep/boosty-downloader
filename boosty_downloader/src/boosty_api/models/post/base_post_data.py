@@ -6,7 +6,7 @@ Only essentials fields defined for parsing purposes.
 
 from __future__ import annotations
 
-from typing import Annotated, Union
+from typing import Annotated
 
 from pydantic import Field
 
@@ -30,14 +30,7 @@ from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_vide
 )
 
 BasePostData = Annotated[
-    Union[
-        PostDataText,
-        PostDataImage,
-        PostDataLink,
-        PostDataFile,
-        PostDataVideo,
-        PostDataOkVideo,
-    ],
+    PostDataText | PostDataImage | PostDataLink | PostDataFile | PostDataVideo | PostDataOkVideo,
     Field(
         discriminator='type',
     ),
