@@ -1,3 +1,10 @@
+1.2.1
+
+- **Critical Bug Fix**: Fixed `target_directory` configuration parameter being ignored in main.py
+- **Configuration Support**: Now properly respects both relative and absolute paths in `target_directory` setting
+- **Testing**: Added comprehensive tests for `target_directory` functionality
+- **Directory Creation**: Ensures target directories are created automatically when they don't exist
+
 1.2.0
 
 - **OAuth Authentication**: Added OAuth token-based authentication with automatic token refresh

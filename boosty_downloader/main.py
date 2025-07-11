@@ -82,7 +82,7 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
         headers=await parse_auth_header(auth_header, oauth_tokens_file),
         cookie_jar=await parse_session_cookie(cookie_string),
     ) as session:
-        destionation_directory = Path('./boosty-downloads').absolute()
+        destionation_directory = config.downloading_settings.target_directory.absolute()
         
         # Use OAuth-enhanced client if OAuth tokens are available
         if oauth_manager.has_tokens():
