@@ -1,3 +1,11 @@
+1.2.2
+
+- **OAuth Token Parsing Fix**: Fixed critical issue with OAuth token parsing when copying from browser console
+- **New Token Format Support**: Added support for pipe-separated string format (access_token|refresh_token|expires_at|device_id) to eliminate JSON parsing errors
+- **Enhanced Error Handling**: Improved error messages and debug logging for OAuth token setup
+- **Token Validation**: Added comprehensive validation for both legacy JSON format and new pipe-separated format
+- **Authentication Stability**: Resolved issues with escaped JSON strings and invisible characters in OAuth tokens
+
 1.2.1
 
 - **Critical Bug Fix**: Fixed `target_directory` configuration parameter being ignored in main.py

@@ -94,22 +94,26 @@ def _show_auto_extract_script() -> None:
     }
     
     console.log('✅ OAuth tokens extracted successfully!');
-    console.log('📋 Copy the following JSON and paste it into the terminal:');
+    console.log('📋 Copy the following TOKEN STRING and paste it into the terminal:');
     console.log('');
-    console.log('=== COPY THIS JSON (START) ===');
-    console.log(JSON.stringify(result, null, 2));
-    console.log('=== COPY THIS JSON (END) ===');
+    
+    // Create a single line with pipe-separated values for easier parsing
+    const tokenString = `${result.access_token}|${result.refresh_token}|${result.expires_at}|${result.device_id}`;
+    
+    console.log('=== COPY THIS TOKEN STRING (START) ===');
+    console.log(tokenString);
+    console.log('=== COPY THIS TOKEN STRING (END) ===');
     console.log('');
     
     // Also copy to clipboard if available
     if (navigator.clipboard) {
-        navigator.clipboard.writeText(JSON.stringify(result, null, 2))
-            .then(() => console.log('📋 JSON copied to clipboard!'))
+        navigator.clipboard.writeText(tokenString)
+            .then(() => console.log('📋 Token string copied to clipboard!'))
             .catch(() => console.log('⚠️ Could not copy to clipboard, please copy manually'));
     }
     
-    console.log('⚠️ IMPORTANT: Copy ONLY the JSON text between the === markers above');
-    console.log('❌ DO NOT copy the object shown below (it has single quotes and will cause errors)');
+    console.log('⚠️ IMPORTANT: Copy ONLY the token string between the === markers above');
+    console.log('✨ Format: access_token|refresh_token|expires_at|device_id');
     
     return result;
 })();
@@ -118,8 +122,8 @@ def _show_auto_extract_script() -> None:
     console.print(js_code, style='green', highlight=False, markup=False)
     console.print()
     console.print('5. Press Enter to execute the code', style='yellow')
-    console.print('6. Copy the JSON output that appears', style='yellow')
-    console.print('7. Return to this terminal and paste the JSON when prompted', style='yellow')
+    console.print('6. Copy the TOKEN STRING that appears (one line with | separators)', style='yellow')
+    console.print('7. Return to this terminal and paste the token string when prompted', style='yellow')
     console.print()
     console.print('[red]Note:[/red] If the script shows errors, try:')
     console.print('- Refreshing the page')
@@ -168,18 +172,73 @@ def setup_oauth(
         _show_auto_extract_script()
         console.print()
         
-        json_data = Prompt.ask('Paste the JSON output from browser console')
+        token_data = Prompt.ask('Paste the token string from browser console')
         try:
             import json
-            data = json.loads(json_data)
-            tokens = OAuthTokens(
-                access_token=data['access_token'],
-                refresh_token=data['refresh_token'],
-                expires_at=data['expires_at'],
-                device_id=data['device_id'],
-            )
+            
+            # Clean the data
+            token_data = token_data.strip()
+            
+            # Check if it's a pipe-separated string (new format)
+            if '|' in token_data and not token_data.startswith('{'):
+                console.print('[cyan]📝 Detected new token string format[/cyan]')
+                parts = token_data.split('|')
+                
+                if len(parts) != 4:
+                    console.print(f'[red]Invalid token string format. Expected 4 parts, got {len(parts)}[/red]')
+                    console.print('[yellow]Falling back to manual input...[/yellow]')
+                    choice = 'manual'
+                    tokens = None
+                else:
+                    access_token, refresh_token, expires_at_str, device_id = parts
+                    
+                    try:
+                        expires_at = int(expires_at_str)
+                    except ValueError:
+                        console.print('[red]Invalid expires_at in token string[/red]')
+                        choice = 'manual'
+                        tokens = None
+                    else:
+                        console.print('[green]✅ Token string parsed successfully![/green]')
+                        tokens = OAuthTokens(
+                            access_token=access_token,
+                            refresh_token=refresh_token,
+                            expires_at=expires_at,
+                            device_id=device_id,
+                        )
+            else:
+                # Try to parse as JSON (legacy format)
+                console.print('[cyan]📝 Attempting JSON parsing (legacy format)[/cyan]')
+                
+                # Remove any extra quotes that might have been copied
+                if token_data.startswith('"') and token_data.endswith('"'):
+                    token_data = token_data[1:-1]
+                
+                # Handle escaped quotes
+                token_data = token_data.replace('\\"', '"')
+                
+                data = json.loads(token_data)
+                
+                # Validate required fields
+                required_fields = ['access_token', 'refresh_token', 'expires_at', 'device_id']
+                missing_fields = [field for field in required_fields if field not in data]
+                
+                if missing_fields:
+                    console.print(f'[red]Missing required fields: {missing_fields}[/red]')
+                    console.print('[yellow]Falling back to manual input...[/yellow]')
+                    choice = 'manual'
+                    tokens = None
+                else:
+                    tokens = OAuthTokens(
+                        access_token=data['access_token'],
+                        refresh_token=data['refresh_token'],
+                        expires_at=data['expires_at'],
+                        device_id=data['device_id'],
+                    )
+                    console.print('[green]✅ JSON parsed successfully![/green]')
+                    
         except (json.JSONDecodeError, KeyError, ValueError) as e:
-            console.print(f'[red]Error parsing JSON data: {e}[/red]')
+            console.print(f'[red]Error parsing data: {e}[/red]')
             console.print('[yellow]Falling back to manual input...[/yellow]')
             choice = 'manual'
             tokens = None
