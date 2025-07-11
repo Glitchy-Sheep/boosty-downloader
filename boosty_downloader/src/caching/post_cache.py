@@ -59,8 +59,11 @@ class PostCache:
         updated_at: datetime,
     ) -> bool:
         """Check if post with the same title and updated_at exists"""
+        # Form full folder name from date and clean title
+        folder_name = f'{updated_at.date()} - {title}'
+        
         # Check if the post folder exists
-        post_path = self.destination / title
+        post_path = self.destination / folder_name
         if not post_path.exists():
             # If post doesn't exist in folder, remove it from cache and return False
             self.cleanup_cache(title)

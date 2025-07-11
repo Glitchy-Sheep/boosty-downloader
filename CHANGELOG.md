@@ -1,3 +1,9 @@
+1.0.2
+
+- **BREAKING CHANGE**: Improved cache architecture to separate clean post titles from folder names with dates
+- Cache now stores clean post titles without dates, preventing data duplication
+- Fixed cache validation logic to properly compare folder names with formatted date + title
+
 1.0.1
 
 - Fixed import path in ok_video_ranking_test.py (moved from ok_video_ranking to utils/ok_video_ranking)

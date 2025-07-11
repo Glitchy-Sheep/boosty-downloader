@@ -86,7 +86,8 @@ class PostData:
 class PostLocation:
     """Configuration for downloading post location"""
 
-    title: str
+    title: str  # Clean post title without date
+    full_name: str  # Full name with date for folder/cache comparison
     username: str
     post_directory: Path
 
@@ -123,7 +124,6 @@ class BoostyDownloadManager:
         target_directory.mkdir(parents=True, exist_ok=True)
 
     def _generate_post_location(self, username: str, post: Post) -> PostLocation:
-        title = post.title or f'No title (id_{post.id[:8]})'
         author_directory = self._target_directory / username
 
         post_title = post.title
@@ -135,7 +135,8 @@ class BoostyDownloadManager:
         post_directory = author_directory / post_name
 
         return PostLocation(
-            title=title,
+            title=post_title,  # Clean title for cache
+            full_name=post_name,  # Full name with date for folder operations
             username=username,
             post_directory=post_directory,
         )
@@ -549,12 +550,12 @@ class BoostyDownloadManager:
                         updated_at=post.updated_at,
                     ):
                         self.logger.info(
-                            f'Skipping post {post_location_info.title} because it was already downloaded',
+                            f'Skipping post {post_location_info.full_name} because it was already downloaded',
                         )
                         continue
 
                     self.logger.info(
-                        f'Processing post ({current_post}/{total_posts}):  {post_location_info.title}',
+                        f'Processing post ({current_post}/{total_posts}):  {post_location_info.full_name}',
                     )
 
                     await self._download_single_post(
