@@ -384,7 +384,7 @@ class BoostyDownloadManager:
         self,
         username: str,
         post: Post,
-    ) -> None:
+    ) -> bool:
         """
         Download a single post and all its content including:
 
@@ -392,50 +392,61 @@ class BoostyDownloadManager:
             2. Boosty videos
             3. Images
             4. External videos (from YouTube and Vimeo)
+
+        Returns:
+            bool: True if the download was successful, False otherwise
+
         """
-        post_data = self._separate_post_content(post)
+        try:
+            post_data = self._separate_post_content(post)
 
-        post_location_info = self._generate_post_location(username, post)
+            post_location_info = self._generate_post_location(username, post)
 
-        if (
-            DownloadContentTypeFilter.post_content
-            in self._general_options.download_content_type_filters
-        ):
-            await self._save_post_content(
-                destination=post_location_info.post_directory,
-                post_content=post_data.post_content,
-            )
+            if (
+                DownloadContentTypeFilter.post_content
+                in self._general_options.download_content_type_filters
+            ):
+                await self._save_post_content(
+                    destination=post_location_info.post_directory,
+                    post_content=post_data.post_content,
+                )
 
-        if (
-            DownloadContentTypeFilter.files
-            in self._general_options.download_content_type_filters
-        ):
-            await self._download_files(
-                destination=post_location_info.post_directory / 'files',
-                post=post,
-                files=post_data.files,
-            )
+            if (
+                DownloadContentTypeFilter.files
+                in self._general_options.download_content_type_filters
+            ):
+                await self._download_files(
+                    destination=post_location_info.post_directory / 'files',
+                    post=post,
+                    files=post_data.files,
+                )
 
-        if (
-            DownloadContentTypeFilter.boosty_videos
-            in self._general_options.download_content_type_filters
-        ):
-            await self._download_boosty_videos(
-                destination=post_location_info.post_directory / 'boosty_videos',
-                post=post,
-                boosty_videos=post_data.ok_videos,
-                preferred_quality=self._general_options.preferred_video_quality.to_ok_video_type(),
-            )
+            if (
+                DownloadContentTypeFilter.boosty_videos
+                in self._general_options.download_content_type_filters
+            ):
+                await self._download_boosty_videos(
+                    destination=post_location_info.post_directory / 'boosty_videos',
+                    post=post,
+                    boosty_videos=post_data.ok_videos,
+                    preferred_quality=self._general_options.preferred_video_quality.to_ok_video_type(),
+                )
 
-        if (
-            DownloadContentTypeFilter.external_videos
-            in self._general_options.download_content_type_filters
-        ):
-            await self._download_external_videos(
-                post=post,
-                destination=post_location_info.post_directory / 'external_videos',
-                videos=post_data.videos,
-            )
+            if (
+                DownloadContentTypeFilter.external_videos
+                in self._general_options.download_content_type_filters
+            ):
+                await self._download_external_videos(
+                    post=post,
+                    destination=post_location_info.post_directory / 'external_videos',
+                    videos=post_data.videos,
+                )
+
+        except Exception:
+            self.logger.exception(f'Failed to download post {post.title}')
+            return False
+        else:
+            return True
 
     async def clean_cache(self, username: str) -> None:
         db_file = self._target_directory / username / PostCache.DEFAULT_CACHE_FILENAME
@@ -468,6 +479,9 @@ class BoostyDownloadManager:
 
         self.logger.info(f'Extracted post id from url: {target_post_id}')
 
+        # Initialize cache for this user
+        post_cache = PostCache(self._target_directory / username)
+
         async for response in self._network_dependencies.api_client.iterate_over_posts(
             username,
             delay_seconds=self._general_options.request_delay_seconds,
@@ -479,11 +493,21 @@ class BoostyDownloadManager:
                 )
                 if post.id == target_post_id:
                     self.logger.wait('FOUND post by id, downloading...')
-                    await self._download_single_post(
+                    if await self._download_single_post(
                         username=username,
                         post=post,
-                    )
-                    self.logger.success('Post downloaded successfully!')
+                    ):
+                        post_location_info = self._generate_post_location(
+                            username, post,
+                        )
+                        post_cache.add_post_cache(
+                            post_id=post.id,
+                            title=post_location_info.title,
+                            updated_at=post.updated_at,
+                        )
+                        self.logger.success('Post downloaded successfully!')
+                    else:
+                        self.logger.error('Failed to download post!')
                     return
 
         self.logger.error('Post not found, please check the url and username.')
@@ -545,9 +569,18 @@ class BoostyDownloadManager:
                         post=post,
                     )
 
+                    # Ensure folder name matches current post title (rename if needed)
+                    self._post_cache.ensure_folder_name_matches(
+                        post_id=post.id,
+                        current_title=post_location_info.title,
+                        created_at=post.created_at,
+                    )
+
                     if self._post_cache.has_same_post(
-                        title=post_location_info.title,
+                        post_id=post.id,
+                        current_title=post_location_info.title,
                         updated_at=post.updated_at,
+                        current_folder_name=post_location_info.full_name,
                     ):
                         self.logger.info(
                             f'Skipping post {post_location_info.full_name} because it was already downloaded',
@@ -558,14 +591,14 @@ class BoostyDownloadManager:
                         f'Processing post ({current_post}/{total_posts}):  {post_location_info.full_name}',
                     )
 
-                    await self._download_single_post(
+                    if await self._download_single_post(
                         username=username,
                         post=post,
-                    )
-
-                    self._post_cache.add_post_cache(
-                        title=post_location_info.title,
-                        updated_at=post.updated_at,
-                    )
+                    ):
+                        self._post_cache.add_post_cache(
+                            post_id=post.id,
+                            title=post_location_info.title,
+                            updated_at=post.updated_at,
+                        )
 
         self.logger.success('Finished downloading posts!')

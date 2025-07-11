@@ -36,6 +36,7 @@ The post content itself is saved in html with a little bit of styling.
 - 📂 **Content Type Filters**: Download only the content you need (videos, images, etc), choose what you really want with flags (see below).
 - 📄 **Download specific posts**: Download post by url and username.
 - 🔃 **Sync Content seamlessly**: The utility keeps cache of already downloaded posts, so you can resume your download at any time or get new content after a while.
+- 🛡️ **Reliable Caching**: Advanced cache system with automatic folder renaming when post titles change, ensuring no duplicate downloads.
 - 📼 **Choose your video quality**: You can choose preferred video quality to download
 
 

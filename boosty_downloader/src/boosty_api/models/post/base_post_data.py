@@ -30,7 +30,12 @@ from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_vide
 )
 
 BasePostData = Annotated[
-    PostDataText | PostDataImage | PostDataLink | PostDataFile | PostDataVideo | PostDataOkVideo,
+    PostDataText
+    | PostDataImage
+    | PostDataLink
+    | PostDataFile
+    | PostDataVideo
+    | PostDataOkVideo,
     Field(
         discriminator='type',
     ),

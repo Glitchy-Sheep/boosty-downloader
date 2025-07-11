@@ -1,3 +1,13 @@
+1.1.0
+
+- **Improved Cache System**: Major refactoring of the post caching architecture for better reliability
+- **Fixed Cache Validation**: Cache now properly uses unique post IDs instead of titles as primary keys
+- **Better Title Handling**: Automatic folder renaming when post titles change on the server
+- **Enhanced Error Handling**: Added comprehensive error handling for post download failures
+- **Separated Responsibilities**: Split cache checking and folder renaming into distinct, testable methods
+- **Comprehensive Testing**: Added 9 new test cases covering all cache scenarios including edge cases
+- **Performance Improvements**: Reduced redundant downloads through more accurate cache validation
+
 1.0.2
 
 - **BREAKING CHANGE**: Improved cache architecture to separate clean post titles from folder names with dates
