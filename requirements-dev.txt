@@ -1,5 +1,0 @@
-# Development dependencies from pyproject.toml
--r requirements.txt
-ruff>=0.9.6,<0.12.0
-pyright>=1.1.394
-pytest>=8.3.4 
