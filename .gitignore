@@ -189,3 +189,12 @@ poetry.toml
 
 # End of https://www.toptal.com/developers/gitignore/api/python
 
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
