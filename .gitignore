@@ -11,6 +11,7 @@ boosty-downloads/
 
 # Credentials
 config.yaml
+oauth_tokens.json
 
 
 ### Python ###

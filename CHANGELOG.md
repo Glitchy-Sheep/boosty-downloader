@@ -1,3 +1,13 @@
+1.2.0
+
+- **OAuth Authentication**: Added OAuth token-based authentication with automatic token refresh
+- **Enhanced Security**: OAuth tokens are automatically refreshed when expired, reducing authentication failures
+- **Browser Token Extraction**: Added JavaScript utility to extract OAuth tokens from browser cookies 
+- **Dual Authentication**: Support for both OAuth (recommended) and legacy cookie/header authentication
+- **OAuth Management**: New commands for OAuth setup (`oauth-setup`) and token status checking
+- **Configuration Updates**: Updated config validation to support OAuth tokens file
+- **Improved Documentation**: Updated README with OAuth setup instructions
+
 1.1.0
 
 - **Improved Cache System**: Major refactoring of the post caching architecture for better reliability

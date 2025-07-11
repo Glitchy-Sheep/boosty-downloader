@@ -15,7 +15,9 @@ from boosty_downloader.src.boosty_api.core.client import (
     BoostyAPINoUsernameError,
 )
 from boosty_downloader.src.boosty_api.core.endpoints import BASE_URL
+from boosty_downloader.src.boosty_api.core.oauth_client import OAuthBoostyAPIClient
 from boosty_downloader.src.boosty_api.utils.auth_parsers import (
+    create_oauth_manager,
     parse_auth_header,
     parse_session_cookie,
 )
@@ -59,6 +61,10 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
 
     cookie_string = config.auth.cookie
     auth_header = config.auth.auth_header
+    oauth_tokens_file = config.auth.oauth_tokens_file
+
+    # Initialize OAuth manager
+    oauth_manager = create_oauth_manager(oauth_tokens_file)
 
     retry_options = ExponentialRetry(
         attempts=5,
@@ -73,13 +79,23 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
 
     async with aiohttp.ClientSession(
         base_url=BASE_URL,
-        headers=await parse_auth_header(auth_header),
+        headers=await parse_auth_header(auth_header, oauth_tokens_file),
         cookie_jar=await parse_session_cookie(cookie_string),
     ) as session:
         destionation_directory = Path('./boosty-downloads').absolute()
-        boosty_api_client = BoostyAPIClient(
-            RetryClient(session, retry_options=retry_options),
-        )
+        
+        # Use OAuth-enhanced client if OAuth tokens are available
+        if oauth_manager.has_tokens():
+            boosty_api_client = OAuthBoostyAPIClient(
+                RetryClient(session, retry_options=retry_options),
+                oauth_manager,
+            )
+            downloader_logger.info('Using OAuth authentication')
+        else:
+            boosty_api_client = BoostyAPIClient(
+                RetryClient(session, retry_options=retry_options),
+            )
+            downloader_logger.info('Using cookie/header authentication')
 
         async with aiohttp.ClientSession(
             # Don't use BASE_URL here (for other domains)

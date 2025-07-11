@@ -28,8 +28,10 @@ class DownloadSettings(BaseModel):
 class AuthSettings(BaseModel):
     """Configuration for authentication (cookies and authorization headers)"""
 
-    cookie: str = Field(default='', min_length=1)
-    auth_header: str = Field(default='', min_length=1)
+    cookie: str = Field(default='')
+    auth_header: str = Field(default='')
+    # OAuth tokens file path (optional)
+    oauth_tokens_file: str = Field(default='oauth_tokens.json')
 
 
 CONFIG_LOCATION: Path = Path('config.yaml')
@@ -77,18 +79,36 @@ def init_config() -> Config:
             create_sample_config_file()
             downloader_logger.error("Config doesn't exist")
             downloader_logger.success(
-                f'Created a sample config file at {CONFIG_LOCATION.absolute()}, please fill `auth_header` and `cookie` with yours before running the app',
+                f'Created a sample config file at {CONFIG_LOCATION.absolute()}',
+            )
+            downloader_logger.info(
+                'You can either fill `auth_header` and `cookie` fields, or use OAuth tokens with: python -m boosty_downloader.oauth_setup setup-oauth',
             )
             sys.exit(1)
-        return Config()
-    except ValidationError:
+        
+        config = Config()
+        
+        # Validate that we have at least one authentication method
+        from pathlib import Path
+        oauth_file = Path(config.auth.oauth_tokens_file)
+        has_oauth = oauth_file.exists()
+        has_legacy_auth = bool(config.auth.cookie.strip() and config.auth.auth_header.strip())
+        
+        if not has_oauth and not has_legacy_auth:
+            downloader_logger.error('No authentication method configured')
+            downloader_logger.info('You can either:')
+            downloader_logger.info('1. Set up OAuth tokens: python -m boosty_downloader.oauth_setup setup-oauth')
+            downloader_logger.info('2. Fill `auth_header` and `cookie` fields in config.yaml')
+            sys.exit(1)
+        
+        return config
+        
+    except ValidationError as e:
         # If can't be parsed correctly
         create_sample_config_file()
         downloader_logger.error('Config is invalid (could not be parsed)')
-        downloader_logger.error(
-            '[bold yellow]Make sure you fill `auth_header` and `cookie` with yours, they are required[/bold yellow]',
-        )
+        downloader_logger.error(f'Validation error: {e}')
         downloader_logger.success(
-            f'Recreated it at [green bold]{CONFIG_LOCATION.absolute()}[/green bold]',
+            f'Recreated config at [green bold]{CONFIG_LOCATION.absolute()}[/green bold]',
         )
         sys.exit(1)

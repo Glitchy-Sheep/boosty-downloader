@@ -74,7 +74,27 @@ The post content itself is saved in html with a little bit of styling.
 
 ## 🚀 Configuration for Usage
 
-### Step 1: Get the auth cookie and auth header
+You can use **OAuth** (recommended) or **Manual** authentication:
+
+### 🔑 OAuth Authentication (Recommended)
+
+1. Login to [Boosty](https://boosty.to) in your browser
+2. Run the OAuth setup utility:
+   ```bash
+   python -m boosty_downloader.oauth_setup setup-oauth
+   ```
+3. Follow the browser console instructions to extract tokens
+4. Download content:
+   ```bash
+   boosty-downloader --username YOUR_CREATOR_NAME
+   ```
+
+### 🔧 Manual Authentication (Legacy)
+
+<details>
+<summary>Click to expand manual setup instructions</summary>
+
+#### Step 1: Get the auth cookie and auth header
 
 1. Open the [Boosty](https://boosty.to) website.
 2. Click the "Sign in" button and fill you credentials.
@@ -83,19 +103,21 @@ The post content itself is saved in html with a little bit of styling.
 
 <img src="https://raw.githubusercontent.com/Glitchy-Sheep/boosty-downloader/main/assets/auth_guide.png">
 
-### Step 2: Paste the cookie and auth header into the config file
+#### Step 2: Paste the cookie and auth header into the config file
 
 This config will be created during first run of the app in the current working directory.
 
 <img src="https://raw.githubusercontent.com/Glitchy-Sheep/boosty-downloader/main/assets/config_guide.png">
 
-### Step 3: Run the utility
+#### Step 3: Run the utility
 
 Now you can just download your content with the following command:
 
 ```bash
 boosty-downloader --username YOUR_CREATOR_NAME
 ```
+
+</details>
 
 ## 📜 License
 
