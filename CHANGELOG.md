@@ -1,3 +1,19 @@
+1.3.0
+
+- **Enhanced HTML Reporter**: Complete rewrite of HTML generation with modern semantic HTML5 structure
+- **Post Metadata Support**: Added comprehensive post metadata (title, dates, author, original URL) in HTML headers
+- **Content Type Attributes**: Added data-content-type attributes for improved parsing (text, image, link, file, video)
+- **Files and Videos in HTML**: Files and videos are now displayed in generated HTML with local links when available
+- **Clickable Images**: Images can now be opened in new tabs by clicking on them
+- **Structured Data**: Added JSON-LD structured data for better machine parsing and SEO
+- **Modern CSS Design**: Responsive design with dark/light theme support and CSS custom properties
+- **Improved URL Generation**: Fixed post URLs to include author username (boosty.to/author/posts/id format)
+- **Empty Paragraph Filtering**: Removed empty paragraphs that match Boosty frontend behavior
+- **Enhanced Accessibility**: Added proper alt text, loading attributes, and semantic markup
+- **Content Order Preservation**: Maintains original post content order with proper spacing
+- **File Size Formatting**: Human-readable file size display with proper units
+- **Video Duration Display**: Shows video duration and type information when available
+
 1.2.2
 
 - **OAuth Token Parsing Fix**: Fixed critical issue with OAuth token parsing when copying from browser console

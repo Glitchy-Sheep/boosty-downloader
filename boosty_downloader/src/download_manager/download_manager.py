@@ -43,7 +43,11 @@ from boosty_downloader.src.download_manager.utils.path_sanitizer import sanitize
 from boosty_downloader.src.external_videos_downloader.external_videos_downloader import (
     FailedToDownloadExternalVideoError,
 )
-from boosty_downloader.src.html_reporter.html_reporter import HTMLReport, NormalText
+from boosty_downloader.src.html_reporter.html_reporter import (
+    HTMLReport,
+    NormalText,
+    PostMetadata,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -58,7 +62,7 @@ if TYPE_CHECKING:
         NetworkDependencies,
     )
 
-BOOSTY_POST_BASE_URL = URL('https://boosty.to/post')
+
 
 
 @dataclass
@@ -162,6 +166,11 @@ class BoostyDownloadManager:
         self,
         destination: Path,
         post_content: list[PostDataText | PostDataLink | PostDataImage],
+        post: Post,
+        username: str,
+        files: list[PostDataFile] | None = None,
+        boosty_videos: list[PostDataOkVideo] | None = None,
+        external_videos: list[PostDataVideo] | None = None,
     ) -> None:
         if post_content:
             self.logger.info(
@@ -176,7 +185,17 @@ class BoostyDownloadManager:
 
         images_directory = destination / 'images'
 
-        post = HTMLReport(filename=post_file_path)
+        # Create post metadata for the HTML reporter
+        post_metadata = PostMetadata(
+            title=post.title or f'Пост без названия (ID: {post.id[:8]})',
+            post_id=post.id,
+            created_at=post.created_at,
+            updated_at=post.updated_at,
+            author=username,
+            original_url=f'https://boosty.to/{username}/posts/{post.id}',
+        )
+
+        html_report = HTMLReport(filename=post_file_path, metadata=post_metadata)
 
         self.logger.wait(
             f'Generating post content at {post_file_path.parent / post_file_path.name}',
@@ -186,11 +205,10 @@ class BoostyDownloadManager:
         for chunk in post_content:
             if isinstance(chunk, PostDataText):
                 text = extract_textual_content(chunk.content)
-                post.add_text(NormalText(text))
+                html_report.add_text(NormalText(text))
             elif isinstance(chunk, PostDataLink):
                 text = extract_textual_content(chunk.content)
-                post.add_link(NormalText(text), chunk.url)
-                post.new_paragraph()
+                html_report.add_link(NormalText(text), chunk.url)
             else:  # Image
                 images_directory.mkdir(parents=True, exist_ok=True)
                 image = chunk
@@ -221,10 +239,78 @@ class BoostyDownloadManager:
 
                 out_file = await download_file(dl_config=dl_config)
                 if out_file.exists():
-                    post.add_image('./images/' + out_file.name)
+                    html_report.add_image('./images/' + out_file.name)
                 self.progress.remove_task(current_task)
 
-        post.save()
+        # Add files to HTML report
+        if files:
+            html_report.add_spacer()
+            for file in files:
+                local_path = f'./files/{file.title}' if (destination / 'files' / file.title).exists() else None
+                html_report.add_file(
+                    filename=file.title,
+                    title=file.title,
+                    url=file.url,
+                    size=None,  # File size is not available in the API
+                    local_path=local_path
+                )
+
+        # Add boosty videos to HTML report
+        if boosty_videos:
+            html_report.add_spacer()
+            for video in boosty_videos:
+                # Try to find the downloaded video file
+                video_dir = destination / 'boosty_videos'
+                local_path = None
+                if video_dir.exists():
+                    # Look for files starting with the video title
+                    video_files = list(video_dir.glob(f'{video.title}*'))
+                    if video_files:
+                        local_path = f'./boosty_videos/{video_files[0].name}'
+                
+                # Format duration
+                duration_str = None
+                if video.duration:
+                    total_seconds = int(video.duration.total_seconds())
+                    minutes = total_seconds // 60
+                    seconds = total_seconds % 60
+                    duration_str = f'{minutes}:{seconds:02d}'
+
+                html_report.add_video(
+                    title=video.title,
+                    url=video.player_urls[0].url if video.player_urls else '',
+                    video_type='boosty',
+                    duration=duration_str,
+                    size=None,
+                    local_path=local_path
+                )
+
+        # Add external videos to HTML report
+        if external_videos:
+            html_report.add_spacer()
+            for video in external_videos:
+                # Try to find the downloaded video file
+                video_dir = destination / 'external_videos'
+                local_path = None
+                if video_dir.exists():
+                    # Look for video files (common extensions)
+                    video_extensions = ['*.mp4', '*.mkv', '*.avi', '*.mov', '*.wmv', '*.webm']
+                    for ext in video_extensions:
+                        video_files = list(video_dir.glob(ext))
+                        if video_files:
+                            local_path = f'./external_videos/{video_files[0].name}'
+                            break
+
+                html_report.add_video(
+                    title=video.url,  # External videos don't have titles, use URL
+                    url=video.url,
+                    video_type='external',
+                    duration=None,
+                    size=None,
+                    local_path=local_path
+                )
+
+        html_report.save()
 
     async def _download_files(
         self,
@@ -284,6 +370,7 @@ class BoostyDownloadManager:
         post: Post,
         boosty_videos: list[PostDataOkVideo],
         preferred_quality: OkVideoType,
+        username: str,
     ) -> None:
         if boosty_videos:
             self.logger.info(
@@ -303,7 +390,7 @@ class BoostyDownloadManager:
             best_video = get_best_video(video.player_urls, preferred_quality)
             if best_video is None:
                 await self.fail_downloads_logger.add_error(
-                    f'Failed to find video for {video.title} from post {post.title} which url is {BOOSTY_POST_BASE_URL / post.id}',
+                    f'Failed to find video for {video.title} from post {post.title} which url is https://boosty.to/{username}/posts/{post.id}',
                 )
                 continue
 
@@ -343,6 +430,7 @@ class BoostyDownloadManager:
         post: Post,
         destination: Path,
         videos: list[PostDataVideo],
+        username: str,
     ) -> None:
         if videos:
             self.logger.info(
@@ -372,7 +460,7 @@ class BoostyDownloadManager:
                 )
             except FailedToDownloadExternalVideoError:
                 await self.fail_downloads_logger.add_error(
-                    f'Failed to download video {video.url} from post {post.title} which url is {BOOSTY_POST_BASE_URL / post.id}',
+                    f'Failed to download video {video.url} from post {post.title} which url is https://boosty.to/{username}/posts/{post.id}',
                 )
                 self.logger.error(  # noqa: TRY400 (log expected exception)
                     f'Failed to download video {video.url} it was added to the log {self.fail_downloads_logger.file_path}',
@@ -409,6 +497,11 @@ class BoostyDownloadManager:
                 await self._save_post_content(
                     destination=post_location_info.post_directory,
                     post_content=post_data.post_content,
+                    post=post,
+                    username=username,
+                    files=post_data.files,
+                    boosty_videos=post_data.ok_videos,
+                    external_videos=post_data.videos,
                 )
 
             if (
@@ -430,6 +523,7 @@ class BoostyDownloadManager:
                     post=post,
                     boosty_videos=post_data.ok_videos,
                     preferred_quality=self._general_options.preferred_video_quality.to_ok_video_type(),
+                    username=username,
                 )
 
             if (
@@ -440,6 +534,7 @@ class BoostyDownloadManager:
                     post=post,
                     destination=post_location_info.post_directory / 'external_videos',
                     videos=post_data.videos,
+                    username=username,
                 )
 
         except Exception:
