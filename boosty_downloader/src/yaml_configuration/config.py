@@ -85,24 +85,24 @@ def init_config() -> Config:
                 'You can either fill `auth_header` and `cookie` fields, or use OAuth tokens with: python -m boosty_downloader.oauth_setup setup-oauth',
             )
             sys.exit(1)
-        
+
         config = Config()
-        
+
         # Validate that we have at least one authentication method
         from pathlib import Path
         oauth_file = Path(config.auth.oauth_tokens_file)
         has_oauth = oauth_file.exists()
         has_legacy_auth = bool(config.auth.cookie.strip() and config.auth.auth_header.strip())
-        
+
         if not has_oauth and not has_legacy_auth:
             downloader_logger.error('No authentication method configured')
             downloader_logger.info('You can either:')
             downloader_logger.info('1. Set up OAuth tokens: python -m boosty_downloader.oauth_setup setup-oauth')
             downloader_logger.info('2. Fill `auth_header` and `cookie` fields in config.yaml')
             sys.exit(1)
-        
+
         return config
-        
+
     except ValidationError as e:
         # If can't be parsed correctly
         create_sample_config_file()

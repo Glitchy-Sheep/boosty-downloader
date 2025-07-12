@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, TypedDict
 
 from jinja2 import Template
@@ -12,22 +12,25 @@ from jinja2 import Template
 if TYPE_CHECKING:
     from pathlib import Path
 
+# Constants
+BYTES_IN_KILOBYTE = 1024  # Number of bytes in a kilobyte
+
 
 def format_file_size(size_bytes: int | None) -> str:
     """Format file size in human-readable format"""
     if size_bytes is None:
-        return "Unknown size"
-    
+        return 'Unknown size'
+
     if size_bytes == 0:
-        return "0 B"
-    
-    size_names = ["B", "KB", "MB", "GB", "TB"]
+        return '0 B'
+
+    size_names = ['B', 'KB', 'MB', 'GB', 'TB']
     i = 0
-    while size_bytes >= 1024 and i < len(size_names) - 1:
-        size_bytes /= 1024.0
+    while size_bytes >= BYTES_IN_KILOBYTE and i < len(size_names) - 1:
+        size_bytes /= BYTES_IN_KILOBYTE
         i += 1
-    
-    return f"{size_bytes:.1f} {size_names[i]}"
+
+    return f'{size_bytes:.1f} {size_names[i]}'
 
 
 @dataclass
@@ -536,7 +539,7 @@ class HTMLReport:
             'title': self.metadata.title if self.metadata else 'Boosty Post',
             'post_id': self.metadata.post_id if self.metadata else '',
             'metadata': self.metadata is not None,
-            'save_date': datetime.utcnow().strftime('%d.%m.%Y at %H:%M UTC'),
+            'save_date': datetime.now(timezone.utc).strftime('%d.%m.%Y at %H:%M UTC'),
         }
 
         if self.metadata:
@@ -581,7 +584,7 @@ class HTMLReport:
             title=title,
             size=size,
             url=url,
-            local_path=local_path
+            local_path=local_path,
         ))
 
     def add_video(self, title: str, url: str, video_type: str, duration: str | None = None, size: int | None = None, local_path: str | None = None) -> None:
@@ -593,7 +596,7 @@ class HTMLReport:
             size=size,
             url=url,
             local_path=local_path,
-            video_type=video_type
+            video_type=video_type,
         ))
 
     def new_paragraph(self) -> None:

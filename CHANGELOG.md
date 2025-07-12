@@ -1,3 +1,15 @@
+1.3.1
+
+- **Code Quality Improvements**: Comprehensive code quality refactoring reducing ruff errors by 89% (from 224 to 24)
+- **UTC-Aware DateTime**: Fixed all datetime operations to use timezone-aware UTC timestamps for consistent time handling
+- **Magic Numbers Elimination**: Replaced all magic numbers with named constants for better readability and maintainability
+- **Modern Test Style**: Migrated from unittest-style assertions to modern pytest assert statements
+- **Code Formatting**: Applied comprehensive code formatting fixes including trailing commas, proper quotes, and whitespace cleanup
+- **Import Optimization**: Cleaned up unused imports and organized import statements following PEP8 standards
+- **Type Safety**: Enhanced type hints and removed problematic imports
+- **Constants Organization**: Added meaningful constants like TOKEN_PARTS_COUNT, HTTP_OK, BYTES_IN_KILOBYTE, TOKEN_EXPIRY_BUFFER_SECONDS
+- **Reliability**: All 26 tests continue to pass after refactoring, ensuring no functionality regression
+
 1.3.0
 
 - **Enhanced HTML Reporter**: Complete rewrite of HTML generation with modern semantic HTML5 structure

@@ -6,11 +6,6 @@ import asyncio
 from typing import TYPE_CHECKING
 
 from boosty_downloader.src.boosty_api.core.client import BoostyAPIClient
-from boosty_downloader.src.boosty_api.models.post.extra import Extra
-from boosty_downloader.src.boosty_api.models.post.post import Post
-from boosty_downloader.src.boosty_api.models.post.posts_request import PostsResponse
-from boosty_downloader.src.boosty_api.utils.filter_none_params import filter_none_params
-from boosty_downloader.src.boosty_api.utils.oauth_manager import OAuthManager
 from boosty_downloader.src.loggers.logger_instances import downloader_logger
 
 if TYPE_CHECKING:
@@ -18,11 +13,14 @@ if TYPE_CHECKING:
 
     from aiohttp_retry import RetryClient
 
+    from boosty_downloader.src.boosty_api.models.post.posts_request import PostsResponse
+    from boosty_downloader.src.boosty_api.utils.oauth_manager import OAuthManager
+
 
 class OAuthBoostyAPIClient(BoostyAPIClient):
     """
     OAuth-enhanced Boosty API client with automatic token refresh.
-    
+
     Falls back to regular behavior if OAuth is not available.
     """
 
@@ -36,9 +34,7 @@ class OAuthBoostyAPIClient(BoostyAPIClient):
         limit: int,
         offset: str | None = None,
     ) -> PostsResponse:
-        """
-        Request to get posts from the specified author with OAuth token refresh.
-        """
+        """Request to get posts from the specified author with OAuth token refresh."""
         # Try to refresh OAuth tokens if available
         if self.oauth_manager:
             refreshed = await self.oauth_manager.refresh_if_needed(self.session)
@@ -54,19 +50,17 @@ class OAuthBoostyAPIClient(BoostyAPIClient):
         delay_seconds: float = 0,
         posts_per_page: int = 5,
     ) -> AsyncGenerator[PostsResponse, None]:
-        """
-        Infinite generator iterating over posts with OAuth token refresh.
-        """
+        """Infinite generator iterating over posts with OAuth token refresh."""
         offset = None
         while True:
             await asyncio.sleep(delay_seconds)
-            
+
             # Check and refresh OAuth tokens if needed
             if self.oauth_manager:
                 refreshed = await self.oauth_manager.refresh_if_needed(self.session)
                 if refreshed:
                     downloader_logger.info('OAuth tokens refreshed during iteration')
-            
+
             response = await self.get_author_posts(
                 author_name,
                 offset=offset,
@@ -75,4 +69,4 @@ class OAuthBoostyAPIClient(BoostyAPIClient):
             yield response
             if response.extra.is_last:
                 break
-            offset = response.extra.offset 
+            offset = response.extra.offset

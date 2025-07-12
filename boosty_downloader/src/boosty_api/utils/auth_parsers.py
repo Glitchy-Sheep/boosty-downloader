@@ -30,7 +30,7 @@ async def parse_auth_header(header: str, oauth_tokens_file: str = '') -> dict[st
         oauth_manager = OAuthManager(Path(oauth_tokens_file))
         if oauth_manager.has_tokens():
             return {'Authorization': f'Bearer {oauth_manager.get_access_token()}'}
-    
+
     # Fallback to provided header
     return {'Authorization': header}
 

@@ -252,7 +252,7 @@ class BoostyDownloadManager:
                     title=file.title,
                     url=file.url,
                     size=None,  # File size is not available in the API
-                    local_path=local_path
+                    local_path=local_path,
                 )
 
         # Add boosty videos to HTML report
@@ -267,7 +267,7 @@ class BoostyDownloadManager:
                     video_files = list(video_dir.glob(f'{video.title}*'))
                     if video_files:
                         local_path = f'./boosty_videos/{video_files[0].name}'
-                
+
                 # Format duration
                 duration_str = None
                 if video.duration:
@@ -282,7 +282,7 @@ class BoostyDownloadManager:
                     video_type='boosty',
                     duration=duration_str,
                     size=None,
-                    local_path=local_path
+                    local_path=local_path,
                 )
 
         # Add external videos to HTML report
@@ -307,7 +307,7 @@ class BoostyDownloadManager:
                     video_type='external',
                     duration=None,
                     size=None,
-                    local_path=local_path
+                    local_path=local_path,
                 )
 
         html_report.save()
