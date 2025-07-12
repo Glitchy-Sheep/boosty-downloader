@@ -20,7 +20,9 @@ class OAuthTokens(BaseModel):
 
     def is_expired(self) -> bool:
         """Check if access token is expired (with 5 minutes buffer)"""
-        return datetime.now(timezone.utc).timestamp() >= (self.expires_at - TOKEN_EXPIRY_BUFFER_SECONDS)
+        return datetime.now(timezone.utc).timestamp() >= (
+            self.expires_at - TOKEN_EXPIRY_BUFFER_SECONDS
+        )
 
 
 class OAuthRefreshResponse(BaseModel):

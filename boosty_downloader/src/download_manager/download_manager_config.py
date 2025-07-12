@@ -71,3 +71,4 @@ class GeneralOptions:
     download_content_type_filters: list[DownloadContentTypeFilter]
     request_delay_seconds: float
     preferred_video_quality: VideoQualityOption
+    oauth_refresh_cooldown: int

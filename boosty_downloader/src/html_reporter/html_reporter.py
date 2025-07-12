@@ -123,7 +123,14 @@ class HTMLReport:
     def __init__(self, filename: Path, metadata: PostMetadata | None = None) -> None:
         self.filename = filename
         self.metadata = metadata
-        self.elements: list[TextElement | ImageElement | LinkElement | SpacerElement | FileElement | VideoElement] = []
+        self.elements: list[
+            TextElement
+            | ImageElement
+            | LinkElement
+            | SpacerElement
+            | FileElement
+            | VideoElement
+        ] = []
 
     def _generate_structured_data(self) -> str:
         """Generate JSON-LD structured data for the post"""
@@ -535,7 +542,9 @@ class HTMLReport:
         # Prepare template variables
         template_vars = {
             'elements': self.elements,
-            'structured_data': self._generate_structured_data() if self.metadata else '',
+            'structured_data': self._generate_structured_data()
+            if self.metadata
+            else '',
             'title': self.metadata.title if self.metadata else 'Boosty Post',
             'post_id': self.metadata.post_id if self.metadata else '',
             'metadata': self.metadata is not None,
@@ -543,14 +552,24 @@ class HTMLReport:
         }
 
         if self.metadata:
-            template_vars.update({
-                'author': self.metadata.author,
-                'original_url': self.metadata.original_url,
-                'created_at_iso': self.metadata.created_at.strftime('%Y-%m-%dT%H:%M:%S%z'),
-                'updated_at_iso': self.metadata.updated_at.strftime('%Y-%m-%dT%H:%M:%S%z'),
-                'created_at_readable': self.metadata.created_at.strftime('%d.%m.%Y at %H:%M UTC'),
-                'updated_at_readable': self.metadata.updated_at.strftime('%d.%m.%Y at %H:%M UTC'),
-            })
+            template_vars.update(
+                {
+                    'author': self.metadata.author,
+                    'original_url': self.metadata.original_url,
+                    'created_at_iso': self.metadata.created_at.strftime(
+                        '%Y-%m-%dT%H:%M:%S%z',
+                    ),
+                    'updated_at_iso': self.metadata.updated_at.strftime(
+                        '%Y-%m-%dT%H:%M:%S%z',
+                    ),
+                    'created_at_readable': self.metadata.created_at.strftime(
+                        '%d.%m.%Y at %H:%M UTC',
+                    ),
+                    'updated_at_readable': self.metadata.updated_at.strftime(
+                        '%d.%m.%Y at %H:%M UTC',
+                    ),
+                },
+            )
 
         jinja_template = Template(template)
         jinja_template.globals['filesizeformat'] = format_file_size
@@ -576,28 +595,47 @@ class HTMLReport:
         """Add a link to the report"""
         self.elements.append(LinkElement(type='link', content=text.text, url=url))
 
-    def add_file(self, filename: str, title: str, url: str, size: int | None = None, local_path: str | None = None) -> None:
+    def add_file(
+        self,
+        filename: str,
+        title: str,
+        url: str,
+        size: int | None = None,
+        local_path: str | None = None,
+    ) -> None:
         """Add a file to the report"""
-        self.elements.append(FileElement(
-            type='file',
-            filename=filename,
-            title=title,
-            size=size,
-            url=url,
-            local_path=local_path,
-        ))
+        self.elements.append(
+            FileElement(
+                type='file',
+                filename=filename,
+                title=title,
+                size=size,
+                url=url,
+                local_path=local_path,
+            ),
+        )
 
-    def add_video(self, title: str, url: str, video_type: str, duration: str | None = None, size: int | None = None, local_path: str | None = None) -> None:
+    def add_video(
+        self,
+        title: str,
+        url: str,
+        video_type: str,
+        duration: str | None = None,
+        size: int | None = None,
+        local_path: str | None = None,
+    ) -> None:
         """Add a video to the report"""
-        self.elements.append(VideoElement(
-            type='video',
-            title=title,
-            duration=duration,
-            size=size,
-            url=url,
-            local_path=local_path,
-            video_type=video_type,
-        ))
+        self.elements.append(
+            VideoElement(
+                type='video',
+                title=title,
+                duration=duration,
+                size=size,
+                url=url,
+                local_path=local_path,
+                video_type=video_type,
+            ),
+        )
 
     def new_paragraph(self) -> None:
         """Add spacing between content blocks (replaces old <br> approach)"""

@@ -123,7 +123,7 @@ class PostCache:
             # Post not in cache - no rename needed
             return
 
-        cached_title, = result
+        (cached_title,) = result
 
         # Check if title has changed and we need to rename folder
         if cached_title != current_title:

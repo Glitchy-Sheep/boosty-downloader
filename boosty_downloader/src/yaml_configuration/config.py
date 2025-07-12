@@ -32,6 +32,8 @@ class AuthSettings(BaseModel):
     auth_header: str = Field(default='')
     # OAuth tokens file path (optional)
     oauth_tokens_file: str = Field(default='oauth_tokens.json')
+    # OAuth token refresh cooldown in seconds (default: 1 hour)
+    oauth_refresh_cooldown: int = Field(default=3600)
 
 
 CONFIG_LOCATION: Path = Path('config.yaml')
@@ -90,15 +92,22 @@ def init_config() -> Config:
 
         # Validate that we have at least one authentication method
         from pathlib import Path
+
         oauth_file = Path(config.auth.oauth_tokens_file)
         has_oauth = oauth_file.exists()
-        has_legacy_auth = bool(config.auth.cookie.strip() and config.auth.auth_header.strip())
+        has_legacy_auth = bool(
+            config.auth.cookie.strip() and config.auth.auth_header.strip(),
+        )
 
         if not has_oauth and not has_legacy_auth:
             downloader_logger.error('No authentication method configured')
             downloader_logger.info('You can either:')
-            downloader_logger.info('1. Set up OAuth tokens: python -m boosty_downloader.oauth_setup setup-oauth')
-            downloader_logger.info('2. Fill `auth_header` and `cookie` fields in config.yaml')
+            downloader_logger.info(
+                '1. Set up OAuth tokens: python -m boosty_downloader.oauth_setup setup-oauth',
+            )
+            downloader_logger.info(
+                '2. Fill `auth_header` and `cookie` fields in config.yaml',
+            )
             sys.exit(1)
 
         return config

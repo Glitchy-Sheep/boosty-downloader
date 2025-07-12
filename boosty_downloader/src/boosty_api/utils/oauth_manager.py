@@ -92,6 +92,18 @@ class OAuthManager:
         except OAuthRefreshError:
             return False
 
+    async def force_refresh(self, session: RetryClient) -> bool:
+        """Force refresh tokens regardless of expiry. Returns True if refreshed"""
+        if not self.has_tokens():
+            return False
+
+        try:
+            await self._refresh_tokens(session)
+            return True
+        except OAuthRefreshError as e:
+            downloader_logger.warning(f'Force refresh failed: {e}')
+            return False
+
     async def _refresh_tokens(self, session: RetryClient) -> None:
         """Refresh OAuth tokens"""
         if self._tokens is None:
@@ -128,7 +140,8 @@ class OAuthManager:
                 self._tokens = OAuthTokens(
                     access_token=refresh_response.access_token,
                     refresh_token=refresh_response.refresh_token,
-                    expires_at=int(datetime.now(timezone.utc).timestamp()) + refresh_response.expires_in,
+                    expires_at=int(datetime.now(timezone.utc).timestamp())
+                    + refresh_response.expires_in,
                     device_id=self._tokens.device_id,
                 )
 

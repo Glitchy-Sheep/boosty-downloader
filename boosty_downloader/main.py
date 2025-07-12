@@ -115,6 +115,7 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
                     download_content_type_filters=content_type_filter,
                     request_delay_seconds=request_delay_seconds,
                     preferred_video_quality=preferred_video_quality,
+                    oauth_refresh_cooldown=config.auth.oauth_refresh_cooldown,
                 ),
                 network_dependencies=NetworkDependencies(
                     session=retry_client,

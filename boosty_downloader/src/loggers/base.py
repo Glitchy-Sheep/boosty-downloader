@@ -99,5 +99,14 @@ class Logger:
             tab_level=tab_level,
         )
 
+    def debug(self, msg: str, *, highlight: bool = True, tab_level: int = 0) -> None:
+        prefix = f'[cyan]{self.prefix}[/cyan][dim].DEBUG 🐛[/dim]:'
+        self._log_message(
+            logging.DEBUG,
+            f'{prefix} {msg}',
+            highlight=highlight,
+            tab_level=tab_level,
+        )
+
 
 log = Logger(prefix='boosty_downloader')

@@ -5,10 +5,13 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
+import aiohttp
+
 from boosty_downloader.src.boosty_api.models.post.extra import Extra
 from boosty_downloader.src.boosty_api.models.post.post import Post
 from boosty_downloader.src.boosty_api.models.post.posts_request import PostsResponse
 from boosty_downloader.src.boosty_api.utils.filter_none_params import filter_none_params
+from boosty_downloader.src.loggers.logger_instances import downloader_logger
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -22,6 +25,18 @@ class BoostyAPIError(Exception):
 
 class BoostyAPINoUsernameError(BoostyAPIError):
     """Raised when no username is specified."""
+
+
+class BoostyAPIAuthenticationError(BoostyAPIError):
+    """Raised when authentication fails."""
+
+
+class BoostyAPIUnauthorizedError(BoostyAPIError):
+    """Raised when access is denied (401/403)."""
+
+
+class BoostyAPIRateLimitError(BoostyAPIError):
+    """Raised when rate limit is exceeded (429)."""
 
 
 class BoostyAPIClient:
@@ -49,30 +64,111 @@ class BoostyAPIClient:
         """
         endpoint = f'blog/{author_name}/post/'
 
-        posts_raw = await self.session.get(
-            endpoint,
-            params=filter_none_params(
-                {
-                    'offset': offset,
-                    'limit': limit,
-                },
-            ),
-        )
+        try:
+            posts_raw = await self.session.get(
+                endpoint,
+                params=filter_none_params(
+                    {
+                        'offset': offset,
+                        'limit': limit,
+                    },
+                ),
+            )
+        except aiohttp.ClientResponseError as e:
+            await self._handle_http_error(e, author_name)
+            raise  # Re-raise after handling
+
         posts_data = await posts_raw.json()
+
+        # Check for API-level errors (even with 200 status)
+        if isinstance(posts_data, dict) and 'error' in posts_data:
+            error_code = posts_data.get('error', 'unknown_error')
+            error_description = posts_data.get('error_description', 'No description')
+
+            if error_code == 'blog_not_found':
+                raise BoostyAPINoUsernameError(
+                    f"Blog '{author_name}' not found: {error_description}",
+                )
+            if error_code in ['unauthorized', 'access_denied', 'invalid_token']:
+                raise BoostyAPIAuthenticationError(
+                    f'Authentication error: {error_description}',
+                )
+            raise BoostyAPIError(f'API error: {error_code} - {error_description}')
 
         try:
             posts: list[Post] = [
                 Post.model_validate(post) for post in posts_data['data']
             ]
         except KeyError as e:
-            raise BoostyAPINoUsernameError from e
+            # Check if this is an authentication issue
+            if 'data' not in posts_data:
+                downloader_logger.warning(
+                    f"No 'data' field in API response for {author_name}",
+                )
+                downloader_logger.debug(
+                    f'Response keys: {list(posts_data.keys()) if isinstance(posts_data, dict) else "Not a dict"}',
+                )
 
-        extra: Extra = Extra.model_validate(posts_data['extra'])
+                # This might be an authentication issue, but we can't be sure
+                # Let's return empty posts instead of raising an error
+                posts = []
+            else:
+                raise BoostyAPINoUsernameError(
+                    f'Invalid response structure for {author_name}',
+                ) from e
+
+        # Handle missing extra field gracefully
+        if 'extra' in posts_data:
+            extra: Extra = Extra.model_validate(posts_data['extra'])
+        else:
+            downloader_logger.warning(
+                f"No 'extra' field in API response for {author_name}",
+            )
+            # Create a default extra indicating this is the last page
+            extra = Extra(is_last=True, offset='')
 
         return PostsResponse(
             posts=posts,
             extra=extra,
         )
+
+    async def _handle_http_error(
+        self, error: aiohttp.ClientResponseError, author_name: str,
+    ) -> None:
+        """Handle HTTP errors and provide appropriate error types and messages"""
+        status = error.status
+
+        if status == 401:
+            downloader_logger.error(
+                f'Authentication failed for {author_name} (401 Unauthorized)',
+            )
+            downloader_logger.info(
+                'This usually means your authentication tokens are invalid or expired',
+            )
+            raise BoostyAPIUnauthorizedError('Authentication required or token expired')
+        if status == 403:
+            downloader_logger.error(
+                f'Access forbidden for {author_name} (403 Forbidden)',
+            )
+            downloader_logger.info(
+                "This usually means you don't have permission to access this content",
+            )
+            raise BoostyAPIUnauthorizedError(
+                'Access forbidden - insufficient permissions',
+            )
+        if status == 404:
+            downloader_logger.error(f"Blog '{author_name}' not found (404 Not Found)")
+            raise BoostyAPINoUsernameError(f"Blog '{author_name}' not found")
+        if status == 429:
+            downloader_logger.error(
+                f'Rate limit exceeded for {author_name} (429 Too Many Requests)',
+            )
+            downloader_logger.info('Try increasing the delay between requests')
+            raise BoostyAPIRateLimitError('Rate limit exceeded - too many requests')
+        downloader_logger.error(
+            f'HTTP error {status} for {author_name}: {error.message}',
+        )
+        raise BoostyAPIError(f'HTTP {status}: {error.message}')
 
     async def iterate_over_posts(
         self,

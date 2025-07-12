@@ -42,6 +42,7 @@ class TestTargetDirectoryConfig(unittest.TestCase):
         """Clean up test fixtures"""
         # Clean up temp directory
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_relative_path_config(self):
@@ -53,6 +54,7 @@ class TestTargetDirectoryConfig(unittest.TestCase):
             download_content_type_filters=list(DownloadContentTypeFilter),
             request_delay_seconds=2.5,
             preferred_video_quality=VideoQualityOption.medium,
+            oauth_refresh_cooldown=3600,
         )
 
         download_manager = BoostyDownloadManager(
@@ -74,6 +76,7 @@ class TestTargetDirectoryConfig(unittest.TestCase):
             download_content_type_filters=list(DownloadContentTypeFilter),
             request_delay_seconds=2.5,
             preferred_video_quality=VideoQualityOption.medium,
+            oauth_refresh_cooldown=3600,
         )
 
         download_manager = BoostyDownloadManager(
@@ -98,6 +101,7 @@ class TestTargetDirectoryConfig(unittest.TestCase):
             download_content_type_filters=list(DownloadContentTypeFilter),
             request_delay_seconds=2.5,
             preferred_video_quality=VideoQualityOption.medium,
+            oauth_refresh_cooldown=3600,
         )
 
         BoostyDownloadManager(
@@ -120,7 +124,9 @@ class TestTargetDirectoryConfig(unittest.TestCase):
             },
         }
 
-        download_settings = DownloadSettings.model_validate(config_data['downloading_settings'])
+        download_settings = DownloadSettings.model_validate(
+            config_data['downloading_settings'],
+        )
         assert download_settings.target_directory == Path('./test-relative')
 
         # Test absolute path
@@ -131,7 +137,9 @@ class TestTargetDirectoryConfig(unittest.TestCase):
             },
         }
 
-        download_settings = DownloadSettings.model_validate(config_data['downloading_settings'])
+        download_settings = DownloadSettings.model_validate(
+            config_data['downloading_settings'],
+        )
         assert download_settings.target_directory == Path(abs_path)
 
 

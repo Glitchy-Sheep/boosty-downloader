@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -63,8 +64,6 @@ if TYPE_CHECKING:
     )
 
 
-
-
 @dataclass
 class PostData:
     """
@@ -122,6 +121,14 @@ class BoostyDownloadManager:
         self.progress = Progress(
             transient=True,
             console=self.logger.console,
+        )
+
+        # OAuth token refresh tracking to avoid excessive refresh attempts
+        self._last_token_refresh_time: float | None = None
+        self._token_refresh_cooldown_seconds = general_options.oauth_refresh_cooldown
+        self._consecutive_failed_refresh_count = 0
+        self._max_consecutive_refresh_attempts = (
+            3  # Stop trying after 3 consecutive failures
         )
 
     def _prepare_target_directory(self, target_directory: Path) -> None:
@@ -246,7 +253,11 @@ class BoostyDownloadManager:
         if files:
             html_report.add_spacer()
             for file in files:
-                local_path = f'./files/{file.title}' if (destination / 'files' / file.title).exists() else None
+                local_path = (
+                    f'./files/{file.title}'
+                    if (destination / 'files' / file.title).exists()
+                    else None
+                )
                 html_report.add_file(
                     filename=file.title,
                     title=file.title,
@@ -294,7 +305,14 @@ class BoostyDownloadManager:
                 local_path = None
                 if video_dir.exists():
                     # Look for video files (common extensions)
-                    video_extensions = ['*.mp4', '*.mkv', '*.avi', '*.mov', '*.wmv', '*.webm']
+                    video_extensions = [
+                        '*.mp4',
+                        '*.mkv',
+                        '*.avi',
+                        '*.mov',
+                        '*.wmv',
+                        '*.webm',
+                    ]
                     for ext in video_extensions:
                         video_files = list(video_dir.glob(ext))
                         if video_files:
@@ -490,6 +508,45 @@ class BoostyDownloadManager:
 
             post_location_info = self._generate_post_location(username, post)
 
+            # Check if post has any content to download
+            has_content = (
+                len(post_data.post_content) > 0
+                or len(post_data.files) > 0
+                or len(post_data.ok_videos) > 0
+                or len(post_data.videos) > 0
+            )
+
+            if not has_content:
+                self.logger.warning(
+                    f'Post "{post.title}" has no downloadable content - it may be empty or inaccessible',
+                    tab_level=1,
+                )
+                # Create a marker file to indicate this post was processed but empty
+                post_location_info.post_directory.mkdir(parents=True, exist_ok=True)
+                empty_marker_file = (
+                    post_location_info.post_directory / 'EMPTY_POST_MARKER.txt'
+                )
+                empty_marker_file.write_text(
+                    f'This post was processed but contained no downloadable content.\n'
+                    f'Post ID: {post.id}\n'
+                    f'Title: {post.title}\n'
+                    f'Created: {post.created_at}\n'
+                    f'Updated: {post.updated_at}\n'
+                    f'Original URL: https://boosty.to/{username}/posts/{post.id}\n'
+                    f'Processed at: {post_location_info.post_directory.name}\n'
+                    f'\nThis may indicate:\n'
+                    f'- The post was removed by the author\n'
+                    f'- The post content is not accessible with your subscription level\n'
+                    f'- The post contains only unsupported content types\n'
+                    f'- The post is a text-only post with no media attachments\n',
+                    encoding='utf-8',
+                )
+                self.logger.info(
+                    f'Created empty post marker at {empty_marker_file}',
+                    tab_level=1,
+                )
+                return True  # Still consider this a successful processing
+
             if (
                 DownloadContentTypeFilter.post_content
                 in self._general_options.download_content_type_filters
@@ -538,10 +595,209 @@ class BoostyDownloadManager:
                 )
 
         except Exception:
-            self.logger.exception(f'Failed to download post {post.title}')
+            self.logger.error(f'Failed to download post {post.title}')
+            # Log the exception using the underlying logger
+            self.logger.logging_logger_obj.exception(
+                f'Exception details for failed post download: {post.title}',
+            )
             return False
         else:
             return True
+
+    async def _handle_inaccessible_post_with_retry(
+        self,
+        username: str,
+        post: Post,
+        post_location_info: PostLocation,
+        stats: dict[str, int],
+    ) -> bool:
+        """
+        Handle inaccessible post with OAuth token refresh retry.
+
+        Returns True if the post should be skipped (still inaccessible),
+        False if the post should be processed normally (access gained).
+        """
+        # Check if we have OAuth authentication
+        if not hasattr(self._network_dependencies.api_client, 'force_refresh_tokens'):
+            # Not an OAuth client, skip immediately
+            await self._log_inaccessible_post(post, post_location_info, username)
+            stats['inaccessible'] += 1
+            return True
+
+        oauth_client = self._network_dependencies.api_client
+
+        # Check if we should attempt token refresh based on cooldown and failure count
+        current_time = time.time()
+        should_attempt_refresh = True
+
+        # Don't attempt if we've had too many consecutive failures
+        if (
+            self._consecutive_failed_refresh_count
+            >= self._max_consecutive_refresh_attempts
+        ):
+            should_attempt_refresh = False
+            self.logger.info(
+                f'Skipping token refresh for "{post.title}" - too many consecutive failures '
+                f'({self._consecutive_failed_refresh_count}/{self._max_consecutive_refresh_attempts})',
+                tab_level=1,
+            )
+
+        # Don't attempt if we're still in cooldown period
+        elif (
+            self._last_token_refresh_time is not None
+            and current_time - self._last_token_refresh_time
+            < self._token_refresh_cooldown_seconds
+        ):
+            should_attempt_refresh = False
+            remaining_cooldown = self._token_refresh_cooldown_seconds - (
+                current_time - self._last_token_refresh_time
+            )
+            self.logger.info(
+                f'Skipping token refresh for "{post.title}" - cooldown active '
+                f'({remaining_cooldown:.0f}s remaining)',
+                tab_level=1,
+            )
+
+        if not should_attempt_refresh:
+            await self._log_inaccessible_post(post, post_location_info, username)
+            stats['inaccessible'] += 1
+            return True
+
+        # Try to force refresh OAuth tokens
+        self.logger.info(
+            f'Post "{post.title}" is inaccessible, attempting to refresh OAuth tokens...',
+            tab_level=1,
+        )
+
+        self._last_token_refresh_time = current_time
+        token_refreshed = await oauth_client.force_refresh_tokens()
+
+        if not token_refreshed:
+            self._consecutive_failed_refresh_count += 1
+            self.logger.info(
+                f'OAuth token refresh failed or not needed, skipping post "{post.title}" '
+                f'(failure #{self._consecutive_failed_refresh_count})',
+                tab_level=1,
+            )
+            await self._log_inaccessible_post(post, post_location_info, username)
+            stats['inaccessible'] += 1
+            return True
+
+        # Reset consecutive failure count on successful refresh
+        self._consecutive_failed_refresh_count = 0
+
+        # Try to get the post again with refreshed tokens
+        self.logger.info(
+            f'OAuth tokens refreshed, retrying post "{post.title}"...',
+            tab_level=1,
+        )
+
+        try:
+            # Make a single post request to check if we now have access
+            response = await oauth_client.get_author_posts(
+                author_name=username,
+                limit=1,
+                offset=None,
+            )
+
+            # Try to find our post in the response
+            for refreshed_post in response.posts:
+                if refreshed_post.id == post.id:
+                    if refreshed_post.has_access:
+                        self.logger.success(
+                            f'Access gained to post "{post.title}" after token refresh!',
+                            tab_level=1,
+                        )
+                        # Update the post object with the refreshed version
+                        post.has_access = True
+                        post.data = refreshed_post.data
+                        post.signed_query = refreshed_post.signed_query
+                        return False  # Don't skip, process normally
+                    self.logger.info(
+                        f'Post "{post.title}" is still inaccessible after token refresh',
+                        tab_level=1,
+                    )
+                    break
+
+            # If we get here, the post is still inaccessible
+            await self._log_inaccessible_post(post, post_location_info, username)
+            stats['inaccessible'] += 1
+            return True
+
+        except Exception as e:
+            self.logger.error(
+                f'Error while retrying post "{post.title}" after token refresh: {e}',
+                tab_level=1,
+            )
+            await self._log_inaccessible_post(post, post_location_info, username)
+            stats['inaccessible'] += 1
+            return True
+
+    async def _log_inaccessible_post(
+        self,
+        post: Post,
+        post_location_info: PostLocation,
+        username: str,
+    ) -> None:
+        """Log information about inaccessible posts without creating files"""
+        # Log detailed information about the inaccessible post
+        self.logger.warning(
+            f'Post "{post.title}" is not accessible with your current subscription level',
+            tab_level=1,
+        )
+        self.logger.info(
+            f'Post ID: {post.id}',
+            tab_level=2,
+        )
+        self.logger.info(
+            f'Created: {post.created_at}',
+            tab_level=2,
+        )
+        self.logger.info(
+            f'Updated: {post.updated_at}',
+            tab_level=2,
+        )
+        self.logger.info(
+            f'Original URL: https://boosty.to/{username}/posts/{post.id}',
+            tab_level=2,
+        )
+        self.logger.info(
+            'To access this post, you may need to:',
+            tab_level=2,
+        )
+        self.logger.info(
+            '- Subscribe to the author at a higher tier',
+            tab_level=2,
+        )
+        self.logger.info(
+            '- Purchase this specific post',
+            tab_level=2,
+        )
+        self.logger.info(
+            '- Check if your subscription is still active',
+            tab_level=2,
+        )
+        self.logger.info(
+            '- Verify that your OAuth tokens are valid',
+            tab_level=2,
+        )
+        # DO NOT add inaccessible posts to cache - they might become accessible later
+        # This allows retrying inaccessible posts on subsequent runs
+        self.logger.info(
+            f'Post "{post.title}" will be retried on next run in case access is granted',
+            tab_level=2,
+        )
+
+    def reset_oauth_retry_state(self) -> None:
+        """
+        Reset OAuth token refresh cooldown and failure tracking.
+
+        This can be useful for debugging or when you want to force
+        immediate retry attempts regardless of previous failures.
+        """
+        self._last_token_refresh_time = None
+        self._consecutive_failed_refresh_count = 0
+        self.logger.info('OAuth retry state reset - cooldown and failure count cleared')
 
     async def clean_cache(self, username: str) -> None:
         db_file = self._target_directory / username / PostCache.DEFAULT_CACHE_FILENAME
@@ -593,7 +849,8 @@ class BoostyDownloadManager:
                         post=post,
                     ):
                         post_location_info = self._generate_post_location(
-                            username, post,
+                            username,
+                            post,
                         )
                         post_cache.add_post_cache(
                             post_id=post.id,
@@ -634,6 +891,15 @@ class BoostyDownloadManager:
         total_posts = 0
         current_post = 0
 
+        # Statistics tracking
+        stats = {
+            'downloaded': 0,
+            'skipped_cached': 0,
+            'inaccessible': 0,
+            'empty': 0,
+            'failed': 0,
+        }
+
         self._post_cache = PostCache(self._target_directory / username)
 
         with self.progress:
@@ -653,16 +919,23 @@ class BoostyDownloadManager:
 
                 for post in posts:
                     current_post += 1
-                    if not post.has_access:
-                        self.logger.info(
-                            f'Skipping post {post.title} because it is not accessible due to your subscription level',
-                        )
-                        continue
 
                     post_location_info = self._generate_post_location(
                         username=username,
                         post=post,
                     )
+
+                    if not post.has_access:
+                        # Try to handle the inaccessible post with OAuth token refresh
+                        should_skip = await self._handle_inaccessible_post_with_retry(
+                            username=username,
+                            post=post,
+                            post_location_info=post_location_info,
+                            stats=stats,
+                        )
+                        if should_skip:
+                            continue
+                        # If not skipping, the post access was gained, continue with normal processing
 
                     # Ensure folder name matches current post title (rename if needed)
                     self._post_cache.ensure_folder_name_matches(
@@ -680,20 +953,70 @@ class BoostyDownloadManager:
                         self.logger.info(
                             f'Skipping post {post_location_info.full_name} because it was already downloaded',
                         )
+                        stats['skipped_cached'] += 1
                         continue
 
                     self.logger.info(
                         f'Processing post ({current_post}/{total_posts}):  {post_location_info.full_name}',
                     )
 
-                    if await self._download_single_post(
+                    download_result = await self._download_single_post(
                         username=username,
                         post=post,
-                    ):
+                    )
+
+                    if download_result:
                         self._post_cache.add_post_cache(
                             post_id=post.id,
                             title=post_location_info.title,
                             updated_at=post.updated_at,
                         )
 
+                        # Check if this was an empty post
+                        empty_marker_file = (
+                            post_location_info.post_directory / 'EMPTY_POST_MARKER.txt'
+                        )
+                        if empty_marker_file.exists():
+                            stats['empty'] += 1
+                        else:
+                            stats['downloaded'] += 1
+                    else:
+                        self.logger.error(f'Failed to download post: {post.title}')
+                        stats['failed'] += 1
+                        # Still add to cache to avoid retrying failed posts repeatedly
+                        self._post_cache.add_post_cache(
+                            post_id=post.id,
+                            title=post_location_info.title,
+                            updated_at=post.updated_at,
+                        )
+
+        # Print final statistics
         self.logger.success('Finished downloading posts!')
+        self.logger.info('-' * 80)
+        self.logger.info('[bold cyan]DOWNLOAD STATISTICS[/bold cyan]')
+        self.logger.info(f'📊 Total posts processed: {total_posts}')
+        self.logger.info(f'✅ Successfully downloaded: {stats["downloaded"]}')
+        self.logger.info(f'📁 Skipped (already cached): {stats["skipped_cached"]}')
+        self.logger.info(f'🔒 Inaccessible posts: {stats["inaccessible"]}')
+        self.logger.info(f'📄 Empty posts: {stats["empty"]}')
+        self.logger.info(f'❌ Failed downloads: {stats["failed"]}')
+        self.logger.info('-' * 80)
+
+        # Log warnings if there are issues
+        if stats['inaccessible'] > 0:
+            self.logger.warning(
+                f'Found {stats["inaccessible"]} inaccessible posts. '
+                'Consider upgrading your subscription or checking authentication.',
+            )
+
+        if stats['empty'] > 0:
+            self.logger.warning(
+                f'Found {stats["empty"]} empty posts. '
+                'These may have been removed by the author or contain unsupported content.',
+            )
+
+        if stats['failed'] > 0:
+            self.logger.error(
+                f'Failed to download {stats["failed"]} posts. '
+                f'Check the failed downloads log at: {self.fail_downloads_logger.file_path}',
+            )

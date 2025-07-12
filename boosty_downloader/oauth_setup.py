@@ -23,7 +23,9 @@ app = typer.Typer(add_completion=False)
 
 def _show_auto_extract_script() -> None:
     """Show JavaScript code for automatic OAuth token extraction"""
-    console.print('[bold cyan]JavaScript Code for Automatic Token Extraction[/bold cyan]')
+    console.print(
+        '[bold cyan]JavaScript Code for Automatic Token Extraction[/bold cyan]',
+    )
     console.print()
     console.print('[yellow]Follow these steps:[/yellow]')
     console.print('1. Open [bold]boosty.to[/bold] in your browser and login')
@@ -126,8 +128,14 @@ def _show_auto_extract_script() -> None:
     console.print(js_code, style='green', highlight=False, markup=False)
     console.print()
     console.print('5. Press Enter to execute the code', style='yellow')
-    console.print('6. Copy the TOKEN STRING that appears (one line with | separators)', style='yellow')
-    console.print('7. Return to this terminal and paste the token string when prompted', style='yellow')
+    console.print(
+        '6. Copy the TOKEN STRING that appears (one line with | separators)',
+        style='yellow',
+    )
+    console.print(
+        '7. Return to this terminal and paste the token string when prompted',
+        style='yellow',
+    )
     console.print()
     console.print('[red]Note:[/red] If the script shows errors, try:')
     console.print('- Refreshing the page')
@@ -189,7 +197,9 @@ def setup_oauth(
                 parts = token_data.split('|')
 
                 if len(parts) != TOKEN_PARTS_COUNT:
-                    console.print(f'[red]Invalid token string format. Expected {TOKEN_PARTS_COUNT} parts, got {len(parts)}[/red]')
+                    console.print(
+                        f'[red]Invalid token string format. Expected {TOKEN_PARTS_COUNT} parts, got {len(parts)}[/red]',
+                    )
                     console.print('[yellow]Falling back to manual input...[/yellow]')
                     choice = 'manual'
                     tokens = None
@@ -203,7 +213,9 @@ def setup_oauth(
                         choice = 'manual'
                         tokens = None
                     else:
-                        console.print('[green]✅ Token string parsed successfully![/green]')
+                        console.print(
+                            '[green]✅ Token string parsed successfully![/green]',
+                        )
                         tokens = OAuthTokens(
                             access_token=access_token,
                             refresh_token=refresh_token,
@@ -224,11 +236,20 @@ def setup_oauth(
                 data = json.loads(token_data)
 
                 # Validate required fields
-                required_fields = ['access_token', 'refresh_token', 'expires_at', 'device_id']
-                missing_fields = [field for field in required_fields if field not in data]
+                required_fields = [
+                    'access_token',
+                    'refresh_token',
+                    'expires_at',
+                    'device_id',
+                ]
+                missing_fields = [
+                    field for field in required_fields if field not in data
+                ]
 
                 if missing_fields:
-                    console.print(f'[red]Missing required fields: {missing_fields}[/red]')
+                    console.print(
+                        f'[red]Missing required fields: {missing_fields}[/red]',
+                    )
                     console.print('[yellow]Falling back to manual input...[/yellow]')
                     choice = 'manual'
                     tokens = None
@@ -249,7 +270,9 @@ def setup_oauth(
 
     if choice == 'manual' or tokens is None:
         if choice == 'manual' or tokens is None:
-            console.print('[yellow]Manual extraction - You need to extract the following data:[/yellow]')
+            console.print(
+                '[yellow]Manual extraction - You need to extract the following data:[/yellow]',
+            )
             console.print('1. Access Token (from Authorization header)')
             console.print('2. Refresh Token (from browser storage or previous auth)')
             console.print('3. Device ID (from browser cookies)')
@@ -275,13 +298,19 @@ def setup_oauth(
         )
 
         if not expires_at_str:
-            expires_at = int(datetime.now(timezone.utc).timestamp()) + (DEFAULT_TOKEN_EXPIRY_HOURS * SECONDS_PER_HOUR)  # 1 hour from now
+            expires_at = int(datetime.now(timezone.utc).timestamp()) + (
+                DEFAULT_TOKEN_EXPIRY_HOURS * SECONDS_PER_HOUR
+            )  # 1 hour from now
         else:
             try:
                 expires_at = int(expires_at_str)
             except ValueError:
-                console.print(f'[red]Invalid expiration time, using {DEFAULT_TOKEN_EXPIRY_HOURS} hour from now[/red]')
-                expires_at = int(datetime.now(timezone.utc).timestamp()) + (DEFAULT_TOKEN_EXPIRY_HOURS * SECONDS_PER_HOUR)
+                console.print(
+                    f'[red]Invalid expiration time, using {DEFAULT_TOKEN_EXPIRY_HOURS} hour from now[/red]',
+                )
+                expires_at = int(datetime.now(timezone.utc).timestamp()) + (
+                    DEFAULT_TOKEN_EXPIRY_HOURS * SECONDS_PER_HOUR
+                )
 
         # Create OAuth tokens
         try:
@@ -305,7 +334,9 @@ def setup_oauth(
 
     console.print()
     console.print(f'[green]✅ OAuth tokens saved to {tokens_file}[/green]')
-    console.print('[yellow]You can now use boosty-downloader with automatic token refresh![/yellow]')
+    console.print(
+        '[yellow]You can now use boosty-downloader with automatic token refresh![/yellow]',
+    )
 
     # Show token info
     console.print()
@@ -313,7 +344,9 @@ def setup_oauth(
     console.print(f'Access Token: {tokens.access_token[:20]}...')
     console.print(f'Refresh Token: {tokens.refresh_token[:20]}...')
     console.print(f'Device ID: {tokens.device_id}')
-    console.print(f'Expires At: {datetime.fromtimestamp(tokens.expires_at, timezone.utc)} ({tokens.expires_at})')
+    console.print(
+        f'Expires At: {datetime.fromtimestamp(tokens.expires_at, timezone.utc)} ({tokens.expires_at})',
+    )
 
 
 @app.command()
@@ -339,7 +372,9 @@ def check_tokens(
 
     if not oauth_manager.has_tokens():
         console.print(f'[red]❌ No OAuth tokens found in {tokens_file}[/red]')
-        console.print('[yellow]Run "python -m boosty_downloader.oauth_setup setup-oauth" to configure[/yellow]')
+        console.print(
+            '[yellow]Run "python -m boosty_downloader.oauth_setup setup-oauth" to configure[/yellow]',
+        )
         return
 
     tokens = oauth_manager._tokens
@@ -352,10 +387,14 @@ def check_tokens(
     console.print(f'Access Token: {tokens.access_token[:20]}...')
     console.print(f'Refresh Token: {tokens.refresh_token[:20]}...')
     console.print(f'Device ID: {tokens.device_id}')
-    console.print(f'Expires At: {datetime.fromtimestamp(tokens.expires_at, timezone.utc)}')
+    console.print(
+        f'Expires At: {datetime.fromtimestamp(tokens.expires_at, timezone.utc)}',
+    )
 
     if tokens.is_expired():
-        console.print('[yellow]⚠️  Access token is expired (will be refreshed automatically)[/yellow]')
+        console.print(
+            '[yellow]⚠️  Access token is expired (will be refreshed automatically)[/yellow]',
+        )
     else:
         console.print('[green]✅ Access token is still valid[/green]')
 

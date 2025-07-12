@@ -23,7 +23,8 @@ class TestOAuthManager(unittest.TestCase):
         self.sample_tokens = OAuthTokens(
             access_token='test_access_token_123',
             refresh_token='test_refresh_token_456',
-            expires_at=int(datetime.now(timezone.utc).timestamp()) + 3600,  # 1 hour from now
+            expires_at=int(datetime.now(timezone.utc).timestamp())
+            + 3600,  # 1 hour from now
             device_id='test_device_id_789',
         )
 
