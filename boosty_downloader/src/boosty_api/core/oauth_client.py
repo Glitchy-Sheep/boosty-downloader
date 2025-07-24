@@ -53,8 +53,8 @@ class OAuthBoostyAPIClient(BoostyAPIClient):
 
         # Check for authentication issues periodically
         if (
-            self.auth_validator._total_posts_checked > 0
-            and self.auth_validator._total_posts_checked % 20 == 0
+            self.auth_validator._total_posts_checked > 0  # type: ignore
+            and self.auth_validator._total_posts_checked % 20 == 0  # type: ignore
         ):
             auth_result = self.auth_validator.validate_auth_status()
             if not auth_result.is_valid:

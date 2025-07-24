@@ -45,6 +45,8 @@ class TestEmptyPostHandling:
                 request_delay_seconds=0,
                 preferred_video_quality=VideoQualityOption.medium,
                 oauth_refresh_cooldown=3600,
+                save_raw_json=False,
+                save_raw_txt=False,
             ),
             logger_dependencies=LoggerDependencies(
                 logger=downloader_logger,

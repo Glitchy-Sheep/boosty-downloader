@@ -91,7 +91,7 @@ def init_config() -> Config:
         config = Config()
 
         # Validate that we have at least one authentication method
-        from pathlib import Path
+        from pathlib import Path  # noqa: PLC0415
 
         oauth_file = Path(config.auth.oauth_tokens_file)
         has_oauth = oauth_file.exists()
@@ -112,7 +112,7 @@ def init_config() -> Config:
 
         return config
 
-    except ValidationError as e:
+    except ValidationError as e:  # type: ignore
         # If can't be parsed correctly
         create_sample_config_file()
         downloader_logger.error('Config is invalid (could not be parsed)')

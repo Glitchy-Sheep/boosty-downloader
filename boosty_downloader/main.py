@@ -54,6 +54,8 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
     content_type_filter: list[DownloadContentTypeFilter],
     preferred_video_quality: VideoQualityOption,
     request_delay_seconds: float,
+    save_raw_json: bool,
+    save_raw_txt: bool,
 ) -> None:
     """Download all posts from the specified user"""
     config = init_config()
@@ -116,6 +118,8 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
                     request_delay_seconds=request_delay_seconds,
                     preferred_video_quality=preferred_video_quality,
                     oauth_refresh_cooldown=config.auth.oauth_refresh_cooldown,
+                    save_raw_json=save_raw_json,
+                    save_raw_txt=save_raw_txt,
                 ),
                 network_dependencies=NetworkDependencies(
                     session=retry_client,
@@ -203,6 +207,20 @@ def main_wrapper(  # noqa: PLR0913 (too many arguments because of typer)
             help='Remove posts cache for selected username, so all posts will be redownloaded',
         ),
     ] = False,
+    save_raw_json: Annotated[
+        bool,
+        typer.Option(
+            '--save-raw-json',
+            help='Save raw API response as JSON file for each post',
+        ),
+    ] = False,
+    save_raw_txt: Annotated[
+        bool,
+        typer.Option(
+            '--save-raw-txt',
+            help='Save minimalistic text representation of each post',
+        ),
+    ] = False,
 ) -> None:
     """
     [bold]ABOUT:[/bold]
@@ -237,6 +255,8 @@ def main_wrapper(  # noqa: PLR0913 (too many arguments because of typer)
             else list(DownloadContentTypeFilter),
             preferred_video_quality=preferred_video_quality,
             request_delay_seconds=request_delay_seconds,
+            save_raw_json=save_raw_json,
+            save_raw_txt=save_raw_txt,
         ),
     )
 

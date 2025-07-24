@@ -67,6 +67,8 @@ class TestOAuthRetryFunctionality:
             download_content_type_filters=[],
             preferred_video_quality=VideoQualityOption.medium,
             oauth_refresh_cooldown=3600,
+            save_raw_json=False,
+            save_raw_txt=False,
         )
         logger_deps = MagicMock()
         logger_deps.logger = MagicMock()
@@ -95,6 +97,8 @@ class TestOAuthRetryFunctionality:
             download_content_type_filters=[],
             preferred_video_quality=VideoQualityOption.medium,
             oauth_refresh_cooldown=3600,
+            save_raw_json=False,
+            save_raw_txt=False,
         )
         logger_deps = MagicMock()
         logger_deps.logger = MagicMock()

@@ -26,8 +26,8 @@ def format_file_size(size_bytes: int | None) -> str:
 
     size_names = ['B', 'KB', 'MB', 'GB', 'TB']
     i = 0
-    while size_bytes >= BYTES_IN_KILOBYTE and i < len(size_names) - 1:
-        size_bytes /= BYTES_IN_KILOBYTE
+    while size_bytes >= BYTES_IN_KILOBYTE and i < len(size_names) - 1:  # type: ignore
+        size_bytes /= BYTES_IN_KILOBYTE  # type: ignore
         i += 1
 
     return f'{size_bytes:.1f} {size_names[i]}'

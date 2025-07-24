@@ -186,7 +186,7 @@ def setup_oauth(
 
         token_data = Prompt.ask('Paste the token string from browser console')
         try:
-            import json
+            import json  # noqa: PLC0415
 
             # Clean the data
             token_data = token_data.strip()
@@ -262,7 +262,7 @@ def setup_oauth(
                     )
                     console.print('[green]✅ JSON parsed successfully![/green]')
 
-        except (json.JSONDecodeError, KeyError, ValueError) as e:
+        except (json.JSONDecodeError, KeyError, ValueError) as e:  # type: ignore
             console.print(f'[red]Error parsing data: {e}[/red]')
             console.print('[yellow]Falling back to manual input...[/yellow]')
             choice = 'manual'
@@ -324,7 +324,7 @@ def setup_oauth(
             console.print(f'[red]Error creating OAuth tokens: {e}[/red]')
             sys.exit(1)
 
-    if tokens is None:
+    if tokens is None:  # type: ignore
         console.print('[red]Failed to create OAuth tokens[/red]')
         sys.exit(1)
 
@@ -377,7 +377,7 @@ def check_tokens(
         )
         return
 
-    tokens = oauth_manager._tokens
+    tokens = oauth_manager._tokens  # type: ignore
     if tokens is None:
         console.print('[red]❌ Failed to load tokens[/red]')
         return

@@ -1,3 +1,13 @@
+1.5.0
+
+- **Raw API Data Export**: Added `--save-raw-json` option to save complete Boosty API responses as JSON files
+- **Text Summary Export**: Added `--save-raw-txt` option to save minimalistic text representations of posts
+- **Consistent File Naming**: Standardized file names to `post_api.json` and `post_info.txt` for better organization
+- **Real API Data**: Now saves authentic Boosty API responses instead of reconstructed data structures
+- **Enhanced Post Information**: Text summaries include post type, teaser, content, and metadata
+- **Improved Code Quality**: Fixed all type annotation issues and translated Russian comments to English
+- **Better Error Handling**: Graceful handling when raw API data is not available
+
 1.3.1
 
 - **Code Quality Improvements**: Comprehensive code quality refactoring reducing ruff errors by 89% (from 224 to 24)

@@ -82,8 +82,8 @@ class BoostyAPIClient:
 
         # Check for API-level errors (even with 200 status)
         if isinstance(posts_data, dict) and 'error' in posts_data:
-            error_code = posts_data.get('error', 'unknown_error')
-            error_description = posts_data.get('error_description', 'No description')
+            error_code: str = posts_data.get('error', 'unknown_error')  # type: ignore
+            error_description: str = posts_data.get('error_description', 'No description')  # type: ignore
 
             if error_code == 'blog_not_found':
                 raise BoostyAPINoUsernameError(
@@ -97,7 +97,7 @@ class BoostyAPIClient:
 
         try:
             posts: list[Post] = [
-                Post.model_validate(post) for post in posts_data['data']
+                Post.model_validate(post) for post in posts_data['data']  # type: ignore
             ]
         except KeyError as e:
             # Check if this is an authentication issue
@@ -106,7 +106,7 @@ class BoostyAPIClient:
                     f"No 'data' field in API response for {author_name}",
                 )
                 downloader_logger.debug(
-                    f'Response keys: {list(posts_data.keys()) if isinstance(posts_data, dict) else "Not a dict"}',
+                    f'Response keys: {list(posts_data.keys()) if isinstance(posts_data, dict) else "Not a dict"}',  # type: ignore
                 )
 
                 # This might be an authentication issue, but we can't be sure
@@ -130,6 +130,7 @@ class BoostyAPIClient:
         return PostsResponse(
             posts=posts,
             extra=extra,
+            raw_posts_data=posts_data.get('data', []),  # type: ignore
         )
 
     async def _handle_http_error(

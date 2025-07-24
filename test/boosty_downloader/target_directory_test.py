@@ -55,6 +55,8 @@ class TestTargetDirectoryConfig(unittest.TestCase):
             request_delay_seconds=2.5,
             preferred_video_quality=VideoQualityOption.medium,
             oauth_refresh_cooldown=3600,
+            save_raw_json=False,
+            save_raw_txt=False,
         )
 
         download_manager = BoostyDownloadManager(
@@ -77,6 +79,8 @@ class TestTargetDirectoryConfig(unittest.TestCase):
             request_delay_seconds=2.5,
             preferred_video_quality=VideoQualityOption.medium,
             oauth_refresh_cooldown=3600,
+            save_raw_json=False,
+            save_raw_txt=False,
         )
 
         download_manager = BoostyDownloadManager(
@@ -102,6 +106,8 @@ class TestTargetDirectoryConfig(unittest.TestCase):
             request_delay_seconds=2.5,
             preferred_video_quality=VideoQualityOption.medium,
             oauth_refresh_cooldown=3600,
+            save_raw_json=False,
+            save_raw_txt=False,
         )
 
         BoostyDownloadManager(

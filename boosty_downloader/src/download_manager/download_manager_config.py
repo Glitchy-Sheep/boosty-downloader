@@ -72,3 +72,5 @@ class GeneralOptions:
     request_delay_seconds: float
     preferred_video_quality: VideoQualityOption
     oauth_refresh_cooldown: int
+    save_raw_json: bool
+    save_raw_txt: bool

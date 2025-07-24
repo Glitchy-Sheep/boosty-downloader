@@ -11,7 +11,7 @@ def human_readable_size(size: float | None, decimal_places: int = 2) -> str:
         path = Path("example.txt")
 
         file_size = path.stat().st_size  # Get file size in bytes
-        print(human_readable_size(file_size))
+        readable_size = human_readable_size(file_size)
     """
     if size is None:
         return 'N/A'

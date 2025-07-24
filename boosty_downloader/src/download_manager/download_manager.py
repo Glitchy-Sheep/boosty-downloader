@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from rich.progress import Progress
 from yarl import URL
@@ -53,6 +53,7 @@ from boosty_downloader.src.html_reporter.html_reporter import (
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from boosty_downloader.src.boosty_api.core.oauth_client import OAuthBoostyAPIClient
     from boosty_downloader.src.boosty_api.models.post.post import Post
     from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_image import (
         PostDataImage,
@@ -73,14 +74,14 @@ class PostData:
     """
 
     # Other media
-    files: list[PostDataFile] = field(default_factory=list)
+    files: list[PostDataFile] = field(default_factory=list)  # type: ignore
 
     # Video content
-    ok_videos: list[PostDataOkVideo] = field(default_factory=list)
-    videos: list[PostDataVideo] = field(default_factory=list)
+    ok_videos: list[PostDataOkVideo] = field(default_factory=list)  # type: ignore
+    videos: list[PostDataVideo] = field(default_factory=list)  # type: ignore
 
     # For generating post document
-    post_content: list[PostDataText | PostDataLink | PostDataImage] = field(
+    post_content: list[PostDataText | PostDataLink | PostDataImage] = field(  # type: ignore
         default_factory=list,
     )
 
@@ -330,6 +331,116 @@ class BoostyDownloadManager:
 
         html_report.save()
 
+    async def _save_post_json(
+        self,
+        destination: Path,
+        post: Post,
+        raw_post_data: dict[str, Any] | None = None,
+    ) -> None:
+        """Save raw API response as JSON file for post"""
+        destination.mkdir(parents=True, exist_ok=True)
+
+        json_file_path = destination / 'post_api.json'
+
+        self.logger.wait(
+            f'Saving raw JSON data at {json_file_path.name}',
+            tab_level=1,
+        )
+
+        import json
+
+        # If raw_post_data is not provided, skip JSON saving
+        if raw_post_data is None:
+            self.logger.warning(
+                'No raw API data available for JSON export, skipping...',
+                tab_level=1,
+            )
+            return
+
+        with json_file_path.open('w', encoding='utf-8') as file:
+            json.dump(raw_post_data, file, ensure_ascii=False, indent=2)
+
+
+
+    async def _save_post_txt(
+        self,
+        destination: Path,
+        post: Post,
+        username: str,
+    ) -> None:
+        """Save minimalistic text representation of post"""
+        destination.mkdir(parents=True, exist_ok=True)
+
+        txt_file_path = destination / 'post_info.txt'
+
+        self.logger.wait(
+            f'Saving text summary at {txt_file_path.name}',
+            tab_level=1,
+        )
+
+        # Determine post type
+        post_type = 'unknown'
+        content_chunks = post.data
+
+        # Analyze content to determine type
+        has_text = any(chunk.type == 'text' for chunk in content_chunks)
+        has_images = any(chunk.type == 'image' for chunk in content_chunks)
+        has_videos = any(chunk.type in ['ok_video', 'video'] for chunk in content_chunks)
+        has_files = any(chunk.type == 'file' for chunk in content_chunks)
+
+        if has_text and not has_images and not has_videos and not has_files:
+            post_type = 'text_only'
+        elif has_images:
+            post_type = 'with_images'
+        elif has_videos:
+            post_type = 'with_videos'
+        elif has_files:
+            post_type = 'with_files'
+        elif has_text:
+            post_type = 'text'
+
+        # Extract text content
+        from boosty_downloader.src.boosty_api.utils.textual_post_extractor import (
+            extract_textual_content,
+        )
+
+        content_parts: list[str] = []
+        for chunk in content_chunks:
+            if chunk.type == 'text':
+                text_content = extract_textual_content(chunk.content).strip()
+                if text_content:
+                    content_parts.append(text_content)
+            elif chunk.type == 'link':
+                link_text = extract_textual_content(chunk.content).strip()
+                if link_text:
+                    content_parts.append(link_text)
+                content_parts.append(chunk.url)
+
+        content_text = '\n'.join(content_parts)
+
+        # Limit length for teaser
+        teaser = content_text[:200] + '...' if len(content_text) > 200 else content_text
+        if '\n' in teaser:
+            teaser = teaser.split('\n')[0] + '...' if len(teaser.split('\n')[0]) < len(teaser) else teaser
+
+        # Form file content
+        txt_content = f"""Post
+--------
+ID: {post.id}
+Type: {post_type}
+Title: {post.title} 
+Teaser: {teaser}
+
+Content: {content_text}
+
+Published: {post.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3]}+00:00
+Last Edited: {post.updated_at.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3]}+00:00
+URL: https://boosty.to/{username}/posts/{post.id}
+"""
+
+        with txt_file_path.open('w', encoding='utf-8') as file:
+            file.write(txt_content)
+
     async def _download_files(
         self,
         destination: Path,
@@ -490,6 +601,7 @@ class BoostyDownloadManager:
         self,
         username: str,
         post: Post,
+        raw_post_data: dict[str, Any] | None = None,
     ) -> bool:
         """
         Download a single post and all its content including:
@@ -545,6 +657,22 @@ class BoostyDownloadManager:
                     f'Created empty post marker at {empty_marker_file}',
                     tab_level=1,
                 )
+
+                # Save JSON and TXT even for empty posts if options are enabled
+                if self._general_options.save_raw_json:
+                    await self._save_post_json(
+                        destination=post_location_info.post_directory,
+                        post=post,
+                        raw_post_data=raw_post_data,
+                    )
+
+                if self._general_options.save_raw_txt:
+                    await self._save_post_txt(
+                        destination=post_location_info.post_directory,
+                        post=post,
+                        username=username,
+                    )
+
                 return True  # Still consider this a successful processing
 
             if (
@@ -594,6 +722,22 @@ class BoostyDownloadManager:
                     username=username,
                 )
 
+            # Save raw JSON if option is enabled
+            if self._general_options.save_raw_json:
+                await self._save_post_json(
+                    destination=post_location_info.post_directory,
+                    post=post,
+                    raw_post_data=raw_post_data,
+                )
+
+            # Save TXT if option is enabled
+            if self._general_options.save_raw_txt:
+                await self._save_post_txt(
+                    destination=post_location_info.post_directory,
+                    post=post,
+                    username=username,
+                )
+
         except Exception:
             self.logger.error(f'Failed to download post {post.title}')
             # Log the exception using the underlying logger
@@ -618,13 +762,15 @@ class BoostyDownloadManager:
         False if the post should be processed normally (access gained).
         """
         # Check if we have OAuth authentication
-        if not hasattr(self._network_dependencies.api_client, 'force_refresh_tokens'):
+        api_client = self._network_dependencies.api_client
+        if not hasattr(api_client, 'force_refresh_tokens'):
             # Not an OAuth client, skip immediately
             await self._log_inaccessible_post(post, post_location_info, username)
             stats['inaccessible'] += 1
             return True
 
-        oauth_client = self._network_dependencies.api_client
+        # Type assertion for OAuth client
+        oauth_client: OAuthBoostyAPIClient = api_client  # type: ignore
 
         # Check if we should attempt token refresh based on cooldown and failure count
         current_time = time.time()
@@ -670,7 +816,7 @@ class BoostyDownloadManager:
         )
 
         self._last_token_refresh_time = current_time
-        token_refreshed = await oauth_client.force_refresh_tokens()
+        token_refreshed: bool = await oauth_client.force_refresh_tokens()
 
         if not token_refreshed:
             self._consecutive_failed_refresh_count += 1
@@ -838,15 +984,22 @@ class BoostyDownloadManager:
             delay_seconds=self._general_options.request_delay_seconds,
             posts_per_page=100,
         ):
-            for post in response.posts:
+            # Get raw data for posts if available
+            raw_posts_data = response.raw_posts_data if hasattr(response, 'raw_posts_data') else []
+
+            for i, post in enumerate(response.posts):
                 self.logger.info(
                     f'Searching for post by its id, please wait: {post.id}...',
                 )
                 if post.id == target_post_id:
+                    # Get corresponding raw data for this post
+                    raw_post_data = raw_posts_data[i] if i < len(raw_posts_data) else None
+
                     self.logger.wait('FOUND post by id, downloading...')
                     if await self._download_single_post(
                         username=username,
                         post=post,
+                        raw_post_data=raw_post_data,
                     ):
                         post_location_info = self._generate_post_location(
                             username,
@@ -917,13 +1070,19 @@ class BoostyDownloadManager:
                     f'Got new posts page: NEW({len(posts)}) TOTAL({total_posts})',
                 )
 
-                for post in posts:
+                # Get raw data for posts if available
+                raw_posts_data = response.raw_posts_data if hasattr(response, 'raw_posts_data') else []
+
+                for i, post in enumerate(posts):
                     current_post += 1
 
                     post_location_info = self._generate_post_location(
                         username=username,
                         post=post,
                     )
+
+                    # Get corresponding raw data for this post
+                    raw_post_data = raw_posts_data[i] if i < len(raw_posts_data) else None
 
                     if not post.has_access:
                         # Try to handle the inaccessible post with OAuth token refresh
@@ -963,6 +1122,7 @@ class BoostyDownloadManager:
                     download_result = await self._download_single_post(
                         username=username,
                         post=post,
+                        raw_post_data=raw_post_data,
                     )
 
                     if download_result:

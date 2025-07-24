@@ -52,6 +52,8 @@ class TestOAuthCooldownFunctionality:
             download_content_type_filters=[],
             preferred_video_quality=VideoQualityOption.medium,
             oauth_refresh_cooldown=2,  # Use shorter cooldown for tests
+            save_raw_json=False,
+            save_raw_txt=False,
         )
 
         logger_deps = MagicMock()
