@@ -24,6 +24,17 @@ class BoostyAPINoUsernameError(BoostyAPIError):
     """Raised when no username is specified."""
 
 
+class BoostyAPIUnauthorizedError(BoostyAPIError):
+    """
+    Raised when authorization error occurs,
+    e.g when credentials is invalid.
+    """
+
+
+class BoostyAPIUnknownError(BoostyAPIError):
+    """Raised when Boosty returns unexpected error."""
+
+
 class BoostyAPIClient:
     """
     Main client class for the Boosty API.
@@ -65,7 +76,17 @@ class BoostyAPIClient:
                 Post.model_validate(post) for post in posts_data['data']
             ]
         except KeyError as e:
-            raise BoostyAPINoUsernameError from e
+            if 'error' in posts_data:
+                error = posts_data['error']
+                description = posts_data['error_description']
+                if error == 'unauthorized':
+                    raise BoostyAPIUnauthorizedError from e
+                elif error == 'blog_not_found':
+                    raise BoostyAPINoUsernameError from e
+                else:
+                    raise BoostyAPIUnknownError from e
+            else:
+                raise BoostyAPIUnknownError from e
 
         extra: Extra = Extra.model_validate(posts_data['extra'])
 
