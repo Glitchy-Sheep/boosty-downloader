@@ -1,0 +1,26 @@
+name: "Get Poetry Version"
+description: "Get version from pyproject.toml using Poetry"
+inputs:
+  checkout-ref:
+    description: "Git ref to checkout (optional). If not provided, uses current branch"
+    required: false
+outputs:
+  version:
+    description: "Version from pyproject.toml"
+    value: ${{ steps.get-version.outputs.version }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout specific ref
+      if: inputs.checkout-ref
+      shell: bash
+      run: git checkout ${{ inputs.checkout-ref }}
+
+    - name: Get version from pyproject.toml
+      id: get-version
+      shell: bash
+      run: |
+        VERSION=$(poetry version --short)
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "Version: $VERSION"
