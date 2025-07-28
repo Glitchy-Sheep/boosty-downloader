@@ -26,6 +26,7 @@ The post content itself is saved in html with a little bit of styling.
     - [Step 1: Get the auth cookie and auth header](#step-1-get-the-auth-cookie-and-auth-header)
     - [Step 2: Paste the cookie and auth header into the config file](#step-2-paste-the-cookie-and-auth-header-into-the-config-file)
     - [Step 3: Run the utility](#step-3-run-the-utility)
+  - [💖 Contributing](#-contributing)
   - [📜 License](#-license)
 
 
@@ -95,6 +96,10 @@ Now you can just download your content with the following command:
 ```bash
 boosty-downloader --username YOUR_CREATOR_NAME
 ```
+
+## 💖 Contributing
+
+If you want to contribute to this project, please see the [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## 📜 License
 

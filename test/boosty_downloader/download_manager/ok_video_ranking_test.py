@@ -2,7 +2,7 @@ from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_ok_v
     OkVideoType,
     OkVideoUrl,
 )
-from boosty_downloader.src.download_manager.ok_video_ranking import (
+from boosty_downloader.src.download_manager.utils.ok_video_ranking import (
     RankingDict,
     get_best_video,
     get_quality_ranking,
