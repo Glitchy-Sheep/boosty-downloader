@@ -20,7 +20,7 @@ help:
 # 📦 Distribution 
 
 deps:
-	poetry install 
+	poetry sync --no-interaction
 
 build:
 	poetry build 
