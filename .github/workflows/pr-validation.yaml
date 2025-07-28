@@ -53,7 +53,7 @@ jobs:
         run: |
           git stash --include-untracked || true
 
-          git checkout -f ${{ github.event.pull_request.base.sha }}
+          git checkout -f main
           BASE_VERSION=$(poetry version --short)
           echo "base_version=$BASE_VERSION" >> "$GITHUB_OUTPUT"
           echo "Base version: $BASE_VERSION at $(git rev-parse --short HEAD)"
