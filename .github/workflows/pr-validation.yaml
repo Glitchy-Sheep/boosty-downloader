@@ -43,10 +43,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      # - name: 📦 Install Poetry if missing
-      #   uses: snok/install-poetry@v1
-      #   with:
-      #     version: 'latest'
+      - name: 📦 Install Poetry if missing
+        uses: snok/install-poetry@v1
+        with:
+          version: 'latest'
       
       - name: Get project versions (base and head)
         id: get_poetry_versions
