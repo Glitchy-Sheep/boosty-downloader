@@ -8,7 +8,7 @@ I created this note to help you understand the way you can help improve the proj
 ## 👩‍💻 Development Process
 
 <div align="center">
-<img src="/assets/dev-process.svg" height="400" alt="Development Process" style="border-radius: 12px;">
+<img src="/assets/dev-process.excalidraw.svg" height="400" alt="Development Process" style="border-radius: 12px;">
 </div>
 
 ### 🔧 Quick Start
