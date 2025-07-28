@@ -51,18 +51,16 @@ jobs:
       - name: Get project versions (base and head)
         id: get_poetry_versions
         run: |
-          git stash --include-untracked || true
+          HEAD_VERSION=$(poetry version --short)
+          echo "head_version=$HEAD_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Current version: $HEAD_VERSION at $(git rev-parse --short HEAD)"
 
-          git checkout -f main
+          git switch main
           BASE_VERSION=$(poetry version --short)
           echo "base_version=$BASE_VERSION" >> "$GITHUB_OUTPUT"
           echo "Base version: $BASE_VERSION at $(git rev-parse --short HEAD)"
 
           git switch -
-          git stash pop
-          HEAD_VERSION=$(poetry version --short)
-          echo "head_version=$HEAD_VERSION" >> "$GITHUB_OUTPUT"
-          echo "Current version: $HEAD_VERSION at $(git rev-parse --short HEAD)"
 
       
       - name: ✅ Validate version bump in pyproject.toml
