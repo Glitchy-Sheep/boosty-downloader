@@ -36,19 +36,22 @@ jobs:
         run: poetry sync
 
       - name: 🔍 Run ruff linting
-        run: poetry run ruff check .
+        run: make lint-check
 
       - name: 🎨 Run ruff formatting check
-        run: poetry run ruff format --check .
+        run: make format-check
 
       - name: 🔎 Run type checking
-        run: poetry run pyright
+        run: make types
 
       - name: 🧪 Run tests
-        run: poetry run pytest
+        run: |
+          make test-verbose
+          make test-api-verbose
+        timeout-minutes: 5
 
       - name: 🏗️ Build package
-        run: poetry build
+        run: make build
 
       - name: ✅ Verify build artifacts
         run: |

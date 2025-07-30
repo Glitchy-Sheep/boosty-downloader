@@ -20,8 +20,9 @@ help:
 	@echo Code Health:
 	@echo   dev-fix          - Try to fix code issues, show problems if any
 	@echo   ci-check         - Run CI checks (linter/formatter/type checks)
-	@echo   format           - Code format using ruff 
 	@echo   types            - Code type checks using pyright 
+	@echo   format-check     - Code format check using ruff
+	@echo   format-fix       - Code format using ruff 
 	@echo   lint-check       - Code linting (only check)
 	@echo   lint-fix         - Code linting (try to fix)
 
@@ -48,7 +49,10 @@ lint-check:
 lint-fix:
 	poetry run ruff check --fix .
 
-format:
+format-check:
+	poetry run ruff format --check .
+
+format-fix:
 	poetry run ruff format .
 	
 types:
