@@ -11,11 +11,17 @@ from yarl import URL
 from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_file import (
     PostDataFile,
 )
+from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_header import (
+    PostDataHeader,
+)
 from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_image import (
     PostDataImage,
 )
 from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_link import (
     PostDataLink,
+)
+from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_list import (
+    PostDataList,
 )
 from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_ok_video import (
     OkVideoType,
@@ -152,6 +158,10 @@ class BoostyDownloadManager:
                 post_data.ok_videos.append(chunk)
             elif isinstance(chunk, PostDataVideo):
                 post_data.videos.append(chunk)
+            elif isinstance(chunk, PostDataHeader):
+                pass # TODO: Implement header scraping mechanism
+            elif isinstance(chunk, PostDataList):
+                pass # TODO: Implement list scraping mechanism
             else:  # remaning Link, Text, Image blocks
                 post_data.post_content.append(chunk)
 

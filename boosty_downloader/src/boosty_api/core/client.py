@@ -39,17 +39,6 @@ class BoostyAPIUnknownError(BoostyAPIError):
     """Raised when Boosty returns unexpected error."""
 
 
-class BoostyAPIUnauthorizedError(BoostyAPIError):
-    """
-    Raised when authorization error occurs,
-    e.g when credentials is invalid.
-    """
-
-
-class BoostyAPIUnknownError(BoostyAPIError):
-    """Raised when Boosty returns unexpected error."""
-
-
 class BoostyAPIClient:
     """
     Main client class for the Boosty API.
@@ -97,10 +86,8 @@ class BoostyAPIClient:
 
 
         # Ensure that we won't break on new content types (just filter them out)
-        allowed_types = {'text', 'image', 'video', 'audio', 'file', 'ok_video'}
         posts: list[Post] = [
             Post.model_validate(post) for post in posts_data['data']
-            if post.get('type') in allowed_types
         ]
 
         extra: Extra = Extra.model_validate(posts_data['extra'])

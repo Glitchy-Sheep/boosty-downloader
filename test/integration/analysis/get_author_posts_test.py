@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 import rich
 from aiohttp_retry import RetryClient
@@ -18,7 +20,7 @@ async def test_get_author_posts(retry_client: RetryClient, integration_config: I
         endpoint,
         params=filter_none_params(
             {
-                'limit': 1,
+                'limit': 10,
             },
         ),
     )
@@ -27,3 +29,34 @@ async def test_get_author_posts(retry_client: RetryClient, integration_config: I
     assert posts_data is not None
 
     rich.print_json(data=posts_data)
+
+
+@pytest.mark.asyncio
+async def test_all_data_chunk_types(
+    retry_client: RetryClient,
+    integration_config: IntegrationTestConfig,
+) -> None:
+    """Test successful retrieval of posts from an existing author."""
+    endpoint = f'blog/{integration_config.boosty_existing_author}/post/'
+
+    posts_raw = await retry_client.get(
+        endpoint,
+        params=filter_none_params(
+            {
+                'limit': 25,
+            },
+        ),
+    )
+    posts_data = await posts_raw.json()
+
+    assert posts_data is not None
+
+    unique_data_types: Any = {}
+
+    for post in posts_data['data']:
+        rich.print(post)
+        for chunk in post['data']:
+            if chunk['type'] not in unique_data_types:
+                unique_data_types[chunk['type']] = chunk
+
+    rich.print_json(data=unique_data_types)
