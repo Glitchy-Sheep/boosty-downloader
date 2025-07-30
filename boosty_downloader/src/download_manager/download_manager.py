@@ -159,9 +159,9 @@ class BoostyDownloadManager:
             elif isinstance(chunk, PostDataVideo):
                 post_data.videos.append(chunk)
             elif isinstance(chunk, PostDataHeader):
-                pass # TODO: Implement header scraping mechanism
+                pass # TODO(#48): Implement header scraping mechanism  # noqa: FIX002 - will be fixed in a separate PR
             elif isinstance(chunk, PostDataList):
-                pass # TODO: Implement list scraping mechanism
+                pass # TODO(#48): Implement list scraping mechanism  # noqa: FIX002 - will be fixed in a separate PR
             else:  # remaning Link, Text, Image blocks
                 post_data.post_content.append(chunk)
 
