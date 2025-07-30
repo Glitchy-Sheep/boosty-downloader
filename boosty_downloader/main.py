@@ -13,6 +13,8 @@ from aiohttp_retry import ExponentialRetry, RetryClient
 from boosty_downloader.src.boosty_api.core.client import (
     BoostyAPIClient,
     BoostyAPINoUsernameError,
+    BoostyAPIUnauthorizedError,
+    BoostyAPIUnknownError,
 )
 from boosty_downloader.src.boosty_api.core.endpoints import BASE_URL
 from boosty_downloader.src.boosty_api.utils.auth_parsers import (
@@ -238,6 +240,10 @@ def bootstrap() -> None:
         app()
     except BoostyAPINoUsernameError:
         logger_instances.downloader_logger.error('Username not found')
+    except BoostyAPIUnauthorizedError:
+        logger_instances.downloader_logger.error('Unauthorized: Bad credentials')
+    except BoostyAPIUnknownError:
+        logger_instances.downloader_logger.error('Boosty returned unknown error')
 
 
 if __name__ == '__main__':

@@ -1,3 +1,6 @@
+1.0.1
+- Fix: 🐛 Support new boosty API response schema (as a placeholder)
+
 1.0.0
 
 - First stable release

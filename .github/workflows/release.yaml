@@ -1,98 +1,135 @@
-
 name: release
 
 on:
   push:
-    tags:
-      - "[0-9]+.[0-9]+.[0-9]+"
-      - "[0-9]+.[0-9]+.[0-9]+a[0-9]+"
-      - "[0-9]+.[0-9]+.[0-9]+b[0-9]+"
-      - "[0-9]+.[0-9]+.[0-9]+rc[0-9]+"
+    branches:
+      - main
+  workflow_dispatch:
 
 env:
   PACKAGE_NAME: "boosty-downloader"
   OWNER: "Glitchy-Sheep"
 
 jobs:
-  details:
+  extract_base_project_version:
+    name: "📋 Extract pyproject.toml version from main"
     runs-on: ubuntu-latest
     outputs:
-      new_version: ${{ steps.release.outputs.new_version }}
-      suffix: ${{ steps.release.outputs.suffix }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.extract_version.outputs.version }}
     steps:
-      - uses: actions/checkout@v2
-
-      - name: Extract tag and Details
-        id: release
-        run: |
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            TAG_NAME=${GITHUB_REF#refs/tags/}
-            NEW_VERSION=$(echo $TAG_NAME | awk -F'-' '{print $1}')
-            SUFFIX=$(echo $TAG_NAME | grep -oP '[a-z]+[0-9]+' || echo "")
-            echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
-            echo "suffix=$SUFFIX" >> "$GITHUB_OUTPUT"
-            echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
-            echo "Version is $NEW_VERSION"
-            echo "Suffix is $SUFFIX"
-            echo "Tag name is $TAG_NAME"
-          else
-            echo "No tag found"
-            exit 1
-          fi
-
-  check_pypi:
-    needs: details
-    runs-on: ubuntu-latest
-    steps:
-      - name: Fetch information from PyPI
-        run: |
-          response=$(curl -s https://pypi.org/pypi/${{ env.PACKAGE_NAME }}/json || echo "{}")
-          latest_previous_version=$(echo $response | jq --raw-output "select(.releases != null) | .releases | keys_unsorted | last")
-          if [ -z "$latest_previous_version" ]; then
-            echo "Package not found on PyPI."
-            latest_previous_version="0.0.0"
-          fi
-          echo "Latest version on PyPI: $latest_previous_version"
-          echo "latest_previous_version=$latest_previous_version" >> $GITHUB_ENV
-
-      - name: Compare versions and exit if not newer
-        run: |
-          NEW_VERSION=${{ needs.details.outputs.new_version }}
-          LATEST_VERSION=$latest_previous_version
-          if [ "$(printf '%s\n' "$LATEST_VERSION" "$NEW_VERSION" | sort -rV | head -n 1)" != "$NEW_VERSION" ] || [ "$NEW_VERSION" == "$LATEST_VERSION" ]; then
-            echo "The new version $NEW_VERSION is not greater than the latest version $LATEST_VERSION on PyPI."
-            exit 1
-          else
-            echo "The new version $NEW_VERSION is greater than the latest version $LATEST_VERSION on PyPI."
-          fi
-
-  setup_and_build:
-    needs: [details, check_pypi]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
+      # Ensure that we are on the main branch to get latest stable version
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: Install Poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+        uses: snok/install-poetry@v1
 
-      - name: Set project version with Poetry
+      - name: Extract base version
+        id: extract_version
         run: |
-          poetry version ${{ needs.details.outputs.new_version }}
+          VERSION=$(poetry version --short)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  extract_pushed_version:
+    name: "📦 Extract pushed pyproject.toml version"
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.extract_version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # чтобы poetry могла читать pyproject.toml в любом случае
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+
+      - name: Extract pushed version
+        id: extract_version
+        run: |
+          VERSION=$(poetry version --short)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+
+
+  # Check if new version is greater than the latest version on PyPI
+  check_pypi:
+    name: "🔍 Validate version against PyPI"
+    needs: extract_pushed_version 
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 🩺 Check PyPi release version compatibility 
+        run: |
+          echo "Checking package: $PACKAGE_NAME"
+          echo "Current version: $CURRENT_VERSION"
+
+          PACKAGE_NAME="${{ env.PACKAGE_NAME }}"
+          CURRENT_VERSION="${{ needs.extract_pushed_version.outputs.version }}"
+
+          response=$(curl -s "https://pypi.org/pypi/$PACKAGE_NAME/json" || echo "{}")
+
+          pypi_version=$(echo "$response" | jq --raw-output "select(.releases != null) | .releases | keys_unsorted | last // empty")
+
+          if [ -z "$pypi_version" ] || [ "$pypi_version" = "null" ]; then
+            echo "Package not found on PyPI or no releases available."
+            pypi_version="0.0.0"
+          fi
+
+          echo "Latest version on PyPI: $pypi_version"
+          echo "pypi_version=$pypi_version" >> "$GITHUB_OUTPUT"
+
+          # Compare versions using sort -rV
+          if [ "$CURRENT_VERSION" = "$pypi_version" ]; then
+            echo "❌ Current version equals PyPI version ($CURRENT_VERSION)"
+            echo "is_newer=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          elif [ "$(printf '%s\n' "$pypi_version" "$CURRENT_VERSION" | sort -rV | head -n 1)" = "$CURRENT_VERSION" ]; then
+            echo "✅ Current version ($CURRENT_VERSION) is newer than PyPI version ($pypi_version)"
+            echo "is_newer=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "❌ Current version ($CURRENT_VERSION) is older than PyPI version ($pypi_version)"
+            echo "is_newer=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+
+  # Install dependencies, run tests, and build distribution packages
+  setup_and_build:
+    name: "🔨 Build distribution packages"
+    needs: [extract_pushed_version, extract_base_project_version, check_pypi]
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout the code on MAIN to get current latest stable version
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
 
       - name: Install dependencies
-        run: poetry install --sync --no-interaction
+        run: make deps
+        timeout-minutes: 10
 
       - name: Build source and wheel distribution
-        run: |
-          poetry build
+        run: make build 
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -100,9 +137,27 @@ jobs:
           name: dist
           path: dist/
 
+  create_tag:
+    name: "🏷️ Create release tag"
+    needs: [extract_pushed_version, setup_and_build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create and push tag
+        run: |
+          VERSION=${{ needs.extract_pushed_version.outputs.version }}
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$VERSION" -m "Release v$VERSION"
+          git push origin "v$VERSION"
+
+
   pypi_publish:
-    name: Upload release to PyPI
-    needs: [setup_and_build, details]
+    name: "📦 Upload release to PyPI"
+    needs: [setup_and_build, extract_pushed_version, create_tag]
     runs-on: ubuntu-latest
     environment:
       name: release
@@ -118,15 +173,16 @@ jobs:
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
+
   github_release:
-    name: Create GitHub Release
-    needs: [setup_and_build, details]
+    name: "🚀 Create GitHub Release"
+    needs: [setup_and_build, extract_pushed_version, create_tag]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -137,8 +193,9 @@ jobs:
           path: dist/
 
       - name: Create GitHub Release
-        id: create_release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create ${{ needs.details.outputs.tag_name }} dist/* --title ${{ needs.details.outputs.tag_name }} --generate-notes
+          VERSION=${{ needs.extract_pushed_version.outputs.version }}
+          gh release create "v$VERSION" dist/* --title "v$VERSION" --generate-notes
+

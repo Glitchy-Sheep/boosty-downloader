@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from http import HTTPStatus
 from typing import TYPE_CHECKING
 
 from boosty_downloader.src.boosty_api.models.post.extra import Extra
@@ -23,12 +24,27 @@ class BoostyAPIError(Exception):
 class BoostyAPINoUsernameError(BoostyAPIError):
     """Raised when no username is specified."""
 
+    username: str
+
+    def __init__(self, username: str) -> None:
+        super().__init__(f'Username not found: {username}')
+        self.username = username
+
+
+class BoostyAPIUnauthorizedError(BoostyAPIError):
+    """Raised when authorization error occurs, e.g when credentials is invalid."""
+
+
+class BoostyAPIUnknownError(BoostyAPIError):
+    """Raised when Boosty returns unexpected error."""
+
 
 class BoostyAPIClient:
     """
     Main client class for the Boosty API.
 
     It handles the connection and makes requests to the API.
+    To work with private/paid posts you need to provide valid authentication token and cookies in the session.
     """
 
     def __init__(self, session: RetryClient) -> None:
@@ -60,12 +76,16 @@ class BoostyAPIClient:
         )
         posts_data = await posts_raw.json()
 
-        try:
-            posts: list[Post] = [
-                Post.model_validate(post) for post in posts_data['data']
-            ]
-        except KeyError as e:
-            raise BoostyAPINoUsernameError from e
+        if posts_raw.status == HTTPStatus.NOT_FOUND:
+            raise BoostyAPINoUsernameError(author_name)
+
+        # Won't probably respond with 401, because listing posts is public
+        # But if it does, we should handle it gracefully
+        if posts_raw.status == HTTPStatus.UNAUTHORIZED:
+            raise BoostyAPIUnauthorizedError
+
+        # Ensure that we won't break on new content types (just filter them out)
+        posts: list[Post] = [Post.model_validate(post) for post in posts_data['data']]
 
         extra: Extra = Extra.model_validate(posts_data['extra'])
 

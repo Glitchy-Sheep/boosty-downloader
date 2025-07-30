@@ -1,0 +1,63 @@
+# This workflow triggers on any pull request or push to main or dev branches
+name: 🔍 PR Code Health Checks (linters / type checks / tests)
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+  push:
+    branches:
+      - dev
+      - 'feature/**'
+      - 'hotfix/**'
+
+env:
+  PACKAGE_NAME: "boosty-downloader"
+
+jobs:
+  lint-test-build:
+    name: 🧪 Code Quality & Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: 📦 Install Poetry if missing
+        uses: snok/install-poetry@v1
+        with:
+          version: 'latest'
+          
+      - name: 📥 Install dependencies
+        run: poetry sync
+
+      - name: 🔍 Run ruff linting
+        run: make lint-check
+
+      - name: 🎨 Run ruff formatting check
+        run: make format-check
+
+      - name: 🔎 Run type checking
+        run: make types
+
+      - name: 🧪 Run tests
+        run: |
+          make test-verbose
+          make test-api-verbose
+        timeout-minutes: 5
+
+      - name: 🏗️ Build package
+        run: make build
+
+      - name: ✅ Verify build artifacts
+        run: |
+          ls -la dist/
+          if [ ! -f dist/*.whl ] || [ ! -f dist/*.tar.gz ]; then
+            echo "❌ Build artifacts missing"
+            exit 1
+          fi
+          echo "✅ Build artifacts created successfully"

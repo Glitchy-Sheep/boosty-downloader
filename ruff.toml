@@ -14,6 +14,7 @@ lint.ignore = [
     "RUF001", # unused variable
     "G004",   # don't log f-strings (personal preference)
     "D203",   # incorrected blank line before class is incompatible with D211
+    "COM812", # missing trailing comma (formatter conflicts with this)
 ]
 
 [lint.per-file-ignores]
