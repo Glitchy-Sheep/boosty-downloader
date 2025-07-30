@@ -3,7 +3,7 @@ import rich
 from aiohttp_retry import RetryClient
 
 from boosty_downloader.src.boosty_api.utils.filter_none_params import filter_none_params
-from integration.fixtures import IntegrationTestConfig
+from integration.configuration import IntegrationTestConfig
 
 pytest_plugins = [
     'integration.fixtures',
