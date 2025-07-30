@@ -1,4 +1,5 @@
 """The module with list representation of posts data"""
+
 from typing import Literal
 
 from pydantic import BaseModel
@@ -18,7 +19,9 @@ class PostDataListItem(BaseModel):
     items: list['PostDataListItem'] = []
     data: list[PostDataListDataItem] = []
 
+
 PostDataListItem.model_rebuild()
+
 
 class PostDataList(BaseModel):
     """Represents a list of post data chunks."""

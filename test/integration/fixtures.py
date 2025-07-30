@@ -15,6 +15,7 @@ from integration.configuration import IntegrationTestConfig
 
 logger = logging.getLogger(__name__)
 
+
 @pytest.fixture(scope='session')
 def integration_config() -> IntegrationTestConfig:
     """
@@ -31,6 +32,7 @@ def integration_config() -> IntegrationTestConfig:
             logger.exception(f'  - {loc}: {msg}')
         pytest.skip('Integration tests require valid configuration')
 
+
 @pytest.fixture
 def boosty_headers(integration_config: IntegrationTestConfig) -> dict[str, str]:
     """Returns headers with authorization token for Boosty API requests."""
@@ -40,8 +42,11 @@ def boosty_headers(integration_config: IntegrationTestConfig) -> dict[str, str]:
         'Content-Type': 'application/json',
     }
 
+
 @pytest_asyncio.fixture
-async def http_session(boosty_headers: dict[str, str]) -> AsyncGenerator[ClientSession, None]:
+async def http_session(
+    boosty_headers: dict[str, str],
+) -> AsyncGenerator[ClientSession, None]:
     """Creates an HTTP session for making requests."""
     session = ClientSession(
         headers=boosty_headers,
@@ -52,7 +57,9 @@ async def http_session(boosty_headers: dict[str, str]) -> AsyncGenerator[ClientS
 
 
 @pytest_asyncio.fixture
-async def retry_client(http_session: ClientSession) -> AsyncGenerator[RetryClient, None]:
+async def retry_client(
+    http_session: ClientSession,
+) -> AsyncGenerator[RetryClient, None]:
     """Creates a retry client for handling transient failures."""
     retry_options = ExponentialRetry(attempts=3, start_timeout=1.0)
     client = RetryClient(
@@ -70,7 +77,9 @@ async def boosty_client(retry_client: RetryClient) -> BoostyAPIClient:
 
 
 @pytest_asyncio.fixture
-async def unauthorized_retry_client(http_session: ClientSession) -> AsyncGenerator[RetryClient, None]:
+async def unauthorized_retry_client(
+    http_session: ClientSession,
+) -> AsyncGenerator[RetryClient, None]:
     """Creates a retry client without authentication for testing unauthorized scenarios."""
     retry_options = ExponentialRetry(attempts=3, start_timeout=1.0)
     client = RetryClient(
@@ -82,6 +91,8 @@ async def unauthorized_retry_client(http_session: ClientSession) -> AsyncGenerat
 
 
 @pytest_asyncio.fixture
-async def unauthorized_boosty_client(unauthorized_retry_client: RetryClient) -> BoostyAPIClient:
+async def unauthorized_boosty_client(
+    unauthorized_retry_client: RetryClient,
+) -> BoostyAPIClient:
     """Creates a Boosty API client without authentication for testing unauthorized scenarios."""
     return BoostyAPIClient(session=unauthorized_retry_client)

@@ -11,8 +11,11 @@ pytest_plugins = [
     'integration.fixtures',
 ]
 
+
 @pytest.mark.asyncio
-async def test_get_author_posts(retry_client: RetryClient, integration_config: IntegrationTestConfig) -> None:
+async def test_get_author_posts(
+    retry_client: RetryClient, integration_config: IntegrationTestConfig
+) -> None:
     """Test successful retrieval of posts from an existing author."""
     endpoint = f'blog/{integration_config.boosty_existing_author}/post/'
 

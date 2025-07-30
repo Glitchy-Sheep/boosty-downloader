@@ -84,11 +84,8 @@ class BoostyAPIClient:
         if posts_raw.status == HTTPStatus.UNAUTHORIZED:
             raise BoostyAPIUnauthorizedError
 
-
         # Ensure that we won't break on new content types (just filter them out)
-        posts: list[Post] = [
-            Post.model_validate(post) for post in posts_data['data']
-        ]
+        posts: list[Post] = [Post.model_validate(post) for post in posts_data['data']]
 
         extra: Extra = Extra.model_validate(posts_data['extra'])
 
