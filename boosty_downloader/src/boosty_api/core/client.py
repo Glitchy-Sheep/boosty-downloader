@@ -39,6 +39,17 @@ class BoostyAPIUnknownError(BoostyAPIError):
     """Raised when Boosty returns unexpected error."""
 
 
+class BoostyAPIUnauthorizedError(BoostyAPIError):
+    """
+    Raised when authorization error occurs,
+    e.g when credentials is invalid.
+    """
+
+
+class BoostyAPIUnknownError(BoostyAPIError):
+    """Raised when Boosty returns unexpected error."""
+
+
 class BoostyAPIClient:
     """
     Main client class for the Boosty API.
