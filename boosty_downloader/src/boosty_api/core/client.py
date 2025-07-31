@@ -6,6 +6,8 @@ import asyncio
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
+from pydantic import ValidationError
+
 from boosty_downloader.src.boosty_api.models.post.extra import Extra
 from boosty_downloader.src.boosty_api.models.post.post import Post
 from boosty_downloader.src.boosty_api.models.post.posts_request import PostsResponse
@@ -15,6 +17,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
     from aiohttp_retry import RetryClient
+    from pydantic_core import ErrorDetails
 
 
 class BoostyAPIError(Exception):
@@ -37,6 +40,27 @@ class BoostyAPIUnauthorizedError(BoostyAPIError):
 
 class BoostyAPIUnknownError(BoostyAPIError):
     """Raised when Boosty returns unexpected error."""
+
+    details: str
+
+    def __init__(self, status_code: int, details: str) -> None:
+        super().__init__(f'Boosty returned unknown error[{status_code}]: {details}')
+        self.details = details
+
+
+class BoostyAPIValidationError(BoostyAPIError):
+    """
+    Raised when validation error occurs, e.g. when response data is invalid.
+
+    It can happen if the API response structure changes.
+    In that case the client should be updated to match the new structure.
+    """
+
+    errors: list[ErrorDetails]
+
+    def __init__(self, errors: list[ErrorDetails]) -> None:
+        super().__init__('Boosty API response validation error')
+        self.errors = errors
 
 
 class BoostyAPIClient:
@@ -79,15 +103,22 @@ class BoostyAPIClient:
         if posts_raw.status == HTTPStatus.NOT_FOUND:
             raise BoostyAPINoUsernameError(author_name)
 
-        # Won't probably respond with 401, because listing posts is public
-        # But if it does, we should handle it gracefully
+        # This will be returned if the user has creds but they're invalid/expired
         if posts_raw.status == HTTPStatus.UNAUTHORIZED:
             raise BoostyAPIUnauthorizedError
 
-        # Ensure that we won't break on new content types (just filter them out)
-        posts: list[Post] = [Post.model_validate(post) for post in posts_data['data']]
+        if posts_raw.status != HTTPStatus.OK:
+            raise BoostyAPIUnknownError(
+                posts_raw.status, f'Unexpected status code: {posts_raw.status}'
+            )
 
-        extra: Extra = Extra.model_validate(posts_data['extra'])
+        try:
+            posts: list[Post] = [
+                Post.model_validate(post) for post in posts_data['data']
+            ]
+            extra: Extra = Extra.model_validate(posts_data['extra'])
+        except ValidationError as e:
+            raise BoostyAPIValidationError(errors=e.errors()) from e
 
         return PostsResponse(
             posts=posts,
