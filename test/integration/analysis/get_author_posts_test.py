@@ -14,12 +14,12 @@ pytest_plugins = [
 
 @pytest.mark.asyncio
 async def test_get_author_posts(
-    retry_client: RetryClient, integration_config: IntegrationTestConfig
+    authorized_retry_client: RetryClient, integration_config: IntegrationTestConfig
 ) -> None:
     """Test successful retrieval of posts from an existing author."""
     endpoint = f'blog/{integration_config.boosty_existing_author}/post/'
 
-    posts_raw = await retry_client.get(
+    posts_raw = await authorized_retry_client.get(
         endpoint,
         params=filter_none_params(
             {
@@ -36,13 +36,13 @@ async def test_get_author_posts(
 
 @pytest.mark.asyncio
 async def test_all_data_chunk_types(
-    retry_client: RetryClient,
+    authorized_retry_client: RetryClient,
     integration_config: IntegrationTestConfig,
 ) -> None:
     """Test successful retrieval of posts from an existing author."""
     endpoint = f'blog/{integration_config.boosty_existing_author}/post/'
 
-    posts_raw = await retry_client.get(
+    posts_raw = await authorized_retry_client.get(
         endpoint,
         params=filter_none_params(
             {

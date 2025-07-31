@@ -40,8 +40,8 @@ build:
 # ------------------------------------------------------------------------------
 # 🩺 Code Health Checks
 
-dev-fix: lint-fix format types
-ci-check: lint-check types format 
+dev-fix: lint-fix format-fix types
+ci-check: lint-check types format-check
 
 lint-check:
 	poetry run ruff check .

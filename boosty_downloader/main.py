@@ -15,6 +15,7 @@ from boosty_downloader.src.boosty_api.core.client import (
     BoostyAPINoUsernameError,
     BoostyAPIUnauthorizedError,
     BoostyAPIUnknownError,
+    BoostyAPIValidationError,
 )
 from boosty_downloader.src.boosty_api.core.endpoints import BASE_URL
 from boosty_downloader.src.boosty_api.utils.auth_parsers import (
@@ -241,9 +242,20 @@ def bootstrap() -> None:
     except BoostyAPINoUsernameError:
         logger_instances.downloader_logger.error('Username not found')
     except BoostyAPIUnauthorizedError:
-        logger_instances.downloader_logger.error('Unauthorized: Bad credentials')
+        logger_instances.downloader_logger.error(
+            'Unauthorized: Bad credentials, please relogin and update your config file'
+        )
     except BoostyAPIUnknownError:
-        logger_instances.downloader_logger.error('Boosty returned unknown error')
+        logger_instances.downloader_logger.error(
+            'Unknown error occurred, please report this at GitHub issues of the project: https://github.com/Glitchy-Sheep/boosty-downloader/issues'
+        )
+    except BoostyAPIValidationError as e:
+        logger_instances.downloader_logger.error(
+            'Boosty API returned unexpected structures, the client probably needs to be updated.\n'
+            'Please report this at GitHub issues of the project: https://github.com/Glitchy-Sheep/boosty-downloader/issues\n'
+            '\n'
+            f'Details: {e.errors!s}'
+        )
 
 
 if __name__ == '__main__':
