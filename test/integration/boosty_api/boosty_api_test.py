@@ -1,14 +1,8 @@
 """Integration tests for Boosty API client.
 
 These tests make real requests to the Boosty API and require proper configuration.
-Run with: make test-integration
 
-Required environment variables:
-- BOOSTY_TOKEN: Valid authentication token
-- BOOSTY_AVAILABLE_POST: URL/ID of accessible post
-- BOOSTY_UNAVAILABLE_POST: URL/ID of post behind paywall
-- BOOSTY_NONEXISTENT_AUTHOR: Username that doesn't exist
-- BOOSTY_EXISTING_AUTHOR: Username of existing author
+Please see test/ABOUT_TESTING.md for more details.
 """
 
 import pytest
@@ -16,23 +10,22 @@ import pytest
 from boosty_downloader.src.boosty_api.core.client import (
     BoostyAPIClient,
     BoostyAPINoUsernameError,
+    BoostyAPIUnauthorizedError,
 )
 from integration.configuration import IntegrationTestConfig
 
+# For automatic fixture discovery
 pytest_plugins = [
     'integration.fixtures',
 ]
 
-# ------------------------------------------------------------------------------
-# Tests
-
 
 @pytest.mark.asyncio
 async def test_get_posts_existing_author_success(
-    boosty_client: BoostyAPIClient, integration_config: IntegrationTestConfig
+    authorized_boosty_client: BoostyAPIClient, integration_config: IntegrationTestConfig
 ) -> None:
     """Test successful retrieval of posts from an existing author."""
-    response = await boosty_client.get_author_posts(
+    response = await authorized_boosty_client.get_author_posts(
         author_name=integration_config.boosty_existing_author, limit=5
     )
 
@@ -43,26 +36,26 @@ async def test_get_posts_existing_author_success(
 
 @pytest.mark.asyncio
 async def test_get_posts_nonexistent_author_raises_error(
-    boosty_client: BoostyAPIClient, integration_config: IntegrationTestConfig
+    authorized_boosty_client: BoostyAPIClient, integration_config: IntegrationTestConfig
 ) -> None:
     """Test that requesting posts from non-existent author raises BoostyAPINoUsernameError."""
     with pytest.raises(BoostyAPINoUsernameError):
-        await boosty_client.get_author_posts(
+        await authorized_boosty_client.get_author_posts(
             author_name=integration_config.boosty_nonexistent_author, limit=5
         )
 
 
 @pytest.mark.asyncio
 async def test_get_posts_with_pagination(
-    boosty_client: BoostyAPIClient, integration_config: IntegrationTestConfig
+    authorized_boosty_client: BoostyAPIClient, integration_config: IntegrationTestConfig
 ) -> None:
     """Test pagination functionality for author posts."""
-    first_page = await boosty_client.get_author_posts(
+    first_page = await authorized_boosty_client.get_author_posts(
         author_name=integration_config.boosty_existing_author, limit=2
     )
 
     if not first_page.extra.is_last and first_page.extra.offset:
-        second_page = await boosty_client.get_author_posts(
+        second_page = await authorized_boosty_client.get_author_posts(
             author_name=integration_config.boosty_existing_author,
             limit=2,
             offset=first_page.extra.offset,
@@ -78,13 +71,13 @@ async def test_get_posts_with_pagination(
 
 @pytest.mark.asyncio
 async def test_iterate_over_posts(
-    boosty_client: BoostyAPIClient, integration_config: IntegrationTestConfig
+    authorized_boosty_client: BoostyAPIClient, integration_config: IntegrationTestConfig
 ) -> None:
     """Test the async generator for iterating over all author posts."""
     pages_count = 0
     total_posts = 0
 
-    async for response in boosty_client.iterate_over_posts(
+    async for response in authorized_boosty_client.iterate_over_posts(
         author_name=integration_config.boosty_existing_author,
         posts_per_page=2,
         delay_seconds=0.1,
@@ -98,3 +91,15 @@ async def test_iterate_over_posts(
 
     assert pages_count > 0, 'Should retrieve at least one page'
     assert total_posts >= 0, 'Should count posts correctly'
+
+
+@pytest.mark.asyncio
+async def test_unathoirized_raises_error(
+    invalid_auth_boosty_client: BoostyAPIClient,
+    integration_config: IntegrationTestConfig,
+) -> None:
+    """Test that unauthorized access raises an error."""
+    with pytest.raises(BoostyAPIUnauthorizedError):
+        await invalid_auth_boosty_client.get_author_posts(
+            author_name=integration_config.boosty_existing_author, limit=5
+        )
