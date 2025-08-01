@@ -4,7 +4,9 @@ import pytest
 import rich
 from aiohttp_retry import RetryClient
 
-from boosty_downloader.src.boosty_api.utils.filter_none_params import filter_none_params
+from boosty_downloader.src.infrastructure.boosty_api.utils.filter_none_params import (
+    filter_none_params,
+)
 from integration.configuration import IntegrationTestConfig
 
 pytest_plugins = [

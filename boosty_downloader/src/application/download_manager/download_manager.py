@@ -8,61 +8,61 @@ from typing import TYPE_CHECKING
 from rich.progress import Progress
 from yarl import URL
 
-from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_file import (
-    PostDataFile,
-)
-from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_header import (
-    PostDataHeader,
-)
-from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_image import (
-    PostDataImage,
-)
-from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_link import (
-    PostDataLink,
-)
-from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_list import (
-    PostDataList,
-)
-from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_ok_video import (
-    OkVideoType,
-    PostDataOkVideo,
-)
-from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_text import (
-    PostDataText,
-)
-from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_video import (
-    PostDataVideo,
-)
-from boosty_downloader.src.boosty_api.utils.textual_post_extractor import (
-    extract_textual_content,
-)
-from boosty_downloader.src.download_manager.download_manager_config import (
+from boosty_downloader.src.application.download_manager.download_manager_config import (
     DownloadContentTypeFilter,
 )
-from boosty_downloader.src.download_manager.utils.base_file_downloader import (
+from boosty_downloader.src.application.download_manager.utils.base_file_downloader import (
     DownloadFileConfig,
     download_file,
 )
-from boosty_downloader.src.download_manager.utils.human_readable_size import (
+from boosty_downloader.src.application.download_manager.utils.human_readable_size import (
     human_readable_size,
 )
-from boosty_downloader.src.download_manager.utils.ok_video_ranking import get_best_video
-from boosty_downloader.src.download_manager.utils.path_sanitizer import sanitize_string
-from boosty_downloader.src.external_videos_downloader.external_videos_downloader import (
+from boosty_downloader.src.application.download_manager.utils.ok_video_ranking import (
+    get_best_video,
+)
+from boosty_downloader.src.application.download_manager.utils.path_sanitizer import (
+    sanitize_string,
+)
+from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
     FailedToDownloadExternalVideoError,
 )
-from boosty_downloader.src.html_reporter.html_reporter import HTMLReport, NormalText
+from boosty_downloader.src.infrastructure.html_reporter.html_reporter import HTMLReport, NormalText
+from boosty_downloader.src.infrastructure.boosty_api.models.post.base_post_data import (
+    PostDataFile,
+    PostDataLink,
+    PostDataText,
+)
+from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_header import (
+    PostDataHeader,
+)
+from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_image import (
+    PostDataImage,
+)
+from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_list import (
+    PostDataList,
+)
+from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_ok_video import (
+    OkVideoType,
+    PostDataOkVideo,
+)
+from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_video import (
+    PostDataVideo,
+)
+from boosty_downloader.src.infrastructure.boosty_api.utils.textual_post_extractor import (
+    extract_textual_content,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from boosty_downloader.src.boosty_api.models.post.post import Post
-    from boosty_downloader.src.download_manager.download_manager_config import (
+    from boosty_downloader.src.application.download_manager.download_manager_config import (
         GeneralOptions,
         LoggerDependencies,
         NetworkDependencies,
     )
-    from boosty_downloader.src.download_manager.storage.post_cache import (
+    from boosty_downloader.src.infrastructure.boosty_api.models.post.post import Post
+    from boosty_downloader.src.infrastructure.post_caching.post_cache import (
         SQLitePostCache,
     )
 

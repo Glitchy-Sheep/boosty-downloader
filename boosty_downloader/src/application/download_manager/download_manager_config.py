@@ -6,15 +6,15 @@ from pathlib import Path
 
 from aiohttp_retry import RetryClient
 
-from boosty_downloader.src.boosty_api.core.client import BoostyAPIClient
-from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_ok_video import (
-    OkVideoType,
-)
-from boosty_downloader.src.external_videos_downloader.external_videos_downloader import (
+from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
 )
-from boosty_downloader.src.loggers.base import RichLogger
-from boosty_downloader.src.loggers.failed_downloads_logger import FailedDownloadsLogger
+from boosty_downloader.src.infrastructure.boosty_api.core.client import BoostyAPIClient
+from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_ok_video import (
+    OkVideoType,
+)
+from boosty_downloader.src.infrastructure.loggers.base import RichLogger
+from boosty_downloader.src.infrastructure.loggers.failed_downloads_logger import FailedDownloadsLogger
 
 
 @dataclass

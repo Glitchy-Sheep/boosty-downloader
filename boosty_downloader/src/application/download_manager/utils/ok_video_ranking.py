@@ -5,7 +5,7 @@ from __future__ import annotations
 import heapq
 from typing import Generic, TypeVar
 
-from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_ok_video import (
+from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_ok_video import (
     OkVideoType,
     OkVideoUrl,
 )

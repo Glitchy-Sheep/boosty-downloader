@@ -2,8 +2,8 @@
 
 from pydantic import BaseModel
 
-from boosty_downloader.src.boosty_api.models.post.extra import Extra
-from boosty_downloader.src.boosty_api.models.post.post import Post
+from boosty_downloader.src.infrastructure.boosty_api.models.post.extra import Extra
+from boosty_downloader.src.infrastructure.boosty_api.models.post.post import Post
 
 
 class PostsResponse(BaseModel):

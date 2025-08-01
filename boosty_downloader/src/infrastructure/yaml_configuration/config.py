@@ -13,8 +13,10 @@ from pydantic_settings import (
     YamlConfigSettingsSource,
 )
 
-from boosty_downloader.src.loggers.logger_instances import downloader_logger
-from boosty_downloader.src.yaml_configuration.sample_config import (
+from boosty_downloader.src.infrastructure.loggers.logger_instances import (
+    downloader_logger,
+)
+from boosty_downloader.src.infrastructure.yaml_configuration.sample_config import (
     DEFAULT_YAML_CONFIG_VALUE,
 )
 

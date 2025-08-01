@@ -8,7 +8,7 @@ from pydantic import ConfigDict
 from pydantic.alias_generators import to_camel
 from pydantic.main import BaseModel
 
-from boosty_downloader.src.boosty_api.models.post.base_post_data import (
+from boosty_downloader.src.infrastructure.boosty_api.models.post.base_post_data import (
     BasePostData,  # noqa: TC001 Pydantic should know this type fully
 )
 

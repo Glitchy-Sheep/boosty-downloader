@@ -11,36 +11,40 @@ import typer
 from aiohttp_retry import ExponentialRetry, RetryClient
 from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
 
-from boosty_downloader.src.boosty_api.core.client import (
-    BoostyAPIClient,
-    BoostyAPINoUsernameError,
-    BoostyAPIUnauthorizedError,
-    BoostyAPIUnknownError,
-    BoostyAPIValidationError,
-)
-from boosty_downloader.src.boosty_api.core.endpoints import BASE_URL
-from boosty_downloader.src.boosty_api.utils.auth_parsers import (
-    parse_auth_header,
-    parse_session_cookie,
-)
-from boosty_downloader.src.download_manager.download_manager import (
+from boosty_downloader.src.application.download_manager.download_manager import (
     BoostyDownloadManager,
 )
-from boosty_downloader.src.download_manager.download_manager_config import (
+from boosty_downloader.src.application.download_manager.download_manager_config import (
     DownloadContentTypeFilter,
     GeneralOptions,
     LoggerDependencies,
     NetworkDependencies,
     VideoQualityOption,
 )
-from boosty_downloader.src.download_manager.storage.post_cache import SQLitePostCache
-from boosty_downloader.src.external_videos_downloader.external_videos_downloader import (
+from boosty_downloader.src.infrastructure.boosty_api.core.client import (
+    BoostyAPIClient,
+    BoostyAPINoUsernameError,
+    BoostyAPIUnauthorizedError,
+    BoostyAPIUnknownError,
+    BoostyAPIValidationError,
+)
+from boosty_downloader.src.infrastructure.boosty_api.core.endpoints import BASE_URL
+from boosty_downloader.src.infrastructure.boosty_api.utils.auth_parsers import (
+    parse_auth_header,
+    parse_session_cookie,
+)
+from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
 )
-from boosty_downloader.src.loggers import logger_instances
-from boosty_downloader.src.loggers.failed_downloads_logger import FailedDownloadsLogger
-from boosty_downloader.src.loggers.logger_instances import downloader_logger
-from boosty_downloader.src.yaml_configuration.config import init_config
+from boosty_downloader.src.infrastructure.loggers import logger_instances
+from boosty_downloader.src.infrastructure.loggers.failed_downloads_logger import (
+    FailedDownloadsLogger,
+)
+from boosty_downloader.src.infrastructure.loggers.logger_instances import (
+    downloader_logger,
+)
+from boosty_downloader.src.infrastructure.post_caching.post_cache import SQLitePostCache
+from boosty_downloader.src.infrastructure.yaml_configuration.config import init_config
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -226,9 +230,11 @@ def main_wrapper(  # noqa: PLR0913 (too many arguments because of typer)
             check_total_count=check_total_count,
             clean_cache=clean_cache,
             post_url=post_url,
-            content_type_filter=content_type_filter
-            if content_type_filter
-            else list(DownloadContentTypeFilter),
+            content_type_filter=(
+                content_type_filter
+                if content_type_filter
+                else list(DownloadContentTypeFilter)
+            ),
             preferred_video_quality=preferred_video_quality,
             request_delay_seconds=request_delay_seconds,
         ),
