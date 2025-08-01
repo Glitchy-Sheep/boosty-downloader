@@ -83,7 +83,7 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
         headers=await parse_auth_header(auth_header),
         cookie_jar=await parse_session_cookie(cookie_string),
     ) as session:
-        destionation_directory = Path('./boosty-downloads').absolute()
+        destination_directory = Path('./boosty-downloads').absolute()
         boosty_api_client = BoostyAPIClient(
             RetryClient(session, retry_options=retry_options),
         )
@@ -103,7 +103,7 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
 
             downloader = BoostyDownloadManager(
                 general_options=GeneralOptions(
-                    target_directory=destionation_directory,
+                    target_directory=destination_directory,
                     download_content_type_filters=content_type_filter,
                     request_delay_seconds=request_delay_seconds,
                     preferred_video_quality=preferred_video_quality,
@@ -116,7 +116,7 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
                 logger_dependencies=LoggerDependencies(
                     logger=downloader_logger,
                     failed_downloads_logger=FailedDownloadsLogger(
-                        file_path=destionation_directory
+                        file_path=destination_directory
                         / username
                         / 'failed_downloads.txt',
                     ),
@@ -132,7 +132,7 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
                 return
 
             with SQLitePostCache(
-                destination=destionation_directory / username, logger=downloader.logger
+                destination=destination_directory / username, logger=downloader.logger
             ) as sqlite_post_cache:
                 if clean_cache:
                     sqlite_post_cache.remove_cache_completely()
