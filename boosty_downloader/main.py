@@ -50,6 +50,7 @@ app = typer.Typer(
 
 GITHUB_ISSUES_URL = 'https://github.com/Glitchy-Sheep/boosty-downloader/issues'
 
+
 async def main(  # noqa: PLR0913 (too many arguments because of typer)
     *,
     username: str,
@@ -264,9 +265,15 @@ def bootstrap() -> None:
         )
     except (OperationalError, DatabaseError, IntegrityError) as e:
         logger_instances.downloader_logger.error('⚠️  Cache Error!\n' + str(e))
-        logger_instances.downloader_logger.warning('Cache format may be outdated after application update.')
-        logger_instances.downloader_logger.info('👉 You can clean outdated cache with --clean-cache flag')
-        logger_instances.downloader_logger.info('👉 If this will still happen - please report it at GitHub issues:')
+        logger_instances.downloader_logger.warning(
+            'Cache format may be outdated after application update.'
+        )
+        logger_instances.downloader_logger.info(
+            '👉 You can clean outdated cache with --clean-cache flag'
+        )
+        logger_instances.downloader_logger.info(
+            '👉 If this will still happen - please report it at GitHub issues:'
+        )
         logger_instances.downloader_logger.info(f'👉 {GITHUB_ISSUES_URL}')
 
 

@@ -215,7 +215,6 @@ class SQLitePostCache:
         """Reinitialize the cache completely in case if user wants to start fresh."""
         self._reinitialize_db()
 
-
     def close(self) -> None:
         """Save and close the database connection."""
         self.save()
