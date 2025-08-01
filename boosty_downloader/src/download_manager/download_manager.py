@@ -36,7 +36,6 @@ from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_vide
 from boosty_downloader.src.boosty_api.utils.textual_post_extractor import (
     extract_textual_content,
 )
-from boosty_downloader.src.caching.post_cache import PostCache
 from boosty_downloader.src.download_manager.download_manager_config import (
     DownloadContentTypeFilter,
 )
@@ -62,6 +61,9 @@ if TYPE_CHECKING:
         GeneralOptions,
         LoggerDependencies,
         NetworkDependencies,
+    )
+    from boosty_downloader.src.download_manager.storage.post_cache import (
+        SQLitePostCache,
     )
 
 BOOSTY_POST_BASE_URL = URL('https://boosty.to/post')
@@ -446,18 +448,6 @@ class BoostyDownloadManager:
                 videos=post_data.videos,
             )
 
-    async def clean_cache(self, username: str) -> None:
-        db_file = self._target_directory / username / PostCache.DEFAULT_CACHE_FILENAME
-        if db_file.exists():
-            self.logger.success(
-                f'Removing posts cache: {db_file} for username {username}',
-            )
-            db_file.unlink()
-        else:
-            self.logger.info(
-                f'Posts cache not found: {db_file} for username {username}',
-            )
-
     async def only_check_total_posts(self, username: str) -> None:
         total = 0
         async for response in self._network_dependencies.api_client.iterate_over_posts(
@@ -503,6 +493,7 @@ class BoostyDownloadManager:
     async def download_all_posts(
         self,
         username: str,
+        post_cache: SQLitePostCache,
     ) -> None:
         # Get all posts and its total count
         self.logger.wait(
@@ -523,8 +514,6 @@ class BoostyDownloadManager:
 
         total_posts = 0
         current_post = 0
-
-        self._post_cache = PostCache(self._target_directory / username)
 
         with self.progress:
             async for (
@@ -554,12 +543,15 @@ class BoostyDownloadManager:
                         post=post,
                     )
 
-                    if self._post_cache.has_same_post(
+                    missing = post_cache.get_missing_parts(
                         title=post_location_info.title,
                         updated_at=post.updated_at,
-                    ):
+                        required=self._general_options.download_content_type_filters,
+                    )
+
+                    if not missing:
                         self.logger.info(
-                            f'Skipping post {post_location_info.title} because it was already downloaded',
+                            f'SKIP post: {post_location_info.title} (already up-to-date)',
                         )
                         continue
 
@@ -572,9 +564,11 @@ class BoostyDownloadManager:
                         post=post,
                     )
 
-                    self._post_cache.add_post_cache(
+                    post_cache.cache(
                         title=post_location_info.title,
                         updated_at=post.updated_at,
+                        was_downloaded=self._general_options.download_content_type_filters,
                     )
+                    post_cache.save()
 
         self.logger.success('Finished downloading posts!')

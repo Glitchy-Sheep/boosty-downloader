@@ -2,10 +2,10 @@
 
 from pathlib import Path
 
-from boosty_downloader.src.loggers.base import Logger
+from boosty_downloader.src.loggers.base import RichLogger
 from boosty_downloader.src.loggers.failed_downloads_logger import FailedDownloadsLogger
 
-downloader_logger = Logger('Boosty_Downloader')
+downloader_logger = RichLogger('Boosty_Downloader')
 
 failed_downloads_logger = FailedDownloadsLogger(
     file_path=Path('failed_downloads.txt'),

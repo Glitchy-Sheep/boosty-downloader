@@ -13,7 +13,7 @@ from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_ok_v
 from boosty_downloader.src.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
 )
-from boosty_downloader.src.loggers.base import Logger
+from boosty_downloader.src.loggers.base import RichLogger
 from boosty_downloader.src.loggers.failed_downloads_logger import FailedDownloadsLogger
 
 
@@ -22,7 +22,7 @@ class LoggerDependencies:
     """Class that holds loggers for the download manager"""
 
     failed_downloads_logger: FailedDownloadsLogger
-    logger: Logger
+    logger: RichLogger
 
 
 @dataclass
