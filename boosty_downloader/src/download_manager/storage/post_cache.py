@@ -180,6 +180,7 @@ class SQLitePostCache:
         Determine which parts of the post still need to be downloaded.
 
         Returns all required parts if the post is missing or outdated; otherwise, returns only those parts that haven't been
+        downloaded yet based on the current cache state.
         """
         self._ensure_valid()
         post = self.session.get(_PostCacheEntryModel, title)
