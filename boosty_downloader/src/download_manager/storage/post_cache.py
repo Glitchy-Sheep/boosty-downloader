@@ -110,7 +110,7 @@ class SQLitePostCache:
         self.session = self.Session()
 
     def _ensure_valid(self) -> None:
-        """Maintainance method to ensure the database is valid before use."""
+        """Maintenance method to ensure the database is valid before use."""
         if not self._check_db_integrity():
             self.logger.error(
                 'Post cache database is corrupted or inaccessible. Reinitializing...'
@@ -180,6 +180,7 @@ class SQLitePostCache:
         Determine which parts of the post still need to be downloaded.
 
         Returns all required parts if the post is missing or outdated; otherwise, returns only those parts that haven't been
+        downloaded yet based on the current cache state.
         """
         self._ensure_valid()
         post = self.session.get(_PostCacheEntryModel, title)
