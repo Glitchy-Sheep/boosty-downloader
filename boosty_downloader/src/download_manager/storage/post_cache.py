@@ -110,7 +110,7 @@ class SQLitePostCache:
         self.session = self.Session()
 
     def _ensure_valid(self) -> None:
-        """Maintainance method to ensure the database is valid before use."""
+        """Maintenance method to ensure the database is valid before use."""
         if not self._check_db_integrity():
             self.logger.error(
                 'Post cache database is corrupted or inaccessible. Reinitializing...'
