@@ -9,6 +9,7 @@ from typing import Annotated
 import aiohttp
 import typer
 from aiohttp_retry import ExponentialRetry, RetryClient
+from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
 
 from boosty_downloader.src.boosty_api.core.client import (
     BoostyAPIClient,
@@ -32,6 +33,7 @@ from boosty_downloader.src.download_manager.download_manager_config import (
     NetworkDependencies,
     VideoQualityOption,
 )
+from boosty_downloader.src.download_manager.storage.post_cache import SQLitePostCache
 from boosty_downloader.src.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
 )
@@ -45,6 +47,8 @@ app = typer.Typer(
     add_completion=False,
     rich_markup_mode='rich',
 )
+
+GITHUB_ISSUES_URL = 'https://github.com/Glitchy-Sheep/boosty-downloader/issues'
 
 
 async def main(  # noqa: PLR0913 (too many arguments because of typer)
@@ -79,7 +83,7 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
         headers=await parse_auth_header(auth_header),
         cookie_jar=await parse_session_cookie(cookie_string),
     ) as session:
-        destionation_directory = Path('./boosty-downloads').absolute()
+        destination_directory = Path('./boosty-downloads').absolute()
         boosty_api_client = BoostyAPIClient(
             RetryClient(session, retry_options=retry_options),
         )
@@ -99,7 +103,7 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
 
             downloader = BoostyDownloadManager(
                 general_options=GeneralOptions(
-                    target_directory=destionation_directory,
+                    target_directory=destination_directory,
                     download_content_type_filters=content_type_filter,
                     request_delay_seconds=request_delay_seconds,
                     preferred_video_quality=preferred_video_quality,
@@ -112,7 +116,7 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
                 logger_dependencies=LoggerDependencies(
                     logger=downloader_logger,
                     failed_downloads_logger=FailedDownloadsLogger(
-                        file_path=destionation_directory
+                        file_path=destination_directory
                         / username
                         / 'failed_downloads.txt',
                     ),
@@ -123,15 +127,18 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
                 await downloader.only_check_total_posts(username)
                 return
 
-            if clean_cache:
-                await downloader.clean_cache(username)
-                return
-
             if post_url is not None:
                 await downloader.download_post_by_url(username, post_url)
                 return
 
-            await downloader.download_all_posts(username)
+            with SQLitePostCache(
+                destination=destination_directory / username, logger=downloader.logger
+            ) as sqlite_post_cache:
+                if clean_cache:
+                    sqlite_post_cache.remove_cache_completely()
+                    return
+
+                await downloader.download_all_posts(username, sqlite_post_cache)
 
 
 @app.command()
@@ -247,15 +254,27 @@ def bootstrap() -> None:
         )
     except BoostyAPIUnknownError:
         logger_instances.downloader_logger.error(
-            'Unknown error occurred, please report this at GitHub issues of the project: https://github.com/Glitchy-Sheep/boosty-downloader/issues'
+            f'Unknown error occurred, please report this at GitHub issues of the project: {GITHUB_ISSUES_URL}'
         )
     except BoostyAPIValidationError as e:
         logger_instances.downloader_logger.error(
             'Boosty API returned unexpected structures, the client probably needs to be updated.\n'
-            'Please report this at GitHub issues of the project: https://github.com/Glitchy-Sheep/boosty-downloader/issues\n'
+            f'Please report this at GitHub issues of the project: {GITHUB_ISSUES_URL}\n'
             '\n'
             f'Details: {e.errors!s}'
         )
+    except (OperationalError, DatabaseError, IntegrityError) as e:
+        logger_instances.downloader_logger.error('⚠️  Cache Error!\n' + str(e))
+        logger_instances.downloader_logger.warning(
+            'Cache format may be outdated after application update.'
+        )
+        logger_instances.downloader_logger.info(
+            '👉 You can clean outdated cache with --clean-cache flag'
+        )
+        logger_instances.downloader_logger.info(
+            '👉 If this will still happen - please report it at GitHub issues:'
+        )
+        logger_instances.downloader_logger.info(f'👉 {GITHUB_ISSUES_URL}')
 
 
 if __name__ == '__main__':

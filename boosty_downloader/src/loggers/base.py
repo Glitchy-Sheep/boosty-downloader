@@ -18,7 +18,7 @@ if not is_terminal and 'pytest' not in sys.modules:
     )
 
 
-class Logger:
+class RichLogger:
     """Enhanced logger with Rich for colorful output while keeping severity levels."""
 
     def __init__(self, prefix: str) -> None:
@@ -98,6 +98,3 @@ class Logger:
             highlight=highlight,
             tab_level=tab_level,
         )
-
-
-log = Logger(prefix='boosty_downloader')
