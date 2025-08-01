@@ -118,6 +118,13 @@ class SQLitePostCache:
             self._reinitialize_db()
 
     def save(self) -> None:
+        """
+        Commit any pending changes to the database if there are modifications.
+
+        This method should be called after making changes to the database (e.g., adding,
+        updating, or deleting records) to ensure that the changes are persisted.
+        The `_dirty` flag is used to track whether there are uncommitted changes.
+        """
         if self._dirty:
             self.session.commit()
             self._dirty = False
