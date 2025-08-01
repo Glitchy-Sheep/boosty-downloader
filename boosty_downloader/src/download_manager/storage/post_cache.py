@@ -184,10 +184,10 @@ class SQLitePostCache:
         self._ensure_valid()
         post = self.session.get(_PostCacheEntryModel, title)
         if not post:
-            return required  # всё недостающее
+            return required
 
         if datetime.fromisoformat(post.last_updated_timestamp) < updated_at:
-            return required  # обновлён пост → всё перескачать
+            return required
 
         missing: list[DownloadContentTypeFilter] = [
             part
