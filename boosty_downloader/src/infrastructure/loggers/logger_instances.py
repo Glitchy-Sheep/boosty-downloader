@@ -3,7 +3,9 @@
 from pathlib import Path
 
 from boosty_downloader.src.infrastructure.loggers.base import RichLogger
-from boosty_downloader.src.infrastructure.loggers.failed_downloads_logger import FailedDownloadsLogger
+from boosty_downloader.src.infrastructure.loggers.failed_downloads_logger import (
+    FailedDownloadsLogger,
+)
 
 downloader_logger = RichLogger('Boosty_Downloader')
 

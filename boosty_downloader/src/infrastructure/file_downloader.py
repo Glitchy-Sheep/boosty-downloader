@@ -9,7 +9,9 @@ from typing import TYPE_CHECKING
 
 import aiofiles
 
-from boosty_downloader.src.application.download_manager.utils.path_sanitizer import sanitize_string
+from boosty_downloader.src.infrastructure.path_sanitizer import (
+    sanitize_string,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable

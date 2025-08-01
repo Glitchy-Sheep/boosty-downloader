@@ -6,15 +6,17 @@ from pathlib import Path
 
 from aiohttp_retry import RetryClient
 
-from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
-    ExternalVideosDownloader,
-)
 from boosty_downloader.src.infrastructure.boosty_api.core.client import BoostyAPIClient
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_ok_video import (
     OkVideoType,
 )
+from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
+    ExternalVideosDownloader,
+)
 from boosty_downloader.src.infrastructure.loggers.base import RichLogger
-from boosty_downloader.src.infrastructure.loggers.failed_downloads_logger import FailedDownloadsLogger
+from boosty_downloader.src.infrastructure.loggers.failed_downloads_logger import (
+    FailedDownloadsLogger,
+)
 
 
 @dataclass
@@ -53,7 +55,7 @@ class VideoQualityOption(str, Enum):
     highest = 'highest'
 
     def to_ok_video_type(self) -> OkVideoType:
-        mapping = {
+        mapping: dict[VideoQualityOption, OkVideoType] = {
             VideoQualityOption.smallest_size: OkVideoType.lowest,
             VideoQualityOption.low: OkVideoType.low,
             VideoQualityOption.medium: OkVideoType.medium,

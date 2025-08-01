@@ -10,28 +10,14 @@ from typing import Annotated
 
 from pydantic import Field
 
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_file import (
+from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types import (
     PostDataFile,
-)
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_header import (
     PostDataHeader,
-)
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_image import (
     PostDataImage,
-)
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_link import (
     PostDataLink,
-)
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_list import (
     PostDataList,
-)
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_ok_video import (
     PostDataOkVideo,
-)
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_text import (
     PostDataText,
-)
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_video import (
     PostDataVideo,
 )
 

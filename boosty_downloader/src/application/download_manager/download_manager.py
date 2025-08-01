@@ -10,47 +10,40 @@ from yarl import URL
 
 from boosty_downloader.src.application.download_manager.download_manager_config import (
     DownloadContentTypeFilter,
+    OkVideoType,
 )
-from boosty_downloader.src.application.download_manager.utils.base_file_downloader import (
-    DownloadFileConfig,
-    download_file,
-)
-from boosty_downloader.src.application.download_manager.utils.human_readable_size import (
-    human_readable_size,
-)
-from boosty_downloader.src.application.download_manager.utils.ok_video_ranking import (
+from boosty_downloader.src.application.download_manager.ok_video_ranking import (
     get_best_video,
 )
-from boosty_downloader.src.application.download_manager.utils.path_sanitizer import (
-    sanitize_string,
-)
-from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
-    FailedToDownloadExternalVideoError,
-)
-from boosty_downloader.src.infrastructure.html_reporter.html_reporter import HTMLReport, NormalText
 from boosty_downloader.src.infrastructure.boosty_api.models.post.base_post_data import (
     PostDataFile,
-    PostDataLink,
-    PostDataText,
-)
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_header import (
     PostDataHeader,
-)
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_image import (
     PostDataImage,
-)
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_list import (
+    PostDataLink,
     PostDataList,
-)
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_ok_video import (
-    OkVideoType,
     PostDataOkVideo,
-)
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_video import (
+    PostDataText,
     PostDataVideo,
 )
 from boosty_downloader.src.infrastructure.boosty_api.utils.textual_post_extractor import (
     extract_textual_content,
+)
+from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
+    FailedToDownloadExternalVideoError,
+)
+from boosty_downloader.src.infrastructure.file_downloader import (
+    DownloadFileConfig,
+    download_file,
+)
+from boosty_downloader.src.infrastructure.html_reporter.html_reporter import (
+    HTMLReport,
+    NormalText,
+)
+from boosty_downloader.src.infrastructure.human_readable_filesize import (
+    human_readable_size,
+)
+from boosty_downloader.src.infrastructure.path_sanitizer import (
+    sanitize_string,
 )
 
 if TYPE_CHECKING:
