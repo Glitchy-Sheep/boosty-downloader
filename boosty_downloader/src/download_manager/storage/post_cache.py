@@ -1,8 +1,8 @@
 """Implementation of a post cache using SQLAlchemy + SQLite local database."""
 
-import types
 from datetime import datetime
 from pathlib import Path
+from types import TracebackType
 
 from sqlalchemy import String, create_engine, text
 from sqlalchemy.exc import DatabaseError, OperationalError
@@ -67,7 +67,7 @@ class SQLitePostCache:
         self,
         exc_type: type[BaseException] | None,
         exc_value: BaseException | None,
-        exc_tb: types.TracebackType | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         """Ensure that the database connection is closed when exiting the context."""
         self.close()
