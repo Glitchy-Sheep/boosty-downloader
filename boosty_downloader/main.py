@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 from typing import Annotated
 
 import aiohttp
@@ -83,7 +82,7 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
         headers=await parse_auth_header(auth_header),
         cookie_jar=await parse_session_cookie(cookie_string),
     ) as session:
-        destionation_directory = config.downloading_settings.target_directory.absolute()
+        destination_directory = config.downloading_settings.target_directory.absolute()
         boosty_api_client = BoostyAPIClient(
             RetryClient(session, retry_options=retry_options),
         )
