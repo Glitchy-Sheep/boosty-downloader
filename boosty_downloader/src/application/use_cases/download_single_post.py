@@ -4,6 +4,7 @@ Use case for downloading a single post from Boosty.
 It encapsulates the logic required to download a post from a specific author.
 """
 
+from asyncio import CancelledError
 from pathlib import Path
 
 from aiohttp_retry import RetryClient
@@ -32,6 +33,7 @@ from boosty_downloader.src.infrastructure.external_videos_downloader.external_vi
     ExternalVideosDownloader,
 )
 from boosty_downloader.src.infrastructure.file_downloader import (
+    DownloadError,
     DownloadingStatus,
     download_file,
 )
@@ -218,10 +220,14 @@ class DownloadSinglePostUseCase:
             )
 
         if should_generate_post:
-            render_html_to_file(
-                post_html,
-                out_path=self.post_file_path,
-            )
+            try:
+                render_html_to_file(
+                    post_html,
+                    out_path=self.post_file_path,
+                )
+            except CancelledError:
+                self.post_file_path.unlink(missing_ok=True)
+                raise
 
         self.post_cache.cache(post.title, post.updated_at, missing_parts)
         self.post_cache.save()
@@ -263,7 +269,13 @@ class DownloadSinglePostUseCase:
             on_status_update=update_progress,
         )
 
-        downloaded_file_path = await download_file(dl_config)
+        try:
+            downloaded_file_path = await download_file(dl_config)
+        except DownloadError as e:
+            if e.file:
+                e.file.unlink(missing_ok=True)
+            raise
+
         self.progress_reporter.complete_task(download_task_id)
 
         return downloaded_file_path.relative_to(self.post_file_path.parent)
@@ -313,7 +325,12 @@ class DownloadSinglePostUseCase:
             on_status_update=update_progress,
         )
 
-        downloaded_file_path = await download_file(dl_config)
+        try:
+            downloaded_file_path = await download_file(dl_config)
+        except DownloadError as e:
+            if e.file:
+                e.file.unlink(missing_ok=True)
+            raise
 
         self.progress_reporter.complete_task(download_task_id)
 
@@ -336,7 +353,7 @@ class DownloadSinglePostUseCase:
                 download_task_id,
                 advance=status.downloaded_bytes,
                 total=status.total_bytes,
-                description=f'Downloading {image.url} [{human_downloaded_size} / {human_total_size}]',
+                description=f'Downloading image: {image.url} [{human_downloaded_size} / {human_total_size}]',
             )
 
         dl_config = DownloadFileConfig(
@@ -347,7 +364,13 @@ class DownloadSinglePostUseCase:
             on_status_update=update_progress,
         )
 
-        downloaded_file_path = await download_file(dl_config)
+        try:
+            downloaded_file_path = await download_file(dl_config)
+        except DownloadError as e:
+            if e.file:
+                e.file.unlink(missing_ok=True)
+            raise
+
         self.progress_reporter.complete_task(download_task_id)
 
         return downloaded_file_path.relative_to(self.post_file_path.parent)

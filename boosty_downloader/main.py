@@ -11,13 +11,7 @@ import typer
 from aiohttp_retry import ExponentialRetry, RetryClient
 from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
 
-from boosty_downloader.src.application.download_manager.download_manager import (
-    BoostyDownloadManager,
-)
 from boosty_downloader.src.application.download_manager.download_manager_config import (
-    GeneralOptions,
-    LoggerDependencies,
-    NetworkDependencies,
     VideoQualityOption,
 )
 from boosty_downloader.src.application.filtering import (
@@ -41,10 +35,8 @@ from boosty_downloader.src.infrastructure.boosty_api.utils.auth_parsers import (
 from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
 )
+from boosty_downloader.src.infrastructure.file_downloader import DownloadCancelledError
 from boosty_downloader.src.infrastructure.loggers import logger_instances
-from boosty_downloader.src.infrastructure.loggers.failed_downloads_logger import (
-    FailedDownloadsLogger,
-)
 from boosty_downloader.src.infrastructure.loggers.logger_instances import (
     downloader_logger,
 )
@@ -135,31 +127,17 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
                         progress_reporter=progress_reporter,
                     )
 
-                await download_all.execute()
+                try:
+                    await download_all.execute()
+                except (
+                    DownloadCancelledError,
+                    asyncio.CancelledError,
+                    KeyboardInterrupt,
+                ):
+                    progress_reporter.warn('Download cancelled by user, aborting...')
+                    return
 
             return  # I will get rid of this in the second refactor stage 🙏
-
-            downloader = BoostyDownloadManager(
-                general_options=GeneralOptions(
-                    target_directory=destination_directory,
-                    download_content_type_filters=content_type_filter,
-                    request_delay_seconds=request_delay_seconds,
-                    preferred_video_quality=preferred_video_quality,
-                ),
-                network_dependencies=NetworkDependencies(
-                    session=retry_client,
-                    api_client=boosty_api_client,
-                    external_videos_downloader=ExternalVideosDownloader(),
-                ),
-                logger_dependencies=LoggerDependencies(
-                    logger=downloader_logger,
-                    failed_downloads_logger=FailedDownloadsLogger(
-                        file_path=destination_directory
-                        / username
-                        / 'failed_downloads.txt',
-                    ),
-                ),
-            )
 
             if check_total_count:
                 await downloader.only_check_total_posts(username)
