@@ -1,0 +1,20 @@
+{% macro render_item(item) -%}
+    <li>
+        {% for txt in item.data %}
+            {{ render_chunk(txt) | safe }}
+        {% endfor %}
+        {% if item.nested_items %}
+            <ul>
+                {% for nested in item.nested_items %}
+                    {{ render_item(nested) }}
+                {% endfor %}
+            </ul>
+        {% endif %}
+    </li>
+{%- endmacro %}
+
+<ul>
+    {% for item in lst.items %}
+        {{ render_item(item) }}
+    {% endfor %}
+</ul>

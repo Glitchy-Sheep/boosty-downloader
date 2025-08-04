@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import http
 import mimetypes
+from asyncio import CancelledError
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import aiofiles
+from aiohttp import ClientConnectionError
 
 from boosty_downloader.src.infrastructure.path_sanitizer import (
     sanitize_string,
@@ -45,10 +47,58 @@ class DownloadFileConfig:
     on_status_update: Callable[[DownloadingStatus], None] = lambda _: None
 
     guess_extension: bool = True
+    chunk_size_bytes: int = 524288  # 512 KiB
 
 
-class DownloadFailureError(Exception):
+class DownloadError(Exception):
     """Exception raised when the download failed for any reason"""
+
+    message: str
+    file: Path | None
+
+    def __init__(self, message: str, file: Path | None) -> None:
+        super().__init__(message)
+        self.file = file
+
+
+class DownloadCancelledError(DownloadError):
+    """Exception raised when the download was cancelled by the user"""
+
+    def __init__(self, file: Path | None = None) -> None:
+        super().__init__('Download cancelled by user', file)
+
+
+class DownloadTimeoutError(DownloadError):
+    """Exception raised when the download timed out"""
+
+    def __init__(self, file: Path | None = None) -> None:
+        super().__init__('Download timed out for the destination server', file)
+
+
+class DownloadConnectionError(DownloadError):
+    """Exception raised when there was a connection error during the download"""
+
+    def __init__(self, file: Path | None = None) -> None:
+        super().__init__('Connection error during the download', file)
+
+
+class DownloadIOFailureError(DownloadError):
+    """Exception raised when there was an IOError during the download"""
+
+    def __init__(self, file: Path | None = None) -> None:
+        super().__init__('Failed during I/O operation', file)
+
+
+class DownloadUnexpectedStatusError(DownloadError):
+    """Exception raised when the server returned an unexpected status code"""
+
+    status_code: int
+    response_message: str
+
+    def __init__(self, status: int, response_message: str) -> None:
+        super().__init__(f'Unexpected status code: {status}', file=None)
+        self.status_code = status
+        self.response_message = response_message
 
 
 async def download_file(
@@ -57,7 +107,10 @@ async def download_file(
     """Download files and report the downloading process via callback"""
     async with dl_config.session.get(dl_config.url) as response:
         if response.status != http.HTTPStatus.OK:
-            raise DownloadFailureError
+            raise DownloadUnexpectedStatusError(
+                status=response.status,
+                response_message=response.reason or 'No reason provided',
+            )
 
         filename = sanitize_string(dl_config.filename)
         file_path = dl_config.destination / filename
@@ -73,15 +126,26 @@ async def download_file(
         async with aiofiles.open(file_path, mode='wb') as file:
             total_size = response.content_length
 
-            async for chunk in response.content.iter_chunked(524288):
-                total_downloaded += len(chunk)
-                dl_config.on_status_update(
-                    DownloadingStatus(
-                        name=filename,
-                        total_bytes=total_size,
-                        downloaded_bytes=total_downloaded,
-                    ),
-                )
-                await file.write(chunk)
+            try:
+                async for chunk in response.content.iter_chunked(
+                    dl_config.chunk_size_bytes
+                ):
+                    total_downloaded += len(chunk)
+                    dl_config.on_status_update(
+                        DownloadingStatus(
+                            name=filename,
+                            total_bytes=total_size,
+                            downloaded_bytes=total_downloaded,
+                        ),
+                    )
+                    await file.write(chunk)
+            except (CancelledError, KeyboardInterrupt) as e:
+                raise DownloadCancelledError(file=file_path) from e
+            except DownloadTimeoutError as e:
+                raise DownloadTimeoutError(file=file_path) from e
+            except (ConnectionResetError, BrokenPipeError, ClientConnectionError) as e:
+                raise DownloadConnectionError(file=file_path) from e
+            except OSError as e:
+                raise DownloadIOFailureError(file=file_path) from e
 
         return file_path
