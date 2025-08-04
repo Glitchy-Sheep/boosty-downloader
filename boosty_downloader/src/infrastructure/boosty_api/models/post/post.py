@@ -13,7 +13,7 @@ from boosty_downloader.src.infrastructure.boosty_api.models.post.base_post_data 
 )
 
 
-class Post(BaseModel):
+class PostDTO(BaseModel):
     """Post on boosty.to which also have data pieces"""
 
     id: str

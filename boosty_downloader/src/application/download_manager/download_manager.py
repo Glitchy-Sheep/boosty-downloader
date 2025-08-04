@@ -9,27 +9,27 @@ from rich.progress import Progress
 from yarl import URL
 
 from boosty_downloader.src.application.download_manager.download_manager_config import (
+    BoostyOkVideoType,
     DownloadContentTypeFilter,
-    OkVideoType,
 )
-from boosty_downloader.src.application.download_manager.ok_video_ranking import (
+from boosty_downloader.src.application.ok_video_ranking import (
     get_best_video,
 )
 from boosty_downloader.src.infrastructure.boosty_api.models.post.base_post_data import (
-    PostDataFile,
-    PostDataHeader,
-    PostDataImage,
-    PostDataLink,
-    PostDataList,
-    PostDataOkVideo,
-    PostDataText,
-    PostDataVideo,
+    BoostyPostDataExternalVideoDTO,
+    BoostyPostDataFileDTO,
+    BoostyPostDataHeaderDTO,
+    BoostyPostDataImageDTO,
+    BoostyPostDataLinkDTO,
+    BoostyPostDataListDTO,
+    BoostyPostDataOkVideoDTO,
+    BoostyPostDataTextDTO,
 )
 from boosty_downloader.src.infrastructure.boosty_api.utils.textual_post_extractor import (
     extract_textual_content,
 )
 from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
-    FailedToDownloadExternalVideoError,
+    VideoDownloadError,
 )
 from boosty_downloader.src.infrastructure.file_downloader import (
     DownloadFileConfig,
@@ -54,7 +54,7 @@ if TYPE_CHECKING:
         LoggerDependencies,
         NetworkDependencies,
     )
-    from boosty_downloader.src.infrastructure.boosty_api.models.post.post import Post
+    from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
     from boosty_downloader.src.infrastructure.post_caching.post_cache import (
         SQLitePostCache,
     )
@@ -71,15 +71,25 @@ class PostData:
     """
 
     # Other media
-    files: list[PostDataFile] = field(default_factory=list[PostDataFile])
+    files: list[BoostyPostDataFileDTO] = field(
+        default_factory=list[BoostyPostDataFileDTO]
+    )
 
     # Video content
-    ok_videos: list[PostDataOkVideo] = field(default_factory=list[PostDataOkVideo])
-    videos: list[PostDataVideo] = field(default_factory=list[PostDataVideo])
+    ok_videos: list[BoostyPostDataOkVideoDTO] = field(
+        default_factory=list[BoostyPostDataOkVideoDTO]
+    )
+    videos: list[BoostyPostDataExternalVideoDTO] = field(
+        default_factory=list[BoostyPostDataExternalVideoDTO]
+    )
 
     # For generating post document
-    post_content: list[PostDataText | PostDataLink | PostDataImage] = field(
-        default_factory=list[PostDataText | PostDataLink | PostDataImage],
+    post_content: list[
+        BoostyPostDataTextDTO | BoostyPostDataLinkDTO | BoostyPostDataImageDTO
+    ] = field(
+        default_factory=list[
+            BoostyPostDataTextDTO | BoostyPostDataLinkDTO | BoostyPostDataImageDTO
+        ],
     )
 
 
@@ -123,7 +133,7 @@ class BoostyDownloadManager:
     def _prepare_target_directory(self, target_directory: Path) -> None:
         target_directory.mkdir(parents=True, exist_ok=True)
 
-    def _generate_post_location(self, username: str, post: Post) -> PostLocation:
+    def _generate_post_location(self, username: str, post: PostDTO) -> PostLocation:
         title = post.title or f'No title (id_{post.id[:8]})'
         author_directory = self._target_directory / username
 
@@ -141,21 +151,21 @@ class BoostyDownloadManager:
             post_directory=post_directory,
         )
 
-    def _separate_post_content(self, post: Post) -> PostData:
+    def _separate_post_content(self, post: PostDTO) -> PostData:
         content_chunks = post.data
 
         post_data = PostData()
 
         for chunk in content_chunks:
-            if isinstance(chunk, PostDataFile):
+            if isinstance(chunk, BoostyPostDataFileDTO):
                 post_data.files.append(chunk)
-            elif isinstance(chunk, PostDataOkVideo):
+            elif isinstance(chunk, BoostyPostDataOkVideoDTO):
                 post_data.ok_videos.append(chunk)
-            elif isinstance(chunk, PostDataVideo):
+            elif isinstance(chunk, BoostyPostDataExternalVideoDTO):
                 post_data.videos.append(chunk)
-            elif isinstance(chunk, PostDataHeader):
+            elif isinstance(chunk, BoostyPostDataHeaderDTO):
                 pass  # TODO(#48): Implement header scraping mechanism  # noqa: FIX002 - will be fixed in a separate PR
-            elif isinstance(chunk, PostDataList):
+            elif isinstance(chunk, BoostyPostDataListDTO):
                 pass  # TODO(#48): Implement list scraping mechanism  # noqa: FIX002 - will be fixed in a separate PR
             else:  # remaning Link, Text, Image blocks
                 post_data.post_content.append(chunk)
@@ -165,7 +175,9 @@ class BoostyDownloadManager:
     async def _save_post_content(
         self,
         destination: Path,
-        post_content: list[PostDataText | PostDataLink | PostDataImage],
+        post_content: list[
+            BoostyPostDataTextDTO | BoostyPostDataLinkDTO | BoostyPostDataImageDTO
+        ],
     ) -> None:
         if post_content:
             self.logger.info(
@@ -188,10 +200,10 @@ class BoostyDownloadManager:
         )
 
         for chunk in post_content:
-            if isinstance(chunk, PostDataText):
+            if isinstance(chunk, BoostyPostDataTextDTO):
                 text = extract_textual_content(chunk.content)
                 post.add_text(NormalText(text))
-            elif isinstance(chunk, PostDataLink):
+            elif isinstance(chunk, BoostyPostDataLinkDTO):
                 text = extract_textual_content(chunk.content)
                 post.add_link(NormalText(text), chunk.url)
                 post.new_paragraph()
@@ -233,8 +245,8 @@ class BoostyDownloadManager:
     async def _download_files(
         self,
         destination: Path,
-        post: Post,
-        files: list[PostDataFile],
+        post: PostDTO,
+        files: list[BoostyPostDataFileDTO],
     ) -> None:
         if files:
             self.logger.info(
@@ -285,9 +297,9 @@ class BoostyDownloadManager:
     async def _download_boosty_videos(
         self,
         destination: Path,
-        post: Post,
-        boosty_videos: list[PostDataOkVideo],
-        preferred_quality: OkVideoType,
+        post: PostDTO,
+        boosty_videos: list[BoostyPostDataOkVideoDTO],
+        preferred_quality: BoostyOkVideoType,
     ) -> None:
         if boosty_videos:
             self.logger.info(
@@ -304,7 +316,10 @@ class BoostyDownloadManager:
         )
 
         for idx, video in enumerate(boosty_videos):
-            best_video = get_best_video(video.player_urls, preferred_quality)
+            best_video_info = get_best_video(video.player_urls, preferred_quality)
+
+            best_video = best_video_info[0] if best_video_info else None
+
             if best_video is None:
                 await self.fail_downloads_logger.add_error(
                     f'Failed to find video for {video.title} from post {post.title} which url is {BOOSTY_POST_BASE_URL / post.id}',
@@ -344,9 +359,9 @@ class BoostyDownloadManager:
 
     async def _download_external_videos(
         self,
-        post: Post,
+        post: PostDTO,
         destination: Path,
-        videos: list[PostDataVideo],
+        videos: list[BoostyPostDataExternalVideoDTO],
     ) -> None:
         if videos:
             self.logger.info(
@@ -374,7 +389,7 @@ class BoostyDownloadManager:
                     video.url,
                     destination,
                 )
-            except FailedToDownloadExternalVideoError:
+            except VideoDownloadError:
                 await self.fail_downloads_logger.add_error(
                     f'Failed to download video {video.url} from post {post.title} which url is {BOOSTY_POST_BASE_URL / post.id}',
                 )
@@ -387,7 +402,7 @@ class BoostyDownloadManager:
     async def _download_single_post(
         self,
         username: str,
-        post: Post,
+        post: PostDTO,
     ) -> None:
         """
         Download a single post and all its content including:

@@ -8,7 +8,7 @@ from aiohttp_retry import RetryClient
 
 from boosty_downloader.src.infrastructure.boosty_api.core.client import BoostyAPIClient
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_ok_video import (
-    OkVideoType,
+    BoostyOkVideoType,
 )
 from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
@@ -54,13 +54,13 @@ class VideoQualityOption(str, Enum):
     high = 'high'
     highest = 'highest'
 
-    def to_ok_video_type(self) -> OkVideoType:
-        mapping: dict[VideoQualityOption, OkVideoType] = {
-            VideoQualityOption.smallest_size: OkVideoType.lowest,
-            VideoQualityOption.low: OkVideoType.low,
-            VideoQualityOption.medium: OkVideoType.medium,
-            VideoQualityOption.high: OkVideoType.high,
-            VideoQualityOption.highest: OkVideoType.ultra_hd,
+    def to_ok_video_type(self) -> BoostyOkVideoType:
+        mapping: dict[VideoQualityOption, BoostyOkVideoType] = {
+            VideoQualityOption.smallest_size: BoostyOkVideoType.lowest,
+            VideoQualityOption.low: BoostyOkVideoType.low,
+            VideoQualityOption.medium: BoostyOkVideoType.medium,
+            VideoQualityOption.high: BoostyOkVideoType.high,
+            VideoQualityOption.highest: BoostyOkVideoType.ultra_hd,
         }
         return mapping[self]
 

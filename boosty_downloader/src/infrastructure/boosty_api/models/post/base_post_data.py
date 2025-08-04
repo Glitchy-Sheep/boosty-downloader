@@ -11,25 +11,25 @@ from typing import Annotated
 from pydantic import Field
 
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types import (
-    PostDataFile,
-    PostDataHeader,
-    PostDataImage,
-    PostDataLink,
-    PostDataList,
-    PostDataOkVideo,
-    PostDataText,
-    PostDataVideo,
+    BoostyPostDataExternalVideoDTO,
+    BoostyPostDataFileDTO,
+    BoostyPostDataHeaderDTO,
+    BoostyPostDataImageDTO,
+    BoostyPostDataLinkDTO,
+    BoostyPostDataListDTO,
+    BoostyPostDataOkVideoDTO,
+    BoostyPostDataTextDTO,
 )
 
 BasePostData = Annotated[
-    PostDataText
-    | PostDataImage
-    | PostDataLink
-    | PostDataFile
-    | PostDataVideo
-    | PostDataOkVideo
-    | PostDataHeader
-    | PostDataList,
+    BoostyPostDataTextDTO
+    | BoostyPostDataImageDTO
+    | BoostyPostDataLinkDTO
+    | BoostyPostDataFileDTO
+    | BoostyPostDataExternalVideoDTO
+    | BoostyPostDataOkVideoDTO
+    | BoostyPostDataHeaderDTO
+    | BoostyPostDataListDTO,
     Field(
         discriminator='type',
     ),

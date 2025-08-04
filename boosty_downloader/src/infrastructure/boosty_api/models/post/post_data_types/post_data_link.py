@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 
-class PostDataLink(BaseModel):
+class BoostyPostDataLinkDTO(BaseModel):
     """Link content piece in posts"""
 
     type: Literal['link']

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from pydantic import ValidationError
 
 from boosty_downloader.src.infrastructure.boosty_api.models.post.extra import Extra
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post import Post
+from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
 from boosty_downloader.src.infrastructure.boosty_api.models.post.posts_request import (
     PostsResponse,
 )
@@ -117,8 +117,8 @@ class BoostyAPIClient:
             )
 
         try:
-            posts: list[Post] = [
-                Post.model_validate(post) for post in posts_data['data']
+            posts: list[PostDTO] = [
+                PostDTO.model_validate(post) for post in posts_data['data']
             ]
             extra: Extra = Extra.model_validate(posts_data['extra'])
         except ValidationError as e:

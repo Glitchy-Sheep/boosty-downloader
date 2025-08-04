@@ -15,11 +15,16 @@ from boosty_downloader.src.application.download_manager.download_manager import 
     BoostyDownloadManager,
 )
 from boosty_downloader.src.application.download_manager.download_manager_config import (
-    DownloadContentTypeFilter,
     GeneralOptions,
     LoggerDependencies,
     NetworkDependencies,
     VideoQualityOption,
+)
+from boosty_downloader.src.application.filtering import (
+    DownloadContentTypeFilter,
+)
+from boosty_downloader.src.application.use_cases.download_all_posts import (
+    DownloadAllPostUseCase,
 )
 from boosty_downloader.src.infrastructure.boosty_api.core.client import (
     BoostyAPIClient,
@@ -104,6 +109,23 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
                 direct_session,
                 retry_options=retry_options,
             )
+
+            download_all = DownloadAllPostUseCase(
+                author_name=username,
+                boosty_api=boosty_api_client,
+                destination=Path('./boosty-downloads') / username,
+                downloader_session=retry_client,
+                external_videos_downloader=ExternalVideosDownloader(),
+                filters=content_type_filter,
+                post_cache=SQLitePostCache(
+                    destination=destination_directory / username,
+                    logger=downloader_logger,
+                ),
+            )
+
+            await download_all.execute()
+
+            return  # I will get rid of this in the second refactor stage 🙏
 
             downloader = BoostyDownloadManager(
                 general_options=GeneralOptions(

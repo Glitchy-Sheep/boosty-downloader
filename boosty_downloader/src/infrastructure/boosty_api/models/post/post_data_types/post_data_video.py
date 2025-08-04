@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 
-class PostDataVideo(BaseModel):
+class BoostyPostDataExternalVideoDTO(BaseModel):
     """Video content piece in posts"""
 
     type: Literal['video']

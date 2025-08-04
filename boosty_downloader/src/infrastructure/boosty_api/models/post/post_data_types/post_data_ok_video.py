@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
 
-class OkVideoType(Enum):
+class BoostyOkVideoType(Enum):
     """All the types which boosty provides for ok video"""
 
     live_playback_dash = 'live_playback_dash'
@@ -34,14 +34,14 @@ class OkVideoType(Enum):
     lowest = 'lowest'
 
 
-class OkVideoUrl(BaseModel):
+class BoostyOkVideoUrl(BaseModel):
     """Link to video with specific format (link can be empty for some formats)"""
 
     url: str
-    type: OkVideoType
+    type: BoostyOkVideoType
 
 
-class PostDataOkVideo(BaseModel):
+class BoostyPostDataOkVideoDTO(BaseModel):
     """Ok video content piece in posts"""
 
     type: Literal['ok_video']
@@ -52,7 +52,7 @@ class PostDataOkVideo(BaseModel):
 
     upload_status: str
     complete: bool
-    player_urls: list[OkVideoUrl]
+    player_urls: list[BoostyOkVideoUrl]
 
     model_config = ConfigDict(
         alias_generator=to_camel,

@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 
-class PostDataListDataItem(BaseModel):
+class BoostyPostDataListDataItemDTO(BaseModel):
     """Represents a single data item in a list of post data chunks."""
 
     type: str
@@ -13,19 +13,19 @@ class PostDataListDataItem(BaseModel):
     content: str
 
 
-class PostDataListItem(BaseModel):
+class BoostyPostDataListItemDTO(BaseModel):
     """Represents a single item in a list of post data chunks."""
 
-    items: list['PostDataListItem'] = []
-    data: list[PostDataListDataItem] = []
+    items: list['BoostyPostDataListItemDTO'] = []
+    data: list[BoostyPostDataListDataItemDTO] = []
 
 
-PostDataListItem.model_rebuild()
+BoostyPostDataListItemDTO.model_rebuild()
 
 
-class PostDataList(BaseModel):
+class BoostyPostDataListDTO(BaseModel):
     """Represents a list of post data chunks."""
 
     type: Literal['list']
-    items: list[PostDataListItem]
-    style: str | None = None
+    items: list[BoostyPostDataListItemDTO]
+    style: Literal['ordered', 'unordered'] | None = None

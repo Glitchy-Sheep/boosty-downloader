@@ -4,7 +4,7 @@ Module contains domain models for post data chunks.
 These are used to represent different parts of a post, such as text, images, etc.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 
@@ -40,14 +40,18 @@ class PostDataChunkText:
         It also can contain a link to external resources (if link_data == None - it's just a text).
         """
 
-        text: str
-        link_data: str | None = None
-        header_level: int = 0  # Header level (0-6), 0 means no header
+        @dataclass
+        class TextStyle:
+            """Represent text styling options."""
 
-        # Optional styling attributes
-        bold: bool = False
-        italic: bool = False
-        underline: bool = False
+            bold: bool = False
+            italic: bool = False
+            underline: bool = False
+
+        text: str
+        link_url: str | None = None
+        header_level: int = 0  # Header level (0-6), 0 means no header
+        style: TextStyle = field(default_factory=TextStyle)
 
     text_fragments: list[TextFragment]
 
@@ -69,9 +73,7 @@ class PostDataChunkExternalVideo:
     Can be from: YouTube, Vimeo, etc.
     """
 
-    title: str
     url: str
-    quality: str
 
 
 @dataclass
@@ -80,7 +82,6 @@ class PostDataChunkFile:
 
     url: str
     filename: str
-    size: int
 
 
 @dataclass

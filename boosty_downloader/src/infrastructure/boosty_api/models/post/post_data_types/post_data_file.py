@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 
-class PostDataFile(BaseModel):
+class BoostyPostDataFileDTO(BaseModel):
     """File content piece in posts"""
 
     type: Literal['file']

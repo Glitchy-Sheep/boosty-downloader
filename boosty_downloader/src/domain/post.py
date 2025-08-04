@@ -1,5 +1,6 @@
 """Module define the Post domain model for further downloading."""
 
+from dataclasses import dataclass
 from datetime import datetime
 
 from boosty_downloader.src.domain.post_data_chunks import (
@@ -11,7 +12,21 @@ from boosty_downloader.src.domain.post_data_chunks import (
     PostDataChunkTextualList,
 )
 
+PostDataAllChunksList = list[
+    PostDataChunkImage
+    | PostDataChunkText
+    | PostDataChunkBoostyVideo
+    | PostDataChunkExternalVideo
+    | PostDataChunkFile
+    | PostDataChunkTextualList
+]
 
+PostDataPostOnlyChunksList = list[
+    PostDataChunkText | PostDataChunkImage | PostDataChunkTextualList
+]
+
+
+@dataclass
 class Post:
     """Post on boosty.to which have different kinds of content (images, text, videos, etc.)"""
 
@@ -22,11 +37,4 @@ class Post:
 
     signed_query: str
 
-    posts_data_chunks: list[
-        PostDataChunkImage
-        | PostDataChunkText
-        | PostDataChunkBoostyVideo
-        | PostDataChunkExternalVideo
-        | PostDataChunkFile
-        | PostDataChunkTextualList
-    ]
+    post_data_chunks: PostDataAllChunksList

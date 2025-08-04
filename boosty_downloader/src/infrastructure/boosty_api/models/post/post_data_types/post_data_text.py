@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 
-class PostDataText(BaseModel):
+class BoostyPostDataTextDTO(BaseModel):
     """Textual content piece in posts"""
 
     type: Literal['text']

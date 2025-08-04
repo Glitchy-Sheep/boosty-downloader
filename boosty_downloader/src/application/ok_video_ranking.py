@@ -6,8 +6,8 @@ import heapq
 from typing import Generic, TypeVar
 
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_ok_video import (
-    OkVideoType,
-    OkVideoUrl,
+    BoostyOkVideoType,
+    BoostyOkVideoUrl,
 )
 
 KT = TypeVar('KT')
@@ -50,36 +50,36 @@ class RankingDict(Generic[KT]):
         return None
 
 
-def get_quality_ranking() -> RankingDict[OkVideoType]:
+def get_quality_ranking() -> RankingDict[BoostyOkVideoType]:
     """Get the ranking dict for video quality"""
-    quality_ranking = RankingDict[OkVideoType]()
-    quality_ranking[OkVideoType.ultra_hd] = 17
-    quality_ranking[OkVideoType.quad_hd] = 16
-    quality_ranking[OkVideoType.full_hd] = 15
-    quality_ranking[OkVideoType.high] = 14
-    quality_ranking[OkVideoType.medium] = 13
-    quality_ranking[OkVideoType.low] = 12
-    quality_ranking[OkVideoType.tiny] = 11
-    quality_ranking[OkVideoType.lowest] = 10
-    quality_ranking[OkVideoType.live_playback_dash] = 9
-    quality_ranking[OkVideoType.live_playback_hls] = 8
-    quality_ranking[OkVideoType.live_ondemand_hls] = 7
-    quality_ranking[OkVideoType.live_dash] = 6
-    quality_ranking[OkVideoType.live_hls] = 5
-    quality_ranking[OkVideoType.hls] = 4
-    quality_ranking[OkVideoType.dash] = 3
-    quality_ranking[OkVideoType.dash_uni] = 2
-    quality_ranking[OkVideoType.live_cmaf] = 1
+    quality_ranking = RankingDict[BoostyOkVideoType]()
+    quality_ranking[BoostyOkVideoType.ultra_hd] = 17
+    quality_ranking[BoostyOkVideoType.quad_hd] = 16
+    quality_ranking[BoostyOkVideoType.full_hd] = 15
+    quality_ranking[BoostyOkVideoType.high] = 14
+    quality_ranking[BoostyOkVideoType.medium] = 13
+    quality_ranking[BoostyOkVideoType.low] = 12
+    quality_ranking[BoostyOkVideoType.tiny] = 11
+    quality_ranking[BoostyOkVideoType.lowest] = 10
+    quality_ranking[BoostyOkVideoType.live_playback_dash] = 9
+    quality_ranking[BoostyOkVideoType.live_playback_hls] = 8
+    quality_ranking[BoostyOkVideoType.live_ondemand_hls] = 7
+    quality_ranking[BoostyOkVideoType.live_dash] = 6
+    quality_ranking[BoostyOkVideoType.live_hls] = 5
+    quality_ranking[BoostyOkVideoType.hls] = 4
+    quality_ranking[BoostyOkVideoType.dash] = 3
+    quality_ranking[BoostyOkVideoType.dash_uni] = 2
+    quality_ranking[BoostyOkVideoType.live_cmaf] = 1
 
     return quality_ranking
 
 
 def get_best_video(
-    video_urls: list[OkVideoUrl],
-    preferred_quality: OkVideoType = OkVideoType.medium,
-) -> OkVideoUrl | None:
+    video_urls: list[BoostyOkVideoUrl],
+    preferred_quality: BoostyOkVideoType = BoostyOkVideoType.medium,
+) -> tuple[BoostyOkVideoUrl, BoostyOkVideoType] | None:
     """Select the best video format for downloading according to user's preferences"""
-    quality_ranking: RankingDict[OkVideoType] = get_quality_ranking()
+    quality_ranking: RankingDict[BoostyOkVideoType] = get_quality_ranking()
     quality_ranking[preferred_quality] = float('inf')
 
     video_urls_map = {video.type: video for video in video_urls}
@@ -89,6 +89,6 @@ def get_best_video(
 
         video_url = video_urls_map.get(highest_rank_video_type)
         if video_url and video_url.url:
-            return video_url
+            return video_url, highest_rank_video_type
 
     return None
