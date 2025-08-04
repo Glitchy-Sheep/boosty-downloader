@@ -9,6 +9,8 @@ import pytest
 
 from boosty_downloader.src.infrastructure.boosty_api import (
     BoostyAPIClient,
+)
+from boosty_downloader.src.infrastructure.boosty_api.core.client import (
     BoostyAPINoUsernameError,
     BoostyAPIUnauthorizedError,
 )

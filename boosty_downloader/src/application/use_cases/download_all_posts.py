@@ -4,9 +4,6 @@ from pathlib import Path
 
 from aiohttp_retry import RetryClient
 
-from boosty_downloader.src.application.download_manager.download_manager import (
-    sanitize_string,
-)
 from boosty_downloader.src.application.filtering import (
     DownloadContentTypeFilter,
 )
@@ -19,6 +16,9 @@ from boosty_downloader.src.infrastructure.external_videos_downloader.external_vi
 )
 from boosty_downloader.src.infrastructure.loggers.logger_instances import (
     downloader_logger,
+)
+from boosty_downloader.src.infrastructure.path_sanitizer import (
+    sanitize_string,
 )
 from boosty_downloader.src.infrastructure.post_caching.post_cache import SQLitePostCache
 from boosty_downloader.src.interfaces.console_progress_reporter import ProgressReporter

@@ -1,6 +1,6 @@
 """Use case for reporting the total number of posts and their accessibility for a given Boosty author."""
 
-from boosty_downloader.src.application.download_manager.download_manager_config import (
+from boosty_downloader.src.infrastructure.boosty_api.core.client import (
     BoostyAPIClient,
 )
 from boosty_downloader.src.infrastructure.loggers.logger_instances import RichLogger

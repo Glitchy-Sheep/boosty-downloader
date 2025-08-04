@@ -1,9 +1,6 @@
 """Mapping logic for converting Boosty API post DTOs to domain Post objects."""
 
 from boosty_downloader.src.application import mappers
-from boosty_downloader.src.application.download_manager.download_manager import (
-    BoostyOkVideoType,
-)
 from boosty_downloader.src.domain.post import Post
 from boosty_downloader.src.domain.post_data_chunks import PostDataChunkText
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
@@ -15,6 +12,9 @@ from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types
     BoostyPostDataListDTO,
     BoostyPostDataOkVideoDTO,
     BoostyPostDataTextDTO,
+)
+from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_ok_video import (
+    BoostyOkVideoType,
 )
 
 

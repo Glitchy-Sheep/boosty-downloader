@@ -10,9 +10,6 @@ from pathlib import Path
 from aiohttp_retry import RetryClient
 from yarl import URL
 
-from boosty_downloader.src.application.download_manager.download_manager import (
-    DownloadFileConfig,
-)
 from boosty_downloader.src.application.filtering import DownloadContentTypeFilter
 from boosty_downloader.src.application.mappers import map_post_dto_to_domain
 from boosty_downloader.src.application.mappers.html_converter import (
@@ -34,6 +31,7 @@ from boosty_downloader.src.infrastructure.external_videos_downloader.external_vi
 )
 from boosty_downloader.src.infrastructure.file_downloader import (
     DownloadError,
+    DownloadFileConfig,
     DownloadingStatus,
     download_file,
 )

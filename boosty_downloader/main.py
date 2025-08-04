@@ -11,11 +11,9 @@ import typer
 from aiohttp_retry import ExponentialRetry, RetryClient
 from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
 
-from boosty_downloader.src.application.download_manager.download_manager_config import (
-    VideoQualityOption,
-)
 from boosty_downloader.src.application.filtering import (
     DownloadContentTypeFilter,
+    VideoQualityOption,
 )
 from boosty_downloader.src.application.use_cases.check_total_posts import (
     ReportTotalPostsCountUseCase,
