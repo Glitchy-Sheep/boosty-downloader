@@ -43,7 +43,9 @@ def map_post_dto_to_domain(post_dto: PostDTO) -> Post:
         elif isinstance(data_chunk, BoostyPostDataListDTO):
             post.post_data_chunks.append(mappers.to_domain_list_chunk(data_chunk))
         elif isinstance(data_chunk, BoostyPostDataFileDTO):
-            post.post_data_chunks.append(mappers.to_domain_file_chunk(data_chunk))
+            post.post_data_chunks.append(
+                mappers.to_domain_file_chunk(data_chunk, post.signed_query)
+            )
         elif isinstance(data_chunk, BoostyPostDataOkVideoDTO):
             # Try to get video content, skip if None (no suitable quality found)
             video_chunk = mappers.to_ok_boosty_video_content(
