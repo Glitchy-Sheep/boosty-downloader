@@ -50,6 +50,10 @@ from boosty_downloader.src.infrastructure.loggers.logger_instances import (
 )
 from boosty_downloader.src.infrastructure.post_caching.post_cache import SQLitePostCache
 from boosty_downloader.src.infrastructure.yaml_configuration.config import init_config
+from boosty_downloader.src.interfaces.console_progress_reporter import (
+    ProgressReporter,
+    use_reporter,
+)
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -110,20 +114,27 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
                 retry_options=retry_options,
             )
 
-            download_all = DownloadAllPostUseCase(
-                author_name=username,
-                boosty_api=boosty_api_client,
-                destination=Path('./boosty-downloads') / username,
-                downloader_session=retry_client,
-                external_videos_downloader=ExternalVideosDownloader(),
-                filters=content_type_filter,
-                post_cache=SQLitePostCache(
-                    destination=destination_directory / username,
-                    logger=downloader_logger,
-                ),
-            )
+            async with use_reporter(
+                reporter=ProgressReporter(
+                    logger=downloader_logger.logging_logger_obj,
+                    console=downloader_logger.console,
+                )
+            ) as progress_reporter:
+                download_all = DownloadAllPostUseCase(
+                    author_name=username,
+                    boosty_api=boosty_api_client,
+                    destination=Path('./boosty-downloads') / username,
+                    downloader_session=retry_client,
+                    external_videos_downloader=ExternalVideosDownloader(),
+                    filters=content_type_filter,
+                    post_cache=SQLitePostCache(
+                        destination=destination_directory / username,
+                        logger=downloader_logger,
+                    ),
+                    progress_reporter=progress_reporter,
+                )
 
-            await download_all.execute()
+                await download_all.execute()
 
             return  # I will get rid of this in the second refactor stage 🙏
 
