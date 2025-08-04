@@ -30,9 +30,10 @@ class DownloadingStatus:
     Can be used in status update callbacks.
     """
 
-    total_bytes: int | None
-    downloaded_bytes: int
     name: str
+    total_bytes: int | None
+    total_downloaded_bytes: int
+    downloaded_bytes: int = 0
 
 
 @dataclass
@@ -135,7 +136,8 @@ async def download_file(
                         DownloadingStatus(
                             name=filename,
                             total_bytes=total_size,
-                            downloaded_bytes=total_downloaded,
+                            total_downloaded_bytes=total_downloaded,
+                            downloaded_bytes=len(chunk),
                         ),
                     )
                     await file.write(chunk)

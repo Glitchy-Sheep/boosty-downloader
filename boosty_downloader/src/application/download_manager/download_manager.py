@@ -229,8 +229,8 @@ class BoostyDownloadManager:
                     filename=filename: self.progress.update(
                         task_id=task_id,
                         total=status.total_bytes,
-                        current=status.downloaded_bytes,
-                        description=f'{filename} ({human_readable_size(status.downloaded_bytes or 0)}/{human_readable_size(status.total_bytes)})',
+                        current=status.total_downloaded_bytes,
+                        description=f'{filename} ({human_readable_size(status.total_downloaded_bytes or 0)}/{human_readable_size(status.total_bytes)})',
                     ),
                     guess_extension=True,
                 )
@@ -278,9 +278,9 @@ class BoostyDownloadManager:
                 task_id=current_task,
                 filename=file.title: self.progress.update(
                     task_id=task_id,
-                    completed=status.downloaded_bytes,
+                    completed=status.total_downloaded_bytes,
                     total=status.total_bytes,
-                    description=f'{filename} ({human_readable_size(status.downloaded_bytes or 0)}/{human_readable_size(status.total_bytes)})',
+                    description=f'{filename} ({human_readable_size(status.total_downloaded_bytes or 0)}/{human_readable_size(status.total_bytes)})',
                 ),
                 guess_extension=False,  # Extensions are already taken from the title
             )
@@ -342,8 +342,8 @@ class BoostyDownloadManager:
                 filename=video.title: self.progress.update(
                     task_id=task_id,
                     total=status.total_bytes,
-                    current=status.downloaded_bytes,
-                    description=f'{filename} ({human_readable_size(status.downloaded_bytes or 0)}/{human_readable_size(status.total_bytes)})',
+                    current=status.total_downloaded_bytes,
+                    description=f'{filename} ({human_readable_size(status.total_downloaded_bytes or 0)}/{human_readable_size(status.total_bytes)})',
                 ),
                 guess_extension=True,
             )

@@ -63,9 +63,9 @@ class ProgressReporter:
         )
         return logger
 
-    def format_description(self, name: str, level: int) -> str:
+    def _format_description(self, name: str, level: int) -> str:
         indent = '  ' * level
-        max_length = 50
+        max_length = 80
         available = max_length - len(indent)
 
         if len(name) > available:
@@ -83,7 +83,7 @@ class ProgressReporter:
         self, name: str, total: int | None = None, indent_level: int = 0
     ) -> uuid.UUID:
         task_id = self.progress.add_task(
-            self.format_description(name, indent_level), total=total
+            self._format_description(name, indent_level), total=total
         )
         task_uuid = uuid.uuid4()
         self._uuid_to_task_id[task_uuid] = task_id
@@ -102,7 +102,7 @@ class ProgressReporter:
         if task_id is not None and task_id in self.progress.task_ids:
             level = self._uuid_to_level.get(task_uuid, 0)
             base_name = description or self._uuid_to_name.get(task_uuid, '')
-            formatted_description = self.format_description(base_name, level)
+            formatted_description = self._format_description(base_name, level)
             self.progress.update(
                 task_id,
                 advance=advance,

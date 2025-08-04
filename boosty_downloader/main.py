@@ -120,19 +120,20 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
                     console=downloader_logger.console,
                 )
             ) as progress_reporter:
-                download_all = DownloadAllPostUseCase(
-                    author_name=username,
-                    boosty_api=boosty_api_client,
+                with SQLitePostCache(
                     destination=Path('./boosty-downloads') / username,
-                    downloader_session=retry_client,
-                    external_videos_downloader=ExternalVideosDownloader(),
-                    filters=content_type_filter,
-                    post_cache=SQLitePostCache(
-                        destination=destination_directory / username,
-                        logger=downloader_logger,
-                    ),
-                    progress_reporter=progress_reporter,
-                )
+                    logger=downloader_logger,
+                ) as post_cache:
+                    download_all = DownloadAllPostUseCase(
+                        author_name=username,
+                        boosty_api=boosty_api_client,
+                        destination=Path('./boosty-downloads') / username,
+                        downloader_session=retry_client,
+                        external_videos_downloader=ExternalVideosDownloader(),
+                        filters=content_type_filter,
+                        post_cache=post_cache,
+                        progress_reporter=progress_reporter,
+                    )
 
                 await download_all.execute()
 

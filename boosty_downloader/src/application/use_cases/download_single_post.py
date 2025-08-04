@@ -125,19 +125,29 @@ class DownloadSinglePostUseCase:
         # Get post data, download it, use mappers to convert it to domain objects
         post = map_post_dto_to_domain(self.post_dto)
 
-        should_generate_post = DownloadContentTypeFilter.post_content in self.filters
+        # Check if we have any cached parts
+        missing_parts = self.post_cache.get_missing_parts(
+            title=post.title,
+            updated_at=post.updated_at,
+            required=self.filters,
+        )
+
+        should_generate_post = DownloadContentTypeFilter.post_content in missing_parts
         should_download_external_videos = (
-            DownloadContentTypeFilter.external_videos in self.filters
+            DownloadContentTypeFilter.external_videos in missing_parts
         )
         should_download_boosty_videos = (
-            DownloadContentTypeFilter.boosty_videos in self.filters
+            DownloadContentTypeFilter.boosty_videos in missing_parts
         )
-        should_download_files = DownloadContentTypeFilter.files in self.filters
+        should_download_files = DownloadContentTypeFilter.files in missing_parts
+
+        if not self._should_execute(post, missing_parts):
+            self.progress_reporter.notice(
+                'SKIP (cached and up-to-date): ' + self.destination.name
+            )
+            return
 
         post_html: list[HtmlGenChunk] = []
-
-        if not self._should_execute(post, self.filters):
-            return
 
         self.destination.mkdir(parents=True, exist_ok=True)
 
@@ -213,6 +223,8 @@ class DownloadSinglePostUseCase:
                 out_path=self.post_file_path,
             )
 
+        self.post_cache.cache(post.title, post.updated_at, missing_parts)
+        self.post_cache.save()
         self.progress_reporter.complete_task(post_task_id)
         self.progress_reporter.success(f'Finished:  {self.destination.name}')
 
@@ -232,7 +244,7 @@ class DownloadSinglePostUseCase:
         )
 
         def update_progress(status: DownloadingStatus) -> None:
-            human_downloaded_size = human_readable_size(status.downloaded_bytes)
+            human_downloaded_size = human_readable_size(status.total_downloaded_bytes)
             human_total_size = human_readable_size(status.total_bytes)
 
             self.progress_reporter.update_task(
@@ -282,7 +294,7 @@ class DownloadSinglePostUseCase:
         )
 
         def update_progress(status: DownloadingStatus) -> None:
-            human_downloaded_size = human_readable_size(status.downloaded_bytes)
+            human_downloaded_size = human_readable_size(status.total_downloaded_bytes)
             human_total_size = human_readable_size(status.total_bytes)
 
             self.progress_reporter.update_task(
@@ -317,7 +329,7 @@ class DownloadSinglePostUseCase:
         )
 
         def update_progress(status: DownloadingStatus) -> None:
-            human_downloaded_size = human_readable_size(status.downloaded_bytes)
+            human_downloaded_size = human_readable_size(status.total_downloaded_bytes)
             human_total_size = human_readable_size(status.total_bytes)
 
             self.progress_reporter.update_task(
