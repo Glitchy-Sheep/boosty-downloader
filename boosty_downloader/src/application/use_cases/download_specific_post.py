@@ -1,0 +1,113 @@
+"""Use case for downloading a specific Boosty post by URL."""
+
+from pathlib import Path
+
+from aiohttp_retry import RetryClient
+
+from boosty_downloader.src.application.filtering import DownloadContentTypeFilter
+from boosty_downloader.src.application.use_cases.check_total_posts import (
+    BoostyAPIClient,
+)
+from boosty_downloader.src.application.use_cases.download_single_post import (
+    DownloadSinglePostUseCase,
+)
+from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
+    ExternalVideosDownloader,
+)
+from boosty_downloader.src.infrastructure.file_downloader import sanitize_string
+from boosty_downloader.src.infrastructure.post_caching.post_cache import SQLitePostCache
+from boosty_downloader.src.interfaces.console_progress_reporter import ProgressReporter
+
+
+class DownloadPostByUrlUseCase:
+    """
+    Handles downloading a specific Boosty post given its URL.
+
+    Right now it just iterates over the post and downloads it if UUID matches.
+    Because I can't find a way to get post by URL directly at this moment.
+
+    If you know how to do it, please open an issue on GitHub or PR with this functionality.
+    """
+
+    def __init__(
+        self,
+        post_url: str,
+        boosty_api: BoostyAPIClient,
+        destination: Path,
+        downloader_session: RetryClient,
+        external_videos_downloader: ExternalVideosDownloader,
+        post_cache: SQLitePostCache,
+        filters: list[DownloadContentTypeFilter],
+        progress_reporter: ProgressReporter,
+    ) -> None:
+        self.post_url = post_url
+        self.post_cache = post_cache
+        self.boosty_api = boosty_api
+        self.destination = destination
+        self.downloader_session = downloader_session
+        self.external_videos_downloader = external_videos_downloader
+        self.post_cache = post_cache
+        self.filters = filters
+        self.progress_reporter = progress_reporter
+
+    def extract_author_and_uuid_from_url(self) -> tuple[str | None, str | None]:
+        """
+        Parse Boosty post URL and returns (author_name, post_uuid) if possible.
+
+        Expects URLs like: https://boosty.to/author_name/posts/post_uuid
+        Returns None if parsing fails or URL is not Boosty.
+        """
+        url = self.post_url
+        if 'boosty.to' not in url:
+            self.progress_reporter.error(
+                "Provided URL doesn't match Boosty format (https://boosty.to/...)"
+            )
+            return None, None
+        try:
+            parts = url.split('/')
+            author = parts[3]
+            post_uuid = parts[5].split('?')[0]
+        except (IndexError, AttributeError):
+            self.progress_reporter.error(
+                'Failed to parse author or post UUID from the provided URL. '
+            )
+            return None, None
+        else:
+            return author, post_uuid
+
+    async def execute(self) -> None:
+        author_name, post_uuid = self.extract_author_and_uuid_from_url()
+        if not author_name or not post_uuid:
+            self.progress_reporter.error(
+                'Failed to extract author and UUID from the provided URL, aborting...'
+            )
+            return
+
+        current_page = 0
+
+        async for page in self.boosty_api.iterate_over_posts(author_name=author_name):
+            current_page += 1
+            self.progress_reporter.info(
+                f'[Page({current_page})] Searching for the post with UUID: {post_uuid}... '
+            )
+            for post in page.posts:
+                if post.id == post_uuid:
+                    self.progress_reporter.success(
+                        f'Found post with UUID: {post_uuid}, starting download...'
+                    )
+
+                    post_name = f'{post.created_at.date()} - {post.title}'
+                    post_name = sanitize_string(post_name).replace('.', '').strip()
+
+                    await DownloadSinglePostUseCase(
+                        post_dto=post,
+                        destination=self.destination / post_name,
+                        downloader_session=self.downloader_session,
+                        external_videos_downloader=self.external_videos_downloader,
+                        filters=self.filters,
+                        post_cache=self.post_cache,
+                        progress_reporter=self.progress_reporter,
+                    ).execute()
+                    return
+
+        self.progress_reporter.error('Failed to find and download the specified post.')

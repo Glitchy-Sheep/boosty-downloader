@@ -23,6 +23,9 @@ from boosty_downloader.src.application.use_cases.check_total_posts import (
 from boosty_downloader.src.application.use_cases.download_all_posts import (
     DownloadAllPostUseCase,
 )
+from boosty_downloader.src.application.use_cases.download_specific_post import (
+    DownloadPostByUrlUseCase,
+)
 from boosty_downloader.src.infrastructure.boosty_api.core.client import (
     BoostyAPIClient,
     BoostyAPINoUsernameError,
@@ -135,6 +138,24 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
                     return
 
                 # ------------------------------------------------------------------
+                # Download specific post by URL
+                if post_url is not None:
+                    await DownloadPostByUrlUseCase(
+                        post_url=post_url,
+                        boosty_api=boosty_api_client,
+                        destination=Path('./boosty-downloads') / username,
+                        downloader_session=retry_client,
+                        external_videos_downloader=ExternalVideosDownloader(),
+                        post_cache=SQLitePostCache(
+                            destination=Path('./boosty-downloads') / username,
+                            logger=downloader_logger,
+                        ),
+                        filters=content_type_filter,
+                        progress_reporter=progress_reporter,
+                    ).execute()
+                    return
+
+                # ------------------------------------------------------------------
                 # Download all posts
                 with SQLitePostCache(
                     destination=destination_directory / username,
@@ -150,12 +171,6 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
                         post_cache=post_cache,
                         progress_reporter=progress_reporter,
                     ).execute()
-
-            return  # I will get rid of this in the second refactor stage 🙏
-
-            if post_url is not None:
-                await downloader.download_post_by_url(username, post_url)
-                return
 
 
 @app.command()
