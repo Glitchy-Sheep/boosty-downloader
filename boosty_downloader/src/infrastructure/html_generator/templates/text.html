@@ -2,18 +2,17 @@
 {% if frag.header_level > 0 %}
 <h{{ frag.header_level }}>{{ frag.text }}</h{{ frag.header_level }}>
 {% else %}
-{% if frag.text == "<NEW_LINE_SYMBOL>" %}
-    <br>
+{% if frag.text == "\n" %}
+<br>
+{% else %}
+<span {% if frag.style.bold %} style="font-weight:bold;" {% endif %} {% if frag.style.underline %}
+    style="text-decoration:underline;" {% endif %} {% if frag.style.italic %} style="font-style:italic;" {% endif %}>
+    {% if frag.link_url %}
+    <a href="{{ frag.link_url }}">{{ frag.text }}</a>
     {% else %}
-    <span {% if frag.style.bold %} style="font-weight:bold;" {% endif %} {% if frag.style.underline %}
-        style="text-decoration:underline;" {% endif %} {% if frag.style.italic %} style="font-style:italic;" {% endif
-        %}>
-        {% if frag.link_url %}
-        <a href="{{ frag.link_url }}">{{ frag.text }}</a>
-        {% else %}
-        {{ frag.text }}
-        {% endif %}
-    </span>
+    {{ frag.text }}
     {% endif %}
-    {% endif %}
-    {% endfor %}
+</span>
+{% endif %}
+{% endif %}
+{% endfor %}
