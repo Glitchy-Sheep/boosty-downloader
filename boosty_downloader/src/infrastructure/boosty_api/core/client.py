@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import asyncio
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
+from aiolimiter import AsyncLimiter
 from pydantic import ValidationError
 
 from boosty_downloader.src.infrastructure.boosty_api.models.post.extra import Extra
@@ -18,8 +18,9 @@ from boosty_downloader.src.infrastructure.boosty_api.utils.filter_none_params im
 )
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
+    from collections.abc import AsyncGenerator, Mapping
 
+    from aiohttp import ClientResponse
     from aiohttp_retry import RetryClient
     from pydantic_core import ErrorDetails
 
@@ -75,8 +76,33 @@ class BoostyAPIClient:
     To work with private/paid posts you need to provide valid authentication token and cookies in the session.
     """
 
-    def __init__(self, session: RetryClient) -> None:
+    def __init__(
+        self, session: RetryClient, request_delay_seconds: float = 0.0
+    ) -> None:
         self.session = session
+        if request_delay_seconds > 0:
+            if request_delay_seconds < 1:
+                # For delays less than 1 second, keep 1-second window and scale rate
+                max_rate = 1 / request_delay_seconds
+                time_period = 1
+            else:
+                # For delays 1 second or more, allow 1 request per `request_delay_seconds`
+                max_rate = 1
+                time_period = request_delay_seconds
+            self._limiter = AsyncLimiter(max_rate=max_rate, time_period=time_period)
+        else:
+            self._limiter = None
+
+    async def _throttled_get(
+        self,
+        endpoint: str,
+        params: Mapping[str, str] | None = None,
+        headers: Mapping[str, str] | None = None,
+    ) -> ClientResponse:
+        if self._limiter:
+            async with self._limiter:
+                return await self.session.get(endpoint, params=params, headers=headers)
+        return await self.session.get(endpoint, params=params, headers=headers)
 
     async def get_author_posts(
         self,
@@ -93,7 +119,7 @@ class BoostyAPIClient:
         """
         endpoint = f'blog/{author_name}/post/'
 
-        posts_raw = await self.session.get(
+        posts_raw = await self._throttled_get(
             endpoint,
             params=filter_none_params(
                 {
@@ -132,7 +158,6 @@ class BoostyAPIClient:
     async def iterate_over_posts(
         self,
         author_name: str,
-        delay_seconds: float = 0,
         posts_per_page: int = 5,
     ) -> AsyncGenerator[PostsResponse, None]:
         """
@@ -142,7 +167,6 @@ class BoostyAPIClient:
         """
         offset = None
         while True:
-            await asyncio.sleep(delay_seconds)
             response = await self.get_author_posts(
                 author_name,
                 offset=offset,

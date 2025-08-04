@@ -94,6 +94,7 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
         destination_directory = config.downloading_settings.target_directory.absolute()
         boosty_api_client = BoostyAPIClient(
             RetryClient(session, retry_options=retry_options),
+            request_delay_seconds=request_delay_seconds,
         )
 
         async with aiohttp.ClientSession(
