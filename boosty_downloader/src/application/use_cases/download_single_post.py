@@ -255,7 +255,7 @@ class DownloadSinglePostUseCase:
                 download_task_id,
                 advance=status.downloaded_bytes,
                 total=status.total_bytes,
-                description=f'[bold orange]Boosty Video[/bold orange]: {boosty_video.title} [{human_downloaded_size} / {human_total_size}]',
+                description=f'[bold orange]Boosty Video[/bold orange] [{human_downloaded_size} / {human_total_size}]: {boosty_video.title} ',
             )
 
         dl_config = DownloadFileConfig(
@@ -311,7 +311,7 @@ class DownloadSinglePostUseCase:
                 download_task_id,
                 advance=status.downloaded_bytes,
                 total=status.total_bytes,
-                description=f'Downloading {file.filename} [{human_downloaded_size} / {human_total_size}]',
+                description=f'Downloading file [{human_downloaded_size} / {human_total_size}]: {file.filename}',
             )
 
         dl_config = DownloadFileConfig(
@@ -351,7 +351,7 @@ class DownloadSinglePostUseCase:
                 download_task_id,
                 advance=status.downloaded_bytes,
                 total=status.total_bytes,
-                description=f'Downloading image: {image.url} [{human_downloaded_size} / {human_total_size}]',
+                description=f'Downloading image [{human_downloaded_size} / {human_total_size}]: {image.url}',
             )
 
         dl_config = DownloadFileConfig(
