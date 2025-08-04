@@ -17,6 +17,9 @@ from boosty_downloader.src.application.download_manager.download_manager_config 
 from boosty_downloader.src.application.filtering import (
     DownloadContentTypeFilter,
 )
+from boosty_downloader.src.application.use_cases.check_total_posts import (
+    ReportTotalPostsCountUseCase,
+)
 from boosty_downloader.src.application.use_cases.download_all_posts import (
     DownloadAllPostUseCase,
 )
@@ -35,7 +38,6 @@ from boosty_downloader.src.infrastructure.boosty_api.utils.auth_parsers import (
 from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
 )
-from boosty_downloader.src.infrastructure.file_downloader import DownloadCancelledError
 from boosty_downloader.src.infrastructure.loggers import logger_instances
 from boosty_downloader.src.infrastructure.loggers.logger_instances import (
     downloader_logger,
@@ -88,7 +90,7 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
         headers=await parse_auth_header(auth_header),
         cookie_jar=await parse_session_cookie(cookie_string),
     ) as session:
-        destination_directory = Path('./boosty-downloads').absolute()
+        destination_directory = config.downloading_settings.target_directory.absolute()
         boosty_api_client = BoostyAPIClient(
             RetryClient(session, retry_options=retry_options),
         )
@@ -112,11 +114,33 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
                     console=downloader_logger.console,
                 )
             ) as progress_reporter:
+                # ------------------------------------------------------------------
+                # Cache cleaning
+                if clean_cache:
+                    with SQLitePostCache(
+                        destination=Path('./boosty-downloads') / username,
+                        logger=downloader_logger,
+                    ) as post_cache:
+                        post_cache.remove_cache_completely()
+                        return
+
+                # ------------------------------------------------------------------
+                # Total Checker
+                if check_total_count:
+                    await ReportTotalPostsCountUseCase(
+                        author_name=username,
+                        logger=downloader_logger,
+                        boosty_api=boosty_api_client,
+                    ).execute()
+                    return
+
+                # ------------------------------------------------------------------
+                # Download all posts
                 with SQLitePostCache(
-                    destination=Path('./boosty-downloads') / username,
+                    destination=destination_directory / username,
                     logger=downloader_logger,
                 ) as post_cache:
-                    download_all = DownloadAllPostUseCase(
+                    await DownloadAllPostUseCase(
                         author_name=username,
                         boosty_api=boosty_api_client,
                         destination=Path('./boosty-downloads') / username,
@@ -125,36 +149,13 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
                         filters=content_type_filter,
                         post_cache=post_cache,
                         progress_reporter=progress_reporter,
-                    )
-
-                try:
-                    await download_all.execute()
-                except (
-                    DownloadCancelledError,
-                    asyncio.CancelledError,
-                    KeyboardInterrupt,
-                ):
-                    progress_reporter.warn('Download cancelled by user, aborting...')
-                    return
+                    ).execute()
 
             return  # I will get rid of this in the second refactor stage 🙏
-
-            if check_total_count:
-                await downloader.only_check_total_posts(username)
-                return
 
             if post_url is not None:
                 await downloader.download_post_by_url(username, post_url)
                 return
-
-            with SQLitePostCache(
-                destination=destination_directory / username, logger=downloader.logger
-            ) as sqlite_post_cache:
-                if clean_cache:
-                    sqlite_post_cache.remove_cache_completely()
-                    return
-
-                await downloader.download_all_posts(username, sqlite_post_cache)
 
 
 @app.command()
