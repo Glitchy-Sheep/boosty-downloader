@@ -57,7 +57,7 @@ from boosty_downloader.src.interfaces.cli_options import (
     UsernameOption,  # noqa: TC001
 )
 
-app = typer.Typer(
+typer_app = typer.Typer(
     no_args_is_help=True,
     add_completion=False,
     rich_markup_mode='rich',
@@ -66,7 +66,7 @@ app = typer.Typer(
 GITHUB_ISSUES_URL = 'https://github.com/Glitchy-Sheep/boosty-downloader/issues'
 
 
-async def main(  # noqa: PLR0913 (too many arguments because of typer)
+async def typer_cmd_handler(  # noqa: PLR0913 (too many arguments because of typer)
     *,
     username: str,
     post_url: PostUrlOption | None,
@@ -153,8 +153,9 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
         ).execute()
 
 
-@app.command()
-def main_wrapper(  # noqa: PLR0913 (too many arguments because of typer)
+# Use wrapper because typer can't run async functions directly
+@typer_app.command()
+def typer_cmd_entrypoint(  # noqa: PLR0913 (too many arguments because of typer)
     *,
     username: UsernameOption,
     request_delay_seconds: RequestDelaySecondsOption = 2.5,
@@ -198,7 +199,7 @@ def main_wrapper(  # noqa: PLR0913 (too many arguments because of typer)
 
     """
     asyncio.run(
-        main(
+        typer_cmd_handler(
             username=username,
             check_total_count=check_total_count,
             clean_cache=clean_cache,
@@ -214,7 +215,7 @@ def main_wrapper(  # noqa: PLR0913 (too many arguments because of typer)
     )
 
 
-def bootstrap() -> None:
+def entry_point() -> None:
     """
     Run main entry point of the whole app.
 
@@ -224,7 +225,7 @@ def bootstrap() -> None:
     because main app by itself is async and can't be run directly with typer.
     """
     try:
-        app()
+        typer_app()
     except BoostyAPINoUsernameError:
         logger_instances.downloader_logger.error('Username not found')
     except BoostyAPIUnauthorizedError:
@@ -265,4 +266,4 @@ def bootstrap() -> None:
 
 
 if __name__ == '__main__':
-    bootstrap()
+    entry_point()
