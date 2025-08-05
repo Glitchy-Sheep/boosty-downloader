@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Annotated
 
 import aiohttp
 import typer
@@ -44,6 +43,19 @@ from boosty_downloader.src.infrastructure.loggers.logger_instances import (
     downloader_logger,
 )
 from boosty_downloader.src.infrastructure.yaml_configuration.config import init_config
+from boosty_downloader.src.interfaces.cli_options import (
+    # ---------------------------------------------------------------------------
+    # These imports can't be moved to TYPE_CHECKING
+    # because they are used by typer at runtime.
+    #
+    CheckTotalCountOption,  # noqa: TC001
+    CleanCacheOption,  # noqa: TC001
+    ContentTypeFilterOption,  # noqa: TC001
+    PostUrlOption,  # noqa: TC001
+    PreferredVideoQualityOption,  # noqa: TC001
+    RequestDelaySecondsOption,  # noqa: TC001
+    UsernameOption,  # noqa: TC001
+)
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -57,7 +69,7 @@ GITHUB_ISSUES_URL = 'https://github.com/Glitchy-Sheep/boosty-downloader/issues'
 async def main(  # noqa: PLR0913 (too many arguments because of typer)
     *,
     username: str,
-    post_url: str | None,
+    post_url: PostUrlOption | None,
     check_total_count: bool,
     clean_cache: bool,
     content_type_filter: list[DownloadContentTypeFilter],
@@ -144,59 +156,13 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
 @app.command()
 def main_wrapper(  # noqa: PLR0913 (too many arguments because of typer)
     *,
-    username: Annotated[
-        str,
-        typer.Option(),
-    ],
-    request_delay_seconds: Annotated[
-        float,
-        typer.Option(
-            '--request-delay-seconds',
-            '-d',
-            help='Delay between requests to the API, in seconds',
-            min=1,
-        ),
-    ] = 2.5,
-    post_url: Annotated[
-        str | None,
-        typer.Option(
-            '--post-url',
-            '-p',
-            help='Download only the specified post if possible',
-        ),
-    ] = None,
-    content_type_filter: Annotated[
-        list[DownloadContentTypeFilter] | None,
-        typer.Option(
-            '--content-type-filter',
-            '-f',
-            help='Filter the download by content type [[bold]files, post_content, boosty_videos, external_videos[/bold]]',
-        ),
-    ] = None,
-    preferred_video_quality: Annotated[
-        VideoQualityOption,
-        typer.Option(
-            '--preferred-video-quality',
-            '-q',
-            help='Preferred video quality option for downloader, will be considered during choosing video links, but if there is no suitable video quality - the best available will be used',
-        ),
-    ] = VideoQualityOption.medium,
-    check_total_count: Annotated[
-        bool,
-        typer.Option(
-            '--total-post-check',
-            '-t',
-            help='Check total count of posts and exit, no download',
-        ),
-    ] = False,
-    clean_cache: Annotated[
-        bool,
-        typer.Option(
-            '--clean-cache',
-            '-c',
-            help='Remove posts cache for selected username, so all posts will be redownloaded',
-        ),
-    ] = False,
+    username: UsernameOption,
+    request_delay_seconds: RequestDelaySecondsOption = 2.5,
+    post_url: PostUrlOption = None,
+    content_type_filter: ContentTypeFilterOption = None,
+    preferred_video_quality: PreferredVideoQualityOption = VideoQualityOption.medium,
+    check_total_count: CheckTotalCountOption = False,
+    clean_cache: CleanCacheOption = False,
 ) -> None:
     """
     [bold]ABOUT:[/bold]
@@ -204,37 +170,31 @@ def main_wrapper(  # noqa: PLR0913 (too many arguments because of typer)
     ======
         CLI tool to download Boosty posts by author username.
 
-        Use --post-url to download a specific post.
-        By default, all posts will be downloaded from newest to oldest.
+        - Use `--post-url` to download a specific post.
+        - By default, downloads all posts from newest to oldest with all available contents.
+        - Unavailable posts are skipped, and you will be notified about them.
 
 
     [bold]CONTENT FILTERING:[/bold]
 
-        Use multiple -f flags to select which content to download.
-        By default, all types are included.
-        [italic]boosty-downloader --username <USERNAME> -f files -f post_content[/italic]
-
-        [bold red]NOTE:[/bold red] If you specify [italic]post_content[/italic] filter, and not specify [italic]boosty_videos[/italic] or [italic]external_videos[/italic],
-        it won't be attached to the post preview ever, because videos are cached since then.
-        This is currently a limitation of the cache.
-
-        For the best experience with post_content just don't specify any filters.
+        - Use multiple `-f` flags to select content types (all included by default).
+        - Example: [italic]boosty-downloader --username <USERNAME> -f files -f post_content[/italic]
+        - [bold red]NOTE:[/bold red] If you specify [italic]post_content[/italic] without [italic]boosty_videos[/italic] or [italic]external_videos[/italic],
+                videos won't attach to post previews due to cache limitations.
+        - For best results, just leave all filters by default.
 
 
-    [bold]ABOUT RATE LIMITING:[/bold]
+    [bold]RATE LIMITING:[/bold]
 
-        [bold]If you get errors from time to time[/bold], try increasing [bold]request delay seconds[/bold] (default 2.5).
-        Waiting between requests may help if boosty.to limits you.
-
-        Please be respectful and avoid spamming the API with low/zero request delay.
+        - Increase request delay (default 2.5s) if you get errors.
+        - Please avoid spamming the API.
 
 
     [bold]ABOUT CONTENT SYNC & CACHING:[/bold]
 
-        [italic]The utility respects your free time:[/italic]
-        All downloaded content is cached automatically, so you won't download the same post twice.
-        Or even if you download the same post with different filters, it will only download missing parts.
-        Still, if post was updated by creator - it will be re-downloaded completely.
+        - Downloaded content is cached automatically to avoid duplicates.
+        - Downloading the same post with different filters downloads only missing parts.
+        - Posts updated by creators are fully re-downloaded.
 
     """
     asyncio.run(
