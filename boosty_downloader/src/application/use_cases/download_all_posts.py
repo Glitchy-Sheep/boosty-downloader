@@ -2,27 +2,17 @@
 
 from pathlib import Path
 
-from aiohttp_retry import RetryClient
-
-from boosty_downloader.src.application.filtering import (
-    BoostyOkVideoType,
-    DownloadContentTypeFilter,
-)
+from boosty_downloader.src.application.di.download_context import DownloadContext
 from boosty_downloader.src.application.use_cases.download_single_post import (
     DownloadSinglePostUseCase,
 )
 from boosty_downloader.src.infrastructure.boosty_api.core.client import BoostyAPIClient
-from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
-    ExternalVideosDownloader,
-)
 from boosty_downloader.src.infrastructure.loggers.logger_instances import (
     downloader_logger,
 )
 from boosty_downloader.src.infrastructure.path_sanitizer import (
     sanitize_string,
 )
-from boosty_downloader.src.infrastructure.post_caching.post_cache import SQLitePostCache
-from boosty_downloader.src.interfaces.console_progress_reporter import ProgressReporter
 
 
 class DownloadAllPostUseCase:
@@ -40,23 +30,13 @@ class DownloadAllPostUseCase:
         author_name: str,
         boosty_api: BoostyAPIClient,
         destination: Path,
-        downloader_session: RetryClient,
-        external_videos_downloader: ExternalVideosDownloader,
-        post_cache: SQLitePostCache,
-        filters: list[DownloadContentTypeFilter],
-        preferred_video_quality: BoostyOkVideoType,
-        progress_reporter: ProgressReporter,
+        download_context: DownloadContext,
     ) -> None:
         self.author_name = author_name
 
         self.boosty_api = boosty_api
         self.destination = destination
-        self.downloader_session = downloader_session
-        self.external_videos_downloader = external_videos_downloader
-        self.post_cache = post_cache
-        self.filters = filters
-        self.progress_reporter = progress_reporter
-        self.preferred_video_quality = preferred_video_quality
+        self.context = download_context
 
     async def execute(self) -> None:
         posts_iterator = self.boosty_api.iterate_over_posts(
@@ -69,7 +49,7 @@ class DownloadAllPostUseCase:
             count = len(page.posts)
             current_page += 1
 
-            page_task_id = self.progress_reporter.create_task(
+            page_task_id = self.context.progress_reporter.create_task(
                 f'Got new posts: [{count}]',
                 total=count,
                 indent_level=0,  # Each page prints without indentation
@@ -95,20 +75,17 @@ class DownloadAllPostUseCase:
                 single_post_use_case = DownloadSinglePostUseCase(
                     destination=self.destination / full_post_title,
                     post_dto=post_dto,
-                    downloader_session=self.downloader_session,
-                    external_videos_downloader=self.external_videos_downloader,
-                    post_cache=self.post_cache,
-                    filters=self.filters,
-                    progress_reporter=self.progress_reporter,
-                    preferred_video_quality=self.preferred_video_quality,
+                    download_context=self.context,
                 )
 
-                self.progress_reporter.update_task(
+                self.context.progress_reporter.update_task(
                     page_task_id,
                     advance=1,
                     description=f'Processing page [bold]{current_page}[/bold]',
                 )
                 await single_post_use_case.execute()
 
-            self.progress_reporter.complete_task(page_task_id)
-            self.progress_reporter.success(f'--- Finished page {current_page} ---')
+            self.context.progress_reporter.complete_task(page_task_id)
+            self.context.progress_reporter.success(
+                f'--- Finished page {current_page} ---'
+            )

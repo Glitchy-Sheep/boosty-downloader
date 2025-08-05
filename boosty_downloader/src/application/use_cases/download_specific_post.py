@@ -2,24 +2,14 @@
 
 from pathlib import Path
 
-from aiohttp_retry import RetryClient
-
-from boosty_downloader.src.application.filtering import (
-    BoostyOkVideoType,
-    DownloadContentTypeFilter,
-)
+from boosty_downloader.src.application.di.download_context import DownloadContext
 from boosty_downloader.src.application.use_cases.check_total_posts import (
     BoostyAPIClient,
 )
 from boosty_downloader.src.application.use_cases.download_single_post import (
     DownloadSinglePostUseCase,
 )
-from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
-    ExternalVideosDownloader,
-)
 from boosty_downloader.src.infrastructure.file_downloader import sanitize_string
-from boosty_downloader.src.infrastructure.post_caching.post_cache import SQLitePostCache
-from boosty_downloader.src.interfaces.console_progress_reporter import ProgressReporter
 
 
 class DownloadPostByUrlUseCase:
@@ -37,23 +27,12 @@ class DownloadPostByUrlUseCase:
         post_url: str,
         boosty_api: BoostyAPIClient,
         destination: Path,
-        downloader_session: RetryClient,
-        external_videos_downloader: ExternalVideosDownloader,
-        post_cache: SQLitePostCache,
-        filters: list[DownloadContentTypeFilter],
-        progress_reporter: ProgressReporter,
-        preferred_video_quality: BoostyOkVideoType,
+        download_context: DownloadContext,
     ) -> None:
         self.post_url = post_url
-        self.post_cache = post_cache
         self.boosty_api = boosty_api
         self.destination = destination
-        self.downloader_session = downloader_session
-        self.external_videos_downloader = external_videos_downloader
-        self.post_cache = post_cache
-        self.filters = filters
-        self.progress_reporter = progress_reporter
-        self.preferred_video_quality = preferred_video_quality
+        self.context = download_context
 
     def extract_author_and_uuid_from_url(self) -> tuple[str | None, str | None]:
         """
@@ -64,7 +43,7 @@ class DownloadPostByUrlUseCase:
         """
         url = self.post_url
         if 'boosty.to' not in url:
-            self.progress_reporter.error(
+            self.context.progress_reporter.error(
                 "Provided URL doesn't match Boosty format (https://boosty.to/...)"
             )
             return None, None
@@ -73,7 +52,7 @@ class DownloadPostByUrlUseCase:
             author = parts[3]
             post_uuid = parts[5].split('?')[0]
         except (IndexError, AttributeError):
-            self.progress_reporter.error(
+            self.context.progress_reporter.error(
                 'Failed to parse author or post UUID from the provided URL. '
             )
             return None, None
@@ -83,7 +62,7 @@ class DownloadPostByUrlUseCase:
     async def execute(self) -> None:
         author_name, post_uuid = self.extract_author_and_uuid_from_url()
         if not author_name or not post_uuid:
-            self.progress_reporter.error(
+            self.context.progress_reporter.error(
                 'Failed to extract author and UUID from the provided URL, aborting...'
             )
             return
@@ -92,12 +71,12 @@ class DownloadPostByUrlUseCase:
 
         async for page in self.boosty_api.iterate_over_posts(author_name=author_name):
             current_page += 1
-            self.progress_reporter.info(
+            self.context.progress_reporter.info(
                 f'[Page({current_page})] Searching for the post with UUID: {post_uuid}... '
             )
             for post in page.posts:
                 if post.id == post_uuid:
-                    self.progress_reporter.success(
+                    self.context.progress_reporter.success(
                         f'Found post with UUID: {post_uuid}, starting download...'
                     )
 
@@ -107,13 +86,8 @@ class DownloadPostByUrlUseCase:
                     await DownloadSinglePostUseCase(
                         post_dto=post,
                         destination=self.destination / post_name,
-                        downloader_session=self.downloader_session,
-                        external_videos_downloader=self.external_videos_downloader,
-                        filters=self.filters,
-                        post_cache=self.post_cache,
-                        progress_reporter=self.progress_reporter,
-                        preferred_video_quality=self.preferred_video_quality,
+                        download_context=self.context,
                     ).execute()
                     return
 
-        self.progress_reporter.error('Failed to find and download the specified post.')
+        self.context.progress_reporter.error('Failed to find and download the specified post.')

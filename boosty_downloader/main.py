@@ -11,6 +11,7 @@ import typer
 from aiohttp_retry import ExponentialRetry, RetryClient
 from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
 
+from boosty_downloader.src.application.di.download_context import DownloadContext
 from boosty_downloader.src.application.filtering import (
     DownloadContentTypeFilter,
     VideoQualityOption,
@@ -116,28 +117,37 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
                     console=downloader_logger.console,
                 )
             ) as progress_reporter:
-                # ------------------------------------------------------------------
-                # Cache cleaning
-                if clean_cache:
-                    with SQLitePostCache(
-                        destination=Path('./boosty-downloads') / username,
-                        logger=downloader_logger,
-                    ) as post_cache:
+                with SQLitePostCache(
+                    config.downloading_settings.target_directory / username,
+                    logger=downloader_logger,
+                ) as post_cache:
+                    downloading_context = DownloadContext(
+                        downloader_session=retry_client,
+                        external_videos_downloader=ExternalVideosDownloader(),
+                        filters=content_type_filter,
+                        post_cache=post_cache,
+                        preferred_video_quality=preferred_video_quality.to_ok_video_type(),
+                        progress_reporter=progress_reporter,
+                    )
+
+                    # ------------------------------------------------------------------
+                    # Cache cleaning
+                    if clean_cache:
                         post_cache.remove_cache_completely()
                         downloader_logger.success(
                             f'Cache for {username} has been cleaned successfully'
                         )
                         return
 
-                # ------------------------------------------------------------------
-                # Total Checker
-                if check_total_count:
-                    await ReportTotalPostsCountUseCase(
-                        author_name=username,
-                        logger=downloader_logger,
-                        boosty_api=boosty_api_client,
-                    ).execute()
-                    return
+                    # ------------------------------------------------------------------
+                    # Total Checker
+                    if check_total_count:
+                        await ReportTotalPostsCountUseCase(
+                            author_name=username,
+                            logger=downloader_logger,
+                            boosty_api=boosty_api_client,
+                        ).execute()
+                        return
 
                 # ------------------------------------------------------------------
                 # Download specific post by URL
@@ -146,15 +156,7 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
                         post_url=post_url,
                         boosty_api=boosty_api_client,
                         destination=Path('./boosty-downloads') / username,
-                        downloader_session=retry_client,
-                        external_videos_downloader=ExternalVideosDownloader(),
-                        post_cache=SQLitePostCache(
-                            destination=Path('./boosty-downloads') / username,
-                            logger=downloader_logger,
-                        ),
-                        filters=content_type_filter,
-                        progress_reporter=progress_reporter,
-                        preferred_video_quality=preferred_video_quality.to_ok_video_type(),
+                        download_context=downloading_context,
                     ).execute()
                     return
 
@@ -168,12 +170,7 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
                         author_name=username,
                         boosty_api=boosty_api_client,
                         destination=Path('./boosty-downloads') / username,
-                        downloader_session=retry_client,
-                        external_videos_downloader=ExternalVideosDownloader(),
-                        filters=content_type_filter,
-                        post_cache=post_cache,
-                        progress_reporter=progress_reporter,
-                        preferred_video_quality=preferred_video_quality.to_ok_video_type(),
+                        download_context=downloading_context,
                     ).execute()
 
 

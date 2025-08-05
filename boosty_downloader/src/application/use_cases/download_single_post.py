@@ -7,11 +7,10 @@ It encapsulates the logic required to download a post from a specific author.
 from asyncio import CancelledError
 from pathlib import Path
 
-from aiohttp_retry import RetryClient
 from yarl import URL
 
+from boosty_downloader.src.application.di.download_context import DownloadContext
 from boosty_downloader.src.application.filtering import (
-    BoostyOkVideoType,
     DownloadContentTypeFilter,
 )
 from boosty_downloader.src.application.mappers import map_post_dto_to_domain
@@ -29,9 +28,6 @@ from boosty_downloader.src.domain.post_data_chunks import (
     PostDataChunkText,
 )
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
-from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
-    ExternalVideosDownloader,
-)
 from boosty_downloader.src.infrastructure.file_downloader import (
     DownloadError,
     DownloadFileConfig,
@@ -48,8 +44,6 @@ from boosty_downloader.src.infrastructure.html_generator.renderer import (
 from boosty_downloader.src.infrastructure.human_readable_filesize import (
     human_readable_size,
 )
-from boosty_downloader.src.infrastructure.post_caching.post_cache import SQLitePostCache
-from boosty_downloader.src.interfaces.console_progress_reporter import ProgressReporter
 
 
 class DownloadSinglePostUseCase:
@@ -66,21 +60,11 @@ class DownloadSinglePostUseCase:
         self,
         destination: Path,
         post_dto: PostDTO,
-        downloader_session: RetryClient,
-        external_videos_downloader: ExternalVideosDownloader,
-        post_cache: SQLitePostCache,
-        filters: list[DownloadContentTypeFilter],
-        progress_reporter: ProgressReporter,
-        preferred_video_quality: BoostyOkVideoType,
+        download_context: DownloadContext,
     ) -> None:
         self.destination = destination
         self.post_dto = post_dto
-        self.downloader_session = downloader_session
-        self.external_videos_downloader = external_videos_downloader
-        self.post_cache = post_cache
-        self.filters = filters
-        self.progress_reporter = progress_reporter
-        self.preferred_video_quality = preferred_video_quality
+        self.context = download_context
 
         self.post_file_path = destination / Path('post.html')
         self.images_destination = destination / Path('images')
@@ -129,14 +113,14 @@ class DownloadSinglePostUseCase:
     async def execute(self) -> None:
         # Get post data, download it, use mappers to convert it to domain objects
         post = map_post_dto_to_domain(
-            self.post_dto, preferred_video_quality=self.preferred_video_quality
+            self.post_dto, preferred_video_quality=self.context.preferred_video_quality
         )
 
         # Check if we have any cached parts
-        missing_parts = self.post_cache.get_missing_parts(
+        missing_parts = self.context.post_cache.get_missing_parts(
             title=post.title,
             updated_at=post.updated_at,
-            required=self.filters,
+            required=self.context.filters,
         )
 
         should_generate_post = DownloadContentTypeFilter.post_content in missing_parts
@@ -149,7 +133,7 @@ class DownloadSinglePostUseCase:
         should_download_files = DownloadContentTypeFilter.files in missing_parts
 
         if not self._should_execute(post, missing_parts):
-            self.progress_reporter.notice(
+            self.context.progress_reporter.notice(
                 'SKIP (cached and up-to-date): ' + self.destination.name
             )
             return
@@ -158,7 +142,7 @@ class DownloadSinglePostUseCase:
 
         self.destination.mkdir(parents=True, exist_ok=True)
 
-        post_task_id = self.progress_reporter.create_task(
+        post_task_id = self.context.progress_reporter.create_task(
             f'[bold]POST: {post.title}[/bold]',
             total=len(post.post_data_chunks),
             indent_level=1,  # Indentation: page/post = 0/1
@@ -218,7 +202,7 @@ class DownloadSinglePostUseCase:
             elif isinstance(chunk, PostDataChunkFile) and should_download_files:
                 await self.download_files(file=chunk)
 
-            self.progress_reporter.update_task(
+            self.context.progress_reporter.update_task(
                 post_task_id,
                 advance=1,
                 total=len(post.post_data_chunks),
@@ -234,10 +218,10 @@ class DownloadSinglePostUseCase:
                 self.post_file_path.unlink(missing_ok=True)
                 raise
 
-        self.post_cache.cache(post.title, post.updated_at, missing_parts)
-        self.post_cache.save()
-        self.progress_reporter.complete_task(post_task_id)
-        self.progress_reporter.success(f'Finished:  {self.destination.name}')
+        self.context.post_cache.cache(post.title, post.updated_at, missing_parts)
+        self.context.post_cache.save()
+        self.context.progress_reporter.complete_task(post_task_id)
+        self.context.progress_reporter.success(f'Finished:  {self.destination.name}')
 
     # --------------------------------------------------------------------------
     # Helper downloading methods
@@ -249,7 +233,7 @@ class DownloadSinglePostUseCase:
         """Download a Boosty video and returns the path to the saved file."""
         self.boosty_videos_destination.mkdir(parents=True, exist_ok=True)
 
-        download_task_id = self.progress_reporter.create_task(
+        download_task_id = self.context.progress_reporter.create_task(
             f'[bold orange]Boosty video[/bold orange]: {boosty_video.title}',
             indent_level=2,  # Nesting: page/post/video = 0/1/2
         )
@@ -258,7 +242,7 @@ class DownloadSinglePostUseCase:
             human_downloaded_size = human_readable_size(status.total_downloaded_bytes)
             human_total_size = human_readable_size(status.total_bytes)
 
-            self.progress_reporter.update_task(
+            self.context.progress_reporter.update_task(
                 download_task_id,
                 advance=status.downloaded_bytes,
                 total=status.total_bytes,
@@ -266,7 +250,7 @@ class DownloadSinglePostUseCase:
             )
 
         dl_config = DownloadFileConfig(
-            session=self.downloader_session,
+            session=self.context.downloader_session,
             url=boosty_video.url,
             filename=boosty_video.title,
             guess_extension=True,
@@ -281,7 +265,7 @@ class DownloadSinglePostUseCase:
                 e.file.unlink(missing_ok=True)
             raise
 
-        self.progress_reporter.complete_task(download_task_id)
+        self.context.progress_reporter.complete_task(download_task_id)
 
         return downloaded_file_path.relative_to(self.post_file_path.parent)
 
@@ -294,7 +278,7 @@ class DownloadSinglePostUseCase:
         # maybe we can somehow intercept it and report it with progress reporter
         # but for now it's overkill
 
-        downloaded_file_path = self.external_videos_downloader.download_video(
+        downloaded_file_path = self.context.external_videos_downloader.download_video(
             url=external_video.url,
             destination_directory=self.external_videos_destination,
         )
@@ -305,7 +289,7 @@ class DownloadSinglePostUseCase:
         # Download them all with options of the class
         self.files_destination.mkdir(parents=True, exist_ok=True)
 
-        download_task_id = self.progress_reporter.create_task(
+        download_task_id = self.context.progress_reporter.create_task(
             f'Downloading file: {file.filename}',
             indent_level=2,  # Nesting: page/post/file = 0/1/2
         )
@@ -314,7 +298,7 @@ class DownloadSinglePostUseCase:
             human_downloaded_size = human_readable_size(status.total_downloaded_bytes)
             human_total_size = human_readable_size(status.total_bytes)
 
-            self.progress_reporter.update_task(
+            self.context.progress_reporter.update_task(
                 download_task_id,
                 advance=status.downloaded_bytes,
                 total=status.total_bytes,
@@ -322,7 +306,7 @@ class DownloadSinglePostUseCase:
             )
 
         dl_config = DownloadFileConfig(
-            session=self.downloader_session,
+            session=self.context.downloader_session,
             url=file.url,
             filename=file.filename,
             guess_extension=True,
@@ -337,7 +321,7 @@ class DownloadSinglePostUseCase:
                 e.file.unlink(missing_ok=True)
             raise
 
-        self.progress_reporter.complete_task(download_task_id)
+        self.context.progress_reporter.complete_task(download_task_id)
 
         return downloaded_file_path.relative_to(self.post_file_path.parent)
 
@@ -345,7 +329,7 @@ class DownloadSinglePostUseCase:
         """Download an image and returns the path to the saved file."""
         self.images_destination.mkdir(parents=True, exist_ok=True)
 
-        download_task_id = self.progress_reporter.create_task(
+        download_task_id = self.context.progress_reporter.create_task(
             f'Downloading image: {image.url}',
             indent_level=2,  # Nesting: page/post/image = 0/1/2
         )
@@ -354,7 +338,7 @@ class DownloadSinglePostUseCase:
             human_downloaded_size = human_readable_size(status.total_downloaded_bytes)
             human_total_size = human_readable_size(status.total_bytes)
 
-            self.progress_reporter.update_task(
+            self.context.progress_reporter.update_task(
                 download_task_id,
                 advance=status.downloaded_bytes,
                 total=status.total_bytes,
@@ -362,7 +346,7 @@ class DownloadSinglePostUseCase:
             )
 
         dl_config = DownloadFileConfig(
-            session=self.downloader_session,
+            session=self.context.downloader_session,
             url=image.url,
             filename=URL(image.url).name,
             destination=self.images_destination,
@@ -376,6 +360,6 @@ class DownloadSinglePostUseCase:
                 e.file.unlink(missing_ok=True)
             raise
 
-        self.progress_reporter.complete_task(download_task_id)
+        self.context.progress_reporter.complete_task(download_task_id)
 
         return downloaded_file_path.relative_to(self.post_file_path.parent)
