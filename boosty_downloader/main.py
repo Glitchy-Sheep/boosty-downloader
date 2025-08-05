@@ -124,6 +124,9 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
                         logger=downloader_logger,
                     ) as post_cache:
                         post_cache.remove_cache_completely()
+                        downloader_logger.success(
+                            f'Cache for {username} has been cleaned successfully'
+                        )
                         return
 
                 # ------------------------------------------------------------------
