@@ -12,14 +12,16 @@ from boosty_downloader.src.domain.post_data_chunks import (
     PostDataChunkTextualList,
 )
 
-PostDataAllChunksList = list[
+PostDataAllChunks = (
     PostDataChunkImage
     | PostDataChunkText
     | PostDataChunkBoostyVideo
     | PostDataChunkExternalVideo
     | PostDataChunkFile
     | PostDataChunkTextualList
-]
+)
+
+PostDataAllChunksList = list[PostDataAllChunks]
 
 PostDataPostOnlyChunksList = list[
     PostDataChunkText | PostDataChunkImage | PostDataChunkTextualList

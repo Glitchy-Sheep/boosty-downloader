@@ -4,6 +4,7 @@ Use case for downloading a single post from Boosty.
 It encapsulates the logic required to download a post from a specific author.
 """
 
+import uuid
 from asyncio import CancelledError
 from pathlib import Path
 
@@ -20,7 +21,11 @@ from boosty_downloader.src.application.mappers.html_converter import (
     convert_text_to_html,
     convert_video_to_html,
 )
-from boosty_downloader.src.domain.post import Post, PostDataChunkImage
+from boosty_downloader.src.domain.post import (
+    Post,
+    PostDataAllChunks,
+    PostDataChunkImage,
+)
 from boosty_downloader.src.domain.post_data_chunks import (
     PostDataChunkBoostyVideo,
     PostDataChunkExternalVideo,
@@ -76,18 +81,18 @@ class DownloadSinglePostUseCase:
         self, post: Post, filters: list[DownloadContentTypeFilter]
     ) -> bool:
         # Check if any of the filters match the content type
-        has_boosty_videos = any(
+        post_has_boosty_videos = any(
             isinstance(chunk, PostDataChunkBoostyVideo)
             for chunk in post.post_data_chunks
         )
-        has_external_videos = any(
+        post_has_external_videos = any(
             isinstance(chunk, PostDataChunkExternalVideo)
             for chunk in post.post_data_chunks
         )
-        has_files = any(
+        post_has_files = any(
             isinstance(chunk, PostDataChunkFile) for chunk in post.post_data_chunks
         )
-        has_post_content = any(
+        post_has_post_content = any(
             isinstance(
                 chunk, PostDataChunkText | PostDataChunkTextualList | PostDataChunkImage
             )
@@ -101,36 +106,27 @@ class DownloadSinglePostUseCase:
 
         # Start use case only if we *actually* have a job to do
         return (
-            (want_boosty_videos and has_boosty_videos)
-            or (want_external_videos and has_external_videos)
-            or (want_files and has_files)
-            or (want_post_content and has_post_content)
+            (want_boosty_videos and post_has_boosty_videos)
+            or (want_external_videos and post_has_external_videos)
+            or (want_files and post_has_files)
+            or (want_post_content and post_has_post_content)
         )
 
     # --------------------------------------------------------------------------
     # Main method do start the action
 
     async def execute(self) -> None:
-        # Get post data, download it, use mappers to convert it to domain objects
         post = map_post_dto_to_domain(
             self.post_dto, preferred_video_quality=self.context.preferred_video_quality
         )
 
-        # Check if we have any cached parts
-        missing_parts = self.context.post_cache.get_missing_parts(
-            title=post.title,
-            updated_at=post.updated_at,
-            required=self.context.filters,
+        missing_parts: list[DownloadContentTypeFilter] = (
+            self.context.post_cache.get_missing_parts(
+                title=post.title,
+                updated_at=post.updated_at,
+                required=self.context.filters,
+            )
         )
-
-        should_generate_post = DownloadContentTypeFilter.post_content in missing_parts
-        should_download_external_videos = (
-            DownloadContentTypeFilter.external_videos in missing_parts
-        )
-        should_download_boosty_videos = (
-            DownloadContentTypeFilter.boosty_videos in missing_parts
-        )
-        should_download_files = DownloadContentTypeFilter.files in missing_parts
 
         if not self._should_execute(post, missing_parts):
             self.context.progress_reporter.notice(
@@ -138,82 +134,20 @@ class DownloadSinglePostUseCase:
             )
             return
 
+        self.destination.mkdir(parents=True, exist_ok=True)
+        post_task_id = self._start_post_task(post)
+
         post_html: list[HtmlGenChunk] = []
 
-        self.destination.mkdir(parents=True, exist_ok=True)
-
-        post_task_id = self.context.progress_reporter.create_task(
-            f'[bold]POST: {post.title}[/bold]',
-            total=len(post.post_data_chunks),
-            indent_level=1,  # Indentation: page/post = 0/1
-        )
-
         for chunk in post.post_data_chunks:
-            # -------------
-            # Text
-            if isinstance(chunk, PostDataChunkText) and should_generate_post:
-                post_html.append(convert_text_to_html(chunk))
-            # -------------
-            # Textual List
-            elif isinstance(chunk, PostDataChunkTextualList) and should_generate_post:
-                post_html.append(convert_list_to_html(chunk))
-            # -------------
-            # Images
-            elif isinstance(chunk, PostDataChunkImage) and should_generate_post:
-                saved_as: Path = await self.download_image(image=chunk)
-                post_html.append(
-                    HtmlGenImage(
-                        url=str(saved_as),
-                        alt=saved_as.name,
-                    )
-                )
-            # -------------
-            # Video - Boosty
-            elif (
-                isinstance(chunk, PostDataChunkBoostyVideo)
-                and should_download_boosty_videos
-            ):
-                saved_as: Path = await self.download_boosty_video(chunk)
-                if should_generate_post:
-                    post_html.append(
-                        convert_video_to_html(
-                            src=str(saved_as),
-                            title=chunk.title,
-                        )
-                    )
-            # -------------
-            # Video - External
-            elif (
-                isinstance(chunk, PostDataChunkExternalVideo)
-                and should_download_external_videos
-            ):
-                saved_as: Path = await self.download_external_videos(
-                    external_video=chunk
-                )
-                if should_generate_post:
-                    post_html.append(
-                        convert_video_to_html(
-                            src=str(saved_as),
-                            title=saved_as.name,
-                        )
-                    )
-            # -------------
-            # Files
-            elif isinstance(chunk, PostDataChunkFile) and should_download_files:
-                await self.download_files(file=chunk)
+            html_chunk = await self._process_chunk(chunk, missing_parts)
+            if html_chunk:
+                post_html.append(html_chunk)
+            self._update_post_task(post_task_id)
 
-            self.context.progress_reporter.update_task(
-                post_task_id,
-                advance=1,
-                total=len(post.post_data_chunks),
-            )
-
-        if should_generate_post:
+        if DownloadContentTypeFilter.post_content in missing_parts:
             try:
-                render_html_to_file(
-                    post_html,
-                    out_path=self.post_file_path,
-                )
+                render_html_to_file(post_html, out_path=self.post_file_path)
             except CancelledError:
                 self.post_file_path.unlink(missing_ok=True)
                 raise
@@ -222,6 +156,62 @@ class DownloadSinglePostUseCase:
         self.context.post_cache.commit()
         self.context.progress_reporter.complete_task(post_task_id)
         self.context.progress_reporter.success(f'Finished:  {self.destination.name}')
+
+    def _start_post_task(self, post: Post) -> uuid.UUID:
+        return self.context.progress_reporter.create_task(
+            f'[bold]POST: {post.title}[/bold]',
+            total=len(post.post_data_chunks),
+            indent_level=1,
+        )
+
+    def _update_post_task(self, post_task_id: uuid.UUID) -> None:
+        self.context.progress_reporter.update_task(
+            post_task_id,
+            advance=1,
+        )
+
+    async def _process_chunk(
+        self,
+        chunk: PostDataAllChunks,
+        missing_parts: list[DownloadContentTypeFilter],
+    ) -> HtmlGenChunk | None:
+        should_generate_post = DownloadContentTypeFilter.post_content in missing_parts
+        should_download_files = DownloadContentTypeFilter.files in missing_parts
+        should_download_videos = (
+            DownloadContentTypeFilter.boosty_videos in missing_parts
+        )
+        should_download_ext_videos = (
+            DownloadContentTypeFilter.external_videos in missing_parts
+        )
+
+        # ----------------------------------------------------------------------
+        # Post Content (Text / List / Image) processing
+        if isinstance(chunk, PostDataChunkText) and should_generate_post:
+            return convert_text_to_html(chunk)
+        if isinstance(chunk, PostDataChunkTextualList) and should_generate_post:
+            return convert_list_to_html(chunk)
+        if isinstance(chunk, PostDataChunkImage) and should_generate_post:
+            saved_as = await self.download_image(image=chunk)
+            return HtmlGenImage(url=str(saved_as), alt=saved_as.name)
+        # ----------------------------------------------------------------------
+        # Boosty Video
+        if isinstance(chunk, PostDataChunkBoostyVideo) and should_download_videos:
+            saved_as = await self.download_boosty_video(chunk)
+            if DownloadContentTypeFilter.post_content in missing_parts:
+                return convert_video_to_html(src=str(saved_as), title=chunk.title)
+        # ----------------------------------------------------------------------
+        # External Video
+        elif (
+            isinstance(chunk, PostDataChunkExternalVideo) and should_download_ext_videos
+        ):
+            saved_as = await self.download_external_videos(external_video=chunk)
+            if DownloadContentTypeFilter.post_content in missing_parts:
+                return convert_video_to_html(src=str(saved_as), title=saved_as.name)
+        # ----------------------------------------------------------------------
+        # Files
+        elif isinstance(chunk, PostDataChunkFile) and should_download_files:
+            await self.download_files(file=chunk)
+        return None
 
     # --------------------------------------------------------------------------
     # Helper downloading methods
