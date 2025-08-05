@@ -91,18 +91,18 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
         base_url=BASE_URL,
         headers=await parse_auth_header(auth_header),
         cookie_jar=await parse_session_cookie(cookie_string),
-    ) as session:
+    ) as boosty_api_session:
         destination_directory = config.downloading_settings.target_directory.absolute()
         boosty_api_client = BoostyAPIClient(
-            RetryClient(session, retry_options=retry_options),
+            RetryClient(boosty_api_session, retry_options=retry_options),
             request_delay_seconds=request_delay_seconds,
         )
 
         async with aiohttp.ClientSession(
             # Don't use BASE_URL here (for other domains)
             # NOTE: Maybe should be refactored somehow to use same session
-            headers=session.headers,
-            cookie_jar=session.cookie_jar,
+            headers=boosty_api_session.headers,
+            cookie_jar=boosty_api_session.cookie_jar,
             timeout=aiohttp.ClientTimeout(total=None),
             trust_env=True,
         ) as direct_session:
