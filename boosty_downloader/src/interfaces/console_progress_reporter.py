@@ -162,7 +162,8 @@ async def use_reporter(
 
 
 # ------------------------------------------------------------------------------
-# Usage example:
+# Usage example: run it as a script to see how it works:
+# poetry run boosty_downloader .../console_progress_reporter.py
 
 if __name__ == '__main__':
     import asyncio
@@ -187,7 +188,7 @@ if __name__ == '__main__':
 
         async def download_file(self, task_name: str, size_kb: int) -> None:
             """Simulate downloading a file of size size_kb KB with progress"""
-            chunk_size = 50  # КБ за один шаг
+            chunk_size = 50
             total_chunks = (size_kb + chunk_size - 1) // chunk_size
             download_task_id = self.reporter.create_task(task_name, total=total_chunks)
 
@@ -222,7 +223,6 @@ if __name__ == '__main__':
                         self.reporter.update_task(download_task_id, advance=1)
                         continue
 
-                    # Для каждого поста скачиваем несколько файлов разных размеров
                     files = {
                         'image_1': secrets.randbelow(201) + 100,  # 100-300 KB
                         'video_1': secrets.randbelow(1501) + 1000,  # 1-2.5 MB

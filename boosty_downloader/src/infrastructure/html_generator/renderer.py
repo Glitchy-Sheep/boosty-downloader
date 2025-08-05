@@ -12,6 +12,7 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 
 from boosty_downloader.src.infrastructure.html_generator.models import (
     HtmlGenChunk,
+    HtmlGenFile,
     HtmlGenImage,
     HtmlGenList,
     HtmlGenText,
@@ -30,20 +31,21 @@ env = Environment(
 
 
 def render_html_chunk(chunk: HtmlGenChunk) -> str:
-    """Render an HTML chunk directly without conversion."""
-    if isinstance(chunk, HtmlGenText):
-        return env.get_template('text.html').render(text=chunk)
-    if isinstance(chunk, HtmlGenImage):
-        return env.get_template('image.html').render(image=chunk)
-    if isinstance(chunk, HtmlGenVideo):
-        chunk.url = str(chunk.url).replace('\\', '/')
-        return env.get_template('video.html').render(video=chunk)
-    if isinstance(chunk, HtmlGenList):
-        return env.get_template('list.html').render(
-            lst=chunk, render_chunk=render_html_chunk
-        )
-    # HtmlGenFile case
-    return f'<a href="{chunk.url}" download>{chunk.filename}</a>'
+    """Render a single HtmlGenChunk to its HTML representation."""
+    match chunk:
+        case HtmlGenText():
+            return env.get_template('text.html').render(text=chunk)
+        case HtmlGenImage():
+            return env.get_template('image.html').render(image=chunk)
+        case HtmlGenVideo():
+            chunk.url = str(chunk.url).replace('\\', '/')
+            return env.get_template('video.html').render(video=chunk)
+        case HtmlGenList():
+            return env.get_template('list.html').render(
+                lst=chunk, render_chunk=render_html_chunk
+            )
+        case HtmlGenFile():
+            return f'<a href="{chunk.url}" download>{chunk.filename}</a>'
 
 
 def render_html(chunks: list[HtmlGenChunk]) -> str:
