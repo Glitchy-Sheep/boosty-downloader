@@ -5,7 +5,7 @@ from http.cookies import SimpleCookie
 import aiohttp
 
 
-async def parse_session_cookie(cookie_string: str) -> aiohttp.CookieJar:
+def parse_session_cookie(cookie_string: str) -> aiohttp.CookieJar:
     """Parse the session cookie and return a dictionary with auth data for aiohttp client."""
     if cookie_string.lower().startswith('cookie: '):
         cookie_string = cookie_string[8:].strip()
@@ -20,6 +20,6 @@ async def parse_session_cookie(cookie_string: str) -> aiohttp.CookieJar:
     return jar
 
 
-async def parse_auth_header(header: str) -> dict[str, str]:
+def parse_auth_header(header: str) -> dict[str, str]:
     """Parse the authorization header and return a dictionary with auth data."""
     return {'Authorization': header}
