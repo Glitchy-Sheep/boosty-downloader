@@ -36,8 +36,6 @@ def render_html_chunk(chunk: HtmlGenChunk) -> str:
     if isinstance(chunk, HtmlGenImage):
         return env.get_template('image.html').render(image=chunk)
     if isinstance(chunk, HtmlGenVideo):
-        # TODO: We need to guard html links somehow here
-        # that's freaking hard for me now, so if it doesn't work - just fix it later
         chunk.url = str(chunk.url).replace('\\', '/')
         return env.get_template('video.html').render(video=chunk)
     if isinstance(chunk, HtmlGenList):

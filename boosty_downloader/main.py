@@ -38,6 +38,7 @@ from boosty_downloader.src.infrastructure.boosty_api.utils.auth_parsers import (
 from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
 )
+from boosty_downloader.src.infrastructure.file_downloader import DownloadCancelledError
 from boosty_downloader.src.infrastructure.loggers import logger_instances
 from boosty_downloader.src.infrastructure.loggers.logger_instances import (
     downloader_logger,
@@ -201,23 +202,40 @@ def main_wrapper(  # noqa: PLR0913 (too many arguments because of typer)
     [bold]ABOUT:[/bold]
 
     ======
-        CLI Tool to download posts from Boosty by author username.
-        You can use the --post-url option to download only the specified post.
-        Otherwise all posts will be downloaded from the newest to the oldest.
+        CLI tool to download Boosty posts by author username.
+
+        Use --post-url to download a specific post.
+        By default, all posts will be downloaded from newest to oldest.
+
 
     [bold]CONTENT FILTERING:[/bold]
 
-        You can specify several -f flags to choose what content to download.
-        By default all flags are enabled.
+        Use multiple -f flags to select which content to download.
+        By default, all types are included.
         [italic]boosty-downloader --username <USERNAME> -f files -f post_content[/italic]
 
-    [bold yellow]ABOUT RATE LIMITING:[/bold yellow]
+        [bold red]NOTE:[/bold red] If you specify [italic]post_content[/italic] filter, and not specify [italic]boosty_videos[/italic] or [italic]external_videos[/italic],
+        it won't be attached to the post preview ever, because videos are cached since then.
+        This is currently a limitation of the cache.
 
-        [bold]If you have error messages often[/bold], try to refresh auth/cookie with new one after re-login.
-        Or increase [bold]request delay seconds[/bold] (default is 2.5).
-        Also some wait can be helpful too, if you are restricted by the boosty.to itself.
+        For the best experience with post_content just don't specify any filters.
 
-        Anyways, remember, don't be rude and don't spam the API.
+
+    [bold]ABOUT RATE LIMITING:[/bold]
+
+        [bold]If you get errors from time to time[/bold], try increasing [bold]request delay seconds[/bold] (default 2.5).
+        Waiting between requests may help if boosty.to limits you.
+
+        Please be respectful and avoid spamming the API with low/zero request delay.
+
+
+    [bold]ABOUT CONTENT SYNC & CACHING:[/bold]
+
+        [italic]The utility respects your free time:[/italic]
+        All downloaded content is cached automatically, so you won't download the same post twice.
+        Or even if you download the same post with different filters, it will only download missing parts.
+        Still, if post was updated by creator - it will be re-downloaded completely.
+
     """
     asyncio.run(
         main(
@@ -264,7 +282,15 @@ def bootstrap() -> None:
             '\n'
             f'Details: {e.errors!s}'
         )
-    except (OperationalError, DatabaseError, IntegrityError) as e:
+    except DownloadCancelledError:
+        logger_instances.downloader_logger.warning(
+            'Download cancelled by user, see you later! 💘\n'
+        )
+    except (
+        OperationalError,
+        DatabaseError,
+        IntegrityError,
+    ) as e:
         logger_instances.downloader_logger.error('⚠️  Cache Error!\n' + str(e))
         logger_instances.downloader_logger.warning(
             'Cache format may be outdated after application update.'

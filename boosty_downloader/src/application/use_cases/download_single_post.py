@@ -219,7 +219,7 @@ class DownloadSinglePostUseCase:
                 raise
 
         self.context.post_cache.cache(post.title, post.updated_at, missing_parts)
-        self.context.post_cache.save()
+        self.context.post_cache.commit()
         self.context.progress_reporter.complete_task(post_task_id)
         self.context.progress_reporter.success(f'Finished:  {self.destination.name}')
 

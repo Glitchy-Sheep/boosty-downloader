@@ -117,7 +117,7 @@ class SQLitePostCache:
             )
             self._reinitialize_db()
 
-    def save(self) -> None:
+    def commit(self) -> None:
         """
         Commit any pending changes to the database if there are modifications.
 
@@ -194,6 +194,7 @@ class SQLitePostCache:
         if not post:
             return required
 
+        # If cached post is outdated in general, just mark all required parts as missing.
         if datetime.fromisoformat(post.last_updated_timestamp) < updated_at:
             return required
 
@@ -225,6 +226,6 @@ class SQLitePostCache:
 
     def close(self) -> None:
         """Save and close the database connection."""
-        self.save()
+        self.commit()
         self.session.close()
         self.engine.dispose()

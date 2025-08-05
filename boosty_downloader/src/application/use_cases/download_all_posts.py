@@ -58,7 +58,7 @@ class DownloadAllPostUseCase:
             for post_dto in page.posts:
                 if not post_dto.has_access:
                     downloader_logger.warning(
-                        f'Skip post (no access to content): {post_dto.title}'
+                        f'Skip post ([red]no access to content[/red]): {post_dto.title}'
                     )
                     continue
 

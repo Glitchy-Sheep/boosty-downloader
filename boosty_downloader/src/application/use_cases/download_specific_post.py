@@ -90,4 +90,6 @@ class DownloadPostByUrlUseCase:
                     ).execute()
                     return
 
-        self.context.progress_reporter.error('Failed to find and download the specified post.')
+        self.context.progress_reporter.error(
+            'Failed to find and download the specified post.'
+        )
