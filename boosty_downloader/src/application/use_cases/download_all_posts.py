@@ -5,6 +5,7 @@ from pathlib import Path
 from aiohttp_retry import RetryClient
 
 from boosty_downloader.src.application.filtering import (
+    BoostyOkVideoType,
     DownloadContentTypeFilter,
 )
 from boosty_downloader.src.application.use_cases.download_single_post import (
@@ -43,6 +44,7 @@ class DownloadAllPostUseCase:
         external_videos_downloader: ExternalVideosDownloader,
         post_cache: SQLitePostCache,
         filters: list[DownloadContentTypeFilter],
+        preferred_video_quality: BoostyOkVideoType,
         progress_reporter: ProgressReporter,
     ) -> None:
         self.author_name = author_name
@@ -54,6 +56,7 @@ class DownloadAllPostUseCase:
         self.post_cache = post_cache
         self.filters = filters
         self.progress_reporter = progress_reporter
+        self.preferred_video_quality = preferred_video_quality
 
     async def execute(self) -> None:
         posts_iterator = self.boosty_api.iterate_over_posts(
@@ -97,6 +100,7 @@ class DownloadAllPostUseCase:
                     post_cache=self.post_cache,
                     filters=self.filters,
                     progress_reporter=self.progress_reporter,
+                    preferred_video_quality=self.preferred_video_quality,
                 )
 
                 self.progress_reporter.update_task(

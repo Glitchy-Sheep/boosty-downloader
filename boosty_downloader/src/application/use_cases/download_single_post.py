@@ -10,7 +10,10 @@ from pathlib import Path
 from aiohttp_retry import RetryClient
 from yarl import URL
 
-from boosty_downloader.src.application.filtering import DownloadContentTypeFilter
+from boosty_downloader.src.application.filtering import (
+    BoostyOkVideoType,
+    DownloadContentTypeFilter,
+)
 from boosty_downloader.src.application.mappers import map_post_dto_to_domain
 from boosty_downloader.src.application.mappers.html_converter import (
     PostDataChunkTextualList,
@@ -68,6 +71,7 @@ class DownloadSinglePostUseCase:
         post_cache: SQLitePostCache,
         filters: list[DownloadContentTypeFilter],
         progress_reporter: ProgressReporter,
+        preferred_video_quality: BoostyOkVideoType,
     ) -> None:
         self.destination = destination
         self.post_dto = post_dto
@@ -76,6 +80,7 @@ class DownloadSinglePostUseCase:
         self.post_cache = post_cache
         self.filters = filters
         self.progress_reporter = progress_reporter
+        self.preferred_video_quality = preferred_video_quality
 
         self.post_file_path = destination / Path('post.html')
         self.images_destination = destination / Path('images')
@@ -123,7 +128,9 @@ class DownloadSinglePostUseCase:
 
     async def execute(self) -> None:
         # Get post data, download it, use mappers to convert it to domain objects
-        post = map_post_dto_to_domain(self.post_dto)
+        post = map_post_dto_to_domain(
+            self.post_dto, preferred_video_quality=self.preferred_video_quality
+        )
 
         # Check if we have any cached parts
         missing_parts = self.post_cache.get_missing_parts(

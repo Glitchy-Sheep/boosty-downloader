@@ -18,7 +18,9 @@ from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types
 )
 
 
-def map_post_dto_to_domain(post_dto: PostDTO) -> Post:
+def map_post_dto_to_domain(
+    post_dto: PostDTO, preferred_video_quality: BoostyOkVideoType
+) -> Post:
     """Convert a Boosty API PostDTO object to a domain Post object, mapping all data chunks to their domain representations."""
     post = Post(
         title=post_dto.title,
@@ -49,7 +51,7 @@ def map_post_dto_to_domain(post_dto: PostDTO) -> Post:
         elif isinstance(data_chunk, BoostyPostDataOkVideoDTO):
             # Try to get video content, skip if None (no suitable quality found)
             video_chunk = mappers.to_ok_boosty_video_content(
-                data_chunk, preferred_quality=BoostyOkVideoType.high
+                data_chunk, preferred_quality=preferred_video_quality
             )
             if video_chunk is not None:
                 post.post_data_chunks.append(video_chunk)

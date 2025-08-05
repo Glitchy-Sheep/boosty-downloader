@@ -151,6 +151,7 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
                         ),
                         filters=content_type_filter,
                         progress_reporter=progress_reporter,
+                        preferred_video_quality=preferred_video_quality.to_ok_video_type(),
                     ).execute()
                     return
 
@@ -169,6 +170,7 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
                         filters=content_type_filter,
                         post_cache=post_cache,
                         progress_reporter=progress_reporter,
+                        preferred_video_quality=preferred_video_quality.to_ok_video_type(),
                     ).execute()
 
 

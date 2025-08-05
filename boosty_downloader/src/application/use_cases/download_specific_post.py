@@ -4,7 +4,10 @@ from pathlib import Path
 
 from aiohttp_retry import RetryClient
 
-from boosty_downloader.src.application.filtering import DownloadContentTypeFilter
+from boosty_downloader.src.application.filtering import (
+    BoostyOkVideoType,
+    DownloadContentTypeFilter,
+)
 from boosty_downloader.src.application.use_cases.check_total_posts import (
     BoostyAPIClient,
 )
@@ -39,6 +42,7 @@ class DownloadPostByUrlUseCase:
         post_cache: SQLitePostCache,
         filters: list[DownloadContentTypeFilter],
         progress_reporter: ProgressReporter,
+        preferred_video_quality: BoostyOkVideoType,
     ) -> None:
         self.post_url = post_url
         self.post_cache = post_cache
@@ -49,6 +53,7 @@ class DownloadPostByUrlUseCase:
         self.post_cache = post_cache
         self.filters = filters
         self.progress_reporter = progress_reporter
+        self.preferred_video_quality = preferred_video_quality
 
     def extract_author_and_uuid_from_url(self) -> tuple[str | None, str | None]:
         """
@@ -107,6 +112,7 @@ class DownloadPostByUrlUseCase:
                         filters=self.filters,
                         post_cache=self.post_cache,
                         progress_reporter=self.progress_reporter,
+                        preferred_video_quality=self.preferred_video_quality,
                     ).execute()
                     return
 
