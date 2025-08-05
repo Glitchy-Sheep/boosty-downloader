@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import importlib.metadata
 
 import aiohttp
 import typer
+from aiohttp.client_exceptions import ClientConnectorDNSError
 from aiohttp_retry import ExponentialRetry
 from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
 
@@ -41,6 +43,12 @@ from boosty_downloader.src.infrastructure.file_downloader import DownloadCancell
 from boosty_downloader.src.infrastructure.loggers import logger_instances
 from boosty_downloader.src.infrastructure.loggers.logger_instances import (
     downloader_logger,
+)
+from boosty_downloader.src.infrastructure.update_checker.pypi_checker import (
+    CheckFailed,
+    NoUpdate,
+    UpdateAvailable,
+    check_for_updates,
 )
 from boosty_downloader.src.infrastructure.yaml_configuration.config import init_config
 from boosty_downloader.src.interfaces.cli_options import (
@@ -93,12 +101,38 @@ async def typer_cmd_handler(  # noqa: PLR0913 (too many arguments because of typ
         },
     )
 
+    # --------------------------------------------------------------------------
+    # Check for updates and notify the user
+    current_version = importlib.metadata.version('boosty-downloader')
+    result = check_for_updates(current_version, 'boosty-downloader')
+    match result:
+        case UpdateAvailable():
+            logger_instances.downloader_logger.warning(
+                f'🔔 [bold green]Update available[/bold green]: {result.latest_version} (current: {result.current_version})'
+            )
+            logger_instances.downloader_logger.warning(
+                'You can update with --> [bold]pip install -U boosty-downloader[/bold]'
+            )
+            logger_instances.downloader_logger.warning(
+                'But first, please check the changelog for breaking changes\n'
+            )
+        case NoUpdate():
+            logger_instances.downloader_logger.info(
+                'You are using the latest boosty-downloader version.\n'
+            )
+        case CheckFailed():
+            logger_instances.downloader_logger.error(
+                'Failed to check for updates, please check it manually.\n'
+            )
+
+    # --------------------------------------------------------------------------
+    # Prepare app environment and start the task
     async with AppEnvironment(
         config=AppEnvironment.AppConfig(
             author_name=username,
             target_directory=config.downloading_settings.target_directory.absolute(),
-            boosty_headers=await parse_auth_header(auth_header),
-            boosty_cookies_jar=await parse_session_cookie(cookie_string),
+            boosty_headers=parse_auth_header(auth_header),
+            boosty_cookies_jar=parse_session_cookie(cookie_string),
             retry_options=retry_options,
             request_delay_seconds=request_delay_seconds,
             logger=logger_instances.downloader_logger,
@@ -246,6 +280,10 @@ def entry_point() -> None:
     except DownloadCancelledError:
         logger_instances.downloader_logger.warning(
             'Download cancelled by user, see you later! 💘\n'
+        )
+    except ClientConnectorDNSError:
+        logger_instances.downloader_logger.error(
+            'Network error: Unable to connect to Boosty API, please check your internet connection.'
         )
     except (
         OperationalError,
