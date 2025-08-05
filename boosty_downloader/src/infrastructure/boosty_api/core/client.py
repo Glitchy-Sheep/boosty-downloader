@@ -7,7 +7,11 @@ from typing import TYPE_CHECKING
 
 from aiolimiter import AsyncLimiter
 from pydantic import ValidationError
+from yarl import URL
 
+from boosty_downloader.src.infrastructure.boosty_api.core.endpoints import (
+    BOOSTY_DEFAULT_BASE_URL,
+)
 from boosty_downloader.src.infrastructure.boosty_api.models.post.extra import Extra
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
 from boosty_downloader.src.infrastructure.boosty_api.models.post.posts_request import (
@@ -72,13 +76,21 @@ class BoostyAPIClient:
     """
     Main client class for the Boosty API.
 
+    The session you provide to this class MUST NOT CONTAIN BASE URL.
+    It should only contain headers and cookies. Base url is set internally.
+
     It handles the connection and makes requests to the API.
     To work with private/paid posts you need to provide valid authentication token and cookies in the session.
     """
 
     def __init__(
-        self, session: RetryClient, request_delay_seconds: float = 0.0
+        self,
+        session: RetryClient,
+        request_delay_seconds: float = 0.0,
+        base_url: URL | None = None,  # For monkey patching purposes
     ) -> None:
+        self._base_url = base_url or BOOSTY_DEFAULT_BASE_URL
+
         self.session = session
         if request_delay_seconds > 0:
             if request_delay_seconds < 1:
@@ -99,10 +111,12 @@ class BoostyAPIClient:
         params: Mapping[str, str] | None = None,
         headers: Mapping[str, str] | None = None,
     ) -> ClientResponse:
+        url = URL(self._base_url) / endpoint.lstrip('/')
+
         if self._limiter:
             async with self._limiter:
-                return await self.session.get(endpoint, params=params, headers=headers)
-        return await self.session.get(endpoint, params=params, headers=headers)
+                return await self.session.get(url, params=params, headers=headers)
+        return await self.session.get(url, params=params, headers=headers)
 
     async def get_author_posts(
         self,

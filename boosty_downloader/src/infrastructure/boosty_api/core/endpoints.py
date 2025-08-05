@@ -1,3 +1,3 @@
 """All constants for endpoints."""
 
-BASE_URL = 'https://api.boosty.to/v1/'
+BOOSTY_DEFAULT_BASE_URL = 'https://api.boosty.to/v1/'

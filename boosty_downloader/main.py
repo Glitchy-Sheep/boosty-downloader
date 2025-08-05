@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 from typing import Annotated
 
 import aiohttp
 import typer
-from aiohttp_retry import ExponentialRetry, RetryClient
+from aiohttp_retry import ExponentialRetry
 from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
 
+from boosty_downloader.src.application.di.app_environment import AppEnvironment
 from boosty_downloader.src.application.di.download_context import DownloadContext
 from boosty_downloader.src.application.filtering import (
     DownloadContentTypeFilter,
@@ -26,13 +26,11 @@ from boosty_downloader.src.application.use_cases.download_specific_post import (
     DownloadPostByUrlUseCase,
 )
 from boosty_downloader.src.infrastructure.boosty_api.core.client import (
-    BoostyAPIClient,
     BoostyAPINoUsernameError,
     BoostyAPIUnauthorizedError,
     BoostyAPIUnknownError,
     BoostyAPIValidationError,
 )
-from boosty_downloader.src.infrastructure.boosty_api.core.endpoints import BASE_URL
 from boosty_downloader.src.infrastructure.boosty_api.utils.auth_parsers import (
     parse_auth_header,
     parse_session_cookie,
@@ -44,12 +42,7 @@ from boosty_downloader.src.infrastructure.loggers import logger_instances
 from boosty_downloader.src.infrastructure.loggers.logger_instances import (
     downloader_logger,
 )
-from boosty_downloader.src.infrastructure.post_caching.post_cache import SQLitePostCache
 from boosty_downloader.src.infrastructure.yaml_configuration.config import init_config
-from boosty_downloader.src.interfaces.console_progress_reporter import (
-    ProgressReporter,
-    use_reporter,
-)
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -87,91 +80,64 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
         },
     )
 
-    async with aiohttp.ClientSession(
-        base_url=BASE_URL,
-        headers=await parse_auth_header(auth_header),
-        cookie_jar=await parse_session_cookie(cookie_string),
-    ) as boosty_api_session:
-        destination_directory = config.downloading_settings.target_directory.absolute()
-        boosty_api_client = BoostyAPIClient(
-            RetryClient(boosty_api_session, retry_options=retry_options),
+    async with AppEnvironment(
+        config=AppEnvironment.AppConfig(
+            author_name=username,
+            target_directory=config.downloading_settings.target_directory.absolute(),
+            boosty_headers=await parse_auth_header(auth_header),
+            boosty_cookies_jar=await parse_session_cookie(cookie_string),
+            retry_options=retry_options,
             request_delay_seconds=request_delay_seconds,
+            logger=logger_instances.downloader_logger,
+        )
+    ) as app_environment:
+        downloading_context = DownloadContext(
+            downloader_session=app_environment.downloading_retry_client,
+            external_videos_downloader=ExternalVideosDownloader(),
+            filters=content_type_filter,
+            post_cache=app_environment.post_cache,
+            preferred_video_quality=preferred_video_quality.to_ok_video_type(),
+            progress_reporter=app_environment.progress_reporter,
         )
 
-        async with aiohttp.ClientSession(
-            # Don't use BASE_URL here (for other domains)
-            # NOTE: Maybe should be refactored somehow to use same session
-            headers=boosty_api_session.headers,
-            cookie_jar=boosty_api_session.cookie_jar,
-            timeout=aiohttp.ClientTimeout(total=None),
-            trust_env=True,
-        ) as direct_session:
-            retry_client = RetryClient(
-                direct_session,
-                retry_options=retry_options,
+        # ------------------------------------------------------------------
+        # Cache cleaning
+        if clean_cache:
+            app_environment.post_cache.remove_cache_completely()
+            downloader_logger.success(
+                f'Cache for {username} has been cleaned successfully'
             )
+            return
 
-            async with use_reporter(
-                reporter=ProgressReporter(
-                    logger=downloader_logger.logging_logger_obj,
-                    console=downloader_logger.console,
-                )
-            ) as progress_reporter:
-                with SQLitePostCache(
-                    config.downloading_settings.target_directory / username,
-                    logger=downloader_logger,
-                ) as post_cache:
-                    downloading_context = DownloadContext(
-                        downloader_session=retry_client,
-                        external_videos_downloader=ExternalVideosDownloader(),
-                        filters=content_type_filter,
-                        post_cache=post_cache,
-                        preferred_video_quality=preferred_video_quality.to_ok_video_type(),
-                        progress_reporter=progress_reporter,
-                    )
+        # ------------------------------------------------------------------
+        # Total Checker
+        if check_total_count:
+            await ReportTotalPostsCountUseCase(
+                author_name=username,
+                logger=downloader_logger,
+                boosty_api=app_environment.boosty_api_client,
+            ).execute()
+            return
 
-                    # ------------------------------------------------------------------
-                    # Cache cleaning
-                    if clean_cache:
-                        post_cache.remove_cache_completely()
-                        downloader_logger.success(
-                            f'Cache for {username} has been cleaned successfully'
-                        )
-                        return
+        # ------------------------------------------------------------------
+        # Download specific post by URL
+        if post_url is not None:
+            await DownloadPostByUrlUseCase(
+                post_url=post_url,
+                boosty_api=app_environment.boosty_api_client,
+                destination=app_environment.destination_directory,
+                download_context=downloading_context,
+            ).execute()
+            return
 
-                    # ------------------------------------------------------------------
-                    # Total Checker
-                    if check_total_count:
-                        await ReportTotalPostsCountUseCase(
-                            author_name=username,
-                            logger=downloader_logger,
-                            boosty_api=boosty_api_client,
-                        ).execute()
-                        return
-
-                # ------------------------------------------------------------------
-                # Download specific post by URL
-                if post_url is not None:
-                    await DownloadPostByUrlUseCase(
-                        post_url=post_url,
-                        boosty_api=boosty_api_client,
-                        destination=Path('./boosty-downloads') / username,
-                        download_context=downloading_context,
-                    ).execute()
-                    return
-
-                # ------------------------------------------------------------------
-                # Download all posts
-                with SQLitePostCache(
-                    destination=destination_directory / username,
-                    logger=downloader_logger,
-                ) as post_cache:
-                    await DownloadAllPostUseCase(
-                        author_name=username,
-                        boosty_api=boosty_api_client,
-                        destination=Path('./boosty-downloads') / username,
-                        download_context=downloading_context,
-                    ).execute()
+        # ------------------------------------------------------------------
+        # Download all posts
+        await DownloadAllPostUseCase(
+            author_name=username,
+            boosty_api=app_environment.boosty_api_client,
+            destination=app_environment.destination_directory,
+            download_context=downloading_context,
+        ).execute()
 
 
 @app.command()
