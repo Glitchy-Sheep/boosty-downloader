@@ -66,6 +66,7 @@ from boosty_downloader.src.interfaces.cli_options import (
     RequestDelaySecondsOption,  # noqa: TC001
     UsernameOption,  # noqa: TC001
 )
+from boosty_downloader.src.interfaces.console_progress_reporter import ProgressReporter
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -77,6 +78,27 @@ typer_app = typer.Typer(
 )
 
 GITHUB_ISSUES_URL = 'https://github.com/Glitchy-Sheep/boosty-downloader/issues'
+
+
+def show_start_summary(
+    pr: ProgressReporter,
+    destination_directory: Path,
+    content_type_filter: list[DownloadContentTypeFilter],
+) -> None:
+    """Just simple review before start downloading"""
+    pr.info(
+        f'[italic]Destination directory[/italic]: [bold green]{destination_directory}[/bold green]'
+    )
+    pr.info(
+        '--------------------------------------------------------------------------\n'
+        'Script will download: [bold green]'
+        + ', '.join(str(item.name) for item in content_type_filter)
+        + '[/bold green]\n'
+        '--------------------------------------------------------------------------\n'
+    )
+    pr.notice(
+        'You can safely interrupt the download at any time with [bold yellow]Ctrl+C[/bold yellow].\n'
+    )
 
 
 async def typer_cmd_handler(  # noqa: PLR0913 (too many arguments because of typer)
@@ -189,6 +211,13 @@ async def typer_cmd_handler(  # noqa: PLR0913 (too many arguments because of typ
 
         # ------------------------------------------------------------------
         # Download all posts
+
+        show_start_summary(
+            pr=app_environment.progress_reporter,
+            destination_directory=app_environment.destination_directory,
+            content_type_filter=content_type_filter,
+        )
+
         await DownloadAllPostUseCase(
             author_name=username,
             boosty_api=app_environment.boosty_api_client,
