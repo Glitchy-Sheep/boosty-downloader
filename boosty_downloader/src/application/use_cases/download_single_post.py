@@ -135,6 +135,7 @@ class DownloadSinglePostUseCase:
             self.context.progress_reporter.notice(
                 'SKIP([bold]cached[/bold] and up-to-date): ' + self.destination.name
             )
+            return
 
         if not self._should_execute(post, missing_parts):
             self.context.progress_reporter.notice(
