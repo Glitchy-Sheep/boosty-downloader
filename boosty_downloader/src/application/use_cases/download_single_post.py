@@ -33,6 +33,9 @@ from boosty_downloader.src.domain.post_data_chunks import (
     PostDataChunkText,
 )
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
+from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
+    ExternalVideoDownloadStatus,
+)
 from boosty_downloader.src.infrastructure.file_downloader import (
     DownloadError,
     DownloadFileConfig,
@@ -128,9 +131,15 @@ class DownloadSinglePostUseCase:
             )
         )
 
+        if not missing_parts:
+            self.context.progress_reporter.notice(
+                'SKIP([bold]cached[/bold] and up-to-date): ' + self.destination.name
+            )
+
         if not self._should_execute(post, missing_parts):
             self.context.progress_reporter.notice(
-                'SKIP (cached and up-to-date): ' + self.destination.name
+                'SKIP ([bold]no content[/bold] matching selected filters): '
+                + self.destination.name
             )
             return
 
@@ -264,14 +273,29 @@ class DownloadSinglePostUseCase:
     ) -> Path:
         self.external_videos_destination.mkdir(parents=True, exist_ok=True)
 
-        # Notice: external videos downloader will create its own status output
-        # maybe we can somehow intercept it and report it with progress reporter
-        # but for now it's overkill
+        download_video_task_id = self.context.progress_reporter.create_task(
+            f'Downloading external video: {external_video.url}',
+            indent_level=2,  # Nesting: page/post/video = 0/1/2
+        )
+
+        def update_progress(status: ExternalVideoDownloadStatus) -> None:
+            human_downloaded_size = human_readable_size(status.downloaded_bytes)
+            human_total_size = human_readable_size(status.total_bytes)
+
+            self.context.progress_reporter.update_task(
+                download_video_task_id,
+                advance=status.delta_bytes,
+                total=status.total_bytes,
+                description=f'Downloading external video [{human_downloaded_size} / {human_total_size}]: {external_video.url}',
+            )
 
         downloaded_file_path = self.context.external_videos_downloader.download_video(
             url=external_video.url,
             destination_directory=self.external_videos_destination,
+            progress_hook=update_progress,
         )
+
+        self.context.progress_reporter.complete_task(download_video_task_id)
 
         return downloaded_file_path.relative_to(self.external_videos_destination.parent)
 
