@@ -273,6 +273,7 @@ def typer_cmd_entrypoint(  # noqa: PLR0913 (too many arguments because of typer)
         - Downloaded content is cached automatically to avoid duplicates.
         - Downloading the same post with different filters downloads only missing parts.
         - Posts updated by creators are fully re-downloaded.
+        - Cache doesn't check local files, you can delete them and they still won't re-download.
 
     """
     asyncio.run(
