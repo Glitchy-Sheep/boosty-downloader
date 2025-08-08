@@ -59,8 +59,7 @@ class ExternalVideosDownloader:
 
     # Prefer 720p when available, otherwise choose the best <=720, and finally any best.
     _default_ydl_options: ClassVar[YtDlOptions] = {
-        'format': 'bestvideo[height>=720][vcodec!=none]+bestaudio[acodec!=none]/bestvideo[height<720][vcodec!=none]+bestaudio[acodec!=none]/best',
-        'merge_output_format': 'mp4',
+        'format': 'bv*[height=720]+ba/bv*[height>720]+ba/bv*+ba/b',
         'quiet': True,
         'no_warnings': True,
         'no_color': True,
