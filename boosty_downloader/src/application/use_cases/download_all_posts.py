@@ -86,7 +86,6 @@ class DownloadAllPostUseCase:
                     description=f'Processing page [bold]{current_page}[/bold]',
                 )
 
-                # Экспоненциальный backoff уменьшает нагрузку на API при временных сбоях.
                 max_attempts = 5
                 delay = 1.0
                 for attempt in range(1, max_attempts + 1):
