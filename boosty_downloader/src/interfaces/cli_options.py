@@ -1,5 +1,6 @@
 """CLI option definitions for Boosty Downloader."""
 
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -84,5 +85,19 @@ CleanCacheOption = Annotated[
         '-c',
         help='Remove posts cache for selected username [italic]completely[/italic], use with caution',
         rich_help_panel=HelpPanels.actions,
+    ),
+]
+
+DestinationDirectoryOption = Annotated[
+    Path | None,
+    typer.Option(
+        '--destination-directory',
+        '-o',
+        help='Directory to save downloaded posts',
+        dir_okay=True,
+        file_okay=False,
+        resolve_path=True,
+        rich_help_panel=HelpPanels.actions,
+        show_default=False,
     ),
 ]

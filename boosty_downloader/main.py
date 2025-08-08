@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib.metadata
+from typing import TYPE_CHECKING
 
 import aiohttp
 import typer
@@ -59,11 +60,15 @@ from boosty_downloader.src.interfaces.cli_options import (
     CheckTotalCountOption,  # noqa: TC001
     CleanCacheOption,  # noqa: TC001
     ContentTypeFilterOption,  # noqa: TC001
+    DestinationDirectoryOption,  # noqa: TC001
     PostUrlOption,  # noqa: TC001
     PreferredVideoQualityOption,  # noqa: TC001
     RequestDelaySecondsOption,  # noqa: TC001
     UsernameOption,  # noqa: TC001
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 typer_app = typer.Typer(
     no_args_is_help=True,
@@ -83,12 +88,17 @@ async def typer_cmd_handler(  # noqa: PLR0913 (too many arguments because of typ
     content_type_filter: list[DownloadContentTypeFilter],
     preferred_video_quality: VideoQualityOption,
     request_delay_seconds: float,
+    destination_directory: Path | None,
 ) -> None:
     """Download all posts from the specified user"""
     config = init_config()
 
     cookie_string = config.auth.cookie
     auth_header = config.auth.auth_header
+
+    # Set the destination directory if provided
+    if destination_directory is not None:
+        config.downloading_settings.target_directory = destination_directory
 
     retry_options = ExponentialRetry(
         attempts=5,
@@ -198,6 +208,7 @@ def typer_cmd_entrypoint(  # noqa: PLR0913 (too many arguments because of typer)
     preferred_video_quality: PreferredVideoQualityOption = VideoQualityOption.medium,
     check_total_count: CheckTotalCountOption = False,
     clean_cache: CleanCacheOption = False,
+    destination_directory: DestinationDirectoryOption = None,
 ) -> None:
     """
     [bold]ABOUT:[/bold]
@@ -245,6 +256,7 @@ def typer_cmd_entrypoint(  # noqa: PLR0913 (too many arguments because of typer)
             ),
             preferred_video_quality=preferred_video_quality,
             request_delay_seconds=request_delay_seconds,
+            destination_directory=destination_directory,
         ),
     )
 
