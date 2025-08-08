@@ -32,7 +32,9 @@ class ReportTotalPostsCountUseCase:
         inaccessible_posts_count = 0
         inaccessible_posts_names: list[str] = []
 
-        async for page in self.boosty_api.iterate_over_posts(self.author_name):
+        async for page in self.boosty_api.iterate_over_posts(
+            self.author_name, posts_per_page=100
+        ):
             current_page += 1
             total_posts += len(page.posts)
 
