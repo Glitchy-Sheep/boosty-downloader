@@ -1,5 +1,6 @@
 """Implements the use case for downloading all posts from a Boosty author, applying filters and caching as needed."""
 
+import asyncio
 from pathlib import Path
 
 from boosty_downloader.src.application.di.download_context import DownloadContext
@@ -7,6 +8,7 @@ from boosty_downloader.src.application.use_cases.download_single_post import (
     DownloadSinglePostUseCase,
 )
 from boosty_downloader.src.infrastructure.boosty_api.core.client import BoostyAPIClient
+from boosty_downloader.src.infrastructure.file_downloader import DownloadCancelledError
 from boosty_downloader.src.infrastructure.loggers.logger_instances import (
     downloader_logger,
 )
@@ -83,7 +85,27 @@ class DownloadAllPostUseCase:
                     advance=1,
                     description=f'Processing page [bold]{current_page}[/bold]',
                 )
-                await single_post_use_case.execute()
+
+                # Экспоненциальный backoff уменьшает нагрузку на API при временных сбоях.
+                max_attempts = 5
+                delay = 1.0
+                for attempt in range(1, max_attempts + 1):
+                    try:
+                        await single_post_use_case.execute()
+                        break
+                    except (asyncio.CancelledError, DownloadCancelledError):
+                        raise
+                    except Exception as exc:  # noqa: BLE001 We don't really care about specific exceptions (just for retry logic)
+                        if attempt == max_attempts:
+                            downloader_logger.error(
+                                f'Skip post after {attempt} failed attempts: {full_post_title} ({exc})'
+                            )
+                        else:
+                            downloader_logger.warning(
+                                f'Attempt {attempt} failed for post: {full_post_title}. Retrying in {delay:.1f}s... ({exc})'
+                            )
+                            await asyncio.sleep(delay)
+                            delay = min(delay * 2, 30.0)
 
             self.context.progress_reporter.complete_task(page_task_id)
             self.context.progress_reporter.success(
