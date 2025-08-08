@@ -102,6 +102,11 @@ def show_start_summary(
     pr.notice(
         'You can safely interrupt the download at any time with [bold yellow]Ctrl+C[/bold yellow].\n'
     )
+    if DownloadContentTypeFilter.external_videos in content_type_filter:
+        pr.notice(
+            'Progress bar for external videos downloadings can be glitchy, because yt-dlp downloads them by chunks.\n'
+            "If you see strange progress movement that's normal in most cases, just be patient.\n"
+        )
 
 
 async def typer_cmd_handler(  # noqa: PLR0913 (too many arguments because of typer)
