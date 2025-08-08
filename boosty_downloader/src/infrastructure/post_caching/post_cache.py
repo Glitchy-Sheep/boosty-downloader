@@ -24,7 +24,7 @@ class _PostCacheEntryModel(Base):
     __tablename__ = 'post_cache'
     _Iso8601Datetime = str
 
-    title: Mapped[str] = mapped_column(String, primary_key=True)
+    post_uuid: Mapped[str] = mapped_column(String, primary_key=True)
 
     # Flags to see which parts of the posts were downloaded and which are not.
     files_downloaded: Mapped[bool] = mapped_column(default=False, nullable=False)
@@ -92,6 +92,8 @@ class SQLitePostCache:
         try:
             # Ping the database to check if it's accessible
             self.session.execute(text('SELECT 1 FROM post_cache LIMIT 1'))
+            # Ensure the expected schema (column names) is present; reinit if legacy schema is detected
+            self.session.execute(text('SELECT post_uuid FROM post_cache LIMIT 1'))
         except (OperationalError, DatabaseError):
             return False
         else:
@@ -131,14 +133,14 @@ class SQLitePostCache:
 
     def cache(
         self,
-        title: str,
+        post_uuid: str,
         updated_at: datetime,
         was_downloaded: list[DownloadContentTypeFilter],
     ) -> None:
-        """Cache a post by its title and updated_at timestamp."""
+        """Cache a post by its UUID and updated_at timestamp."""
         self._ensure_valid()
 
-        entry = self.session.get(_PostCacheEntryModel, title)
+        entry = self.session.get(_PostCacheEntryModel, post_uuid)
 
         files_downloaded = DownloadContentTypeFilter.files in was_downloaded
         boosty_videos_downloaded = (
@@ -166,7 +168,7 @@ class SQLitePostCache:
             )
         else:
             entry = _PostCacheEntryModel(
-                title=title,
+                post_uuid=post_uuid,
                 last_updated_timestamp=updated_at.isoformat(),
                 files_downloaded=files_downloaded,
                 boosty_videos_downloaded=boosty_videos_downloaded,
@@ -179,7 +181,7 @@ class SQLitePostCache:
 
     def get_missing_parts(
         self,
-        title: str,
+        post_uuid: str,
         updated_at: datetime,
         required: list[DownloadContentTypeFilter],
     ) -> list[DownloadContentTypeFilter]:
@@ -190,7 +192,7 @@ class SQLitePostCache:
         downloaded yet based on the current cache state.
         """
         self._ensure_valid()
-        post = self.session.get(_PostCacheEntryModel, title)
+        post = self.session.get(_PostCacheEntryModel, post_uuid)
         if not post:
             return required
 

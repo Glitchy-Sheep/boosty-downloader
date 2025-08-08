@@ -26,6 +26,7 @@ def map_post_dto_to_domain(
 ) -> Post:
     """Convert a Boosty API PostDTO object to a domain Post object, mapping all data chunks to their domain representations."""
     post = Post(
+        uuid=post_dto.id,
         title=post_dto.title,
         created_at=post_dto.created_at,
         updated_at=post_dto.updated_at,

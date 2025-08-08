@@ -125,7 +125,7 @@ class DownloadSinglePostUseCase:
 
         missing_parts: list[DownloadContentTypeFilter] = (
             self.context.post_cache.get_missing_parts(
-                title=post.title,
+                post_uuid=post.uuid,
                 updated_at=post.updated_at,
                 required=self.context.filters,
             )
@@ -162,7 +162,7 @@ class DownloadSinglePostUseCase:
                 self.post_file_path.unlink(missing_ok=True)
                 raise
 
-        self.context.post_cache.cache(post.title, post.updated_at, missing_parts)
+        self.context.post_cache.cache(post.uuid, post.updated_at, missing_parts)
         self.context.post_cache.commit()
         self.context.progress_reporter.complete_task(post_task_id)
         self.context.progress_reporter.success(f'Finished:  {self.destination.name}')

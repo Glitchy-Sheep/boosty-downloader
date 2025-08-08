@@ -32,6 +32,7 @@ PostDataPostOnlyChunksList = list[
 class Post:
     """Post on boosty.to which have different kinds of content (images, text, videos, etc.)"""
 
+    uuid: str
     title: str
     created_at: datetime
     updated_at: datetime
