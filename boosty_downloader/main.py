@@ -66,10 +66,13 @@ from boosty_downloader.src.interfaces.cli_options import (
     RequestDelaySecondsOption,  # noqa: TC001
     UsernameOption,  # noqa: TC001
 )
-from boosty_downloader.src.interfaces.console_progress_reporter import ProgressReporter
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from boosty_downloader.src.interfaces.console_progress_reporter import (
+        ProgressReporter,
+    )
 
 typer_app = typer.Typer(
     no_args_is_help=True,
