@@ -69,7 +69,9 @@ class DownloadPostByUrlUseCase:
 
         current_page = 0
 
-        async for page in self.boosty_api.iterate_over_posts(author_name=author_name):
+        async for page in self.boosty_api.iterate_over_posts(
+            author_name=author_name, posts_per_page=100
+        ):
             current_page += 1
             self.context.progress_reporter.info(
                 f'[Page({current_page})] Searching for the post with UUID: {post_uuid}... '
