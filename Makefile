@@ -41,7 +41,7 @@ deps:
 	poetry sync --no-interaction
 
 build:
-	poetry build 
+	poetry build --no-cache
 	@echo Build complete at /dist/
 
 # ------------------------------------------------------------------------------

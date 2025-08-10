@@ -33,17 +33,24 @@ The post content itself is saved in html with a little bit of styling.
 
 ## ✨ Features
 
-- 📦 **Bulk Download**: Download all available content from your favorite creator.
-- 📂 **Content Type Filters**: Download only the content you need (videos, images, etc), choose what you really want with flags (see below).
+- 📦 **Bulk download**: Download all available content from your favorite creator.
+- 🔎 **Total checker**: See how many posts are available to you, and which are not.
+- 📂 **Content type filters**: Download only the content you need (videos, images, etc), choose what you really want with flags (see below).
 - 📄 **Download specific posts**: Download post by url and username.
-- 🔃 **Sync Content seamlessly**: The utility keeps cache of already downloaded posts, so you can resume your download at any time or get new content after a while.
-- 📼 **Choose your video quality**: You can choose preferred video quality to download
+- 🔃 **Sync content seamlessly**: The utility keeps cache of already downloaded posts, so you can resume your download at any time or get new content after a while.
+- 📼 **Choose your video quality**: You can choose preferred video quality to download (for boosty videos)
+- 🎨 **Beauty posts preview**: You can see posts content with rendered offline html files with dark/light theme changing.
+- 📊 **Order matters**: Posts have dates in names, so you can just sort it by name in your file explorer and see them in the correct chronological order.
+- 🆙 **App update checker**: If new updates are available, you'll be notified when you use the application next time.
 
 
 ## 📸 Screenshots & Usage
 
-<img src="https://raw.githubusercontent.com/Glitchy-Sheep/boosty-downloader/main/assets/usage.png">
-<img src="https://raw.githubusercontent.com/Glitchy-Sheep/boosty-downloader/main/assets/screenshot.png">
+<img src="./assets/usage.png">
+<img src="./assets/total_check.png">
+<img src="./assets/example1.png">
+<img src="./assets/example2.png">
+
 
 
 ## 🛠️ Installation
@@ -51,7 +58,7 @@ The post content itself is saved in html with a little bit of styling.
 1. **Install python**:
    - Window:
       ```bash
-      winget install Python.Python.3.12
+      winget install Python.Python.3.13
       ```
    - Linux:
       ```bash
