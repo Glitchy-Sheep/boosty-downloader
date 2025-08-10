@@ -10,5 +10,6 @@
 
   "automerge": false,
   "autoApprove": false,
-  "platformAutomerge": false
+  "platformAutomerge": false,
+  "baseBranches": ["dev"]
 }

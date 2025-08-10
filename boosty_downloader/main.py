@@ -3,64 +3,134 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
-from typing import Annotated
+import importlib.metadata
+from typing import TYPE_CHECKING
 
 import aiohttp
 import typer
-from aiohttp_retry import ExponentialRetry, RetryClient
+from aiohttp.client_exceptions import ClientConnectorDNSError
+from aiohttp_retry import ExponentialRetry
+from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
 
-from boosty_downloader.src.boosty_api.core.client import (
-    BoostyAPIClient,
+from boosty_downloader.src.application.di.app_environment import AppEnvironment
+from boosty_downloader.src.application.di.download_context import DownloadContext
+from boosty_downloader.src.application.exceptions.application_errors import (
+    ApplicationCancelledError,
+)
+from boosty_downloader.src.application.filtering import (
+    DownloadContentTypeFilter,
+    VideoQualityOption,
+)
+from boosty_downloader.src.application.use_cases.check_total_posts import (
+    ReportTotalPostsCountUseCase,
+)
+from boosty_downloader.src.application.use_cases.download_all_posts import (
+    DownloadAllPostUseCase,
+)
+from boosty_downloader.src.application.use_cases.download_specific_post import (
+    DownloadPostByUrlUseCase,
+)
+from boosty_downloader.src.infrastructure.boosty_api.core.client import (
     BoostyAPINoUsernameError,
     BoostyAPIUnauthorizedError,
     BoostyAPIUnknownError,
+    BoostyAPIValidationError,
 )
-from boosty_downloader.src.boosty_api.core.endpoints import BASE_URL
-from boosty_downloader.src.boosty_api.utils.auth_parsers import (
+from boosty_downloader.src.infrastructure.boosty_api.utils.auth_parsers import (
     parse_auth_header,
     parse_session_cookie,
 )
-from boosty_downloader.src.download_manager.download_manager import (
-    BoostyDownloadManager,
-)
-from boosty_downloader.src.download_manager.download_manager_config import (
-    DownloadContentTypeFilter,
-    GeneralOptions,
-    LoggerDependencies,
-    NetworkDependencies,
-    VideoQualityOption,
-)
-from boosty_downloader.src.external_videos_downloader.external_videos_downloader import (
+from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
 )
-from boosty_downloader.src.loggers import logger_instances
-from boosty_downloader.src.loggers.failed_downloads_logger import FailedDownloadsLogger
-from boosty_downloader.src.loggers.logger_instances import downloader_logger
-from boosty_downloader.src.yaml_configuration.config import init_config
+from boosty_downloader.src.infrastructure.loggers import logger_instances
+from boosty_downloader.src.infrastructure.loggers.failed_downloads_logger import (
+    FailedDownloadsLogger,
+)
+from boosty_downloader.src.infrastructure.update_checker.pypi_checker import (
+    CheckFailed,
+    NoUpdate,
+    UpdateAvailable,
+    check_for_updates,
+)
+from boosty_downloader.src.infrastructure.yaml_configuration.config import init_config
+from boosty_downloader.src.interfaces.cli_options import (
+    # ---------------------------------------------------------------------------
+    # These imports can't be moved to TYPE_CHECKING
+    # because they are used by typer at runtime.
+    #
+    CheckTotalCountOption,  # noqa: TC001
+    CleanCacheOption,  # noqa: TC001
+    ContentTypeFilterOption,  # noqa: TC001
+    DestinationDirectoryOption,  # noqa: TC001
+    PostUrlOption,  # noqa: TC001
+    PreferredVideoQualityOption,  # noqa: TC001
+    RequestDelaySecondsOption,  # noqa: TC001
+    UsernameOption,  # noqa: TC001
+)
 
-app = typer.Typer(
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from boosty_downloader.src.interfaces.console_progress_reporter import (
+        ProgressReporter,
+    )
+
+typer_app = typer.Typer(
     no_args_is_help=True,
     add_completion=False,
     rich_markup_mode='rich',
 )
 
+GITHUB_ISSUES_URL = 'https://github.com/Glitchy-Sheep/boosty-downloader/issues'
 
-async def main(  # noqa: PLR0913 (too many arguments because of typer)
+
+def show_start_summary(
+    pr: ProgressReporter,
+    destination_directory: Path,
+    content_type_filter: list[DownloadContentTypeFilter],
+) -> None:
+    """Just simple review before start downloading"""
+    pr.info(
+        f'[italic]Destination directory[/italic]: [bold green]{destination_directory}[/bold green]'
+    )
+    pr.info(
+        '--------------------------------------------------------------------------\n'
+        'Script will download: [bold green]'
+        + ', '.join(str(item.name) for item in content_type_filter)
+        + '[/bold green]\n'
+        '--------------------------------------------------------------------------\n'
+    )
+    pr.notice(
+        'You can safely interrupt the download at any time with [bold yellow]Ctrl+C[/bold yellow].\n'
+    )
+    if DownloadContentTypeFilter.external_videos in content_type_filter:
+        pr.notice(
+            'Progress bar for external videos downloadings can be glitchy, because yt-dlp downloads them by chunks.\n'
+            "If you see strange progress movement that's normal in most cases, just be patient.\n"
+        )
+
+
+async def typer_cmd_handler(  # noqa: PLR0913 (too many arguments because of typer)
     *,
     username: str,
-    post_url: str | None,
+    post_url: PostUrlOption | None,
     check_total_count: bool,
     clean_cache: bool,
     content_type_filter: list[DownloadContentTypeFilter],
     preferred_video_quality: VideoQualityOption,
     request_delay_seconds: float,
+    destination_directory: Path | None,
 ) -> None:
     """Download all posts from the specified user"""
     config = init_config()
 
     cookie_string = config.auth.cookie
     auth_header = config.auth.auth_header
+
+    # Set the destination directory if provided
+    if destination_directory is not None:
+        config.downloading_settings.target_directory = destination_directory
 
     retry_options = ExponentialRetry(
         attempts=5,
@@ -73,161 +143,171 @@ async def main(  # noqa: PLR0913 (too many arguments because of typer)
         },
     )
 
-    async with aiohttp.ClientSession(
-        base_url=BASE_URL,
-        headers=await parse_auth_header(auth_header),
-        cookie_jar=await parse_session_cookie(cookie_string),
-    ) as session:
-        destionation_directory = Path('./boosty-downloads').absolute()
-        boosty_api_client = BoostyAPIClient(
-            RetryClient(session, retry_options=retry_options),
+    # --------------------------------------------------------------------------
+    # Check for updates and notify the user
+    current_version = importlib.metadata.version('boosty-downloader')
+    result = check_for_updates(current_version, 'boosty-downloader')
+    match result:
+        case UpdateAvailable():
+            logger_instances.downloader_logger.warning(
+                f'🔔 [bold green]Update available[/bold green]: {result.latest_version} (current: {result.current_version})'
+            )
+            logger_instances.downloader_logger.warning(
+                'You can update with --> [bold]pip install -U boosty-downloader[/bold]'
+            )
+            logger_instances.downloader_logger.warning(
+                'But first, please check the changelog for breaking changes\n'
+            )
+        case NoUpdate():
+            logger_instances.downloader_logger.info(
+                'You are using the latest boosty-downloader version.\n'
+            )
+        case CheckFailed():
+            logger_instances.downloader_logger.error(
+                'Failed to check for updates, please check it manually.\n'
+            )
+
+    # --------------------------------------------------------------------------
+    # Prepare app environment and start the task
+    async with AppEnvironment(
+        config=AppEnvironment.AppConfig(
+            author_name=username,
+            target_directory=config.downloading_settings.target_directory.absolute(),
+            boosty_headers=parse_auth_header(auth_header),
+            boosty_cookies_jar=parse_session_cookie(cookie_string),
+            retry_options=retry_options,
+            request_delay_seconds=request_delay_seconds,
+            logger=logger_instances.downloader_logger,
+        )
+    ) as app_environment:
+        downloading_context = DownloadContext(
+            author_name=username,
+            downloader_session=app_environment.downloading_retry_client,
+            external_videos_downloader=ExternalVideosDownloader(),
+            filters=content_type_filter,
+            post_cache=app_environment.post_cache,
+            preferred_video_quality=preferred_video_quality.to_ok_video_type(),
+            progress_reporter=app_environment.progress_reporter,
+            failed_logger=FailedDownloadsLogger(
+                log_file_path=config.downloading_settings.target_directory
+                / username
+                / 'failed_downloads.log',
+            ),
         )
 
-        async with aiohttp.ClientSession(
-            # Don't use BASE_URL here (for other domains)
-            # NOTE: Maybe should be refactored somehow to use same session
-            headers=session.headers,
-            cookie_jar=session.cookie_jar,
-            timeout=aiohttp.ClientTimeout(total=None),
-            trust_env=True,
-        ) as direct_session:
-            retry_client = RetryClient(
-                direct_session,
-                retry_options=retry_options,
+        # ------------------------------------------------------------------
+        # Cache cleaning
+        if clean_cache:
+            app_environment.post_cache.remove_cache_completely()
+            logger_instances.downloader_logger.success(
+                f'Cache for {username} has been cleaned successfully'
             )
+            return
 
-            downloader = BoostyDownloadManager(
-                general_options=GeneralOptions(
-                    target_directory=destionation_directory,
-                    download_content_type_filters=content_type_filter,
-                    request_delay_seconds=request_delay_seconds,
-                    preferred_video_quality=preferred_video_quality,
-                ),
-                network_dependencies=NetworkDependencies(
-                    session=retry_client,
-                    api_client=boosty_api_client,
-                    external_videos_downloader=ExternalVideosDownloader(),
-                ),
-                logger_dependencies=LoggerDependencies(
-                    logger=downloader_logger,
-                    failed_downloads_logger=FailedDownloadsLogger(
-                        file_path=destionation_directory
-                        / username
-                        / 'failed_downloads.txt',
-                    ),
-                ),
-            )
+        # ------------------------------------------------------------------
+        # Total Checker
+        if check_total_count:
+            await ReportTotalPostsCountUseCase(
+                author_name=username,
+                logger=logger_instances.downloader_logger,
+                boosty_api=app_environment.boosty_api_client,
+            ).execute()
+            return
 
-            if check_total_count:
-                await downloader.only_check_total_posts(username)
-                return
+        # ------------------------------------------------------------------
+        # Download specific post by URL
+        if post_url is not None:
+            await DownloadPostByUrlUseCase(
+                post_url=post_url,
+                boosty_api=app_environment.boosty_api_client,
+                destination=app_environment.destination_directory,
+                download_context=downloading_context,
+            ).execute()
+            return
 
-            if clean_cache:
-                await downloader.clean_cache(username)
-                return
+        # ------------------------------------------------------------------
+        # Download all posts
 
-            if post_url is not None:
-                await downloader.download_post_by_url(username, post_url)
-                return
+        show_start_summary(
+            pr=app_environment.progress_reporter,
+            destination_directory=app_environment.destination_directory,
+            content_type_filter=content_type_filter,
+        )
 
-            await downloader.download_all_posts(username)
+        await DownloadAllPostUseCase(
+            author_name=username,
+            boosty_api=app_environment.boosty_api_client,
+            destination=app_environment.destination_directory,
+            download_context=downloading_context,
+        ).execute()
 
 
-@app.command()
-def main_wrapper(  # noqa: PLR0913 (too many arguments because of typer)
+# Use wrapper because typer can't run async functions directly
+@typer_app.command()
+def typer_cmd_entrypoint(  # noqa: PLR0913 (too many arguments because of typer)
     *,
-    username: Annotated[
-        str,
-        typer.Option(),
-    ],
-    request_delay_seconds: Annotated[
-        float,
-        typer.Option(
-            '--request-delay-seconds',
-            '-d',
-            help='Delay between requests to the API, in seconds',
-            min=1,
-        ),
-    ] = 2.5,
-    post_url: Annotated[
-        str | None,
-        typer.Option(
-            '--post-url',
-            '-p',
-            help='Download only the specified post if possible',
-        ),
-    ] = None,
-    content_type_filter: Annotated[
-        list[DownloadContentTypeFilter] | None,
-        typer.Option(
-            '--content-type-filter',
-            '-f',
-            help='Filter the download by content type [[bold]files, post_content, boosty_videos, external_videos[/bold]]',
-        ),
-    ] = None,
-    preferred_video_quality: Annotated[
-        VideoQualityOption,
-        typer.Option(
-            '--preferred-video-quality',
-            '-q',
-            help='Preferred video quality option for downloader, will be considered during choosing video links, but if there is no suitable video quality - the best available will be used',
-        ),
-    ] = VideoQualityOption.medium,
-    check_total_count: Annotated[
-        bool,
-        typer.Option(
-            '--total-post-check',
-            '-t',
-            help='Check total count of posts and exit, no download',
-        ),
-    ] = False,
-    clean_cache: Annotated[
-        bool,
-        typer.Option(
-            '--clean-cache',
-            '-c',
-            help='Remove posts cache for selected username, so all posts will be redownloaded',
-        ),
-    ] = False,
+    username: UsernameOption,
+    request_delay_seconds: RequestDelaySecondsOption = 2.5,
+    post_url: PostUrlOption = None,
+    content_type_filter: ContentTypeFilterOption = None,
+    preferred_video_quality: PreferredVideoQualityOption = VideoQualityOption.medium,
+    check_total_count: CheckTotalCountOption = False,
+    clean_cache: CleanCacheOption = False,
+    destination_directory: DestinationDirectoryOption = None,
 ) -> None:
     """
     [bold]ABOUT:[/bold]
 
     ======
-        CLI Tool to download posts from Boosty by author username.
-        You can use the --post-url option to download only the specified post.
-        Otherwise all posts will be downloaded from the newest to the oldest.
+        CLI tool to download Boosty posts by author username.
+
+        - Use `--post-url` to download a specific post.
+        - By default, downloads all posts from newest to oldest with all available contents.
+        - Unavailable posts are skipped, and you will be notified about them.
+
 
     [bold]CONTENT FILTERING:[/bold]
 
-        You can specify several -f flags to choose what content to download.
-        By default all flags are enabled.
-        [italic]boosty-downloader --username <USERNAME> -f files -f post_content[/italic]
+        - Use multiple `-f` flags to select content types (all included by default).
+        - Example: [italic]boosty-downloader --username <USERNAME> -f files -f post_content[/italic]
+        - [bold red]NOTE:[/bold red] If you specify [italic]post_content[/italic] without [italic]boosty_videos[/italic] or [italic]external_videos[/italic],
+                videos won't attach to post previews due to cache limitations.
+        - For best results, just leave all filters by default.
 
-    [bold yellow]ABOUT RATE LIMITING:[/bold yellow]
 
-        [bold]If you have error messages often[/bold], try to refresh auth/cookie with new one after re-login.
-        Or increase [bold]request delay seconds[/bold] (default is 2.5).
-        Also some wait can be helpful too, if you are restricted by the boosty.to itself.
+    [bold]RATE LIMITING:[/bold]
 
-        Anyways, remember, don't be rude and don't spam the API.
+        - Increase request delay (default 2.5s) if you get errors.
+        - Please avoid spamming the API.
+
+
+    [bold]ABOUT CONTENT SYNC & CACHING:[/bold]
+
+        - Downloaded content is cached automatically to avoid duplicates.
+        - Downloading the same post with different filters downloads only missing parts.
+        - Posts updated by creators are fully re-downloaded.
+        - Cache doesn't check local files, you can delete them and they still won't re-download.
+
     """
     asyncio.run(
-        main(
+        typer_cmd_handler(
             username=username,
             check_total_count=check_total_count,
             clean_cache=clean_cache,
             post_url=post_url,
-            content_type_filter=content_type_filter
-            if content_type_filter
-            else list(DownloadContentTypeFilter),
+            content_type_filter=(
+                content_type_filter
+                if content_type_filter
+                else list(DownloadContentTypeFilter)
+            ),
             preferred_video_quality=preferred_video_quality,
             request_delay_seconds=request_delay_seconds,
+            destination_directory=destination_directory,
         ),
     )
 
 
-def bootstrap() -> None:
+def entry_point() -> None:
     """
     Run main entry point of the whole app.
 
@@ -237,14 +317,49 @@ def bootstrap() -> None:
     because main app by itself is async and can't be run directly with typer.
     """
     try:
-        app()
+        typer_app()
     except BoostyAPINoUsernameError:
         logger_instances.downloader_logger.error('Username not found')
     except BoostyAPIUnauthorizedError:
-        logger_instances.downloader_logger.error('Unauthorized: Bad credentials')
+        logger_instances.downloader_logger.error(
+            'Unauthorized: Bad credentials, please relogin and update your config file'
+        )
     except BoostyAPIUnknownError:
-        logger_instances.downloader_logger.error('Boosty returned unknown error')
+        logger_instances.downloader_logger.error(
+            f'Unknown error occurred, please report this at GitHub issues of the project: {GITHUB_ISSUES_URL}'
+        )
+    except BoostyAPIValidationError as e:
+        logger_instances.downloader_logger.error(
+            'Boosty API returned unexpected structures, the client probably needs to be updated.\n'
+            f'Please report this at GitHub issues of the project: {GITHUB_ISSUES_URL}\n'
+            '\n'
+            f'Details: {e.errors!s}'
+        )
+    except ApplicationCancelledError:
+        logger_instances.downloader_logger.warning(
+            'Download cancelled by user, see you later! 💘\n'
+        )
+    except ClientConnectorDNSError:
+        logger_instances.downloader_logger.error(
+            'Network error: Unable to connect to Boosty API, please check your internet connection.'
+        )
+    except (
+        OperationalError,
+        DatabaseError,
+        IntegrityError,
+    ) as e:
+        logger_instances.downloader_logger.error('⚠️  Cache Error!\n' + str(e))
+        logger_instances.downloader_logger.warning(
+            'Cache format may be outdated after application update.'
+        )
+        logger_instances.downloader_logger.info(
+            '👉 You can clean outdated cache with --clean-cache flag'
+        )
+        logger_instances.downloader_logger.info(
+            '👉 If this will still happen - please report it at GitHub issues:'
+        )
+        logger_instances.downloader_logger.info(f'👉 {GITHUB_ISSUES_URL}')
 
 
 if __name__ == '__main__':
-    bootstrap()
+    entry_point()

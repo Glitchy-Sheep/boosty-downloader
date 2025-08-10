@@ -1,11 +1,11 @@
-from boosty_downloader.src.boosty_api.models.post.post_data_types.post_data_ok_video import (
-    OkVideoType,
-    OkVideoUrl,
-)
-from boosty_downloader.src.download_manager.utils.ok_video_ranking import (
-    RankingDict,
+from boosty_downloader.src.application.mappers import (
     get_best_video,
     get_quality_ranking,
+)
+from boosty_downloader.src.application.ok_video_ranking import (
+    BoostyOkVideoType,
+    BoostyOkVideoUrl,
+    RankingDict,
 )
 
 
@@ -38,42 +38,48 @@ def test_ranking_dict_delete():
 
 def test_get_quality_ranking():
     ranking = get_quality_ranking()
-    assert ranking[OkVideoType.ultra_hd] == 17
-    assert ranking[OkVideoType.lowest] == 10
-    assert ranking.pop_max() == (OkVideoType.ultra_hd, 17)
-    assert ranking.pop_max() == (OkVideoType.quad_hd, 16)
-    assert ranking.pop_max() == (OkVideoType.full_hd, 15)
+    assert ranking[BoostyOkVideoType.ultra_hd] == 17
+    assert ranking[BoostyOkVideoType.lowest] == 10
+    assert ranking.pop_max() == (BoostyOkVideoType.ultra_hd, 17)
+    assert ranking.pop_max() == (BoostyOkVideoType.quad_hd, 16)
+    assert ranking.pop_max() == (BoostyOkVideoType.full_hd, 15)
 
 
 def test_get_best_video():
     video_urls = [
-        OkVideoUrl(type=OkVideoType.low, url='low.mp4'),
-        OkVideoUrl(type=OkVideoType.medium, url='medium.mp4'),
-        OkVideoUrl(type=OkVideoType.full_hd, url='full_hd.mp4'),
+        BoostyOkVideoUrl(type=BoostyOkVideoType.low, url='low.mp4'),
+        BoostyOkVideoUrl(type=BoostyOkVideoType.medium, url='medium.mp4'),
+        BoostyOkVideoUrl(type=BoostyOkVideoType.full_hd, url='full_hd.mp4'),
     ]
 
-    best_video = get_best_video(video_urls)
+    best_video_info = get_best_video(video_urls)
+    best_video = best_video_info[0] if best_video_info else None
     assert best_video is not None
-    assert best_video.type == OkVideoType.medium  # Default preference
+    assert best_video.type == BoostyOkVideoType.medium  # Default preference
     assert best_video.url == 'medium.mp4'
 
 
 def test_get_best_video_with_preference():
     video_urls = [
-        OkVideoUrl(type=OkVideoType.low, url='low.mp4'),
-        OkVideoUrl(type=OkVideoType.full_hd, url='full_hd.mp4'),
+        BoostyOkVideoUrl(type=BoostyOkVideoType.low, url='low.mp4'),
+        BoostyOkVideoUrl(type=BoostyOkVideoType.full_hd, url='full_hd.mp4'),
     ]
 
-    best_video = get_best_video(video_urls, preferred_quality=OkVideoType.full_hd)
+    best_video_info = get_best_video(
+        video_urls, preferred_quality=BoostyOkVideoType.full_hd
+    )
+
+    best_video = best_video_info[0] if best_video_info else None
+
     assert best_video is not None
-    assert best_video.type == OkVideoType.full_hd
+    assert best_video.type == BoostyOkVideoType.full_hd
     assert best_video.url == 'full_hd.mp4'
 
 
 def test_get_best_video_no_available():
     video_urls = [
-        OkVideoUrl(type=OkVideoType.low, url=''),  # No valid URL
-        OkVideoUrl(type=OkVideoType.medium, url=''),
+        BoostyOkVideoUrl(type=BoostyOkVideoType.low, url=''),  # No valid URL
+        BoostyOkVideoUrl(type=BoostyOkVideoType.medium, url=''),
     ]
 
     best_video = get_best_video(video_urls)

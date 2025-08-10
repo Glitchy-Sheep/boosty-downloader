@@ -1,0 +1,36 @@
+{% macro render_item(item) -%}
+<li>
+    {% for txt in item.data %}
+    {{ render_chunk(txt) | safe }}
+    {% endfor %}
+    {% if item.nested_items %}
+    {% if lst.style.value == 'ordered' %}
+    <ol>
+        {% else %}
+        <ul>
+            {% endif %}
+            {% for nested in item.nested_items %}
+            {{ render_item(nested) }}
+            {% endfor %}
+            {% if lst.style.value == 'ordered' %}
+    </ol>
+    {% else %}
+    </ul>
+    {% endif %}
+    {% endif %}
+</li>
+{%- endmacro %}
+
+{% if lst.style.value == 'ordered' %}
+<ol>
+    {% else %}
+    <ul>
+        {% endif %}
+        {% for item in lst.items %}
+        {{ render_item(item) }}
+        {% endfor %}
+        {% if lst.style.value == 'ordered' %}
+</ol>
+{% else %}
+</ul>
+{% endif %}
