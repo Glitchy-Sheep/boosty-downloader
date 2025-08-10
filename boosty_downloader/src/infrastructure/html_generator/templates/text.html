@@ -1,18 +1,31 @@
 {% for frag in text.text_fragments %}
-{% if frag.header_level > 0 %}
-<h{{ frag.header_level }}>{{ frag.text }}</h{{ frag.header_level }}>
+{% set lvl = frag.header_level|default(0)|int %}
+{% if lvl > 0 %}
+{% if lvl > 6 %}{% set lvl = 6 %}{% endif %}
+<h{{ lvl }}>{{ frag.text }}</h{{ lvl }}>
 {% else %}
-{% if frag.text == "\n" %}
+{% if frag.text in ['\n', '\r\n'] %}
 <br>
 {% else %}
-<span {% if frag.style.bold %} style="font-weight:bold;" {% endif %} {% if frag.style.underline %}
-    style="text-decoration:underline;" {% endif %} {% if frag.style.italic %} style="font-style:italic;" {% endif %}>
-    {% if frag.link_url %}
-    <a href="{{ frag.link_url }}">{{ frag.text }}</a>
-    {% else %}
-    {{ frag.text }}
-    {% endif %}
-</span>
+{% if frag.link_url %}
+<a href="{{ frag.link_url|e }}">
+    {% if frag.style.bold %}<strong>{% endif %}
+        {% if frag.style.italic %}<em>{% endif %}
+            {% if frag.style.underline %}<u>{% endif %}
+                {{ frag.text }}
+                {% if frag.style.underline %}</u>{% endif %}
+            {% if frag.style.italic %}</em>{% endif %}
+        {% if frag.style.bold %}</strong>{% endif %}
+</a>
+{% else %}
+{% if frag.style.bold %}<strong>{% endif %}
+    {% if frag.style.italic %}<em>{% endif %}
+        {% if frag.style.underline %}<u>{% endif %}
+            {{ frag.text }}
+            {% if frag.style.underline %}</u>{% endif %}
+        {% if frag.style.italic %}</em>{% endif %}
+    {% if frag.style.bold %}</strong>{% endif %}
+{% endif %}
 {% endif %}
 {% endif %}
 {% endfor %}

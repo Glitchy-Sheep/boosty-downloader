@@ -43,13 +43,8 @@ UpdateResult = UpdateAvailable | NoUpdate | CheckFailed
 
 def get_pypi_latest_version(package_name: str) -> str | None:
     """Fetch the latest version string of a package from PyPI."""
-    url = f'https://pypi.org/pypi/{package_name}/json'
-
-    if not url.startswith(('https://', 'http://')):
-        return None
-
     try:
-        with urlopen(url) as resp:  # noqa: S310 url has valid scheme by the check above + it's a const
+        with urlopen(f'https://pypi.org/pypi/{package_name}/json') as resp:
             data = json.load(resp)
             return data['info']['version']
     except Exception:  # noqa: BLE001 It doesn't matter what exception is raised, we just need to 100% catch it

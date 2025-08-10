@@ -4,7 +4,7 @@ from enum import Enum
 
 
 class HelpPanels(str, Enum):
-    """Panels for groupping arguments in the CLI help."""
+    """Panels for grouping arguments in the CLI help."""
 
     actions = 'Actions'
     filtering = 'Filtering'

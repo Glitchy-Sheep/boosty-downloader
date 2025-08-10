@@ -72,6 +72,22 @@ class BoostyAPIValidationError(BoostyAPIError):
         self.errors = errors
 
 
+def _create_limiter(request_delay_seconds: float) -> AsyncLimiter | None:
+    # aiolimiter expects max_rate and time_period to be positive.
+    # For delays <1s, we use a 1-second window and scale the rate to avoid exceptions and ensure correct throttling.
+    # For delays >=1s, we allow 1 request per delay period, matching the intended throttle.
+    # Without this logic, certain values (e.g. delay=0.5) would cause aiolimiter to raise or throttle incorrectly.
+    if request_delay_seconds > 0:
+        if request_delay_seconds < 1:
+            max_rate = 1 / request_delay_seconds
+            time_period = 1
+        else:
+            max_rate = 1
+            time_period = request_delay_seconds
+        return AsyncLimiter(max_rate=max_rate, time_period=time_period)
+    return None
+
+
 class BoostyAPIClient:
     """
     Main client class for the Boosty API.
@@ -87,23 +103,11 @@ class BoostyAPIClient:
         self,
         session: RetryClient,
         request_delay_seconds: float = 0.0,
-        base_url: URL | None = None,  # For monkey patching purposes
+        base_url: URL | None = None,
     ) -> None:
         self._base_url = base_url or BOOSTY_DEFAULT_BASE_URL
-
         self.session = session
-        if request_delay_seconds > 0:
-            if request_delay_seconds < 1:
-                # For delays less than 1 second, keep 1-second window and scale rate
-                max_rate = 1 / request_delay_seconds
-                time_period = 1
-            else:
-                # For delays 1 second or more, allow 1 request per `request_delay_seconds`
-                max_rate = 1
-                time_period = request_delay_seconds
-            self._limiter = AsyncLimiter(max_rate=max_rate, time_period=time_period)
-        else:
-            self._limiter = None
+        self._limiter = _create_limiter(request_delay_seconds)
 
     async def _throttled_get(
         self,
