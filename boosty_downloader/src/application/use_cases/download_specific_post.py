@@ -3,10 +3,14 @@
 from pathlib import Path
 
 from boosty_downloader.src.application.di.download_context import DownloadContext
+from boosty_downloader.src.application.exceptions.application_errors import (
+    ApplicationCancelledError,
+)
 from boosty_downloader.src.application.use_cases.check_total_posts import (
     BoostyAPIClient,
 )
 from boosty_downloader.src.application.use_cases.download_single_post import (
+    ApplicationFailedDownloadError,
     DownloadSinglePostUseCase,
 )
 from boosty_downloader.src.infrastructure.file_downloader import sanitize_string
@@ -85,12 +89,21 @@ class DownloadPostByUrlUseCase:
                     post_name = f'{post.created_at.date()} - {post.title}'
                     post_name = sanitize_string(post_name).replace('.', '').strip()
 
-                    await DownloadSinglePostUseCase(
-                        post_dto=post,
-                        destination=self.destination / post_name,
-                        download_context=self.context,
-                    ).execute()
-                    return
+                    try:
+                        await DownloadSinglePostUseCase(
+                            post_dto=post,
+                            destination=self.destination / post_name,
+                            download_context=self.context,
+                        ).execute()
+                    except ApplicationCancelledError:
+                        self.context.progress_reporter.warn(
+                            'Download cancelled by user. Bye!'
+                        )
+                    except ApplicationFailedDownloadError as e:
+                        self.context.progress_reporter.error(
+                            f'Failed to download post: {e.message}, RESOURCE: ({e.resource})'
+                        )
+                        return
 
         self.context.progress_reporter.error(
             'Failed to find and download the specified post.'

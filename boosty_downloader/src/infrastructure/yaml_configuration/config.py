@@ -13,9 +13,7 @@ from pydantic_settings import (
     YamlConfigSettingsSource,
 )
 
-from boosty_downloader.src.infrastructure.loggers.logger_instances import (
-    downloader_logger,
-)
+from boosty_downloader.src.infrastructure.loggers import logger_instances
 from boosty_downloader.src.infrastructure.yaml_configuration.sample_config import (
     DEFAULT_YAML_CONFIG_VALUE,
 )
@@ -77,8 +75,8 @@ def init_config() -> Config:
     try:
         if not CONFIG_LOCATION.exists():
             create_sample_config_file()
-            downloader_logger.error("Config doesn't exist")
-            downloader_logger.success(
+            logger_instances.downloader_logger.error("Config doesn't exist")
+            logger_instances.downloader_logger.success(
                 f'Created a sample config file at {CONFIG_LOCATION.absolute()}, please fill `auth_header` and `cookie` with yours before running the app',
             )
             sys.exit(1)
@@ -86,11 +84,13 @@ def init_config() -> Config:
     except ValidationError:
         # If can't be parsed correctly
         create_sample_config_file()
-        downloader_logger.error('Config is invalid (could not be parsed)')
-        downloader_logger.error(
+        logger_instances.downloader_logger.error(
+            'Config is invalid (could not be parsed)'
+        )
+        logger_instances.downloader_logger.error(
             '[bold yellow]Make sure you fill `auth_header` and `cookie` with yours, they are required[/bold yellow]',
         )
-        downloader_logger.success(
+        logger_instances.downloader_logger.success(
             f'Recreated it at [green bold]{CONFIG_LOCATION.absolute()}[/green bold]',
         )
         sys.exit(1)

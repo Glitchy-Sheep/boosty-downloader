@@ -4,14 +4,14 @@ import asyncio
 from pathlib import Path
 
 from boosty_downloader.src.application.di.download_context import DownloadContext
+from boosty_downloader.src.application.exceptions.application_errors import (
+    ApplicationCancelledError,
+    ApplicationFailedDownloadError,
+)
 from boosty_downloader.src.application.use_cases.download_single_post import (
     DownloadSinglePostUseCase,
 )
 from boosty_downloader.src.infrastructure.boosty_api.core.client import BoostyAPIClient
-from boosty_downloader.src.infrastructure.file_downloader import DownloadCancelledError
-from boosty_downloader.src.infrastructure.loggers.logger_instances import (
-    downloader_logger,
-)
 from boosty_downloader.src.infrastructure.path_sanitizer import (
     sanitize_string,
 )
@@ -59,7 +59,7 @@ class DownloadAllPostUseCase:
 
             for post_dto in page.posts:
                 if not post_dto.has_access:
-                    downloader_logger.warning(
+                    self.context.progress_reporter.warn(
                         f'Skip post ([red]no access to content[/red]): {post_dto.title}'
                     )
                     continue
@@ -93,19 +93,22 @@ class DownloadAllPostUseCase:
                     try:
                         await single_post_use_case.execute()
                         break
-                    except (asyncio.CancelledError, DownloadCancelledError):
+                    except ApplicationCancelledError:
                         raise
-                    except Exception as exc:  # noqa: BLE001 We don't really care about specific exceptions (just for retry logic)
+                    except ApplicationFailedDownloadError as e:
                         if attempt == max_attempts:
-                            downloader_logger.error(
-                                f'Skip post after {attempt} failed attempts: {full_post_title} ({exc})'
+                            self.context.progress_reporter.error(
+                                f'Skip post after {attempt} failed attempts: {full_post_title} ({e.message})'
                             )
                         else:
-                            downloader_logger.warning(
-                                f'Attempt {attempt} failed for post: {full_post_title}. Retrying in {delay:.1f}s... ({exc})'
+                            self.context.progress_reporter.warn(
+                                f'Attempt {attempt} failed for post: {full_post_title} ({e.message}), RESOURCE: ({e.resource})'
+                            )
+                            self.context.progress_reporter.warn(
+                                f'Retrying in {delay:.1f}s... ({e.message})'
                             )
                             await asyncio.sleep(delay)
-                            delay = min(delay * 2, 30.0)
+                            delay = min(delay * 1.5, 10.0)
 
             self.context.progress_reporter.complete_task(page_task_id)
             self.context.progress_reporter.success(

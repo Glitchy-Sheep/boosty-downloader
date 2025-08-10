@@ -14,6 +14,9 @@ from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
 
 from boosty_downloader.src.application.di.app_environment import AppEnvironment
 from boosty_downloader.src.application.di.download_context import DownloadContext
+from boosty_downloader.src.application.exceptions.application_errors import (
+    ApplicationCancelledError,
+)
 from boosty_downloader.src.application.filtering import (
     DownloadContentTypeFilter,
     VideoQualityOption,
@@ -40,10 +43,9 @@ from boosty_downloader.src.infrastructure.boosty_api.utils.auth_parsers import (
 from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
 )
-from boosty_downloader.src.infrastructure.file_downloader import DownloadCancelledError
 from boosty_downloader.src.infrastructure.loggers import logger_instances
-from boosty_downloader.src.infrastructure.loggers.logger_instances import (
-    downloader_logger,
+from boosty_downloader.src.infrastructure.loggers.failed_downloads_logger import (
+    FailedDownloadsLogger,
 )
 from boosty_downloader.src.infrastructure.update_checker.pypi_checker import (
     CheckFailed,
@@ -179,19 +181,25 @@ async def typer_cmd_handler(  # noqa: PLR0913 (too many arguments because of typ
         )
     ) as app_environment:
         downloading_context = DownloadContext(
+            author_name=username,
             downloader_session=app_environment.downloading_retry_client,
             external_videos_downloader=ExternalVideosDownloader(),
             filters=content_type_filter,
             post_cache=app_environment.post_cache,
             preferred_video_quality=preferred_video_quality.to_ok_video_type(),
             progress_reporter=app_environment.progress_reporter,
+            failed_logger=FailedDownloadsLogger(
+                log_file_path=config.downloading_settings.target_directory
+                / username
+                / 'failed_downloads.log',
+            ),
         )
 
         # ------------------------------------------------------------------
         # Cache cleaning
         if clean_cache:
             app_environment.post_cache.remove_cache_completely()
-            downloader_logger.success(
+            logger_instances.downloader_logger.success(
                 f'Cache for {username} has been cleaned successfully'
             )
             return
@@ -201,7 +209,7 @@ async def typer_cmd_handler(  # noqa: PLR0913 (too many arguments because of typ
         if check_total_count:
             await ReportTotalPostsCountUseCase(
                 author_name=username,
-                logger=downloader_logger,
+                logger=logger_instances.downloader_logger,
                 boosty_api=app_environment.boosty_api_client,
             ).execute()
             return
@@ -327,7 +335,7 @@ def entry_point() -> None:
             '\n'
             f'Details: {e.errors!s}'
         )
-    except DownloadCancelledError:
+    except ApplicationCancelledError:
         logger_instances.downloader_logger.warning(
             'Download cancelled by user, see you later! 💘\n'
         )

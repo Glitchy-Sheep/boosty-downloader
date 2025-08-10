@@ -11,6 +11,9 @@ from boosty_downloader.src.application.filtering import (
 from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
 )
+from boosty_downloader.src.infrastructure.loggers.failed_downloads_logger import (
+    FailedDownloadsLogger,
+)
 from boosty_downloader.src.infrastructure.post_caching.post_cache import SQLitePostCache
 from boosty_downloader.src.interfaces.console_progress_reporter import ProgressReporter
 
@@ -19,9 +22,11 @@ from boosty_downloader.src.interfaces.console_progress_reporter import ProgressR
 class DownloadContext:
     """Aggregates dependencies and configuration for the download workflow."""
 
+    author_name: str
     downloader_session: RetryClient
     external_videos_downloader: ExternalVideosDownloader
     post_cache: SQLitePostCache
     filters: list[DownloadContentTypeFilter]
-    progress_reporter: ProgressReporter
     preferred_video_quality: BoostyOkVideoType
+    progress_reporter: ProgressReporter
+    failed_logger: FailedDownloadsLogger

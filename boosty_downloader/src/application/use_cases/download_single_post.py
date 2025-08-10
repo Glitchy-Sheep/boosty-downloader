@@ -11,6 +11,10 @@ from pathlib import Path
 from yarl import URL
 
 from boosty_downloader.src.application.di.download_context import DownloadContext
+from boosty_downloader.src.application.exceptions.application_errors import (
+    ApplicationCancelledError,
+    ApplicationFailedDownloadError,
+)
 from boosty_downloader.src.application.filtering import (
     DownloadContentTypeFilter,
 )
@@ -35,8 +39,12 @@ from boosty_downloader.src.domain.post_data_chunks import (
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
 from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
     ExternalVideoDownloadStatus,
+    ExtVideoDownloadError,
+    ExtVideoInfoError,
+    ExtVideoInterruptedByUserError,
 )
 from boosty_downloader.src.infrastructure.file_downloader import (
+    DownloadCancelledError,
     DownloadError,
     DownloadFileConfig,
     DownloadingStatus,
@@ -52,6 +60,10 @@ from boosty_downloader.src.infrastructure.html_generator.renderer import (
 from boosty_downloader.src.infrastructure.human_readable_filesize import (
     human_readable_size,
 )
+
+
+def _form_post_url(username: str, post_id: str) -> str:
+    return f'https://boosty.to/{username}/posts/{post_id}'
 
 
 class DownloadSinglePostUseCase:
@@ -119,6 +131,15 @@ class DownloadSinglePostUseCase:
     # Main method do start the action
 
     async def execute(self) -> None:
+        """
+        Execute the use case to download a single post.
+
+        Raises
+        ------
+        ApplicationCancelledError: If the download is cancelled by the user.
+        ApplicationFailedDownloadError: If the download fails for any reason for a specific post.
+
+        """
         post = map_post_dto_to_domain(
             self.post_dto, preferred_video_quality=self.context.preferred_video_quality
         )
@@ -146,26 +167,32 @@ class DownloadSinglePostUseCase:
 
         self.destination.mkdir(parents=True, exist_ok=True)
         post_task_id = self._start_post_task(post)
+        try:
+            post_html: list[HtmlGenChunk] = []
 
-        post_html: list[HtmlGenChunk] = []
+            for chunk in post.post_data_chunks:
+                html_chunk = await self._safely_process_chunk(
+                    chunk, missing_parts, post
+                )
+                if html_chunk:
+                    post_html.append(html_chunk)
 
-        for chunk in post.post_data_chunks:
-            html_chunk = await self._process_chunk(chunk, missing_parts)
-            if html_chunk:
-                post_html.append(html_chunk)
-            self._update_post_task(post_task_id)
+                self._update_post_task(post_task_id)
 
-        if DownloadContentTypeFilter.post_content in missing_parts:
-            try:
-                render_html_to_file(post_html, out_path=self.post_file_path)
-            except CancelledError:
-                self.post_file_path.unlink(missing_ok=True)
-                raise
+            if DownloadContentTypeFilter.post_content in missing_parts:
+                try:
+                    render_html_to_file(post_html, out_path=self.post_file_path)
+                except CancelledError:
+                    self.post_file_path.unlink(missing_ok=True)
+                    raise
 
-        self.context.post_cache.cache(post.uuid, post.updated_at, missing_parts)
-        self.context.post_cache.commit()
-        self.context.progress_reporter.complete_task(post_task_id)
-        self.context.progress_reporter.success(f'Finished:  {self.destination.name}')
+            self.context.post_cache.cache(post.uuid, post.updated_at, missing_parts)
+            self.context.post_cache.commit()
+            self.context.progress_reporter.success(
+                f'Finished:  {self.destination.name}'
+            )
+        finally:
+            self.context.progress_reporter.complete_task(post_task_id)
 
     def _start_post_task(self, post: Post) -> uuid.UUID:
         return self.context.progress_reporter.create_task(
@@ -179,6 +206,66 @@ class DownloadSinglePostUseCase:
             post_task_id,
             advance=1,
         )
+
+    async def _safely_process_chunk(
+        self,
+        chunk: PostDataAllChunks,
+        missing_parts: list[DownloadContentTypeFilter],
+        post: Post,
+    ) -> HtmlGenChunk | None:
+        """
+        Safely process a chunk of post data and return the HTML representation if applicable.
+
+        Handles exceptions and ensures that the post task is updated correctly.
+        """
+        # Centralized error handling to transform low level exceptions to application level
+        try:
+            return await self._process_chunk(chunk, missing_parts)
+        # KeyboardInterrupt while downloading file
+        except DownloadCancelledError as e:
+            if e.file:
+                e.file.unlink(missing_ok=True)
+            raise ApplicationCancelledError(post_uuid=post.uuid) from e
+        # KeyboardInterrupt while downloading external video
+        except ExtVideoInterruptedByUserError as e:
+            raise ApplicationCancelledError(post_uuid=post.uuid) from e
+        # KeyboardInterrupt during asyncio tasks (general case)
+        except CancelledError as e:
+            raise ApplicationCancelledError(post_uuid=post.uuid) from e
+        # Error while downloading file (e.g. boosty video / files / images)
+        except DownloadError as e:
+            if e.file:
+                e.file.unlink(missing_ok=True)
+            await self.context.failed_logger.add_error(
+                f'{_form_post_url(username=self.context.author_name, post_id=post.uuid)} - {e.resource_url}',
+                f'Failed to download file ({e.file}): {e.message}',
+            )
+            raise ApplicationFailedDownloadError(
+                post_uuid=post.uuid,
+                message=f"Couldn't download resource: {e.message}",
+                resource=e.file.name if e.file else 'Unknown name',
+            ) from e
+        # Error while downloading external video
+        except ExtVideoInfoError as e:
+            await self.context.failed_logger.add_error(
+                f'{_form_post_url(username=self.context.author_name, post_id=post.uuid)} - {e.video_url}',
+                "External video unavailable or access restricted (can't get info)",
+            )
+            raise ApplicationFailedDownloadError(
+                post_uuid=post.uuid,
+                message='External video unavailable or access restricted.',
+                resource='UNAVAILABLE',
+            ) from e
+        except ExtVideoDownloadError as e:
+            await self.context.failed_logger.add_error(
+                f'{_form_post_url(username=self.context.author_name, post_id=post.uuid)} - {e.video_url}',
+                'External video download failed',
+            )
+            raise ApplicationFailedDownloadError(
+                post_uuid=post.uuid,
+                message="Couldn't download external video",
+                resource=e.video_url,
+            ) from e
 
     async def _process_chunk(
         self,
@@ -260,12 +347,8 @@ class DownloadSinglePostUseCase:
 
         try:
             downloaded_file_path = await download_file(dl_config)
-        except DownloadError as e:
-            if e.file:
-                e.file.unlink(missing_ok=True)
-            raise
-
-        self.context.progress_reporter.complete_task(download_task_id)
+        finally:
+            self.context.progress_reporter.complete_task(download_task_id)
 
         return downloaded_file_path.relative_to(self.post_file_path.parent)
 
@@ -290,13 +373,16 @@ class DownloadSinglePostUseCase:
                 description=f'Downloading external video [{human_downloaded_size} / {human_total_size}]: {external_video.url}',
             )
 
-        downloaded_file_path = self.context.external_videos_downloader.download_video(
-            url=external_video.url,
-            destination_directory=self.external_videos_destination,
-            progress_hook=update_progress,
-        )
-
-        self.context.progress_reporter.complete_task(download_video_task_id)
+        try:
+            downloaded_file_path = (
+                self.context.external_videos_downloader.download_video(
+                    url=external_video.url,
+                    destination_directory=self.external_videos_destination,
+                    progress_hook=update_progress,
+                )
+            )
+        finally:
+            self.context.progress_reporter.complete_task(download_video_task_id)
 
         return downloaded_file_path.relative_to(self.external_videos_destination.parent)
 
@@ -331,12 +417,8 @@ class DownloadSinglePostUseCase:
 
         try:
             downloaded_file_path = await download_file(dl_config)
-        except DownloadError as e:
-            if e.file:
-                e.file.unlink(missing_ok=True)
-            raise
-
-        self.context.progress_reporter.complete_task(download_task_id)
+        finally:
+            self.context.progress_reporter.complete_task(download_task_id)
 
         return downloaded_file_path.relative_to(self.post_file_path.parent)
 
@@ -370,11 +452,7 @@ class DownloadSinglePostUseCase:
 
         try:
             downloaded_file_path = await download_file(dl_config)
-        except DownloadError as e:
-            if e.file:
-                e.file.unlink(missing_ok=True)
-            raise
-
-        self.context.progress_reporter.complete_task(download_task_id)
+        finally:
+            self.context.progress_reporter.complete_task(download_task_id)
 
         return downloaded_file_path.relative_to(self.post_file_path.parent)

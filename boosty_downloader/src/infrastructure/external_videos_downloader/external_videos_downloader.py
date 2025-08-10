@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import contextlib
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,26 +12,29 @@ from typing import Any, ClassVar, cast
 from yt_dlp.YoutubeDL import YoutubeDL
 from yt_dlp.utils import DownloadError
 
-YOUTUBE_REGEX = r'^(?:https?://)?(?:www\.)?youtube\.com/(?:watch\?v=)?([^&\s]+)'
-VIMEO_REGEX = r'^(?:https?://)?(?:www\.)?vimeo\.com/(\d+)'
-
 YtDlOptions = dict[str, object]
 ExternalVideoDownloadProgressHook = Callable[['ExternalVideoDownloadStatus'], None]
 
 
-class ExternalVideoDownloadError(Exception):
+class ExtVideoError(Exception):
     """Base class for external video download errors."""
 
 
-class VideoInfoExtractionError(ExternalVideoDownloadError):
+class ExtVideoInfoError(ExtVideoError):
     """Raised when video information (e.g., title) cannot be extracted."""
 
+    def __init__(self, url: str) -> None:
+        self.video_url = url
 
-class VideoDownloadError(ExternalVideoDownloadError):
+
+class ExtVideoDownloadError(ExtVideoError):
     """Raised when the video download fails."""
 
+    def __init__(self, url: str) -> None:
+        self.video_url = url
 
-class VideoDownloadInterruptedByUserError(VideoDownloadError):
+
+class ExtVideoInterruptedByUserError(ExtVideoError):
     """Raised when the user interrupts the download (Ctrl+C)."""
 
 
@@ -50,24 +52,48 @@ class ExternalVideoDownloadStatus:
 
 @dataclass(slots=True)
 class _HookState:
+    """Internal state holder for tracking the status of an external video download."""
+
     last_downloaded: int = 0
     final_filename: Path | None = None
+
+
+class _SilentLogger:
+    """
+    Silly hack for yt-dlp to supress any noisy logging output.
+
+    For logging use ExternalVideoDownloadStatus with progress callback.
+    And for errors use the downloader exceptions.
+    """
+
+    def debug(self, msg: str) -> None:
+        pass
+
+    def info(self, msg: str) -> None:
+        pass
+
+    def warning(self, msg: str) -> None:
+        pass
+
+    def error(self, msg: str) -> None:
+        pass
+
+    def critical(self, msg: str) -> None:
+        pass
 
 
 class ExternalVideosDownloader:
     """Manager for downloading external videos (YouTube, Vimeo) with a 720p preference."""
 
-    # Prefer 720p when available, otherwise choose the best <=720, and finally any best.
+    # Prefer 720p when available, otherwise choose the best >720
     _default_ydl_options: ClassVar[YtDlOptions] = {
         'format': 'bv*[height=720]+ba/bv*[height>720]+ba/bv*+ba/b',
         'quiet': True,
         'no_warnings': True,
         'no_color': True,
-        'noprogress': True,
+        'noprogress': True,  # Use progress hook instead
+        'logger': _SilentLogger(),  # Suppress noisy error logging
     }
-
-    def is_supported_video(self, url: str) -> bool:
-        return bool(re.match(YOUTUBE_REGEX, url) or re.match(VIMEO_REGEX, url))
 
     def download_video(
         self,
@@ -75,10 +101,11 @@ class ExternalVideosDownloader:
         destination_directory: Path,
         progress_hook: ExternalVideoDownloadProgressHook | None = None,
     ) -> Path:
+        """Download video using yt-dlp and repeatedly report progress via progress_hook callback until completion."""
         info = self._probe_video(url)
         title = info.get('title')
         if not isinstance(title, str) or not title.strip():
-            raise VideoInfoExtractionError
+            raise ExtVideoInfoError(url)
 
         clean_title = self._sanitize_title(title)
         destination_directory.mkdir(parents=True, exist_ok=True)
@@ -97,14 +124,14 @@ class ExternalVideosDownloader:
                 try:
                     # yt-dlp isn't typed; cast to Any and coerce to int
                     errors: int = int(cast('Any', ydl).download([url]))
-                except KeyboardInterrupt as e:  # pragma: no cover - user interrupt path
-                    raise VideoDownloadInterruptedByUserError from e
+                except KeyboardInterrupt as e:
+                    raise ExtVideoInterruptedByUserError from e
 
             if errors != 0:
-                raise VideoDownloadError
+                raise ExtVideoDownloadError(url)
 
         except DownloadError as e:
-            raise ExternalVideoDownloadError from e
+            raise ExtVideoError(url) from e
 
         if state.final_filename is not None:
             return state.final_filename
@@ -116,15 +143,13 @@ class ExternalVideosDownloader:
     def _probe_video(self, url: str) -> dict[str, Any]:
         # Extract metadata without downloading to validate and fetch title/ext.
         try:
-            with YoutubeDL(
-                {'quiet': True, 'no_warnings': True, 'skip_download': True}
-            ) as ydl:
+            with YoutubeDL({**self._default_ydl_options, 'skip_download': True}) as ydl:
                 raw = cast('Any', ydl).extract_info(url, download=False)
         except DownloadError as e:
-            raise VideoInfoExtractionError from e
+            raise ExtVideoInfoError(url) from e
 
         if not isinstance(raw, dict):
-            raise VideoInfoExtractionError
+            raise ExtVideoInfoError(url)
         return cast('dict[str, Any]', raw)
 
     @staticmethod
