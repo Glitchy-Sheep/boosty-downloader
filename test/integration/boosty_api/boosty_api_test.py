@@ -7,8 +7,10 @@ Please see test/ABOUT_TESTING.md for more details.
 
 import pytest
 
-from boosty_downloader.src.boosty_api.core.client import (
+from boosty_downloader.src.infrastructure.boosty_api import (
     BoostyAPIClient,
+)
+from boosty_downloader.src.infrastructure.boosty_api.core.client import (
     BoostyAPINoUsernameError,
     BoostyAPIUnauthorizedError,
 )
@@ -80,7 +82,6 @@ async def test_iterate_over_posts(
     async for response in authorized_boosty_client.iterate_over_posts(
         author_name=integration_config.boosty_existing_author,
         posts_per_page=2,
-        delay_seconds=0.1,
     ):
         pages_count += 1
         total_posts += len(response.posts)

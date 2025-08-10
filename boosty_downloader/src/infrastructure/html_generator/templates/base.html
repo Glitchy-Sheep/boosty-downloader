@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>HTML Report</title>
+
+    <script>
+        (function () {
+            const theme = localStorage.getItem('theme') || 'light';
+            document.documentElement.classList.add(theme);
+        })();
+    </script>
+
+    <style>
+        html.light {
+            --bg-color: #ffffff;
+            --text-color: #000000;
+            --link-color: #1a0dab;
+            --content-bg-color: #fff;
+            --content-shadow: rgba(0, 0, 0, 0.1);
+            --border-color: #ccc;
+        }
+
+        html.dark {
+            --bg-color: #121212;
+            --text-color: #f0f0f0;
+            --link-color: #8ab4f8;
+            --content-bg-color: #1e1e1e;
+            --content-shadow: rgba(0, 0, 0, 0.7);
+            --border-color: #444;
+        }
+
+        /* Общие стили */
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            max-width: 90%;
+            width: 950px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        a {
+            color: var(--link-color);
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .content {
+            padding: 2rem;
+            background-color: var(--content-bg-color);
+            box-shadow: 0 0 12px var(--content-shadow);
+            margin-bottom: 3rem;
+            margin-top: 1.5rem;
+            border-radius: 8px;
+            transition: background-color 0.3s ease, box-shadow 0.3s ease, color 0.3s ease;
+        }
+
+        p {
+            font-size: 1.2rem;
+            margin-bottom: 1.5rem;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            font-weight: bold;
+            line-height: 1.3;
+        }
+
+        ul,
+        ol {
+            padding-left: 2rem;
+            margin-bottom: 1.5rem;
+        }
+
+        img {
+            display: block;
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 20px auto;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        video {
+            display: block;
+            margin: 2rem auto;
+            max-width: 100%;
+            border-radius: 6px;
+            box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+        }
+
+        .new-paragraph {
+            margin-top: 2rem;
+        }
+
+        #theme-toggle {
+            position: fixed;
+            top: 0.5rem;
+            right: 0.5rem;
+            padding: 0.3rem 0.6rem;
+            background: none;
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            color: var(--text-color);
+            cursor: pointer;
+            font-size: 1rem;
+            user-select: none;
+            transition: color 0.3s ease, border-color 0.3s ease;
+            z-index: 1000;
+        }
+
+        #theme-toggle:hover {
+            background-color: var(--border-color);
+            color: var(--bg-color);
+        }
+    </style>
+</head>
+
+<body>
+    <button id="theme-toggle" aria-label="Toggle theme">🌙</button>
+
+    <div class="content">
+        {{ content | safe }}
+    </div>
+
+    <script>
+        const toggleBtn = document.getElementById('theme-toggle');
+        toggleBtn.textContent = document.documentElement.classList.contains('dark') ? '🌙' : '☀';
+
+        toggleBtn.onclick = function () {
+            const html = document.documentElement;
+            const current = html.classList.contains('dark') ? 'dark' : 'light';
+            const next = current === 'dark' ? 'light' : 'dark';
+
+            html.classList.remove(current);
+            html.classList.add(next);
+            localStorage.setItem('theme', next);
+
+            this.textContent = next === 'dark' ? '🌙' : '☀';
+        };
+    </script>
+</body>
+
+</html>

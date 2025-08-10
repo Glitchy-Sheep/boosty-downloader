@@ -4,7 +4,12 @@ import pytest
 import rich
 from aiohttp_retry import RetryClient
 
-from boosty_downloader.src.boosty_api.utils.filter_none_params import filter_none_params
+from boosty_downloader.src.infrastructure.boosty_api.core.endpoints import (
+    BOOSTY_DEFAULT_BASE_URL,
+)
+from boosty_downloader.src.infrastructure.boosty_api.utils.filter_none_params import (
+    filter_none_params,
+)
 from integration.configuration import IntegrationTestConfig
 
 pytest_plugins = [
@@ -17,7 +22,7 @@ async def test_get_author_posts(
     authorized_retry_client: RetryClient, integration_config: IntegrationTestConfig
 ) -> None:
     """Test successful retrieval of posts from an existing author."""
-    endpoint = f'blog/{integration_config.boosty_existing_author}/post/'
+    endpoint = f'{BOOSTY_DEFAULT_BASE_URL}blog/{integration_config.boosty_existing_author}/post/'
 
     posts_raw = await authorized_retry_client.get(
         endpoint,
@@ -40,7 +45,7 @@ async def test_all_data_chunk_types(
     integration_config: IntegrationTestConfig,
 ) -> None:
     """Test successful retrieval of posts from an existing author."""
-    endpoint = f'blog/{integration_config.boosty_existing_author}/post/'
+    endpoint = f'{BOOSTY_DEFAULT_BASE_URL}blog/{integration_config.boosty_existing_author}/post/'
 
     posts_raw = await authorized_retry_client.get(
         endpoint,
