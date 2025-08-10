@@ -46,10 +46,10 @@ The post content itself is saved in html with a little bit of styling.
 
 ## 📸 Screenshots & Usage
 
-<img src="./assets/usage.png">
-<img src="./assets/total_check.png">
-<img src="./assets/example1.png">
-<img src="./assets/example2.png">
+<img src="https://raw.githubusercontent.com/Glitchy-Sheep/boosty-downloader/refs/heads/dev/assets/usage.png">
+<img src="https://raw.githubusercontent.com/Glitchy-Sheep/boosty-downloader/refs/heads/dev/assets/total_check.png">
+<img src="https://raw.githubusercontent.com/Glitchy-Sheep/boosty-downloader/refs/heads/dev/assets/example1.png">
+<img src="https://raw.githubusercontent.com/Glitchy-Sheep/boosty-downloader/refs/heads/dev/assets/example2.png">
 
 
 
