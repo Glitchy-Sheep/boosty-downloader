@@ -1,3 +1,8 @@
+## 2.0.1 
+
+- 🐛 Fixed image data so posts download even when width/height is missing
+- 🐛 Fixed download process to stop automatically after the chosen post
+
 ## 2.0.0
 
 ### ⛔ BREAKING CHANGES ⛔
