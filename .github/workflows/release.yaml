@@ -18,7 +18,7 @@ jobs:
       version: ${{ steps.extract_version.outputs.version }}
     steps:
       # Ensure that we are on the main branch to get latest stable version
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           ref: main
@@ -43,7 +43,7 @@ jobs:
     outputs:
       version: ${{ steps.extract_version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0  # чтобы poetry могла читать pyproject.toml в любом случае
 
@@ -69,7 +69,7 @@ jobs:
     needs: extract_pushed_version 
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: 🩺 Check PyPi release version compatibility 
         run: |
           echo "Checking package: $PACKAGE_NAME"
@@ -112,7 +112,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Checkout the code on MAIN to get current latest stable version
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -144,7 +144,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Create and push tag
         run: |
@@ -182,7 +182,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
