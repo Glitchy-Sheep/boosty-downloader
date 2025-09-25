@@ -103,6 +103,7 @@ class DownloadPostByUrlUseCase:
                         self.context.progress_reporter.error(
                             f'Failed to download post: {e.message}, RESOURCE: ({e.resource})'
                         )
+                    else:
                         return
 
         self.context.progress_reporter.error(
