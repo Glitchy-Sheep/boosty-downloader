@@ -10,5 +10,5 @@ class BoostyPostDataImageDTO(BaseModel):
 
     type: Literal['image']
     url: str
-    width: int
-    height: int
+    width: int | None = None
+    height: int | None = None
