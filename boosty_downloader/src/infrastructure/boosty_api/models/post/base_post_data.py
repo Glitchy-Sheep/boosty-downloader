@@ -19,6 +19,7 @@ from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types
     BoostyPostDataListDTO,
     BoostyPostDataOkVideoDTO,
     BoostyPostDataTextDTO,
+    BoostyPostDataAudioDTO,
 )
 
 BasePostData = Annotated[
@@ -29,7 +30,8 @@ BasePostData = Annotated[
     | BoostyPostDataExternalVideoDTO
     | BoostyPostDataOkVideoDTO
     | BoostyPostDataHeaderDTO
-    | BoostyPostDataListDTO,
+    | BoostyPostDataListDTO
+    | BoostyPostDataAudioDTO,
     Field(
         discriminator='type',
     ),

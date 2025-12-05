@@ -6,6 +6,7 @@ from .post_data_list import BoostyPostDataListDTO
 from .post_data_ok_video import BoostyPostDataOkVideoDTO
 from .post_data_text import BoostyPostDataTextDTO
 from .post_data_video import BoostyPostDataExternalVideoDTO
+from .post_data_audio import BoostyPostDataAudioDTO
 
 __all__ = [
     'BoostyPostDataExternalVideoDTO',
@@ -16,4 +17,5 @@ __all__ = [
     'BoostyPostDataListDTO',
     'BoostyPostDataOkVideoDTO',
     'BoostyPostDataTextDTO',
+    'BoostyPostDataAudioDTO',
 ]

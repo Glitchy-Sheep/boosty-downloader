@@ -15,6 +15,7 @@ from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types
     BoostyPostDataListDTO,
     BoostyPostDataOkVideoDTO,
     BoostyPostDataTextDTO,
+    BoostyPostDataAudioDTO,
 )
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_ok_video import (
     BoostyOkVideoType,
@@ -49,7 +50,10 @@ def map_post_dto_to_domain(
                 post.post_data_chunks.append(text_chunk)
             case BoostyPostDataListDTO():
                 post.post_data_chunks.append(mappers.to_domain_list_chunk(data_chunk))
-            case BoostyPostDataFileDTO():
+            case (
+                BoostyPostDataFileDTO()
+                | BoostyPostDataAudioDTO()
+            ):
                 post.post_data_chunks.append(
                     mappers.to_domain_file_chunk(data_chunk, post.signed_query)
                 )

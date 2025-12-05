@@ -133,7 +133,9 @@ async def typer_cmd_handler(  # noqa: PLR0913 (too many arguments because of typ
         config.downloading_settings.target_directory = destination_directory
 
     retry_options = ExponentialRetry(
-        attempts=5,
+        attempts=10,
+        start_timeout=2,
+        max_timeout=10000,
         exceptions={
             aiohttp.ClientConnectorError,
             aiohttp.ClientOSError,
