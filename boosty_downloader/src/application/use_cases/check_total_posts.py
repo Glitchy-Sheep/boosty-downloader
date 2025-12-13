@@ -49,7 +49,11 @@ class ReportTotalPostsCountUseCase:
                     accessible_posts_count += 1
                 else:
                     inaccessible_posts_count += 1
-                    inaccessible_posts_names.append('     - ' + post.title + '\n')
+                    inaccessible_posts_names.append(
+                        '     - ' + post.title
+                        if post.title
+                        else f'Not title (id_{post.id[:8]})' + '\n'
+                    )
 
         inaccessible_titles_str = ''.join(inaccessible_posts_names)
 

@@ -65,7 +65,7 @@ class DownloadAllPostUseCase:
                     continue
 
                 # For empty titles use post ID as a fallback (first 8 chars)
-                if len(post_dto.title) == 0:
+                if not post_dto.title or len(post_dto.title) == 0:
                     post_dto.title = f'Not title (id_{post_dto.id[:8]})'
 
                 post_dto.title = (

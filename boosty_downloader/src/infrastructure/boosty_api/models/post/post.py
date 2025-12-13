@@ -17,7 +17,7 @@ class PostDTO(BaseModel):
     """Post on boosty.to which also have data pieces"""
 
     id: str
-    title: str
+    title: str | None = None
     created_at: datetime
     updated_at: datetime
     has_access: bool
