@@ -177,14 +177,17 @@ class BoostyAPIClient:
         self,
         author_name: str,
         posts_per_page: int = 5,
+        destination: Path|None = None
     ) -> AsyncGenerator[PostsResponse, None]:
         """
         Infinite generator iterating over posts of the specified author.
 
         The generator will yield all posts of the author, paginating internally.
         """
-        offset = None
+        prev_offset = None
+        offset = self.offset_load(destination)
         while True:
+            self.offset_store(destination, prev_offset)
             response = await self.get_author_posts(
                 author_name,
                 offset=offset,
@@ -193,4 +196,21 @@ class BoostyAPIClient:
             yield response
             if response.extra.is_last:
                 break
+            prev_offset = offset
             offset = response.extra.offset
+    
+    def offset_load(self, destination):
+        if destination is None:
+            return None
+        f = destination / 'last.offset'
+        f.touch()
+        with f.open('r', encoding='utf-8') as file:
+            x = file.read().strip()
+            return x if x != '' else None
+    
+    def offset_store(self, destination, offset):
+        if destination is None or offset is None:
+            return
+        f = destination / 'last.offset'
+        with f.open('w', encoding='utf-8') as file:
+            file.write(offset)

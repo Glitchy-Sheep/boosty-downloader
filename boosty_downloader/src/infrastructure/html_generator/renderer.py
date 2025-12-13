@@ -45,8 +45,9 @@ def render_html_chunk(chunk: HtmlGenChunk) -> str:
                 lst=chunk, render_chunk=render_html_chunk
             )
         case HtmlGenFile():
+            if Path(chunk.filename.lower()).suffix in ('.mp3', '.ogg', '.wav'):
+                return f'<p>{chunk.filename} <audio controls><source src="{chunk.url}">Your browser does not support the audio element.</audio></p>'
             return f'<a href="{chunk.url}" download>{chunk.filename}</a>'
-
 
 def render_html(chunks: list[HtmlGenChunk]) -> str:
     """Render a list of HTML chunks to HTML."""

@@ -16,8 +16,29 @@ The post content itself is saved in html with a little bit of styling.
 - Files
 - Full Post content (including photos and links)
 
+## Changes in this fork
+
+### Fixes
+
+* support for audio in posts, including HTML rendering
+* disabled giant tracebacks on errors
+* videos in HTML render correctly
+* faster walk through pages
+* retries with actual delay to compensate for unstable APIs and network
+* fully downloaded files are never downloaded again, even if app crashed, cache cleared, etc
+
+### Features
+
+* page progress is stored in `username/last.offset` file for fast resume, delete it to start from 1st page
+* External videos are not downloaded with yt-dlp anymore: it requires js runtime, auth, cookies, error handling. instead, youtube urls are saved to `.yt` files for manual processing
+* create `ignore_me` file inside any post to skip it - a workaround if you have a post that breaks downloading
+* 
+
 ## 📑 Table of Contents
 - [🖥️ About](#️-about)
+  - [Changes in this fork](#changes-in-this-fork)
+    - [Fixes](#fixes)
+    - [Features](#features)
   - [📑 Table of Contents](#-table-of-contents)
   - [✨ Features](#-features)
   - [📸 Screenshots \& Usage](#-screenshots--usage)

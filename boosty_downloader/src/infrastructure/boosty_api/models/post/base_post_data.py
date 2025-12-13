@@ -30,8 +30,8 @@ BasePostData = Annotated[
     | BoostyPostDataExternalVideoDTO
     | BoostyPostDataOkVideoDTO
     | BoostyPostDataHeaderDTO
-    | BoostyPostDataListDTO
-    | BoostyPostDataAudioDTO,
+    | BoostyPostDataAudioDTO
+    | BoostyPostDataListDTO,
     Field(
         discriminator='type',
     ),

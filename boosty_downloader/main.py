@@ -80,6 +80,7 @@ typer_app = typer.Typer(
     no_args_is_help=True,
     add_completion=False,
     rich_markup_mode='rich',
+    pretty_exceptions_enable=False
 )
 
 GITHUB_ISSUES_URL = 'https://github.com/Glitchy-Sheep/boosty-downloader/issues'

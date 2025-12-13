@@ -11,6 +11,7 @@ from typing import Any, ClassVar, cast
 
 from yt_dlp.YoutubeDL import YoutubeDL
 from yt_dlp.utils import DownloadError
+import base64
 
 YtDlOptions = dict[str, object]
 ExternalVideoDownloadProgressHook = Callable[['ExternalVideoDownloadStatus'], None]
@@ -102,6 +103,14 @@ class ExternalVideosDownloader:
         progress_hook: ExternalVideoDownloadProgressHook | None = None,
     ) -> Path:
         """Download video using yt-dlp and repeatedly report progress via progress_hook callback until completion."""
+        destination_directory.mkdir(parents=True, exist_ok=True)
+        name = base64.urlsafe_b64encode(url.encode('utf-8')).decode('utf-8') + '.yt'
+        f = destination_directory / name
+        with f.open('w', encoding='utf-8') as file:
+            file.write(url)
+        return f
+    
+        raise Exception(f"yt-dlp requires updates, js runtime and cookies")
         info = self._probe_video(url)
         title = info.get('title')
         if not isinstance(title, str) or not title.strip():
