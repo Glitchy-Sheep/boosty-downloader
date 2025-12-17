@@ -32,7 +32,21 @@ The post content itself is saved in html with a little bit of styling.
 * page progress is stored in `username/last.offset` file for fast resume, delete it to start from 1st page
 * External videos are not downloaded with yt-dlp anymore: it requires js runtime, auth, cookies, error handling. instead, youtube urls are saved to `.yt` files for manual processing
 * create `ignore_me` file inside any post to skip it - a workaround if you have a post that breaks downloading
-* 
+
+### Deal with Youtube
+
+Example script to download all videos from `.yt` files and place them in the same folder. They won't be displayed in HTML though.
+
+* you need to install yt-dlp dependencies
+* provide youtube cookies
+* `yt-archive.txt` file will be used to skip downloaded videos
+* customize format and other parameters to speed up downloads, change output, etc
+* `--paths home:` sets yt-dlp output path to a directory of currently processing file
+
+```bash
+find . -type f -name '*.yt' | while read x ; do echo "DOWNLOADING video from file ${x} to ${x%/*}"; yt-dlp -t mkv --cookies cookies.txt --download-archive yt-archive.txt -a "$x" --paths "home:${x%/*}"; done
+```
+
 
 ## 📑 Table of Contents
 - [🖥️ About](#️-about)
