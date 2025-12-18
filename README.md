@@ -26,6 +26,7 @@ The post content itself is saved in html with a little bit of styling.
 * faster walk through pages
 * retries with actual delay to compensate for unstable APIs and network
 * fully downloaded files are never downloaded again, even if app crashed, cache cleared, etc
+* multiple boosty videos in a post do not overwrite each other
 
 ### Features
 

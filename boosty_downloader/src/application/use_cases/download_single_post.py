@@ -8,6 +8,7 @@ import time
 import uuid
 from asyncio import CancelledError
 from pathlib import Path
+import re
 
 from yarl import URL
 
@@ -330,8 +331,15 @@ class DownloadSinglePostUseCase:
         """Download a Boosty video and returns the path to the saved file."""
         self.boosty_videos_destination.mkdir(parents=True, exist_ok=True)
 
+        pattern = 'id=(\\d+)'
+        if match := re.search(pattern, boosty_video.url):
+            video_id = match.group(1)
+        else:
+            video_id = 'no_id'
+        title = f'{boosty_video.title} {video_id}'
+
         download_task_id = self.context.progress_reporter.create_task(
-            f'[bold orange]Boosty video[/bold orange]: {boosty_video.title}',
+            f'[bold orange]Boosty video[/bold orange]: {title}',
             indent_level=2,  # Nesting: page/post/video = 0/1/2
         )
 
@@ -343,18 +351,18 @@ class DownloadSinglePostUseCase:
                 download_task_id,
                 advance=status.downloaded_bytes,
                 total=status.total_bytes,
-                description=f'[bold orange]Boosty Video[/bold orange] [{human_downloaded_size} / {human_total_size}]: {boosty_video.title} ',
+                description=f'[bold orange]Boosty Video[/bold orange] [{human_downloaded_size} / {human_total_size}]: {title} ',
             )
 
         dl_config = DownloadFileConfig(
             session=self.context.downloader_session,
             url=boosty_video.url,
-            filename=boosty_video.title,
+            filename=title,
             guess_extension=True,
             destination=self.boosty_videos_destination,
             on_status_update=update_progress,
         )
-
+        
         try:
             downloaded_file_path = await download_file(dl_config)
         finally:

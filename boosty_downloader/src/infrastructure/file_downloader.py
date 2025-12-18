@@ -134,9 +134,12 @@ async def download_file(
                 file_path = file_path.with_suffix(ext)
 
 
-        if file_path.exists() and file_path.stat().st_size == response.content_length:
-            #print(f'File exists and size is right, skip download: {file_path}')
-            return file_path
+        if file_path.exists():
+            if file_path.stat().st_size == response.content_length:
+                #print(f'File exists and size is right, skip download: {file_path}')
+                return file_path
+            #else:
+            #    print(f'File exists but size is wrong: {file_path} {file_path.stat().st_size}, EXPECTED {response.content_length}')
 
         total_downloaded = 0
         async with aiofiles.open(file_path, mode='wb') as file:
