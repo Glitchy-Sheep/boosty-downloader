@@ -35,16 +35,17 @@ The post content itself is saved in html with a little bit of styling.
 
 ### Deal with Youtube
 
-Example script to download all videos from `.yt` files and place them in the same folder. They won't be displayed in HTML though.
+Example script to download all videos from `.yt` files and place them in the same folder. They will be picked up by HTML post.
 
 * you need to install yt-dlp dependencies
 * provide youtube cookies
 * `yt-archive.txt` file will be used to skip downloaded videos
 * customize format and other parameters to speed up downloads, change output, etc
-* `--paths home:` sets yt-dlp output path to a directory of currently processing file
+* `--paths home:` sets yt-dlp output path for result and temp files to current_post/external_video
+* `--postprocessor-args` is a fix for random fails in ffmpeg mkv conversion
 
 ```bash
-find . -type f -name '*.yt' | while read x ; do echo "DOWNLOADING video from file ${x} to ${x%/*}"; yt-dlp -t mkv --cookies cookies.txt --download-archive yt-archive.txt -a "$x" --paths "home:${x%/*}"; done
+find . -type f -name '*.yt' | sort -r | while read x ; do echo "DOWNLOADING ${x%/*}/${x##*/}.mkv"; yt-dlp -t mkv --cookies cookies.txt --download-archive yt-archive.txt -f "best[height<=720]" -a "$x" --paths "home:${x%/*}" -o "${x##*/}.mkv" --postprocessor-args "VideoRemuxer+ffmpeg:-bsf 'setts=ts=TS-STARTPTS'" || break; done
 ```
 
 
@@ -53,6 +54,7 @@ find . -type f -name '*.yt' | while read x ; do echo "DOWNLOADING video from fil
   - [Changes in this fork](#changes-in-this-fork)
     - [Fixes](#fixes)
     - [Features](#features)
+    - [Deal with Youtube](#deal-with-youtube)
   - [📑 Table of Contents](#-table-of-contents)
   - [✨ Features](#-features)
   - [📸 Screenshots \& Usage](#-screenshots--usage)
