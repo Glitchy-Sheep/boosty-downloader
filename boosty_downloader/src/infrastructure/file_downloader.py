@@ -124,7 +124,7 @@ async def download_file(
                 response_message=response.reason or 'No reason provided',
             )
 
-        filename = sanitize_string(dl_config.filename)
+        filename = sanitize_string(dl_config.filename, max_bytes=230)
         file_path = dl_config.destination / filename
 
         content_type = response.content_type
