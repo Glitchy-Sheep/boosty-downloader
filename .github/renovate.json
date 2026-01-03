@@ -1,15 +1,20 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    "group:allNonMajor"
   ],
 
   "dependencyDashboard": true,
+  "baseBranches": [ "main" ],
+
+  "schedule": [ "on saturday" ],
+  "prHourlyLimit": 2,
+  "prConcurrentLimit": 3,
+  "minimumReleaseAge": "3 days",
 
   "updateLockFiles": true,
-
   "automerge": false,
   "autoApprove": false,
-  "platformAutomerge": false,
-  "baseBranches": ["main"]
+  "platformAutomerge": false
 }
