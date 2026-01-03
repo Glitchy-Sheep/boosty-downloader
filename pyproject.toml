@@ -32,7 +32,7 @@ requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.group.dev.dependencies]
-ruff = ">=0.9.6,<0.13.0"
+ruff = ">=0.14.10,<0.15.0"
 pyright = "^1.1.394"
 pytest = "^8.3.4"
 pytest-asyncio = "^1.1.0"
