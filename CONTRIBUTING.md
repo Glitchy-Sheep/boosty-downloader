@@ -7,18 +7,20 @@ I created this note to help you understand the way you can help improve the proj
 
 ## 👩‍💻 Development Process
 
-<div align="center">
-<img src="/assets/dev-process.excalidraw.svg" height="400" alt="Development Process" style="border-radius: 12px;">
-</div>
+This project uses **trunk-based development** — all changes go directly to `main` via short-lived feature branches and pull requests.
 
 ### 🔧 Quick Start
 
 1. Fork and clone the repository
 2. Install dependencies: `poetry install`
-3. Create a feature branch and make your changes
+3. Create a branch from `main` using one of these prefixes:
+   - `feat/` - new features (`feat/add-download-resume`)
+   - `fix/` - bug fixes (`fix/corrupted-video-output`)
+   - `refactor/` - code improvements (`refactor/simplify-api-client`)
+   - `docs/` - documentation (`docs/update-readme`)
+   - `chore/` - maintenance tasks (`chore/update-dependencies`)
 4. Run tests: `poetry run pytest`
-5. Don't forget version bump `poetry version patch` (or minor/major) and update `CHANGELOG.md`
-6. Open a pull request and describe changes and why they are needed
+5. Open a pull request to `main` and describe changes and why they are needed
 
 **Most of needed/handy commands are available via `make`.**
 To see available commands, run:
@@ -58,39 +60,29 @@ fix: 🐛 Fix formatting.
 
 ### ✅ Pull Requests CI Checks
 
-**Now project uses Github Actions for:**
+**Project uses Github Actions for:**
 - Check PRs for code quality (linting, type checking, tests)
-- Check `dev -> main` PRs for version bump 
-- Automatically create releases on `main` merge (PyPi and GitHub Releases)
+- Automatically create releases when version tags are pushed (PyPI and GitHub Releases)
 
 
 ### 🔨 Other HOW TOs:
 
 <details>
-<summary>🏁 Making a Release</summary>
+<summary>🏁 Making a Release (Maintainers)</summary>
 
-1. **Prepare in `dev` branch:**
+1. **Bump version and update changelog:**
    ```bash
    poetry version patch  # or minor/major
-   # Update CHANGELOG.md
+   # Update CHANGELOG.md with the new version
    git commit -am "chore: bump version to X.Y.Z"
-   git push origin dev
+   git push
    ```
 
-2. **Create PR:** `dev` → `main`
-
-3. **Merge PR** → Automatic release! 🎉
-</details>
-
-<details>
-<summary>🐛 Hotfix</summary>
-
-1. **From main:**
+2. **Tag and push:**
    ```bash
-   git checkout -b hotfix/fix-name
-   poetry version patch
-   # Fix bug, update changelog
+   git tag v$(poetry version -s)
+   git push --tags
    ```
 
-2. **PR:** `hotfix/*` → `main`
+3. **Automatic release!** 🎉 (PyPI + GitHub Release)
 </details>

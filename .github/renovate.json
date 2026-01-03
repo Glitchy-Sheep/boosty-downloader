@@ -11,5 +11,5 @@
   "automerge": false,
   "autoApprove": false,
   "platformAutomerge": false,
-  "baseBranches": ["dev"]
+  "baseBranches": ["main"]
 }

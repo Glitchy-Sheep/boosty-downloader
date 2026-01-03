@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches-ignore:
+      - main
+
+jobs:
+  check:
+    name: 🧪 Lint, Test & Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python & Poetry
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: snok/install-poetry@v1
+
+      - name: Install dependencies
+        run: poetry sync
+
+      - name: Code quality checks
+        run: |
+          make lint-check
+          make format-check
+          make types
+
+      - name: Run tests
+        run: |
+          make test-verbose
+          make test-api-verbose
+        timeout-minutes: 5
+
+      - name: Build & verify
+        run: |
+          make build
+          ls dist/*.whl dist/*.tar.gz || { echo "❌ Build artifacts missing"; exit 1; }
+          echo "✅ Build artifacts created successfully"
+
