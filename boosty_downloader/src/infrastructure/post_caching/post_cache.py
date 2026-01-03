@@ -131,7 +131,7 @@ class SQLitePostCache:
             self.session.commit()
             self._dirty = False
 
-    def cache(
+    def cache_post(
         self,
         post_uuid: str,
         updated_at: datetime,
@@ -179,7 +179,7 @@ class SQLitePostCache:
 
         self._dirty = True
 
-    def get_missing_parts(
+    def get_post_missing_parts(
         self,
         post_uuid: str,
         updated_at: datetime,
