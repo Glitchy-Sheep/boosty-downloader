@@ -80,6 +80,7 @@ typer_app = typer.Typer(
     no_args_is_help=True,
     add_completion=False,
     rich_markup_mode='rich',
+    pretty_exceptions_enable=False
 )
 
 GITHUB_ISSUES_URL = 'https://github.com/Glitchy-Sheep/boosty-downloader/issues'
@@ -133,7 +134,9 @@ async def typer_cmd_handler(  # noqa: PLR0913 (too many arguments because of typ
         config.downloading_settings.target_directory = destination_directory
 
     retry_options = ExponentialRetry(
-        attempts=5,
+        attempts=10,
+        start_timeout=2,
+        max_timeout=10000,
         exceptions={
             aiohttp.ClientConnectorError,
             aiohttp.ClientOSError,

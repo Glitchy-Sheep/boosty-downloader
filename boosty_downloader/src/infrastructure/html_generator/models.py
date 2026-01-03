@@ -49,6 +49,7 @@ class HtmlGenVideo:
     url: str
     title: str | None = None
     poster: str | None = None
+    yt: str | None = None
 
 
 class HtmlListStyle(Enum):

@@ -4,9 +4,11 @@ Use case for downloading a single post from Boosty.
 It encapsulates the logic required to download a post from a specific author.
 """
 
+import time
 import uuid
 from asyncio import CancelledError
 from pathlib import Path
+import re
 
 from yarl import URL
 
@@ -24,6 +26,7 @@ from boosty_downloader.src.application.mappers.html_converter import (
     convert_list_to_html,
     convert_text_to_html,
     convert_video_to_html,
+    convert_file_to_html,
 )
 from boosty_downloader.src.domain.post import (
     Post,
@@ -253,7 +256,7 @@ class DownloadSinglePostUseCase:
             )
             raise ApplicationFailedDownloadError(
                 post_uuid=post.uuid,
-                message='External video unavailable or access restricted.',
+                message=f'External video unavailable or access restricted [ {e.video_url} ]',
                 resource='UNAVAILABLE',
             ) from e
         except ExtVideoDownloadError as e:
@@ -280,7 +283,11 @@ class DownloadSinglePostUseCase:
         should_download_ext_videos = (
             DownloadContentTypeFilter.external_videos in missing_parts
         )
-
+        
+        if (self.destination / "ignore_me").exists():
+            self.context.progress_reporter.notice('SKIP ([bold]ignored[/bold] by ignore_me file): ' + self.destination.name)
+            return None
+        
         # ----------------------------------------------------------------------
         # Post Content (Text / List / Image) processing
         if isinstance(chunk, PostDataChunkText) and should_generate_post:
@@ -303,11 +310,15 @@ class DownloadSinglePostUseCase:
         ):
             saved_as = await self.download_external_videos(external_video=chunk)
             if DownloadContentTypeFilter.post_content in missing_parts:
-                return convert_video_to_html(src=str(saved_as), title=saved_as.name)
+                p = self.external_videos_destination.parent / saved_as
+                with p.open('r', encoding='utf-8') as file:
+                    yt = file.read().strip()
+                return convert_video_to_html(src=str(saved_as), title=saved_as.name, yt=yt)
         # ----------------------------------------------------------------------
         # Files
         elif isinstance(chunk, PostDataChunkFile) and should_download_files:
-            await self.download_files(file=chunk)
+            saved_as = await self.download_files(file=chunk)
+            return convert_file_to_html(chunk, saved_as)
         return None
 
     # --------------------------------------------------------------------------
@@ -320,8 +331,15 @@ class DownloadSinglePostUseCase:
         """Download a Boosty video and returns the path to the saved file."""
         self.boosty_videos_destination.mkdir(parents=True, exist_ok=True)
 
+        pattern = 'id=(\\d+)'
+        if match := re.search(pattern, boosty_video.url):
+            video_id = match.group(1)
+        else:
+            video_id = 'no_id'
+        title = f'{boosty_video.title} {video_id}'
+
         download_task_id = self.context.progress_reporter.create_task(
-            f'[bold orange]Boosty video[/bold orange]: {boosty_video.title}',
+            f'[bold orange]Boosty video[/bold orange]: {title}',
             indent_level=2,  # Nesting: page/post/video = 0/1/2
         )
 
@@ -333,18 +351,18 @@ class DownloadSinglePostUseCase:
                 download_task_id,
                 advance=status.downloaded_bytes,
                 total=status.total_bytes,
-                description=f'[bold orange]Boosty Video[/bold orange] [{human_downloaded_size} / {human_total_size}]: {boosty_video.title} ',
+                description=f'[bold orange]Boosty Video[/bold orange] [{human_downloaded_size} / {human_total_size}]: {title} ',
             )
 
         dl_config = DownloadFileConfig(
             session=self.context.downloader_session,
             url=boosty_video.url,
-            filename=boosty_video.title,
+            filename=title,
             guess_extension=True,
             destination=self.boosty_videos_destination,
             on_status_update=update_progress,
         )
-
+        
         try:
             downloaded_file_path = await download_file(dl_config)
         finally:

@@ -1,4 +1,12 @@
+{% if video.yt %}
+<p>youtube: <a href="{{ video.yt }}">{{ video.yt }}</a> - video will appear below if you make a local copy with yt-dlp</p>
 <video controls>
-    <source src="{{ video.url }}" type="video/mp4">
+    <source src="{{ video.url|urlencode }}.mkv" type="video/mp4">
     Your browser does not support the video tag.
 </video>
+{% else %}
+<video controls>
+    <source src="{{ video.url|urlencode }}" type="video/mp4">
+    Your browser does not support the video tag.
+</video>
+{% endif %}

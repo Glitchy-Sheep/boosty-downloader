@@ -133,12 +133,20 @@ async def download_file(
             if ext is not None:
                 file_path = file_path.with_suffix(ext)
 
-        total_downloaded = 0
 
+        if file_path.exists():
+            if file_path.stat().st_size == response.content_length:
+                #print(f'File exists and size is right, skip download: {file_path}')
+                return file_path
+            #else:
+            #    print(f'File exists but size is wrong: {file_path} {file_path.stat().st_size}, EXPECTED {response.content_length}')
+
+        total_downloaded = 0
         async with aiofiles.open(file_path, mode='wb') as file:
             total_size = response.content_length
 
             try:
+                # sometimes fails with ContentLengthError: 400 Not enough data to satisfy content length header
                 async for chunk in response.content.iter_chunked(
                     dl_config.chunk_size_bytes
                 ):

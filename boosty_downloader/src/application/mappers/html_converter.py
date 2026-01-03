@@ -1,5 +1,7 @@
 """Converters from domain models to HTML generator models."""
 
+import urllib.parse
+from pathlib import Path
 from boosty_downloader.src.domain.post import (
     PostDataChunkImage,
     PostDataChunkText,
@@ -46,15 +48,16 @@ def convert_image_to_html(chunk: PostDataChunkImage) -> HtmlGenImage:
     return HtmlGenImage(url=chunk.url)
 
 
-def convert_video_to_html(src: str, title: str) -> HtmlGenVideo:
+def convert_video_to_html(src: str, title: str, yt:str|None=None) -> HtmlGenVideo:
     """Convert domain video chunk to HTML video model."""
-    return HtmlGenVideo(url=src, title=title)
+    return HtmlGenVideo(url=src, title=title, yt=yt)
 
 
-def convert_file_to_html(chunk: PostDataChunkFile) -> HtmlGenFile:
+def convert_file_to_html(chunk: PostDataChunkFile, relative_path: Path) -> HtmlGenFile:
     """Convert domain file chunk to HTML file model."""
+    # url is useless, its original address
+    chunk.url = fix_path(relative_path)
     return HtmlGenFile(url=chunk.url, filename=chunk.filename)
-
 
 def convert_list_to_html(chunk: PostDataChunkTextualList) -> HtmlGenList:
     """Convert domain list chunk to HTML list model."""
@@ -69,3 +72,7 @@ def convert_list_to_html(chunk: PostDataChunkTextualList) -> HtmlGenList:
     style = HtmlListStyle.UNORDERED
 
     return HtmlGenList(items=items, style=style)
+
+def fix_path(path: Path):
+    x = str(path).replace('\\', '/')
+    return urllib.parse.quote(x)

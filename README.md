@@ -16,8 +16,46 @@ The post content itself is saved in html with a little bit of styling.
 - Files
 - Full Post content (including photos and links)
 
+## Changes in this fork
+
+### Fixes
+
+* support for audio in posts, including HTML rendering
+* disabled giant tracebacks on errors
+* videos in HTML render correctly
+* faster walk through pages
+* retries with actual delay to compensate for unstable APIs and network
+* fully downloaded files are never downloaded again, even if app crashed, cache cleared, etc
+* multiple boosty videos in a post do not overwrite each other
+
+### Features
+
+* page progress is stored in `username/last.offset` file for fast resume, delete it to start from 1st page
+* External videos are not downloaded with yt-dlp anymore: it requires js runtime, auth, cookies, error handling. instead, youtube urls are saved to `.yt` files for manual processing
+* create `ignore_me` file inside any post to skip it - a workaround if you have a post that breaks downloading
+
+### Deal with Youtube
+
+Example script to download all videos from `.yt` files and place them in the same folder. They will be picked up by HTML post.
+
+* you need to install yt-dlp dependencies
+* provide youtube cookies
+* `yt-archive.txt` file will be used to skip downloaded videos
+* customize format and other parameters to speed up downloads, change output, etc
+* `--paths home:` sets yt-dlp output path for result and temp files to current_post/external_video
+* `--postprocessor-args` is a fix for random fails in ffmpeg mkv conversion
+
+```bash
+find . -type f -name '*.yt' | sort -r | while read x ; do echo "DOWNLOADING ${x%/*}/${x##*/}.mkv"; yt-dlp -t mkv --cookies cookies.txt --download-archive yt-archive.txt -f "best[height<=720]" -a "$x" --paths "home:${x%/*}" -o "${x##*/}.mkv" --postprocessor-args "VideoRemuxer+ffmpeg:-bsf 'setts=ts=TS-STARTPTS'" || break; done
+```
+
+
 ## 📑 Table of Contents
 - [🖥️ About](#️-about)
+  - [Changes in this fork](#changes-in-this-fork)
+    - [Fixes](#fixes)
+    - [Features](#features)
+    - [Deal with Youtube](#deal-with-youtube)
   - [📑 Table of Contents](#-table-of-contents)
   - [✨ Features](#-features)
   - [📸 Screenshots \& Usage](#-screenshots--usage)

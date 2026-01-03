@@ -42,7 +42,7 @@ class DownloadAllPostUseCase:
 
     async def execute(self) -> None:
         posts_iterator = self.boosty_api.iterate_over_posts(
-            author_name=self.author_name
+            author_name=self.author_name, posts_per_page=20, destination=self.destination
         )
 
         current_page = 0
@@ -87,7 +87,7 @@ class DownloadAllPostUseCase:
                     description=f'Processing page [bold]{current_page}[/bold]',
                 )
 
-                max_attempts = 5
+                max_attempts = 6
                 delay = 1.0
                 for attempt in range(1, max_attempts + 1):
                     try:
@@ -108,7 +108,7 @@ class DownloadAllPostUseCase:
                                 f'Retrying in {delay:.1f}s... ({e.message})'
                             )
                             await asyncio.sleep(delay)
-                            delay = min(delay * 1.5, 10.0)
+                            delay = delay * 2
 
             self.context.progress_reporter.complete_task(page_task_id)
             self.context.progress_reporter.success(
