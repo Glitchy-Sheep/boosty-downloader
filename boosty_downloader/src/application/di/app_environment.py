@@ -9,13 +9,13 @@ import aiohttp
 from aiohttp.typedefs import LooseHeaders
 from aiohttp_retry import RetryClient, RetryOptionsBase
 
-from boosty_downloader.src.infrastructure.boosty_api.core.client import BoostyAPIClient
-from boosty_downloader.src.infrastructure.loggers.logger_instances import RichLogger
-from boosty_downloader.src.infrastructure.post_caching.post_cache import SQLitePostCache
-from boosty_downloader.src.interfaces.console_progress_reporter import (
+from boosty_downloader.src.cli.console_progress_reporter import (
     ProgressReporter,
     use_reporter,
 )
+from boosty_downloader.src.infrastructure.boosty_api.core.client import BoostyAPIClient
+from boosty_downloader.src.infrastructure.loggers.logger_instances import RichLogger
+from boosty_downloader.src.infrastructure.post_caching.post_cache import SQLitePostCache
 
 
 class AppEnvironment:

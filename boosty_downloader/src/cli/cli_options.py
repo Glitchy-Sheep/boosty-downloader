@@ -9,7 +9,7 @@ from boosty_downloader.src.application.filtering import (
     DownloadContentTypeFilter,
     VideoQualityOption,
 )
-from boosty_downloader.src.interfaces.help_panels import HelpPanels
+from boosty_downloader.src.cli.help_panels import HelpPanels
 
 UsernameOption = Annotated[
     str,

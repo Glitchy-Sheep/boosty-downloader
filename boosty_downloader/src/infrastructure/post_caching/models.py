@@ -50,8 +50,6 @@ class PostCacheEntryModel(Base):
                 return self.external_videos_downloaded
             case DownloadContentTypeFilter.boosty_videos:
                 return self.boosty_videos_downloaded
-            case DownloadContentTypeFilter.audio:
-                return self.audio_downloaded
 
     def mark_downloaded(
         self, content_types: Iterable[DownloadContentTypeFilter]
@@ -67,8 +65,6 @@ class PostCacheEntryModel(Base):
                     self.external_videos_downloaded = True
                 case DownloadContentTypeFilter.boosty_videos:
                     self.boosty_videos_downloaded = True
-                case DownloadContentTypeFilter.audio:
-                    self.audio_downloaded = True
 
     @classmethod
     def create_new(
@@ -89,5 +85,4 @@ class PostCacheEntryModel(Base):
             in downloaded_set,
             boosty_videos_downloaded=DownloadContentTypeFilter.boosty_videos
             in downloaded_set,
-            audio_downloaded=DownloadContentTypeFilter.audio in downloaded_set,
         )
