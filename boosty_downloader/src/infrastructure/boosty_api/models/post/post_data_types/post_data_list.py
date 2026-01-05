@@ -18,8 +18,12 @@ class BoostyPostDataListDataItemDTO(BoostyBaseDTO):
 class BoostyPostDataListItemDTO(BoostyBaseDTO):
     """Represents a single item in a list of post data chunks."""
 
-    items: list['BoostyPostDataListItemDTO'] = Field(default_factory=list)
-    data: list[BoostyPostDataListDataItemDTO] = Field(default_factory=list)
+    items: list['BoostyPostDataListItemDTO'] = Field(
+        default_factory=lambda: list['BoostyPostDataListItemDTO']()
+    )
+    data: list[BoostyPostDataListDataItemDTO] = Field(
+        default_factory=lambda: list[BoostyPostDataListDataItemDTO]()
+    )
 
 
 BoostyPostDataListItemDTO.model_rebuild()
