@@ -38,7 +38,7 @@ ContentTypeFilterOption = Annotated[
         '--content-type-filter',
         '-f',
         help='Choose what content you want to download\n\n(default: ALL SET)',
-        metavar='Available options:\n- files\n- post_content\n- boosty_videos\n- external_videos\n',
+        metavar='Available options:\n- files\n- post_content\n- boosty_videos\n- external_videos\n- audio\n',
         show_default=False,
         rich_help_panel=HelpPanels.filtering,
     ),

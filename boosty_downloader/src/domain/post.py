@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from boosty_downloader.src.domain.post_data_chunks import (
+    PostDataChunkAudio,
     PostDataChunkBoostyVideo,
     PostDataChunkExternalVideo,
     PostDataChunkFile,
@@ -19,6 +20,7 @@ PostDataAllChunks = (
     | PostDataChunkExternalVideo
     | PostDataChunkFile
     | PostDataChunkTextualList
+    | PostDataChunkAudio
 )
 
 PostDataAllChunksList = list[PostDataAllChunks]

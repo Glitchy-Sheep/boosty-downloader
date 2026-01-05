@@ -95,11 +95,11 @@ def show_start_summary(
         f'[italic]Destination directory[/italic]: [bold green]{destination_directory}[/bold green]'
     )
     pr.info(
-        '--------------------------------------------------------------------------\n'
+        '----------------------------------------------------------------------------------\n'
         'Script will download: [bold green]'
         + ', '.join(str(item.name) for item in content_type_filter)
         + '[/bold green]\n'
-        '--------------------------------------------------------------------------\n'
+        '----------------------------------------------------------------------------------\n'
     )
     pr.notice(
         'You can safely interrupt the download at any time with [bold yellow]Ctrl+C[/bold yellow].\n'

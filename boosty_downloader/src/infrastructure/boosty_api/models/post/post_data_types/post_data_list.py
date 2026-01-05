@@ -2,10 +2,10 @@
 
 from typing import Literal
 
-from pydantic import BaseModel
+from boosty_downloader.src.infrastructure.boosty_api.models.base import BoostyBaseDTO
 
 
-class BoostyPostDataListDataItemDTO(BaseModel):
+class BoostyPostDataListDataItemDTO(BoostyBaseDTO):
     """Represents a single data item in a list of post data chunks."""
 
     type: str
@@ -13,7 +13,7 @@ class BoostyPostDataListDataItemDTO(BaseModel):
     content: str
 
 
-class BoostyPostDataListItemDTO(BaseModel):
+class BoostyPostDataListItemDTO(BoostyBaseDTO):
     """Represents a single item in a list of post data chunks."""
 
     items: list['BoostyPostDataListItemDTO'] = []
@@ -23,7 +23,7 @@ class BoostyPostDataListItemDTO(BaseModel):
 BoostyPostDataListItemDTO.model_rebuild()
 
 
-class BoostyPostDataListDTO(BaseModel):
+class BoostyPostDataListDTO(BoostyBaseDTO):
     """Represents a list of post data chunks."""
 
     type: Literal['list']

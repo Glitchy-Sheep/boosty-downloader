@@ -31,6 +31,7 @@ from boosty_downloader.src.domain.post import (
     PostDataChunkImage,
 )
 from boosty_downloader.src.domain.post_data_chunks import (
+    PostDataChunkAudio,
     PostDataChunkBoostyVideo,
     PostDataChunkExternalVideo,
     PostDataChunkFile,
@@ -91,12 +92,14 @@ class DownloadSinglePostUseCase:
         self.files_destination = destination / Path('files')
         self.external_videos_destination = destination / Path('external_videos')
         self.boosty_videos_destination = destination / Path('boosty_videos')
+        self.audio_destination = destination / Path('audio')
 
     def _should_execute(
         self, post: Post, missing_parts: list[DownloadContentTypeFilter]
     ) -> bool:
         """Check if the post has any content matching the requested filters."""
         chunk_to_filter: dict[type, DownloadContentTypeFilter] = {
+            PostDataChunkAudio: DownloadContentTypeFilter.audio,
             PostDataChunkBoostyVideo: DownloadContentTypeFilter.boosty_videos,
             PostDataChunkExternalVideo: DownloadContentTypeFilter.external_videos,
             PostDataChunkFile: DownloadContentTypeFilter.files,
@@ -266,6 +269,7 @@ class DownloadSinglePostUseCase:
         should_download_ext_videos = (
             DownloadContentTypeFilter.external_videos in missing_parts
         )
+        should_download_audio = DownloadContentTypeFilter.audio in missing_parts
 
         # ----------------------------------------------------------------------
         # Post Content (Text / List / Image) processing
@@ -294,6 +298,10 @@ class DownloadSinglePostUseCase:
         # Files
         elif isinstance(chunk, PostDataChunkFile) and should_download_files:
             await self.download_files(file=chunk)
+        # ----------------------------------------------------------------------
+        # Audio
+        elif isinstance(chunk, PostDataChunkAudio) and should_download_audio:
+            await self.download_audio(audio=chunk)
         return None
 
     # --------------------------------------------------------------------------
@@ -393,5 +401,14 @@ class DownloadSinglePostUseCase:
             filename=URL(image.url).name,
             destination=self.images_destination,
             task_label=f'Image: {URL(image.url).name}',
+            guess_extension=False,
+        )
+
+    async def download_audio(self, audio: PostDataChunkAudio) -> Path:
+        return await self._download_with_progress(
+            url=audio.url,
+            filename=audio.title,
+            destination=self.audio_destination,
+            task_label=f'Audio: {audio.title}',
             guess_extension=False,
         )
