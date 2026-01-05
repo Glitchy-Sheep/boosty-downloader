@@ -9,6 +9,7 @@ from boosty_downloader.src.domain.post_data_chunks import (
     PostDataChunkFile,
 )
 from boosty_downloader.src.infrastructure.html_generator.models import (
+    HtmlGenAudio,
     HtmlGenFile,
     HtmlGenImage,
     HtmlGenList,
@@ -69,3 +70,8 @@ def convert_list_to_html(chunk: PostDataChunkTextualList) -> HtmlGenList:
     style = HtmlListStyle.UNORDERED
 
     return HtmlGenList(items=items, style=style)
+
+
+def convert_audio_to_html(src: str, title: str) -> HtmlGenAudio:
+    """Convert audio source to HTML audio model."""
+    return HtmlGenAudio(url=src, title=title)

@@ -21,6 +21,7 @@ from boosty_downloader.src.application.filtering import (
 from boosty_downloader.src.application.mappers import map_post_dto_to_domain
 from boosty_downloader.src.application.mappers.html_converter import (
     PostDataChunkTextualList,
+    convert_audio_to_html,
     convert_list_to_html,
     convert_text_to_html,
     convert_video_to_html,
@@ -256,7 +257,7 @@ class DownloadSinglePostUseCase:
                 resource=e.video_url,
             ) from e
 
-    async def _process_chunk(
+    async def _process_chunk(  # noqa: C901, PLR0911
         self,
         chunk: PostDataAllChunks,
         missing_parts: list[DownloadContentTypeFilter],
@@ -301,7 +302,9 @@ class DownloadSinglePostUseCase:
         # ----------------------------------------------------------------------
         # Audio
         elif isinstance(chunk, PostDataChunkAudio) and should_download_audio:
-            await self.download_audio(audio=chunk)
+            saved_as = await self.download_audio(audio=chunk)
+            if DownloadContentTypeFilter.post_content in missing_parts:
+                return convert_audio_to_html(src=str(saved_as), title=chunk.title)
         return None
 
     # --------------------------------------------------------------------------

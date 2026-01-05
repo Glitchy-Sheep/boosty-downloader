@@ -1,6 +1,7 @@
 """HTML generator module for independent HTML generation."""
 
 from .models import (
+    HtmlGenAudio,
     HtmlGenChunk,
     HtmlGenFile,
     HtmlGenImage,
@@ -19,6 +20,7 @@ from .renderer import (
 )
 
 __all__ = [
+    'HtmlGenAudio',
     'HtmlGenChunk',
     'HtmlGenFile',
     'HtmlGenImage',

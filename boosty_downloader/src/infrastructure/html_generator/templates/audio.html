@@ -1,0 +1,9 @@
+<div class="audio-player">
+    {% if audio.title %}
+    <div class="audio-title">{{ audio.title }}</div>
+    {% endif %}
+    <audio controls>
+        <source src="{{ audio.url }}">
+        Your browser does not support the audio tag.
+    </audio>
+</div>
