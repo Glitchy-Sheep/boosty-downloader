@@ -21,6 +21,7 @@ from boosty_downloader.src.application.filtering import (
 from boosty_downloader.src.application.mappers import map_post_dto_to_domain
 from boosty_downloader.src.application.mappers.html_converter import (
     PostDataChunkTextualList,
+    convert_audio_to_html,
     convert_list_to_html,
     convert_text_to_html,
     convert_video_to_html,
@@ -31,6 +32,7 @@ from boosty_downloader.src.domain.post import (
     PostDataChunkImage,
 )
 from boosty_downloader.src.domain.post_data_chunks import (
+    PostDataChunkAudio,
     PostDataChunkBoostyVideo,
     PostDataChunkExternalVideo,
     PostDataChunkFile,
@@ -91,41 +93,27 @@ class DownloadSinglePostUseCase:
         self.files_destination = destination / Path('files')
         self.external_videos_destination = destination / Path('external_videos')
         self.boosty_videos_destination = destination / Path('boosty_videos')
+        self.audio_destination = destination / Path('audio')
 
     def _should_execute(
-        self, post: Post, filters: list[DownloadContentTypeFilter]
+        self, post: Post, missing_parts: list[DownloadContentTypeFilter]
     ) -> bool:
-        # Check if any of the filters match the content type
-        post_has_boosty_videos = any(
-            isinstance(chunk, PostDataChunkBoostyVideo)
-            for chunk in post.post_data_chunks
-        )
-        post_has_external_videos = any(
-            isinstance(chunk, PostDataChunkExternalVideo)
-            for chunk in post.post_data_chunks
-        )
-        post_has_files = any(
-            isinstance(chunk, PostDataChunkFile) for chunk in post.post_data_chunks
-        )
-        post_has_post_content = any(
-            isinstance(
-                chunk, PostDataChunkText | PostDataChunkTextualList | PostDataChunkImage
-            )
-            for chunk in post.post_data_chunks
-        )
+        """Check if the post has any content matching the requested filters."""
+        chunk_to_filter: dict[type, DownloadContentTypeFilter] = {
+            PostDataChunkAudio: DownloadContentTypeFilter.audio,
+            PostDataChunkBoostyVideo: DownloadContentTypeFilter.boosty_videos,
+            PostDataChunkExternalVideo: DownloadContentTypeFilter.external_videos,
+            PostDataChunkFile: DownloadContentTypeFilter.files,
+            PostDataChunkText: DownloadContentTypeFilter.post_content,
+            PostDataChunkTextualList: DownloadContentTypeFilter.post_content,
+            PostDataChunkImage: DownloadContentTypeFilter.post_content,
+        }
 
-        want_boosty_videos = DownloadContentTypeFilter.boosty_videos in filters
-        want_external_videos = DownloadContentTypeFilter.external_videos in filters
-        want_files = DownloadContentTypeFilter.files in filters
-        want_post_content = DownloadContentTypeFilter.post_content in filters
-
-        # Start use case only if we *actually* have a job to do
-        return (
-            (want_boosty_videos and post_has_boosty_videos)
-            or (want_external_videos and post_has_external_videos)
-            or (want_files and post_has_files)
-            or (want_post_content and post_has_post_content)
-        )
+        for chunk in post.post_data_chunks:
+            filter_type = chunk_to_filter.get(type(chunk))
+            if filter_type and filter_type in missing_parts:
+                return True
+        return False
 
     # --------------------------------------------------------------------------
     # Main method do start the action
@@ -145,7 +133,7 @@ class DownloadSinglePostUseCase:
         )
 
         missing_parts: list[DownloadContentTypeFilter] = (
-            self.context.post_cache.get_missing_parts(
+            self.context.post_cache.get_post_missing_parts(
                 post_uuid=post.uuid,
                 updated_at=post.updated_at,
                 required=self.context.filters,
@@ -186,7 +174,9 @@ class DownloadSinglePostUseCase:
                     self.post_file_path.unlink(missing_ok=True)
                     raise
 
-            self.context.post_cache.cache(post.uuid, post.updated_at, missing_parts)
+            self.context.post_cache.cache_post(
+                post.uuid, post.updated_at, missing_parts
+            )
             self.context.post_cache.commit()
             self.context.progress_reporter.success(
                 f'Finished:  {self.destination.name}'
@@ -267,7 +257,7 @@ class DownloadSinglePostUseCase:
                 resource=e.video_url,
             ) from e
 
-    async def _process_chunk(
+    async def _process_chunk(  # noqa: C901, PLR0911
         self,
         chunk: PostDataAllChunks,
         missing_parts: list[DownloadContentTypeFilter],
@@ -280,6 +270,7 @@ class DownloadSinglePostUseCase:
         should_download_ext_videos = (
             DownloadContentTypeFilter.external_videos in missing_parts
         )
+        should_download_audio = DownloadContentTypeFilter.audio in missing_parts
 
         # ----------------------------------------------------------------------
         # Post Content (Text / List / Image) processing
@@ -308,151 +299,119 @@ class DownloadSinglePostUseCase:
         # Files
         elif isinstance(chunk, PostDataChunkFile) and should_download_files:
             await self.download_files(file=chunk)
+        # ----------------------------------------------------------------------
+        # Audio
+        elif isinstance(chunk, PostDataChunkAudio) and should_download_audio:
+            saved_as = await self.download_audio(audio=chunk)
+            if DownloadContentTypeFilter.post_content in missing_parts:
+                return convert_audio_to_html(src=str(saved_as), title=chunk.title)
         return None
 
     # --------------------------------------------------------------------------
     # Helper downloading methods
 
-    async def download_boosty_video(
+    async def _download_with_progress(
         self,
-        boosty_video: PostDataChunkBoostyVideo,
+        url: str,
+        filename: str,
+        destination: Path,
+        task_label: str,
+        *,
+        guess_extension: bool = True,
     ) -> Path:
-        """Download a Boosty video and returns the path to the saved file."""
-        self.boosty_videos_destination.mkdir(parents=True, exist_ok=True)
-
-        download_task_id = self.context.progress_reporter.create_task(
-            f'[bold orange]Boosty video[/bold orange]: {boosty_video.title}',
-            indent_level=2,  # Nesting: page/post/video = 0/1/2
-        )
+        """Download a file with progress tracking and return path relative to post directory."""
+        destination.mkdir(parents=True, exist_ok=True)
+        task_id = self.context.progress_reporter.create_task(task_label, indent_level=2)
 
         def update_progress(status: DownloadingStatus) -> None:
-            human_downloaded_size = human_readable_size(status.total_downloaded_bytes)
-            human_total_size = human_readable_size(status.total_bytes)
-
+            downloaded = human_readable_size(status.total_downloaded_bytes)
+            total = human_readable_size(status.total_bytes)
             self.context.progress_reporter.update_task(
-                download_task_id,
+                task_id,
                 advance=status.downloaded_bytes,
                 total=status.total_bytes,
-                description=f'[bold orange]Boosty Video[/bold orange] [{human_downloaded_size} / {human_total_size}]: {boosty_video.title} ',
+                description=f'{task_label} [{downloaded} / {total}]',
             )
 
-        dl_config = DownloadFileConfig(
-            session=self.context.downloader_session,
-            url=boosty_video.url,
-            filename=boosty_video.title,
-            guess_extension=True,
-            destination=self.boosty_videos_destination,
-            on_status_update=update_progress,
-        )
-
         try:
-            downloaded_file_path = await download_file(dl_config)
+            path = await download_file(
+                DownloadFileConfig(
+                    session=self.context.downloader_session,
+                    url=url,
+                    filename=filename,
+                    destination=destination,
+                    guess_extension=guess_extension,
+                    on_status_update=update_progress,
+                )
+            )
         finally:
-            self.context.progress_reporter.complete_task(download_task_id)
+            self.context.progress_reporter.complete_task(task_id)
 
-        return downloaded_file_path.relative_to(self.post_file_path.parent)
+        return path.relative_to(self.post_file_path.parent)
+
+    async def download_boosty_video(self, video: PostDataChunkBoostyVideo) -> Path:
+        """Download a Boosty video and return the path to the saved file."""
+        return await self._download_with_progress(
+            url=video.url,
+            filename=video.title,
+            destination=self.boosty_videos_destination,
+            task_label=f'[bold orange]Boosty Video[/bold orange]: {video.title}',
+        )
 
     async def download_external_videos(
         self, external_video: PostDataChunkExternalVideo
     ) -> Path:
+        """Download an external video using yt-dlp."""
         self.external_videos_destination.mkdir(parents=True, exist_ok=True)
-
-        download_video_task_id = self.context.progress_reporter.create_task(
-            f'Downloading external video: {external_video.url}',
-            indent_level=2,  # Nesting: page/post/video = 0/1/2
+        task_id = self.context.progress_reporter.create_task(
+            f'External video: {external_video.url}', indent_level=2
         )
 
         def update_progress(status: ExternalVideoDownloadStatus) -> None:
-            human_downloaded_size = human_readable_size(status.downloaded_bytes)
-            human_total_size = human_readable_size(status.total_bytes)
-
+            downloaded = human_readable_size(status.downloaded_bytes)
+            total = human_readable_size(status.total_bytes)
             self.context.progress_reporter.update_task(
-                download_video_task_id,
+                task_id,
                 advance=status.delta_bytes,
                 total=status.total_bytes,
-                description=f'Downloading external video [{human_downloaded_size} / {human_total_size}]: {external_video.url}',
+                description=f'External video [{downloaded} / {total}]: {external_video.url}',
             )
 
         try:
-            downloaded_file_path = (
-                self.context.external_videos_downloader.download_video(
-                    url=external_video.url,
-                    destination_directory=self.external_videos_destination,
-                    progress_hook=update_progress,
-                )
+            path = self.context.external_videos_downloader.download_video(
+                url=external_video.url,
+                destination_directory=self.external_videos_destination,
+                progress_hook=update_progress,
             )
         finally:
-            self.context.progress_reporter.complete_task(download_video_task_id)
+            self.context.progress_reporter.complete_task(task_id)
 
-        return downloaded_file_path.relative_to(self.external_videos_destination.parent)
+        return path.relative_to(self.external_videos_destination.parent)
 
     async def download_files(self, file: PostDataChunkFile) -> Path:
-        # Download them all with options of the class
-        self.files_destination.mkdir(parents=True, exist_ok=True)
-
-        download_task_id = self.context.progress_reporter.create_task(
-            f'Downloading file: {file.filename}',
-            indent_level=2,  # Nesting: page/post/file = 0/1/2
-        )
-
-        def update_progress(status: DownloadingStatus) -> None:
-            human_downloaded_size = human_readable_size(status.total_downloaded_bytes)
-            human_total_size = human_readable_size(status.total_bytes)
-
-            self.context.progress_reporter.update_task(
-                download_task_id,
-                advance=status.downloaded_bytes,
-                total=status.total_bytes,
-                description=f'Downloading file [{human_downloaded_size} / {human_total_size}]: {file.filename}',
-            )
-
-        dl_config = DownloadFileConfig(
-            session=self.context.downloader_session,
+        """Download a file attachment."""
+        return await self._download_with_progress(
             url=file.url,
             filename=file.filename,
-            guess_extension=True,
             destination=self.files_destination,
-            on_status_update=update_progress,
+            task_label=f'File: {file.filename}',
         )
-
-        try:
-            downloaded_file_path = await download_file(dl_config)
-        finally:
-            self.context.progress_reporter.complete_task(download_task_id)
-
-        return downloaded_file_path.relative_to(self.post_file_path.parent)
 
     async def download_image(self, image: PostDataChunkImage) -> Path:
-        """Download an image and returns the path to the saved file."""
-        self.images_destination.mkdir(parents=True, exist_ok=True)
-
-        download_task_id = self.context.progress_reporter.create_task(
-            f'Downloading image: {image.url}',
-            indent_level=2,  # Nesting: page/post/image = 0/1/2
-        )
-
-        def update_progress(status: DownloadingStatus) -> None:
-            human_downloaded_size = human_readable_size(status.total_downloaded_bytes)
-            human_total_size = human_readable_size(status.total_bytes)
-
-            self.context.progress_reporter.update_task(
-                download_task_id,
-                advance=status.downloaded_bytes,
-                total=status.total_bytes,
-                description=f'Downloading image [{human_downloaded_size} / {human_total_size}]: {image.url}',
-            )
-
-        dl_config = DownloadFileConfig(
-            session=self.context.downloader_session,
+        """Download an image."""
+        return await self._download_with_progress(
             url=image.url,
             filename=URL(image.url).name,
             destination=self.images_destination,
-            on_status_update=update_progress,
+            task_label=f'Image: {URL(image.url).name}',
+            guess_extension=False,
         )
 
-        try:
-            downloaded_file_path = await download_file(dl_config)
-        finally:
-            self.context.progress_reporter.complete_task(download_task_id)
-
-        return downloaded_file_path.relative_to(self.post_file_path.parent)
+    async def download_audio(self, audio: PostDataChunkAudio) -> Path:
+        return await self._download_with_progress(
+            url=audio.url,
+            filename=audio.title,
+            destination=self.audio_destination,
+            task_label=f'Audio: {audio.title}',
+            guess_extension=False,
+        )

@@ -6,8 +6,7 @@ from datetime import timedelta  # noqa: TC003 Pydantic should know this type ful
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
-from pydantic.alias_generators import to_camel
+from boosty_downloader.src.infrastructure.boosty_api.models.base import BoostyBaseDTO
 
 
 class BoostyOkVideoType(Enum):
@@ -34,14 +33,14 @@ class BoostyOkVideoType(Enum):
     lowest = 'lowest'
 
 
-class BoostyOkVideoUrl(BaseModel):
+class BoostyOkVideoUrl(BoostyBaseDTO):
     """Link to video with specific format (link can be empty for some formats)"""
 
     url: str
     type: BoostyOkVideoType
 
 
-class BoostyPostDataOkVideoDTO(BaseModel):
+class BoostyPostDataOkVideoDTO(BoostyBaseDTO):
     """Ok video content piece in posts"""
 
     type: Literal['ok_video']
@@ -53,9 +52,3 @@ class BoostyPostDataOkVideoDTO(BaseModel):
     upload_status: str
     complete: bool
     player_urls: list[BoostyOkVideoUrl]
-
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True,
-        from_attributes=True,
-    )

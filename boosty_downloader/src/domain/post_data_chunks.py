@@ -9,6 +9,14 @@ from enum import Enum
 
 
 @dataclass
+class PostDataChunkAudio:
+    """Represent an audio data chunk within a post."""
+
+    url: str
+    title: str
+
+
+@dataclass
 class PostDataChunkImage:
     """Represent an image data chunk within a post."""
 

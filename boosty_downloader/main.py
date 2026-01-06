@@ -30,6 +30,20 @@ from boosty_downloader.src.application.use_cases.download_all_posts import (
 from boosty_downloader.src.application.use_cases.download_specific_post import (
     DownloadPostByUrlUseCase,
 )
+from boosty_downloader.src.cli.cli_options import (
+    # ---------------------------------------------------------------------------
+    # These imports can't be moved to TYPE_CHECKING
+    # because they are used by typer at runtime.
+    #
+    CheckTotalCountOption,  # noqa: TC001
+    CleanCacheOption,  # noqa: TC001
+    ContentTypeFilterOption,  # noqa: TC001
+    DestinationDirectoryOption,  # noqa: TC001
+    PostUrlOption,  # noqa: TC001
+    PreferredVideoQualityOption,  # noqa: TC001
+    RequestDelaySecondsOption,  # noqa: TC001
+    UsernameOption,  # noqa: TC001
+)
 from boosty_downloader.src.infrastructure.boosty_api.core.client import (
     BoostyAPINoUsernameError,
     BoostyAPIUnauthorizedError,
@@ -54,25 +68,11 @@ from boosty_downloader.src.infrastructure.update_checker.pypi_checker import (
     check_for_updates,
 )
 from boosty_downloader.src.infrastructure.yaml_configuration.config import init_config
-from boosty_downloader.src.interfaces.cli_options import (
-    # ---------------------------------------------------------------------------
-    # These imports can't be moved to TYPE_CHECKING
-    # because they are used by typer at runtime.
-    #
-    CheckTotalCountOption,  # noqa: TC001
-    CleanCacheOption,  # noqa: TC001
-    ContentTypeFilterOption,  # noqa: TC001
-    DestinationDirectoryOption,  # noqa: TC001
-    PostUrlOption,  # noqa: TC001
-    PreferredVideoQualityOption,  # noqa: TC001
-    RequestDelaySecondsOption,  # noqa: TC001
-    UsernameOption,  # noqa: TC001
-)
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from boosty_downloader.src.interfaces.console_progress_reporter import (
+    from boosty_downloader.src.cli.console_progress_reporter import (
         ProgressReporter,
     )
 
@@ -95,11 +95,11 @@ def show_start_summary(
         f'[italic]Destination directory[/italic]: [bold green]{destination_directory}[/bold green]'
     )
     pr.info(
-        '--------------------------------------------------------------------------\n'
+        '----------------------------------------------------------------------------------\n'
         'Script will download: [bold green]'
         + ', '.join(str(item.name) for item in content_type_filter)
         + '[/bold green]\n'
-        '--------------------------------------------------------------------------\n'
+        '----------------------------------------------------------------------------------\n'
     )
     pr.notice(
         'You can safely interrupt the download at any time with [bold yellow]Ctrl+C[/bold yellow].\n'

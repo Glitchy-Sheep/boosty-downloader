@@ -2,10 +2,10 @@
 
 from typing import Literal
 
-from pydantic import BaseModel
+from boosty_downloader.src.infrastructure.boosty_api.models.base import BoostyBaseDTO
 
 
-class BoostyPostDataLinkDTO(BaseModel):
+class BoostyPostDataLinkDTO(BoostyBaseDTO):
     """Link content piece in posts"""
 
     type: Literal['link']

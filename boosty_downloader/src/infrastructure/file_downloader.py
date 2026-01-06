@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import aiofiles
-from aiohttp import ClientConnectionError
+from aiohttp import ClientConnectionError, ClientPayloadError
 
 from boosty_downloader.src.infrastructure.path_sanitizer import (
     sanitize_string,
@@ -160,7 +160,12 @@ async def download_file(
                 raise DownloadTimeoutError(
                     file=file_path, resource_url=dl_config.url
                 ) from e
-            except (ConnectionResetError, BrokenPipeError, ClientConnectionError) as e:
+            except (
+                ConnectionResetError,
+                BrokenPipeError,
+                ClientConnectionError,
+                ClientPayloadError,
+            ) as e:
                 raise DownloadConnectionError(
                     file=file_path, resource_url=dl_config.url
                 ) from e

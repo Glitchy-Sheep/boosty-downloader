@@ -11,6 +11,7 @@ from pathlib import Path
 from jinja2 import Environment, PackageLoader, select_autoescape
 
 from boosty_downloader.src.infrastructure.html_generator.models import (
+    HtmlGenAudio,
     HtmlGenChunk,
     HtmlGenFile,
     HtmlGenImage,
@@ -40,6 +41,9 @@ def render_html_chunk(chunk: HtmlGenChunk) -> str:
         case HtmlGenVideo():
             chunk.url = str(chunk.url).replace('\\', '/')
             return env.get_template('video.html').render(video=chunk)
+        case HtmlGenAudio():
+            chunk.url = str(chunk.url).replace('\\', '/')
+            return env.get_template('audio.html').render(audio=chunk)
         case HtmlGenList():
             return env.get_template('list.html').render(
                 lst=chunk, render_chunk=render_html_chunk

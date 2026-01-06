@@ -8,6 +8,7 @@ from boosty_downloader.src.infrastructure.boosty_api.models.post.base_post_data 
 )
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types import (
+    BoostyPostDataAudioDTO,
     BoostyPostDataFileDTO,
     BoostyPostDataHeaderDTO,
     BoostyPostDataImageDTO,
@@ -63,5 +64,7 @@ def map_post_dto_to_domain(
                 post.post_data_chunks.append(
                     mappers.to_external_video_content(data_chunk)
                 )
+            case BoostyPostDataAudioDTO():
+                post.post_data_chunks.append(mappers.to_domain_audio_chunk(data_chunk))
 
     return post

@@ -11,6 +11,7 @@ from typing import Annotated
 from pydantic import Field
 
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types import (
+    BoostyPostDataAudioDTO,
     BoostyPostDataExternalVideoDTO,
     BoostyPostDataFileDTO,
     BoostyPostDataHeaderDTO,
@@ -23,6 +24,7 @@ from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types
 
 BasePostData = Annotated[
     BoostyPostDataTextDTO
+    | BoostyPostDataAudioDTO
     | BoostyPostDataImageDTO
     | BoostyPostDataLinkDTO
     | BoostyPostDataFileDTO

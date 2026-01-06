@@ -2,10 +2,10 @@
 
 from typing import Literal
 
-from pydantic import BaseModel
+from boosty_downloader.src.infrastructure.boosty_api.models.base import BoostyBaseDTO
 
 
-class BoostyPostDataImageDTO(BaseModel):
+class BoostyPostDataImageDTO(BoostyBaseDTO):
     """Image content piece in posts"""
 
     type: Literal['image']

@@ -27,6 +27,7 @@ class DownloadContentTypeFilter(Enum):
     external_videos = 'external_videos'
     post_content = 'post_content'
     files = 'files'
+    audio = 'audio'
 
 
 class VideoQualityOption(str, Enum):

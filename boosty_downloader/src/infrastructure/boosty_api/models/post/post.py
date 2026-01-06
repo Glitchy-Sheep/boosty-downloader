@@ -4,16 +4,13 @@ from __future__ import annotations
 
 from datetime import datetime  # noqa: TC003 Pydantic should know this type fully
 
-from pydantic import ConfigDict
-from pydantic.alias_generators import to_camel
-from pydantic.main import BaseModel
-
+from boosty_downloader.src.infrastructure.boosty_api.models.base import BoostyBaseDTO
 from boosty_downloader.src.infrastructure.boosty_api.models.post.base_post_data import (
     BasePostData,  # noqa: TC001 Pydantic should know this type fully
 )
 
 
-class PostDTO(BaseModel):
+class PostDTO(BoostyBaseDTO):
     """Post on boosty.to which also have data pieces"""
 
     id: str
@@ -25,9 +22,3 @@ class PostDTO(BaseModel):
     signed_query: str
 
     data: list[BasePostData]
-
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True,
-        from_attributes=True,
-    )

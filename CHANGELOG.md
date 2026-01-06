@@ -1,3 +1,8 @@
+## 2.1.0
+
+- Added support for audio downloading and html rendering 
+- Added database migration support for painless application migrations/updates
+
 ## 2.0.1 
 
 - 🐛 Fixed image data so posts download even when width/height is missing

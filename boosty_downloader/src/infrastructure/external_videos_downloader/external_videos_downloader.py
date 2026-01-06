@@ -12,7 +12,7 @@ from typing import Any, ClassVar, cast
 from yt_dlp.YoutubeDL import YoutubeDL
 from yt_dlp.utils import DownloadError
 
-YtDlOptions = dict[str, object]
+YtDlOptions = dict[str, Any]
 ExternalVideoDownloadProgressHook = Callable[['ExternalVideoDownloadStatus'], None]
 
 
@@ -120,7 +120,7 @@ class ExternalVideosDownloader:
         options['progress_hooks'] = [internal_hook]
 
         try:
-            with YoutubeDL(params=options) as ydl:
+            with YoutubeDL(params=cast('Any', options)) as ydl:
                 try:
                     # yt-dlp isn't typed; cast to Any and coerce to int
                     errors: int = int(cast('Any', ydl).download([url]))
@@ -143,7 +143,8 @@ class ExternalVideosDownloader:
     def _probe_video(self, url: str) -> dict[str, Any]:
         # Extract metadata without downloading to validate and fetch title/ext.
         try:
-            with YoutubeDL({**self._default_ydl_options, 'skip_download': True}) as ydl:
+            opts = {**self._default_ydl_options, 'skip_download': True}
+            with YoutubeDL(cast('Any', opts)) as ydl:
                 raw = cast('Any', ydl).extract_info(url, download=False)
         except DownloadError as e:
             raise ExtVideoInfoError(url) from e

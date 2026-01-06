@@ -83,5 +83,15 @@ class HtmlGenFile:
     title: str | None = None
 
 
+@dataclass
+class HtmlGenAudio:
+    """Audio content for HTML generation."""
+
+    url: str
+    title: str | None = None
+
+
 # Union type for all HTML chunk types
-HtmlGenChunk = HtmlGenText | HtmlGenImage | HtmlGenVideo | HtmlGenList | HtmlGenFile
+HtmlGenChunk = (
+    HtmlGenText | HtmlGenImage | HtmlGenVideo | HtmlGenList | HtmlGenFile | HtmlGenAudio
+)
