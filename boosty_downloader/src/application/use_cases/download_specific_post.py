@@ -87,7 +87,11 @@ class DownloadPostByUrlUseCase:
                     )
 
                     post_name = f'{post.created_at.date()} - {post.title}'
-                    post_name = sanitize_string(post_name).replace('.', '').strip()
+                    post_name = (
+                        sanitize_string(post_name, max_bytes=240)
+                        .replace('.', '')
+                        .strip()
+                    )
 
                     try:
                         await DownloadSinglePostUseCase(
