@@ -49,6 +49,6 @@ class BoostyPostDataOkVideoDTO(BoostyBaseDTO):
     failover_host: str
     duration: timedelta
 
-    upload_status: str
+    upload_status: str | None = None
     complete: bool
     player_urls: list[BoostyOkVideoUrl]

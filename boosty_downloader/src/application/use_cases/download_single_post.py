@@ -18,7 +18,10 @@ from boosty_downloader.src.application.exceptions.application_errors import (
 from boosty_downloader.src.application.filtering import (
     DownloadContentTypeFilter,
 )
-from boosty_downloader.src.application.mappers import map_post_dto_to_domain
+from boosty_downloader.src.application.mappers import (
+    PostMappingResult,
+    map_post_dto_to_domain,
+)
 from boosty_downloader.src.application.mappers.html_converter import (
     PostDataChunkTextualList,
     convert_audio_to_html,
@@ -128,9 +131,15 @@ class DownloadSinglePostUseCase:
         ApplicationFailedDownloadError: If the download fails for any reason for a specific post.
 
         """
-        post = map_post_dto_to_domain(
+        mapping_result: PostMappingResult = map_post_dto_to_domain(
             self.post_dto, preferred_video_quality=self.context.preferred_video_quality
         )
+        post = mapping_result.post
+
+        if mapping_result.incomplete_content_types:
+            self.context.progress_reporter.warn(
+                f'Post has unfinished uploads (will retry next run): {self.destination.name}'
+            )
 
         missing_parts: list[DownloadContentTypeFilter] = (
             self.context.post_cache.get_post_missing_parts(
@@ -174,10 +183,16 @@ class DownloadSinglePostUseCase:
                     self.post_file_path.unlink(missing_ok=True)
                     raise
 
-            self.context.post_cache.cache_post(
-                post.uuid, post.updated_at, missing_parts
-            )
-            self.context.post_cache.commit()
+            cacheable_parts = [
+                p
+                for p in missing_parts
+                if p not in mapping_result.incomplete_content_types
+            ]
+            if cacheable_parts:
+                self.context.post_cache.cache_post(
+                    post.uuid, post.updated_at, cacheable_parts
+                )
+                self.context.post_cache.commit()
             self.context.progress_reporter.success(
                 f'Finished:  {self.destination.name}'
             )
