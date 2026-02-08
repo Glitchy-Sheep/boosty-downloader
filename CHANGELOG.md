@@ -1,3 +1,7 @@
+## 2.1.1
+
+- Fix crash when processing unfinished uploads; they are now skipped gracefully
+
 ## 2.1.0
 
 - Added support for audio downloading and html rendering 

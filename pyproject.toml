@@ -1,6 +1,6 @@
 [project]
 name = "boosty-downloader"
-version = "2.1.0"
+version = "2.1.1"
 description = ""
 authors = [
     { name = "Roman Berezkin", email = "Glitchy-Sheep@users.noreply.github.com" },
@@ -40,7 +40,7 @@ pytest-asyncio = "^1.1.0"
 
 [tool.poetry]
 name = "boosty-downloader"
-version = "2.1.0"
+version = "2.1.1"
 description = "Download any type of content from boosty.to"
 authors = ["Roman Berezkin"]
 readme = "README.md"
