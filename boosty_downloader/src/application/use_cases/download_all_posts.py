@@ -74,6 +74,7 @@ class DownloadAllPostUseCase:
 
                 # date - TITLE (UUID_PART) for deduplication in case of same names with different posts
                 full_post_title = f'{post_dto.created_at.date()} - {post_dto.title} ({post_dto.id[:8]})'
+                full_post_title = sanitize_string(full_post_title, max_bytes=240)
 
                 single_post_use_case = DownloadSinglePostUseCase(
                     destination=self.destination / full_post_title,
