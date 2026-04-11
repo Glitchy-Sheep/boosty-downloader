@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime  # noqa: TC003 Pydantic should know this type fully
 
+from pydantic import field_validator
+
 from boosty_downloader.src.infrastructure.boosty_api.models.base import BoostyBaseDTO
 from boosty_downloader.src.infrastructure.boosty_api.models.post.base_post_data import (
     BasePostData,  # noqa: TC001 Pydantic should know this type fully
@@ -15,6 +17,14 @@ class PostDTO(BoostyBaseDTO):
 
     id: str
     title: str
+
+    @field_validator('title', mode='before')
+    @classmethod
+    def none_title_to_empty(cls, v: object) -> object:
+        if v is None:
+            return ''
+        return v
+
     created_at: datetime
     updated_at: datetime
     has_access: bool
