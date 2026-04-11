@@ -24,6 +24,7 @@ class PostDTO(BoostyBaseDTO):
         if v is None:
             return ''
         return v
+
     created_at: datetime
     updated_at: datetime
     has_access: bool
