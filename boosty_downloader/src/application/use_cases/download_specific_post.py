@@ -86,7 +86,11 @@ class DownloadPostByUrlUseCase:
                         f'Found post with UUID: {post_uuid}, starting download...'
                     )
 
-                    post_name = f'{post.created_at.date()} - {post.title}'
+                    post_title = post.title
+                    if len(post_title) == 0:
+                        post_title = f'No title (id_{post.id[:8]})'
+
+                    post_name = f'{post.created_at.date()} - {post_title}'
                     post_name = sanitize_string(post_name).replace('.', '').strip()
 
                     try:

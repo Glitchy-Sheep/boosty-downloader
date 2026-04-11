@@ -66,7 +66,7 @@ class DownloadAllPostUseCase:
 
                 # For empty titles use post ID as a fallback (first 8 chars)
                 if len(post_dto.title) == 0:
-                    post_dto.title = f'Not title (id_{post_dto.id[:8]})'
+                    post_dto.title = f'No title (id_{post_dto.id[:8]})'
 
                 post_dto.title = (
                     sanitize_string(post_dto.title).replace('.', '').strip()
