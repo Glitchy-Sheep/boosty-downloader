@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 3.0.0
+
 - MAJOR: New way of calling commands (use subcommands for different scenario)
 - Add `show-auth-script` subcommand for extracting auth credentials via browser console
 

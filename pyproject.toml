@@ -1,6 +1,6 @@
 [project]
 name = "boosty-downloader"
-version = "2.2.0"
+version = "3.0.0"
 description = "Download any type of content from boosty.to"
 authors = [
     { name = "Roman Berezkin", email = "Glitchy-Sheep@users.noreply.github.com" },
