@@ -60,7 +60,16 @@ def main() -> None:
 
     console.print(f'  [dim]3.[/] Installing globally via [cyan]{global_python}[/]...')
     subprocess.run(
-        [str(global_python), '-m', 'pip', 'install', '--user', '--force-reinstall', '--no-deps', str(wheel)],
+        [
+            str(global_python),
+            '-m',
+            'pip',
+            'install',
+            '--user',
+            '--force-reinstall',
+            '--no-deps',
+            str(wheel),
+        ],
         check=True,
     )
 

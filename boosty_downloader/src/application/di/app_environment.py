@@ -1,4 +1,4 @@
-"""Defines the application environment and dependency injection context for resource management."""
+"""Manages the application's resource initialization and cleanup, providing an async context for dependency injection."""
 
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
