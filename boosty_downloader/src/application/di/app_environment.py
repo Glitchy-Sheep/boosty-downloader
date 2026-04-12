@@ -42,6 +42,7 @@ class AppEnvironment:
         retry_options: RetryOptionsBase
         request_delay_seconds: float
         logger: RichLogger
+        cache_directory: Path | None = None
 
     def __init__(
         self,
@@ -49,6 +50,7 @@ class AppEnvironment:
     ) -> None:
         self.author_name = config.author_name
         self.target_directory = config.target_directory
+        self.cache_directory = config.cache_directory or config.target_directory
         self.boosty_headers = config.boosty_headers
         self.boosty_cookies_jar = config.boosty_cookies_jar
         self.logger = config.logger
@@ -90,7 +92,7 @@ class AppEnvironment:
         )
 
         post_cache = SQLitePostCache(
-            destination=self.target_directory / self.author_name,
+            destination=self.cache_directory / self.author_name,
             logger=self.logger,
         )
         post_cache.__enter__()  # sync context manager

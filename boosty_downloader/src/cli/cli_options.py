@@ -101,3 +101,16 @@ DestinationDirectoryOption = Annotated[
         show_default=False,
     ),
 ]
+
+CacheDirectoryOption = Annotated[
+    Path | None,
+    typer.Option(
+        '--cache-dir',
+        help='Custom directory for cache database (useful when downloading to network storage)',
+        dir_okay=True,
+        file_okay=False,
+        resolve_path=True,
+        rich_help_panel=HelpPanels.actions,
+        show_default=False,
+    ),
+]
