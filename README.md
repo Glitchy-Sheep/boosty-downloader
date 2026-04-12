@@ -24,6 +24,8 @@ The post content itself is saved in html with a little bit of styling.
   - [🛠️ Installation](#️-installation)
   - [🚀 Configuration for Usage](#-configuration-for-usage)
     - [Step 1: Get the auth cookie and auth header](#step-1-get-the-auth-cookie-and-auth-header)
+      - [Option 1 - Manually](#option-1---manually)
+      - [Option 2 - With helper script](#option-2---with-helper-script)
     - [Step 2: Paste the cookie and auth header into the config file](#step-2-paste-the-cookie-and-auth-header-into-the-config-file)
     - [Step 3: Run the utility](#step-3-run-the-utility)
   - [💖 Contributing](#-contributing)
@@ -35,13 +37,14 @@ The post content itself is saved in html with a little bit of styling.
 
 - 📦 **Bulk download**: Download all available content from your favorite creator.
 - 🔎 **Total checker**: See how many posts are available to you, and which are not.
-- 📂 **Content type filters**: Download only the content you need (videos, images, etc), choose what you really want with flags (see below).
+- 📂 **Content type filters**: Download only the content you need (videos, images, etc) with `--content-type-filter`.
 - 📄 **Download specific posts**: Download post by url and username.
 - 🔃 **Sync content seamlessly**: The utility keeps cache of already downloaded posts, so you can resume your download at any time or get new content after a while.
 - 📼 **Choose your video quality**: You can choose preferred video quality to download (for boosty videos)
 - 🎨 **Beauty posts preview**: You can see posts content with rendered offline html files with dark/light theme changing.
 - 📊 **Order matters**: Posts have dates in names, so you can just sort it by name in your file explorer and see them in the correct chronological order.
 - 🆙 **App update checker**: If new updates are available, you'll be notified when you use the application next time.
+- 🔑 **Auth helper script**: Run `boosty-downloader show-auth-script` to get a browser console script that extracts your credentials automatically.
 
 
 ## 📸 Screenshots & Usage
