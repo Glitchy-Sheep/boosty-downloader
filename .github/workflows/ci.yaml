@@ -3,6 +3,7 @@ name: CI
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, labeled]
   push:
     branches-ignore:
       - main
@@ -60,7 +61,7 @@ jobs:
       #
       # For non-user-facing PRs (CI fixes, refactoring, docs) this can be skipped:
       #   - Put [skip changelog] anywhere in the PR title, OR
-      #   - Add the "skip-changelog" label to the PR
+      #   - Add the "ci/skip-changelog" label to the PR
       - name: Check CHANGELOG.md updated
         if: github.event_name == 'pull_request'
         run: |
@@ -71,7 +72,7 @@ jobs:
           fi
 
           LABELS="${{ join(github.event.pull_request.labels.*.name, ',') }}"
-          if echo "$LABELS" | grep -qi "skip-changelog"; then
+          if echo "$LABELS" | grep -qi "ci/skip-changelog"; then
             echo "⏭️ Skipping changelog check (label)"
             exit 0
           fi
@@ -81,7 +82,7 @@ jobs:
             echo "✅ CHANGELOG.md was updated"
           else
             echo "❌ CHANGELOG.md was not updated."
-            echo "Add a line to '## Unreleased' section, or add [skip changelog] to PR title / skip-changelog label."
+            echo "Add a line to '## Unreleased' section, or add [skip changelog] to PR title / ci/skip-changelog label."
             exit 1
           fi
 

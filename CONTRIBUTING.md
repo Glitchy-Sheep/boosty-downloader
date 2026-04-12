@@ -42,7 +42,7 @@ Use prefixes that describe the type of change:
 
 The project keeps a `CHANGELOG.md` with an `## Unreleased` section at the top. When your PR introduces a user-facing change, add a line there describing what changed.
 
-CI will check that `CHANGELOG.md` was modified. For PRs that don't need a changelog entry (CI fixes, refactoring, docs), add `[skip changelog]` to the PR title or use the `skip-changelog` label.
+CI will check that `CHANGELOG.md` was modified. For PRs that don't need a changelog entry (CI fixes, refactoring, docs), add `[skip changelog]` to the PR title or use the `ci/skip-changelog` label.
 
 ## 🩺 Code Quality
 
