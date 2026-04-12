@@ -14,6 +14,5 @@
     },
     "reportMissingImports": "error",
     "reportMissingTypeStubs": false,
-    "pythonVersion": "3.10",
-    "pythonPlatform": "Windows",
+    "pythonVersion": "3.10"
 }
