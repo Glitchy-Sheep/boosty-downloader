@@ -252,7 +252,9 @@ async def typer_cmd_handler(  # noqa: PLR0913 (too many arguments because of typ
 
 
 # Use wrapper because typer can't run async functions directly
-@typer_app.command()
+@typer_app.command(
+    'download', short_help='Download posts from a Boosty creator.', no_args_is_help=True
+)
 def typer_cmd_entrypoint(  # noqa: PLR0913 (too many arguments because of typer)
     *,
     username: UsernameOption,
@@ -266,10 +268,9 @@ def typer_cmd_entrypoint(  # noqa: PLR0913 (too many arguments because of typer)
     cache_directory: CacheDirectoryOption = None,
 ) -> None:
     """
-    [bold]ABOUT:[/bold]
+    Download posts from a Boosty creator.
 
-    ======
-        CLI tool to download Boosty posts by author username.
+    [bold]DETAILS:[/bold]
 
         - Use `--post-url` to download a specific post.
         - By default, downloads all posts from newest to oldest with all available contents.
@@ -279,7 +280,7 @@ def typer_cmd_entrypoint(  # noqa: PLR0913 (too many arguments because of typer)
     [bold]CONTENT FILTERING:[/bold]
 
         - Use multiple `-f` flags to select content types (all included by default).
-        - Example: [italic]boosty-downloader --username <USERNAME> -f files -f post_content[/italic]
+        - Example: [italic]boosty-downloader download --username <USERNAME> -f files -f post_content[/italic]
         - [bold red]NOTE:[/bold red] If you specify [italic]post_content[/italic] without [italic]boosty_videos[/italic] or [italic]external_videos[/italic],
                 videos won't attach to post previews due to cache limitations.
         - For best results, just leave all filters by default.
@@ -316,6 +317,16 @@ def typer_cmd_entrypoint(  # noqa: PLR0913 (too many arguments because of typer)
             cache_directory=cache_directory,
         ),
     )
+
+
+@typer_app.command('show-auth-script')
+def show_auth_script_entrypoint() -> None:
+    """Show a JS helper script to extract Boosty credentials from browser console."""
+    from boosty_downloader.src.cli.boosty_token_viewer import (  # noqa: PLC0415
+        show_js_helper_script,
+    )
+
+    show_js_helper_script()
 
 
 def entry_point() -> None:

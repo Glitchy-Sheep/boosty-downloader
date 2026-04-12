@@ -28,6 +28,7 @@ help:
 	@echo ''
 	@echo '  📦 Building:'
 	@echo '    make build           build wheel and source distribution'
+	@echo '    make build-install   build and install locally for testing'
 	@echo ''
 	@echo '  🏷️  Release:'
 	@echo '    make release v=patch   auto-bump patch (2.1.2 -> 2.1.3)'
@@ -49,6 +50,9 @@ deps:
 build:
 	poetry build --no-cache
 	@echo Build complete at /dist/
+
+build-install:
+	@python scripts/build_install.py
 
 # ------------------------------------------------------------------------------
 # 🩺 Code Health Checks

@@ -83,12 +83,21 @@ The post content itself is saved in html with a little bit of styling.
 
 ### Step 1: Get the auth cookie and auth header
 
+#### Option 1 - Manually
+
 1. Open the [Boosty](https://boosty.to) website.
 2. Click the "Sign in" button and fill you credentials.
 3. Navigate to any author you have access to and scroll post a little.
 4. Copy auth token and cookie from browser network tab.
 
 <img src="https://raw.githubusercontent.com/Glitchy-Sheep/boosty-downloader/main/assets/auth_guide.png">
+
+#### Option 2 - With helper script
+
+1. Run `boosty-downloader show-auth-script` to show the helper script (it will be copied to your clipboard automatically).
+2. Open the [Boosty](https://boosty.to) website and log in.
+3. Open browser console (F12) and paste the script.
+4. Scroll the page a little - a floating box with your credentials will appear.
 
 ### Step 2: Paste the cookie and auth header into the config file
 
@@ -101,7 +110,7 @@ This config will be created during first run of the app in the current working d
 Now you can just download your content with the following command:
 
 ```bash
-boosty-downloader --username YOUR_CREATOR_NAME
+boosty-downloader download --username YOUR_CREATOR_NAME
 ```
 
 ## 💖 Contributing

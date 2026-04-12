@@ -18,8 +18,18 @@ lint.ignore = [
 ]
 
 [lint.per-file-ignores]
+# D: no docstrings needed in tests
+# ANN201: test functions always return None, no need to annotate
+# S101: pytest is built on assert
+# PLR2004: magic numbers are fine in test assertions
+# INP001: test dir is not a package, no __init__.py needed
 "test/*" = ["D", "ANN201", "S101", "PLR2004", "INP001"]
-"scripts/*" = ["T201", "INP001"]
+# T201: dev scripts may use print()
+# INP001: scripts dir is not a package
+# S603: subprocess with fixed args in trusted dev scripts
+# S607: partial executable path (poetry, pip) is fine for dev scripts
+"scripts/*" = ["T201", "INP001", "S603", "S607"]
+# D104: __init__.py files are often empty or re-exports only
 "__init__.py" = ["D104"]
 
 [format]
