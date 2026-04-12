@@ -105,14 +105,16 @@ posts-example:
 
 release:
 	@if [ -z "$(v)" ]; then echo "Usage: make release v=X.Y.Z"; exit 1; fi
-	@echo "Releasing version $(v)..."
+	@echo "📦 Releasing version $(v)..."
+	@echo ""
 	sed -i 's/^version = ".*"/version = "$(v)"/' pyproject.toml
 	sed -i 's/^## Unreleased$$/## $(v)/' CHANGELOG.md
 	sed -i '/^## $(v)$$/i ## Unreleased\n' CHANGELOG.md
-	git add pyproject.toml CHANGELOG.md
-	git commit -m "chore: release v$(v)"
-	git tag "v$(v)"
+	@echo "✅ Version bumped and changelog updated."
 	@echo ""
-	@echo "Done. Review the commit, then run:"
-	@echo "  git push && git push origin v$(v)"
+	@echo "📋 Next steps:"
+	@echo "  1. Review the changes:  git diff"
+	@echo "  2. Stage and commit:    git add pyproject.toml CHANGELOG.md && git commit -m 'chore: release v$(v)'"
+	@echo "  3. Create tag:          git tag v$(v)"
+	@echo "  4. Push:                git push && git push origin v$(v)"
 
