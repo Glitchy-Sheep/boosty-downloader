@@ -1,88 +1,76 @@
 # 💖 Contributing to Boosty Downloader
 
-Hello, I'm glad you find this project useful and I appreciate your willingness to contribute.
+Thanks for your interest in contributing! This guide will help you get started.
 
-I created this note to help you understand the way you can help improve the project.
-
-
-## 👩‍💻 Development Process
-
-This project uses **trunk-based development** — all changes go directly to `main` via short-lived feature branches and pull requests.
-
-### 🔧 Quick Start
+## 🔧 Getting Started
 
 1. Fork and clone the repository
-2. Install dependencies: `poetry install`
-3. Create a branch from `main` using one of these prefixes:
-   - `feat/` - new features (`feat/add-download-resume`)
-   - `fix/` - bug fixes (`fix/corrupted-video-output`)
-   - `refactor/` - code improvements (`refactor/simplify-api-client`)
-   - `docs/` - documentation (`docs/update-readme`)
-   - `chore/` - maintenance tasks (`chore/update-dependencies`)
-4. Run tests: `poetry run pytest`
-5. Open a pull request to `main` and describe changes and why they are needed
+2. Install dependencies:
+   ```bash
+   make deps
+   ```
+3. Run the project locally:
+   ```bash
+   poetry run python -m boosty_downloader.main
+   ```
 
-**Most of needed/handy commands are available via `make`.**
-To see available commands, run:
+All available commands are listed via `make help`.
+
+## 👩‍💻 Making Changes
+
+This project uses **trunk-based development** - all changes go to `main` via short-lived branches and pull requests.
+
+### Branch naming
+
+Use prefixes that describe the type of change:
+
+- `feat/` - new features (`feat/add-download-resume`)
+- `fix/` - bug fixes (`fix/corrupted-video-output`)
+- `refactor/` - code improvements (`refactor/simplify-api-client`)
+- `docs/` - documentation (`docs/update-readme`)
+- `chore/` - maintenance (`chore/update-dependencies`)
+
+### Changelog
+
+The project keeps a `CHANGELOG.md` with an `## Unreleased` section at the top. When your PR introduces a user-facing change, add a line there describing what changed.
+
+CI will check that `CHANGELOG.md` was modified. For PRs that don't need a changelog entry (CI fixes, refactoring, docs), add `[skip changelog]` to the PR title or use the `skip-changelog` label.
+
+## 🩺 Code Quality
+
 ```bash
-make help
+make ci-check    # Run all checks (lint + types + format)
+make test        # Run unit tests
+make dev-fix     # Auto-fix lint and formatting issues
 ```
 
-### 🩺 Code Quality
-
-We use:
-- **Ruff** for linting and formatting
-- **Pyright** for type checking
+The project uses:
+- **Ruff** for linting and formatting (single quotes, 88 char line length)
+- **Pyright** in strict mode for type checking
 - **pytest** for testing
 
-*Please ensure your IDE is configured to use these tools for a smooth development experience.*
+## 📝 Commit Messages
 
+Follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/):
 
-### 📝 Writing Good Commit Messages
-
-**We use**:
-- [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) for commit messages.
-- [GitMoji](https://gitmoji.dev/) for visual representation of commit types. (**OPTIONAL**)
-- Describe not only the change but also **why** it was made.
-
-
-So a generic commit message would look like this:
 ```
-feat: ✨ Add hyperspace drive support
-         The hyperspace drive allows faster travel between galaxies.
-
-fix: 🐛 Fix formatting.
+feat: add audio downloading support
+fix: handle posts with missing titles
+chore: update dependencies
 ```
 
-**To make it even easier for you, use VS Code extension:** 
-- [VSCode Conventional Commits](https://marketplace.visualstudio.com/items?itemName=vivaxy.vscode-conventional-commits) - it speed up writing commit messages in our format.
+Describe not only **what** changed, but **why**.
 
+## 🚀 Releasing (Maintainers)
 
-### ✅ Pull Requests CI Checks
-
-**Project uses Github Actions for:**
-- Check PRs for code quality (linting, type checking, tests)
-- Automatically create releases when version tags are pushed (PyPI and GitHub Releases)
-
-
-### 🔨 Other HOW TOs:
-
-<details>
-<summary>🏁 Making a Release (Maintainers)</summary>
-
-1. **Bump version and update changelog:**
+1. Make sure `## Unreleased` in CHANGELOG.md has all changes listed
+2. Run:
    ```bash
-   poetry version patch  # or minor/major
-   # Update CHANGELOG.md with the new version
-   git commit -am "chore: bump version to X.Y.Z"
-   git push
+   make release v=X.Y.Z
+   ```
+3. Review the commit, then push:
+   ```bash
+   git push && git push origin vX.Y.Z
    ```
 
-2. **Tag and push:**
-   ```bash
-   git tag v$(poetry version -s)
-   git push --tags
-   ```
-
-3. **Automatic release!** 🎉 (PyPI + GitHub Release)
-</details>
+The release workflow will automatically publish to PyPI and create a GitHub Release.

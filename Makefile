@@ -1,4 +1,4 @@
-.PHONY: build test posts-example
+.PHONY: build test posts-example release
 
 # Ensure that all the pipe-like commands work correctly.
 export PYTHONIOENCODING = utf-8
@@ -25,11 +25,14 @@ help:
 	@echo ----------------------------------------------------------------------
 	@echo 'Endpoints Analysis (Only work if integration tests config available):'
 	@echo '   posts_example    - Show posts json for defined author'
+	@echo ----------------------------------------------------------------------
+	@echo 'Release:'
+	@echo '   release v=X.Y.Z  - Bump version, update changelog, commit and tag'
 
 
 
 # ------------------------------------------------------------------------------
-# 📦 Distribution 
+# 📦 Distribution
 
 deps:
 	poetry sync --no-interaction
@@ -80,4 +83,36 @@ test-api-verbose:
 
 posts-example:
 	poetry run pytest ./test/integration/analysis/get_author_posts_test.py::test_get_author_posts -s -q
+
+# ------------------------------------------------------------------------------
+# 🚀 Release
+#
+# Usage: make release v=2.1.3
+#
+# What it does:
+#   1. Updates version in pyproject.toml (e.g. version = "2.1.2" -> "2.1.3")
+#   2. Renames "## Unreleased" heading in CHANGELOG.md to the new version
+#   3. Adds a fresh empty "## Unreleased" section above it
+#   4. Commits both files and creates a git tag
+#   5. Prints the push command (push is manual for safety)
+#
+# Before:                        After:
+#   ## Unreleased                   ## Unreleased
+#   - Fixed something               (empty)
+#   ## 2.1.2                        ## 2.1.3
+#                                   - Fixed something
+#                                   ## 2.1.2
+
+release:
+	@if [ -z "$(v)" ]; then echo "Usage: make release v=X.Y.Z"; exit 1; fi
+	@echo "Releasing version $(v)..."
+	sed -i 's/^version = ".*"/version = "$(v)"/' pyproject.toml
+	sed -i 's/^## Unreleased$$/## $(v)/' CHANGELOG.md
+	sed -i '/^## $(v)$$/i ## Unreleased\n' CHANGELOG.md
+	git add pyproject.toml CHANGELOG.md
+	git commit -m "chore: release v$(v)"
+	git tag "v$(v)"
+	@echo ""
+	@echo "Done. Review the commit, then run:"
+	@echo "  git push && git push origin v$(v)"
 
