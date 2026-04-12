@@ -1,6 +1,6 @@
 # 💖 Contributing to Boosty Downloader
 
-Thanks for your interest in contributing! This guide will help you get started.
+Thanks for your interest in contributing! This guide will help you get started. For deeper technical details, see the [development docs](docs/development/).
 
 ## Table of Contents
 
