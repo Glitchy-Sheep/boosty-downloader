@@ -2,6 +2,14 @@
 
 Thanks for your interest in contributing! This guide will help you get started.
 
+## Table of Contents
+
+- [Getting Started](#-getting-started)
+- [Making Changes](#-making-changes)
+- [Code Quality](#-code-quality)
+- [Commit Messages](#-commit-messages)
+- [Releasing (Maintainers)](#-releasing-maintainers)
+
 ## 🔧 Getting Started
 
 1. Fork and clone the repository
