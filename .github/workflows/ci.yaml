@@ -66,15 +66,16 @@ jobs:
       #   - Add the "ci/skip-changelog" label to the PR
       - name: Check CHANGELOG.md updated
         if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
         run: |
-          PR_TITLE="${{ github.event.pull_request.title }}"
           if echo "$PR_TITLE" | grep -qi "\[skip changelog\]"; then
             echo "⏭️ Skipping changelog check (title marker)"
             exit 0
           fi
 
-          LABELS="${{ join(github.event.pull_request.labels.*.name, ',') }}"
-          if echo "$LABELS" | grep -qi "ci/skip-changelog"; then
+          if echo "$PR_LABELS" | grep -qi "ci/skip-changelog"; then
             echo "⏭️ Skipping changelog check (label)"
             exit 0
           fi

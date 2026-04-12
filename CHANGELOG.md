@@ -1,5 +1,8 @@
 ## Unreleased
 
+- MAJOR: New way of calling commands (use subcommands for different scenario)
+- Add `show-auth-script` subcommand for extracting auth credentials via browser console
+
 ## 2.2.0
 
 - Add `--cache-dir` flag to store cache database separately from downloads (for network storage setups)

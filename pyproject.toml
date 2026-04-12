@@ -21,6 +21,7 @@ dependencies = [
     "sqlalchemy (>=2.0.42,<3.0.0)",
     "aiolimiter (>=1.2.1,<2.0.0)",
     "packaging (>=25.0,<26.0)",
+    "pyperclip (>=1.9.0,<2.0.0)",
 ]
 
 [project.scripts]

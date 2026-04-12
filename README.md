@@ -24,6 +24,8 @@ The post content itself is saved in html with a little bit of styling.
   - [🛠️ Installation](#️-installation)
   - [🚀 Configuration for Usage](#-configuration-for-usage)
     - [Step 1: Get the auth cookie and auth header](#step-1-get-the-auth-cookie-and-auth-header)
+      - [Option 1 - Manually](#option-1---manually)
+      - [Option 2 - With helper script](#option-2---with-helper-script)
     - [Step 2: Paste the cookie and auth header into the config file](#step-2-paste-the-cookie-and-auth-header-into-the-config-file)
     - [Step 3: Run the utility](#step-3-run-the-utility)
   - [💖 Contributing](#-contributing)
@@ -35,13 +37,14 @@ The post content itself is saved in html with a little bit of styling.
 
 - 📦 **Bulk download**: Download all available content from your favorite creator.
 - 🔎 **Total checker**: See how many posts are available to you, and which are not.
-- 📂 **Content type filters**: Download only the content you need (videos, images, etc), choose what you really want with flags (see below).
+- 📂 **Content type filters**: Download only the content you need (videos, images, etc) with `--content-type-filter`.
 - 📄 **Download specific posts**: Download post by url and username.
 - 🔃 **Sync content seamlessly**: The utility keeps cache of already downloaded posts, so you can resume your download at any time or get new content after a while.
 - 📼 **Choose your video quality**: You can choose preferred video quality to download (for boosty videos)
 - 🎨 **Beauty posts preview**: You can see posts content with rendered offline html files with dark/light theme changing.
 - 📊 **Order matters**: Posts have dates in names, so you can just sort it by name in your file explorer and see them in the correct chronological order.
 - 🆙 **App update checker**: If new updates are available, you'll be notified when you use the application next time.
+- 🔑 **Auth helper script**: Run `boosty-downloader show-auth-script` to get a browser console script that extracts your credentials automatically.
 
 
 ## 📸 Screenshots & Usage
@@ -83,12 +86,21 @@ The post content itself is saved in html with a little bit of styling.
 
 ### Step 1: Get the auth cookie and auth header
 
+#### Option 1 - Manually
+
 1. Open the [Boosty](https://boosty.to) website.
 2. Click the "Sign in" button and fill you credentials.
 3. Navigate to any author you have access to and scroll post a little.
 4. Copy auth token and cookie from browser network tab.
 
 <img src="https://raw.githubusercontent.com/Glitchy-Sheep/boosty-downloader/main/assets/auth_guide.png">
+
+#### Option 2 - With helper script
+
+1. Run `boosty-downloader show-auth-script` to show the helper script (it will be copied to your clipboard automatically).
+2. Open the [Boosty](https://boosty.to) website and log in.
+3. Open browser console (F12) and paste the script.
+4. Scroll the page a little - a floating box with your credentials will appear.
 
 ### Step 2: Paste the cookie and auth header into the config file
 
@@ -101,7 +113,7 @@ This config will be created during first run of the app in the current working d
 Now you can just download your content with the following command:
 
 ```bash
-boosty-downloader --username YOUR_CREATOR_NAME
+boosty-downloader download --username YOUR_CREATOR_NAME
 ```
 
 ## 💖 Contributing

@@ -68,26 +68,6 @@ PostUrlOption = Annotated[
     ),
 ]
 
-CheckTotalCountOption = Annotated[
-    bool,
-    typer.Option(
-        '--only-check-total',
-        '-t',
-        help='Check total count of accessible/inaccessible(+names) posts and exit, no download',
-        rich_help_panel=HelpPanels.actions,
-    ),
-]
-
-CleanCacheOption = Annotated[
-    bool,
-    typer.Option(
-        '--clean-cache',
-        '-c',
-        help='Remove posts cache for selected username [italic]completely[/italic], use with caution',
-        rich_help_panel=HelpPanels.actions,
-    ),
-]
-
 DestinationDirectoryOption = Annotated[
     Path | None,
     typer.Option(
