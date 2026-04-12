@@ -19,6 +19,7 @@ lint.ignore = [
 
 [lint.per-file-ignores]
 "test/*" = ["D", "ANN201", "S101", "PLR2004", "INP001"]
+"scripts/*" = ["T201", "INP001"]
 "__init__.py" = ["D104"]
 
 [format]

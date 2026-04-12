@@ -30,7 +30,10 @@ help:
 	@echo '    make build           build wheel and source distribution'
 	@echo ''
 	@echo '  🏷️  Release:'
-	@echo '    make release v=X.Y.Z    bump version, update changelog'
+	@echo '    make release v=patch   auto-bump patch (2.1.2 -> 2.1.3)'
+	@echo '    make release v=minor   auto-bump minor (2.1.2 -> 2.2.0)'
+	@echo '    make release v=major   auto-bump major (2.1.2 -> 3.0.0)'
+	@echo '    make release v=2.2.0   or set version explicitly'
 	@echo ''
 	@echo '  🔍 Analysis:'
 	@echo '    make posts-example   show posts JSON for configured author'
@@ -93,35 +96,14 @@ posts-example:
 # ------------------------------------------------------------------------------
 # 🚀 Release
 #
-# Usage: make release v=2.1.3
+# Usage:
+#   make release v=patch         auto-bump patch (2.1.2 -> 2.1.3)
+#   make release v=minor         auto-bump minor (2.1.2 -> 2.2.0)
+#   make release v=major         auto-bump major (2.1.2 -> 3.0.0)
+#   make release v=2.2.0         explicit version
 #
-# What it does:
-#   1. Updates version in pyproject.toml (e.g. version = "2.1.2" -> "2.1.3")
-#   2. Renames "## Unreleased" heading in CHANGELOG.md to the new version
-#   3. Adds a fresh empty "## Unreleased" section above it
-#   4. Prints next steps (commit, tag, push are manual)
-#
-# Before:                        After:
-#   ## Unreleased                   ## Unreleased
-#   - Fixed something               (empty)
-#   ## 2.1.2                        ## 2.1.3
-#                                   - Fixed something
-#                                   ## 2.1.2
+# The script (scripts/release.py) validates inputs, bumps pyproject.toml,
+# promotes the Unreleased changelog section, and prints next steps.
 
 release:
-	@if [ -z "$(v)" ]; then echo "Usage: make release v=X.Y.Z"; exit 1; fi
-	@echo ""
-	@echo   Releasing version $(v)...
-	@echo ""
-	@sed -i 's/^version = ".*"/version = "$(v)"/' pyproject.toml
-	@sed -i 's/^## Unreleased$$/## $(v)/' CHANGELOG.md
-	@sed -i '/^## $(v)$$/i ## Unreleased\n' CHANGELOG.md
-	@echo   Version bumped and changelog updated.
-	@echo ""
-	@echo   Next steps:
-	@echo     1. Review the changes:  git diff
-	@echo     2. Stage and commit:    git add pyproject.toml CHANGELOG.md
-	@echo                             git commit -m "chore: release v$(v)"
-	@echo     3. Create tag:          git tag v$(v)
-	@echo     4. Push:                git push && git push origin v$(v)
-	@echo ""
+	@python scripts/release.py $(v)

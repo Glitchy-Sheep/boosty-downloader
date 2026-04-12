@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 2.2.0
+
 - Add `--cache-dir` flag to store cache database separately from downloads (for network storage setups)
 
 ## 2.1.2

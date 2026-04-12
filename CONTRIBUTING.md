@@ -42,7 +42,7 @@ Use prefixes that describe the type of change:
 
 The project keeps a `CHANGELOG.md` with an `## Unreleased` section at the top. When your PR introduces a user-facing change, add a line there describing what changed.
 
-CI will check that `CHANGELOG.md` was modified. For PRs that don't need a changelog entry (CI fixes, refactoring, docs), add `[skip changelog]` to the PR title or use the `ci/skip-changelog` label.
+CI verifies that new lines were **added** to the `## Unreleased` section - simply touching the file or removing entries won't pass. For PRs that don't need a changelog entry (CI fixes, refactoring, docs), add `[skip changelog]` to the PR title or use the `ci/skip-changelog` label.
 
 ## 🩺 Code Quality
 
@@ -74,11 +74,23 @@ Describe not only **what** changed, but **why**.
 1. Make sure `## Unreleased` in CHANGELOG.md has all changes listed
 2. Run:
    ```bash
-   make release v=X.Y.Z
+   make release v=patch   # 2.1.2 -> 2.1.3
+   make release v=minor   # 2.1.2 -> 2.2.0
+   make release v=major   # 2.1.2 -> 3.0.0
+   make release v=2.2.0   # explicit version
    ```
-3. Review the commit, then push:
+3. Review the diff, stage and commit:
    ```bash
+   git diff
+   git add pyproject.toml CHANGELOG.md
+   git commit -m "chore: release vX.Y.Z"
+   ```
+4. Tag and push:
+   ```bash
+   git tag vX.Y.Z
    git push && git push origin vX.Y.Z
    ```
 
 The release workflow will automatically publish to PyPI and create a GitHub Release.
+
+The script validates that the new version is higher than the current one, the `## Unreleased` section exists and is not empty, and prevents releasing the same version twice.
