@@ -1,35 +1,44 @@
-.PHONY: build test posts-example
+.PHONY: build test posts-example release help
 
 # Ensure that all the pipe-like commands work correctly.
 export PYTHONIOENCODING = utf-8
 
 help:
-	@echo '------------------------- To run locally: ----------------------------'
-	@echo 'Run make deps to install dependencies'
-	@echo 'And to run current project locally without installation:'
-	@echo '   poetry run python -m boosty_downloader.main'
-	@echo .                                                                    .
-	@echo '------------------------- Available commands: ------------------------'
-	@echo 'Building:'
-	@echo '   deps             - Install project dependencies using poetry'
-	@echo '   build            - Build the project whl file'
-	@echo ----------------------------------------------------------------------
-	@echo 'Code Health:'
-	@echo '   dev-fix          - Try to fix code issues, show problems if any'
-	@echo '   ci-check         - Run CI checks (lint/formatter/type checks)'
-	@echo '   types            - Code type checks using pyright'
-	@echo '   format-check     - Code format check using ruff'
-	@echo '   format-fix       - Code format using ruff'
-	@echo '   lint-check       - Code linting (only check)'
-	@echo '   lint-fix         - Code linting (try to fix if possible)'
-	@echo ----------------------------------------------------------------------
-	@echo 'Endpoints Analysis (Only work if integration tests config available):'
-	@echo '   posts_example    - Show posts json for defined author'
-
+	-@chcp 65001 > nul 2>&1
+	@echo ''
+	@echo '  Boosty Downloader - Development Commands'
+	@echo ''
+	@echo '  🚀 Quick start:'
+	@echo '    make deps                                    install dependencies'
+	@echo '    poetry run python -m boosty_downloader.main  run locally'
+	@echo ''
+	@echo '  🩺 Code quality:'
+	@echo '    make ci-check        run all CI checks (lint + types + format)'
+	@echo '    make dev-fix         auto-fix lint and formatting issues'
+	@echo '    make lint-check      lint only (ruff)'
+	@echo '    make lint-fix        lint and fix (ruff)'
+	@echo '    make format-check    check formatting (ruff)'
+	@echo '    make format-fix      fix formatting (ruff)'
+	@echo '    make types           type check (pyright)'
+	@echo ''
+	@echo '  🧪 Testing:'
+	@echo '    make test            run unit tests'
+	@echo '    make test-verbose    run unit tests (verbose)'
+	@echo '    make test-api        run integration tests (requires .env)'
+	@echo ''
+	@echo '  📦 Building:'
+	@echo '    make build           build wheel and source distribution'
+	@echo ''
+	@echo '  🏷️  Release:'
+	@echo '    make release v=X.Y.Z    bump version, update changelog'
+	@echo ''
+	@echo '  🔍 Analysis:'
+	@echo '    make posts-example   show posts JSON for configured author'
+	@echo ''
 
 
 # ------------------------------------------------------------------------------
-# 📦 Distribution 
+# 📦 Distribution
 
 deps:
 	poetry sync --no-interaction
@@ -55,16 +64,16 @@ format-check:
 
 format-fix:
 	poetry run ruff format .
-	
+
 types:
 	poetry run pyright
 
 
 # ------------------------------------------------------------------------------
-# 🧪 Testing 
+# 🧪 Testing
 
 test:
-	poetry run pytest test/unit/ 
+	poetry run pytest test/unit/
 
 test-verbose:
 	poetry run pytest -v test/unit/
@@ -73,7 +82,7 @@ test-api:
 	poetry run pytest test/integration/
 
 test-api-verbose:
-	poetry run pytest -v test/integration/ 
+	poetry run pytest -v test/integration/
 
 # ------------------------------------------------------------------------------
 # 🔍 Endpoints analysis
@@ -81,3 +90,38 @@ test-api-verbose:
 posts-example:
 	poetry run pytest ./test/integration/analysis/get_author_posts_test.py::test_get_author_posts -s -q
 
+# ------------------------------------------------------------------------------
+# 🚀 Release
+#
+# Usage: make release v=2.1.3
+#
+# What it does:
+#   1. Updates version in pyproject.toml (e.g. version = "2.1.2" -> "2.1.3")
+#   2. Renames "## Unreleased" heading in CHANGELOG.md to the new version
+#   3. Adds a fresh empty "## Unreleased" section above it
+#   4. Prints next steps (commit, tag, push are manual)
+#
+# Before:                        After:
+#   ## Unreleased                   ## Unreleased
+#   - Fixed something               (empty)
+#   ## 2.1.2                        ## 2.1.3
+#                                   - Fixed something
+#                                   ## 2.1.2
+
+release:
+	@if [ -z "$(v)" ]; then echo "Usage: make release v=X.Y.Z"; exit 1; fi
+	@echo ""
+	@echo   Releasing version $(v)...
+	@echo ""
+	@sed -i 's/^version = ".*"/version = "$(v)"/' pyproject.toml
+	@sed -i 's/^## Unreleased$$/## $(v)/' CHANGELOG.md
+	@sed -i '/^## $(v)$$/i ## Unreleased\n' CHANGELOG.md
+	@echo   Version bumped and changelog updated.
+	@echo ""
+	@echo   Next steps:
+	@echo     1. Review the changes:  git diff
+	@echo     2. Stage and commit:    git add pyproject.toml CHANGELOG.md
+	@echo                             git commit -m "chore: release v$(v)"
+	@echo     3. Create tag:          git tag v$(v)
+	@echo     4. Push:                git push && git push origin v$(v)
+	@echo ""

@@ -3,6 +3,7 @@ name: CI
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, labeled]
   push:
     branches-ignore:
       - main
@@ -14,12 +15,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Speed up repeated CI runs by caching downloaded pip packages.
+      # The cache key is derived from poetry.lock, so it invalidates
+      # automatically when dependencies change.
       - name: Set up Python & Poetry
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: 'pip'
+          cache-dependency-path: '**/poetry.lock'
 
+      # virtualenvs-in-project creates .venv inside the repo directory.
+      # This is required for the pip cache above to work correctly -
+      # otherwise Poetry places the venv in a global path that isn't cached.
       - uses: snok/install-poetry@v1
+        with:
+          virtualenvs-in-project: true
 
       - name: Install dependencies
         run: poetry sync
@@ -30,15 +41,53 @@ jobs:
           make format-check
           make types
 
+      # Integration tests need Boosty API credentials stored in test/integration/.env.
+      # Fork PRs won't have this file (it's gitignored and contains secrets),
+      # so we check if it exists before running. This prevents confusing
+      # ValidationError failures for external contributors.
       - name: Run tests
         run: |
           make test-verbose
-          make test-api-verbose
+          if [ -f test/integration/.env ]; then
+            make test-api-verbose
+          else
+            echo "⏭️ Skipping integration tests (no .env config available)"
+          fi
         timeout-minutes: 5
+
+      # Enforce that every PR updates the "## Unreleased" section in CHANGELOG.md.
+      # Works by comparing the file list between the PR branch and the base branch -
+      # if CHANGELOG.md isn't in the diff, the check fails.
+      #
+      # For non-user-facing PRs (CI fixes, refactoring, docs) this can be skipped:
+      #   - Put [skip changelog] anywhere in the PR title, OR
+      #   - Add the "ci/skip-changelog" label to the PR
+      - name: Check CHANGELOG.md updated
+        if: github.event_name == 'pull_request'
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          if echo "$PR_TITLE" | grep -qi "\[skip changelog\]"; then
+            echo "⏭️ Skipping changelog check (title marker)"
+            exit 0
+          fi
+
+          LABELS="${{ join(github.event.pull_request.labels.*.name, ',') }}"
+          if echo "$LABELS" | grep -qi "ci/skip-changelog"; then
+            echo "⏭️ Skipping changelog check (label)"
+            exit 0
+          fi
+
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          if git diff --name-only "origin/${{ github.base_ref }}"...HEAD | grep -q "^CHANGELOG.md$"; then
+            echo "✅ CHANGELOG.md was updated"
+          else
+            echo "❌ CHANGELOG.md was not updated."
+            echo "Add a line to '## Unreleased' section, or add [skip changelog] to PR title / ci/skip-changelog label."
+            exit 1
+          fi
 
       - name: Build & verify
         run: |
           make build
           ls dist/*.whl dist/*.tar.gz || { echo "❌ Build artifacts missing"; exit 1; }
           echo "✅ Build artifacts created successfully"
-

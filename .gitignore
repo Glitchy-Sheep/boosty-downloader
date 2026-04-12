@@ -4,6 +4,9 @@
 test/data
 
 # ------------- USER DEFINED --------------- #
+.vscode
+.claude
+
 lab/
 
 # For local downloading tests
