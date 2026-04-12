@@ -23,6 +23,7 @@ class DownloadSettings(BaseModel):
     """Settings for the script downloading process"""
 
     target_directory: Path = Path('./boosty-downloads')
+    cache_directory: Path | None = None
 
 
 class AuthSettings(BaseModel):

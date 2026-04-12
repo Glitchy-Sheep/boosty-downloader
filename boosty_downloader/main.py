@@ -35,6 +35,7 @@ from boosty_downloader.src.cli.cli_options import (
     # These imports can't be moved to TYPE_CHECKING
     # because they are used by typer at runtime.
     #
+    CacheDirectoryOption,  # noqa: TC001
     CheckTotalCountOption,  # noqa: TC001
     CleanCacheOption,  # noqa: TC001
     ContentTypeFilterOption,  # noqa: TC001
@@ -121,6 +122,7 @@ async def typer_cmd_handler(  # noqa: PLR0913 (too many arguments because of typ
     preferred_video_quality: VideoQualityOption,
     request_delay_seconds: float,
     destination_directory: Path | None,
+    cache_directory: Path | None,
 ) -> None:
     """Download all posts from the specified user"""
     config = init_config()
@@ -131,6 +133,10 @@ async def typer_cmd_handler(  # noqa: PLR0913 (too many arguments because of typ
     # Set the destination directory if provided
     if destination_directory is not None:
         config.downloading_settings.target_directory = destination_directory
+
+    # Set the cache directory if provided
+    if cache_directory is not None:
+        config.downloading_settings.cache_directory = cache_directory
 
     retry_options = ExponentialRetry(
         attempts=5,
@@ -173,6 +179,9 @@ async def typer_cmd_handler(  # noqa: PLR0913 (too many arguments because of typ
         config=AppEnvironment.AppConfig(
             author_name=username,
             target_directory=config.downloading_settings.target_directory.absolute(),
+            cache_directory=config.downloading_settings.cache_directory.absolute()
+            if config.downloading_settings.cache_directory
+            else None,
             boosty_headers=parse_auth_header(auth_header),
             boosty_cookies_jar=parse_session_cookie(cookie_string),
             retry_options=retry_options,
@@ -254,6 +263,7 @@ def typer_cmd_entrypoint(  # noqa: PLR0913 (too many arguments because of typer)
     check_total_count: CheckTotalCountOption = False,
     clean_cache: CleanCacheOption = False,
     destination_directory: DestinationDirectoryOption = None,
+    cache_directory: CacheDirectoryOption = None,
 ) -> None:
     """
     [bold]ABOUT:[/bold]
@@ -303,6 +313,7 @@ def typer_cmd_entrypoint(  # noqa: PLR0913 (too many arguments because of typer)
             preferred_video_quality=preferred_video_quality,
             request_delay_seconds=request_delay_seconds,
             destination_directory=destination_directory,
+            cache_directory=cache_directory,
         ),
     )
 

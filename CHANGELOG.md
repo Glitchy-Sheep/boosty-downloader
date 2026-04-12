@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Add `--cache-dir` flag to store cache database separately from downloads (for network storage setups)
+
 ## 2.1.2
 
 - Fix the empty title bug (the downloading process stopped because of validation error)
