@@ -12,7 +12,7 @@ jobs:
     steps:
       # fetch-depth: 0 is needed for the CHANGELOG diff check to find
       # the merge base between the PR branch and main.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
