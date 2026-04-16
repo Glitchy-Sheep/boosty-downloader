@@ -20,7 +20,7 @@ jobs:
       # The cache key is derived from poetry.lock, so it invalidates
       # automatically when dependencies change.
       - name: Set up Python & Poetry
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: 'pip'
