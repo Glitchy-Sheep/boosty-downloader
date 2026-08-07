@@ -2,6 +2,7 @@
 
 - Fix crash on failed downloads: show a readable error message instead of an AttributeError traceback (#105, #89)
 - Update yt-dlp to 2026.7.4: fixes external video downloading (security update)
+- Fix running download/check without --username: clear "Missing option" error and exit code 2 instead of a crash
 
 ## 3.0.0
 
