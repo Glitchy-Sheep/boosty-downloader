@@ -60,6 +60,7 @@ class DownloadError(Exception):
 
     def __init__(self, message: str, file: Path | None, resource_url: str) -> None:
         super().__init__(message)
+        self.message = message
         self.file = file
         self.resource_url = resource_url
 
