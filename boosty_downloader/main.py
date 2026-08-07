@@ -16,6 +16,7 @@ from boosty_downloader.src.cli.commands import (
     show_auth_script,
 )
 from boosty_downloader.src.infrastructure.boosty_api.core.client import (
+    BoostyAPIInvalidUsernameError,
     BoostyAPINoUsernameError,
     BoostyAPIUnauthorizedError,
     BoostyAPIUnknownError,
@@ -55,8 +56,17 @@ def entry_point() -> None:
     """Run the CLI app with top-level error handling."""
     try:
         typer_app()
-    except BoostyAPINoUsernameError:
-        logger_instances.downloader_logger.error('Username not found')
+    except BoostyAPINoUsernameError as e:
+        logger_instances.downloader_logger.error(
+            f"Author '{e.username}' not found. "
+            'Username is the blog name from the author page URL: boosty.to/<username>'
+        )
+    except BoostyAPIInvalidUsernameError as e:
+        logger_instances.downloader_logger.error(
+            f"'{e.username}' is not a valid username. "
+            'Use the blog name from the author page URL (boosty.to/<username>), '
+            'not an email'
+        )
     except BoostyAPIUnauthorizedError:
         logger_instances.downloader_logger.error(
             'Unauthorized: Bad credentials, please relogin and update your config file'

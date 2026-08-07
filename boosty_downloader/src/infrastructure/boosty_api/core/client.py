@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
+from aiohttp import ContentTypeError
 from aiolimiter import AsyncLimiter
 from pydantic import ValidationError
 from yarl import URL
@@ -40,6 +42,16 @@ class BoostyAPINoUsernameError(BoostyAPIError):
 
     def __init__(self, username: str) -> None:
         super().__init__(f'Username not found: {username}')
+        self.username = username
+
+
+class BoostyAPIInvalidUsernameError(BoostyAPIError):
+    """Raised when Boosty rejects the username format."""
+
+    username: str
+
+    def __init__(self, username: str) -> None:
+        super().__init__(f'Invalid username: {username}')
         self.username = username
 
 
@@ -146,8 +158,6 @@ class BoostyAPIClient:
                 },
             ),
         )
-        posts_data = await posts_raw.json()
-
         if posts_raw.status == HTTPStatus.NOT_FOUND:
             raise BoostyAPINoUsernameError(author_name)
 
@@ -155,10 +165,22 @@ class BoostyAPIClient:
         if posts_raw.status == HTTPStatus.UNAUTHORIZED:
             raise BoostyAPIUnauthorizedError
 
+        # Boosty answers 400 (invalid_param) to a malformed blog name, e.g. an email
+        if posts_raw.status == HTTPStatus.BAD_REQUEST:
+            raise BoostyAPIInvalidUsernameError(author_name)
+
         if posts_raw.status != HTTPStatus.OK:
             raise BoostyAPIUnknownError(
                 posts_raw.status, f'Unexpected status code: {posts_raw.status}'
             )
+
+        # Status is OK here, so a non-JSON body means a broken response
+        try:
+            posts_data = await posts_raw.json()
+        except (ContentTypeError, json.JSONDecodeError) as e:
+            raise BoostyAPIUnknownError(
+                posts_raw.status, 'Non-JSON response from the API'
+            ) from e
 
         try:
             posts: list[PostDTO] = [
