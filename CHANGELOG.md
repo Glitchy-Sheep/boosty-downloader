@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Fix crash on failed downloads: show a readable error message instead of an AttributeError traceback (#105, #89)
+- Update yt-dlp to 2026.7.4: fixes external video downloading (security update)
+
 ## 3.0.0
 
 - MAJOR: New way of calling commands (use subcommands for different scenario)
