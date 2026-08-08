@@ -6,6 +6,7 @@
 - Fix confusing "Unknown error" for a wrong username: clear "author not found" message and a hint about the blog name (#94)
 - Survive unknown Boosty content: new types and values are kept, skipped where needed, and listed in a final summary with exact paths instead of crashing the whole download
 - Broken posts no longer fail the whole page: they are skipped with a readable warning, and validation errors are shown as short lines instead of raw dumps
+- clean-cache says when there was no cache to clean instead of reporting a false success
 
 ## 3.0.0
 
