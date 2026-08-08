@@ -1,0 +1,78 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: ['config:recommended'],
+
+  // The bot's control panel is issue #37: rate-limited updates wait there
+  // with checkboxes, majors appear there for approval (see the last rule).
+  dependencyDashboard: true,
+  baseBranches: ['main'],
+
+  // Bot PRs skip the CHANGELOG gate; release notes for dependency bumps
+  // are curated by a human when it matters.
+  labels: ['ci/skip-changelog'],
+
+  // Routine PRs come on Saturdays; security fixes ignore the schedule
+  // (see vulnerabilityAlerts below).
+  schedule: ['on saturday'],
+  prHourlyLimit: 2,
+  prConcurrentLimit: 3,
+
+  // A release must be at least 3 days old before the bot offers it:
+  // protection against yanked/broken releases.
+  minimumReleaseAge: '3 days',
+
+  // Runtime dependencies: while a new release fits the allowed range,
+  // only poetry.lock moves - users already get these versions on install.
+  rangeStrategy: 'update-lockfile',
+
+  // Security fixes: created immediately and merged by the bot itself -
+  // automerge still waits for all CI checks to pass.
+  vulnerabilityAlerts: {
+    automerge: true,
+  },
+
+  // Rule order matters: later rules override earlier ones,
+  // so the "majors need approval" rule stays last.
+  packageRules: [
+    {
+      // Dev tools (ruff, pyright, pytest...) never reach users - safe to
+      // merge on green CI. Grouped into one PR to keep the noise down.
+      matchDepTypes: ['dev'],
+      groupName: 'dev tools',
+      automerge: true,
+    },
+    {
+      // GitHub Actions updates only change CI itself.
+      matchManagers: ['github-actions'],
+      automerge: true,
+    },
+    {
+      // Lockfile-only updates of runtime deps: users already resolve these
+      // versions, the PR only aligns dev/CI. If this JSONata expression ever
+      // stops matching, the fallback is manual merge - the safe direction.
+      matchJsonata: ['isLockfileUpdate = true'],
+      automerge: true,
+    },
+    {
+      // yt-dlp is CalVer and fixes YouTube weekly: widen the range instead
+      // of capping it, and merge on green CI without waiting for a human.
+      matchPackageNames: ['yt-dlp'],
+      rangeStrategy: 'widen',
+      automerge: true,
+    },
+    {
+      // Majors (including dev tools and the yt-dlp year rollover) don't even
+      // open a PR until a checkbox is ticked in the dashboard issue.
+      matchUpdateTypes: ['major'],
+      dependencyDashboardApproval: true,
+      automerge: false,
+    },
+  ],
+
+  // Global default stays manual; automerge is enabled point-by-point above.
+  automerge: false,
+
+  // The bot merges its PRs itself on its next visit after checks turn green
+  // (no reliance on the GitHub auto-merge repo setting).
+  platformAutomerge: false,
+}
