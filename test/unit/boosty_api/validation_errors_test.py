@@ -7,7 +7,11 @@ from enum import Enum
 import pytest
 from pydantic import BaseModel, ValidationError
 
+from boosty_downloader.src.infrastructure.boosty_api.models.post.posts_request import (
+    SkippedPost,
+)
 from boosty_downloader.src.infrastructure.boosty_api.utils.validation_errors import (
+    format_skipped_post,
     format_validation_errors,
 )
 
@@ -51,3 +55,17 @@ def test_nested_loc_renders_as_api_path():
     )
 
     assert lines == ["data[1].type: unknown value 'nope'"]
+
+
+def test_skipped_post_block_names_the_post_and_lists_problems():
+    block = format_skipped_post(
+        SkippedPost(
+            post_id='b1',
+            title='broken post',
+            errors=_real_errors({'data': [{'type': 'nope'}], 'title': 't'}),
+        )
+    )
+
+    assert 'broken post' in block
+    assert 'b1' in block
+    assert "data[0].type: unknown value 'nope'" in block

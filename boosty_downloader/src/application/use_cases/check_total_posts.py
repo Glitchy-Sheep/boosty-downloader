@@ -3,6 +3,9 @@
 from boosty_downloader.src.infrastructure.boosty_api.core.client import (
     BoostyAPIClient,
 )
+from boosty_downloader.src.infrastructure.boosty_api.utils.validation_errors import (
+    format_skipped_post,
+)
 from boosty_downloader.src.infrastructure.loggers.logger_instances import RichLogger
 
 
@@ -37,6 +40,9 @@ class ReportTotalPostsCountUseCase:
         ):
             current_page += 1
             total_posts += len(page.posts)
+
+            for skipped in page.skipped_posts:
+                self.logger.warning(format_skipped_post(skipped))
 
             self.logger.info(
                 f'Processing page [bold]{current_page}[/bold]'

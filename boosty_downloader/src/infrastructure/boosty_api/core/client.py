@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from http import HTTPStatus
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from aiohttp import ContentTypeError
 from aiolimiter import AsyncLimiter
@@ -18,6 +18,7 @@ from boosty_downloader.src.infrastructure.boosty_api.models.post.extra import Ex
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
 from boosty_downloader.src.infrastructure.boosty_api.models.post.posts_request import (
     PostsResponse,
+    SkippedPost,
 )
 from boosty_downloader.src.infrastructure.boosty_api.utils.filter_none_params import (
     filter_none_params,
@@ -182,10 +183,30 @@ class BoostyAPIClient:
                 posts_raw.status, 'Non-JSON response from the API'
             ) from e
 
+        # Posts are validated one by one: a post this client can't parse
+        # must not fail the page - the caller reports it and the run goes on.
+        posts: list[PostDTO] = []
+        skipped_posts: list[SkippedPost] = []
+        for raw_post in posts_data['data']:
+            try:
+                posts.append(PostDTO.model_validate(raw_post))
+            except ValidationError as e:  # noqa: PERF203 per-post isolation is the point here
+                raw_info: dict[str, object] = (
+                    cast('dict[str, object]', raw_post)
+                    if isinstance(raw_post, dict)
+                    else {}
+                )
+                skipped_posts.append(
+                    SkippedPost(
+                        post_id=str(raw_info.get('id', '<no id>')),
+                        title=str(raw_info.get('title', '<no title>')),
+                        errors=e.errors(),
+                    )
+                )
+
+        # Pagination info is different: without it the walk can't continue,
+        # so a broken 'extra' is still an error for the whole page.
         try:
-            posts: list[PostDTO] = [
-                PostDTO.model_validate(post) for post in posts_data['data']
-            ]
             extra: Extra = Extra.model_validate(posts_data['extra'])
         except ValidationError as e:
             raise BoostyAPIValidationError(errors=e.errors()) from e
@@ -193,6 +214,7 @@ class BoostyAPIClient:
         return PostsResponse(
             posts=posts,
             extra=extra,
+            skipped_posts=skipped_posts,
         )
 
     async def iterate_over_posts(

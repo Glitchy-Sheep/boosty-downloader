@@ -9,6 +9,10 @@ if TYPE_CHECKING:
 
     from pydantic_core import ErrorDetails
 
+    from boosty_downloader.src.infrastructure.boosty_api.models.post.posts_request import (
+        SkippedPost,
+    )
+
 
 def format_validation_errors(errors: Sequence[ErrorDetails]) -> list[str]:
     """
@@ -19,6 +23,17 @@ def format_validation_errors(errors: Sequence[ErrorDetails]) -> list[str]:
     of the full list of expected values.
     """
     return [_format_error(error) for error in errors]
+
+
+def format_skipped_post(skipped: SkippedPost) -> str:
+    """One warning block for a post the client could not parse."""
+    details = '\n'.join(
+        f'   - {line}' for line in format_validation_errors(skipped.errors)
+    )
+    return (
+        f'Skipped post "{skipped.title}" (id {skipped.post_id}) - '
+        f'unexpected structure:\n{details}'
+    )
 
 
 def _format_error(error: ErrorDetails) -> str:

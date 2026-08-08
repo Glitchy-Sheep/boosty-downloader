@@ -12,6 +12,9 @@ from boosty_downloader.src.application.use_cases.download_single_post import (
     DownloadSinglePostUseCase,
 )
 from boosty_downloader.src.infrastructure.boosty_api.core.client import BoostyAPIClient
+from boosty_downloader.src.infrastructure.boosty_api.utils.validation_errors import (
+    format_skipped_post,
+)
 from boosty_downloader.src.infrastructure.path_sanitizer import (
     sanitize_string,
 )
@@ -50,6 +53,9 @@ class DownloadAllPostUseCase:
         async for page in posts_iterator:
             count = len(page.posts)
             current_page += 1
+
+            for skipped in page.skipped_posts:
+                self.context.progress_reporter.warn(format_skipped_post(skipped))
 
             page_task_id = self.context.progress_reporter.create_task(
                 f'Got new posts: [{count}]',
