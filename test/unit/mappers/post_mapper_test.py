@@ -9,6 +9,9 @@ from boosty_downloader.src.application.mappers.post_mapper import (
     map_post_dto_to_domain,
 )
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
+from boosty_downloader.src.infrastructure.boosty_api.models.unknown_content import (
+    UnknownContent,
+)
 
 if TYPE_CHECKING:
     from boosty_downloader.src.infrastructure.boosty_api.models.post.base_post_data import (
@@ -17,6 +20,9 @@ if TYPE_CHECKING:
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_audio import (
     BoostyPostDataAudioDTO,
 )
+from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_list import (
+    BoostyPostDataListDTO,
+)
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_ok_video import (
     BoostyOkVideoType,
     BoostyOkVideoUrl,
@@ -24,6 +30,12 @@ from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types
 )
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_text import (
     BoostyPostDataTextDTO,
+)
+from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_unknown import (
+    BoostyPostDataUnknownDTO,
+)
+from boosty_downloader.src.infrastructure.boosty_api.models.unknown_value import (
+    BoostyUnknownValue,
 )
 
 
@@ -146,3 +158,87 @@ def test_mixed_post_with_incomplete_video_and_complete_text():
     assert len(result.post.post_data_chunks) == 2
     assert DownloadContentTypeFilter.boosty_videos in result.incomplete_content_types
     assert DownloadContentTypeFilter.audio not in result.incomplete_content_types
+
+
+def test_unknown_chunk_is_skipped_and_counted():
+    unknown = BoostyPostDataUnknownDTO(type='super_new_thing')
+    post_dto = _make_post_dto([unknown])
+
+    result = map_post_dto_to_domain(
+        post_dto, preferred_video_quality=BoostyOkVideoType.medium
+    )
+
+    assert result.post.post_data_chunks == []
+    assert result.unknown_content == {
+        UnknownContent(path='data[0].type', raw='super_new_thing')
+    }
+
+
+def test_unknown_video_url_type_is_reported_not_fatal():
+    video = BoostyPostDataOkVideoDTO(
+        type='ok_video',
+        title='test video',
+        failover_host='https://example.com',
+        duration=timedelta(seconds=120),
+        upload_status='ok',
+        complete=True,
+        player_urls=[
+            BoostyOkVideoUrl(
+                type=BoostyUnknownValue(raw='ondemand_dash'), url='https://e/1'
+            ),
+            BoostyOkVideoUrl(type=BoostyOkVideoType.medium, url='https://e/2'),
+        ],
+    )
+
+    result = map_post_dto_to_domain(
+        _make_post_dto([video]), preferred_video_quality=BoostyOkVideoType.medium
+    )
+
+    assert len(result.post.post_data_chunks) == 1
+    assert result.unknown_content == {
+        UnknownContent(path='data[0].playerUrls[0].type', raw='ondemand_dash')
+    }
+
+
+def test_list_with_unknown_style_keeps_its_items():
+    list_chunk = BoostyPostDataListDTO.model_validate(
+        {
+            'type': 'list',
+            'style': 'checklist',
+            'items': [{'data': [{'type': 'text', 'content': 'point one'}]}],
+        }
+    )
+
+    result = map_post_dto_to_domain(
+        _make_post_dto([list_chunk]), preferred_video_quality=BoostyOkVideoType.medium
+    )
+
+    assert len(result.post.post_data_chunks) == 1
+    assert result.unknown_content == {
+        UnknownContent(path='data[0].style', raw='checklist')
+    }
+
+
+def test_non_text_list_item_is_reported_not_silent():
+    list_chunk = BoostyPostDataListDTO.model_validate(
+        {
+            'type': 'list',
+            'style': 'unordered',
+            'items': [
+                {'data': [{'type': 'text', 'content': 'point one'}]},
+                {
+                    'items': [{'data': [{'type': 'image', 'content': ''}]}],
+                    'data': [{'type': 'text', 'content': 'point two'}],
+                },
+            ],
+        }
+    )
+
+    result = map_post_dto_to_domain(
+        _make_post_dto([list_chunk]), preferred_video_quality=BoostyOkVideoType.medium
+    )
+
+    assert len(result.post.post_data_chunks) == 1
+    assert result.unknown_content == {
+        UnknownContent(path='data[0].items[1].items[0].data[0].type', raw='image')
+    }

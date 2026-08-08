@@ -1,6 +1,8 @@
 """Use case for downloading a specific Boosty post by URL."""
 
+from enum import Enum, auto
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from boosty_downloader.src.application.di.download_context import DownloadContext
 from boosty_downloader.src.application.exceptions.application_errors import (
@@ -13,7 +15,31 @@ from boosty_downloader.src.application.use_cases.download_single_post import (
     ApplicationFailedDownloadError,
     DownloadSinglePostUseCase,
 )
+from boosty_downloader.src.infrastructure.boosty_api.models.unknown_content import (
+    collect_unknown_content,
+)
+from boosty_downloader.src.infrastructure.boosty_api.utils.validation_errors import (
+    GITHUB_ISSUES_URL,
+    format_run_summary,
+    format_skipped_post,
+)
 from boosty_downloader.src.infrastructure.file_downloader import sanitize_string
+
+if TYPE_CHECKING:
+    from boosty_downloader.src.infrastructure.boosty_api.models.post.post import (
+        PostDTO,
+    )
+    from boosty_downloader.src.infrastructure.boosty_api.models.post.posts_request import (
+        PostsResponse,
+    )
+
+
+class _PostDownloadOutcome(Enum):
+    """Outcome of downloading the found post."""
+
+    downloaded = auto()
+    failed = auto()
+    cancelled = auto()
 
 
 class DownloadPostByUrlUseCase:
@@ -63,6 +89,22 @@ class DownloadPostByUrlUseCase:
         else:
             return author, post_uuid
 
+    def _report_if_target_skipped(self, page: 'PostsResponse', post_uuid: str) -> bool:
+        """
+        Tell the user when the searched post exists but this client can't parse it.
+
+        A misleading "not found" would hide the real problem.
+        """
+        for skipped in page.skipped_posts:
+            if skipped.post_id == post_uuid:
+                self.context.progress_reporter.error(format_skipped_post(skipped))
+                self.context.progress_reporter.error(
+                    f'Please report this at {GITHUB_ISSUES_URL} '
+                    'so the client can be updated.'
+                )
+                return True
+        return False
+
     async def execute(self) -> None:
         author_name, post_uuid = self.extract_author_and_uuid_from_url()
         if not author_name or not post_uuid:
@@ -80,36 +122,50 @@ class DownloadPostByUrlUseCase:
             self.context.progress_reporter.info(
                 f'[Page({current_page})] Searching for the post with UUID: {post_uuid}... '
             )
+            if self._report_if_target_skipped(page, post_uuid):
+                return
+
             for post in page.posts:
                 if post.id == post_uuid:
-                    self.context.progress_reporter.success(
-                        f'Found post with UUID: {post_uuid}, starting download...'
-                    )
-
-                    post_title = post.title
-                    if len(post_title) == 0:
-                        post_title = f'No title (id_{post.id[:8]})'
-
-                    post_name = f'{post.created_at.date()} - {post_title}'
-                    post_name = sanitize_string(post_name).replace('.', '').strip()
-
-                    try:
-                        await DownloadSinglePostUseCase(
-                            post_dto=post,
-                            destination=self.destination / post_name,
-                            download_context=self.context,
-                        ).execute()
-                    except ApplicationCancelledError:
-                        self.context.progress_reporter.warn(
-                            'Download cancelled by user. Bye!'
-                        )
-                    except ApplicationFailedDownloadError as e:
-                        self.context.progress_reporter.error(
-                            f'Failed to download post: {e.message}, RESOURCE: ({e.resource})'
-                        )
-                    else:
+                    outcome = await self._download_post(post)
+                    if outcome is _PostDownloadOutcome.downloaded:
                         return
+                    # Note: cancel does not stop the search - it moves on
+                    # like a failed download.
 
         self.context.progress_reporter.error(
             'Failed to find and download the specified post.'
         )
+
+    async def _download_post(self, post: 'PostDTO') -> _PostDownloadOutcome:
+        """Download the found post and name how it went."""
+        self.context.progress_reporter.success(
+            f'Found post with UUID: {post.id}, starting download...'
+        )
+
+        summary = format_run_summary([], collect_unknown_content(post))
+        if summary:
+            self.context.progress_reporter.warn(summary)
+
+        post_title = post.title
+        if len(post_title) == 0:
+            post_title = f'No title (id_{post.id[:8]})'
+
+        post_name = f'{post.created_at.date()} - {post_title}'
+        post_name = sanitize_string(post_name).replace('.', '').strip()
+
+        try:
+            await DownloadSinglePostUseCase(
+                post_dto=post,
+                destination=self.destination / post_name,
+                download_context=self.context,
+            ).execute()
+        except ApplicationCancelledError:
+            self.context.progress_reporter.warn('Download cancelled by user. Bye!')
+            return _PostDownloadOutcome.cancelled
+        except ApplicationFailedDownloadError as e:
+            self.context.progress_reporter.error(
+                f'Failed to download post: {e.message}, RESOURCE: ({e.resource})'
+            )
+            return _PostDownloadOutcome.failed
+        return _PostDownloadOutcome.downloaded

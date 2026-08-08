@@ -15,6 +15,7 @@ from boosty_downloader.src.infrastructure.boosty_api.core.client import (
     BoostyAPINoUsernameError,
     BoostyAPIUnauthorizedError,
     BoostyAPIUnknownError,
+    BoostyAPIValidationError,
 )
 
 if TYPE_CHECKING:
@@ -129,3 +130,63 @@ async def test_200_with_valid_empty_page_returns_posts_response():
     assert response.posts == []
     assert response.extra.is_last is True
     assert response.extra.offset == ''
+
+
+VALID_POST: Any = {
+    'id': 'p1',
+    'title': 'ok post',
+    'createdAt': 1700000000,
+    'updatedAt': 1700000000,
+    'hasAccess': True,
+    'signedQuery': '',
+    'data': [],
+}
+
+
+@pytest.mark.asyncio
+async def test_broken_post_is_skipped_and_page_survives():
+    client = _make_client(
+        _FakeResponse(
+            status=200,
+            json_data={
+                'data': [VALID_POST, {'id': 'b1', 'title': 'broken'}],
+                'extra': VALID_EXTRA,
+            },
+        )
+    )
+
+    response = await client.get_author_posts('any_author', limit=2)
+
+    assert [p.id for p in response.posts] == ['p1']
+    assert len(response.skipped_posts) == 1
+    assert response.skipped_posts[0].post_id == 'b1'
+    assert response.skipped_posts[0].title == 'broken'
+    assert response.skipped_posts[0].errors
+
+
+@pytest.mark.asyncio
+async def test_page_of_only_broken_posts_returns_empty_not_error():
+    client = _make_client(
+        _FakeResponse(
+            status=200,
+            json_data={'data': [{'nope': 1}, {'nope': 2}], 'extra': VALID_EXTRA},
+        )
+    )
+
+    response = await client.get_author_posts('any_author', limit=2)
+
+    assert response.posts == []
+    assert len(response.skipped_posts) == 2
+
+
+@pytest.mark.asyncio
+async def test_broken_pagination_still_fails_the_page():
+    client = _make_client(
+        _FakeResponse(
+            status=200,
+            json_data={'data': [VALID_POST], 'extra': {'nope': 1}},
+        )
+    )
+
+    with pytest.raises(BoostyAPIValidationError):
+        await client.get_author_posts('any_author', limit=1)

@@ -23,6 +23,7 @@ from boosty_downloader.src.domain.post_data_chunks import (
     PostDataChunkTextualList,
 )
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_list import (
+    BoostyListItemType,
     BoostyPostDataListDTO,
     BoostyPostDataListItemDTO,
 )
@@ -41,7 +42,7 @@ def to_domain_list_chunk(post_list: BoostyPostDataListDTO) -> PostDataChunkTextu
         # Convert data items to domain text chunks
         domain_data: list[PostDataChunkText] = []
         for data_item in api_item.data:
-            if data_item.type == 'text':
+            if data_item.type is BoostyListItemType.text:
                 # Create proper DTO object for the text mapper
                 text_dto = BoostyPostDataTextDTO(
                     type='text',

@@ -2,6 +2,7 @@
 
 import asyncio
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from boosty_downloader.src.application.di.download_context import DownloadContext
 from boosty_downloader.src.application.exceptions.application_errors import (
@@ -12,9 +13,23 @@ from boosty_downloader.src.application.use_cases.download_single_post import (
     DownloadSinglePostUseCase,
 )
 from boosty_downloader.src.infrastructure.boosty_api.core.client import BoostyAPIClient
+from boosty_downloader.src.infrastructure.boosty_api.models.unknown_content import (
+    UnknownContent,
+    collect_unknown_content,
+)
+from boosty_downloader.src.infrastructure.boosty_api.utils.validation_errors import (
+    format_run_summary,
+    format_skipped_post,
+)
 from boosty_downloader.src.infrastructure.path_sanitizer import (
     sanitize_string,
 )
+
+if TYPE_CHECKING:
+    from boosty_downloader.src.infrastructure.boosty_api.models.post.posts_request import (
+        PostsResponse,
+        SkippedPost,
+    )
 
 
 class DownloadAllPostUseCase:
@@ -40,16 +55,33 @@ class DownloadAllPostUseCase:
         self.destination = destination
         self.context = download_context
 
+    def _note_page_anomalies(
+        self,
+        page: 'PostsResponse',
+        all_skipped: list['SkippedPost'],
+        unknown_content: set[UnknownContent],
+    ) -> None:
+        """Warn about skipped posts and collect everything unknown for the summary."""
+        all_skipped.extend(page.skipped_posts)
+        for post_dto in page.posts:
+            unknown_content |= collect_unknown_content(post_dto)
+        for skipped in page.skipped_posts:
+            self.context.progress_reporter.warn(format_skipped_post(skipped))
+
     async def execute(self) -> None:
         posts_iterator = self.boosty_api.iterate_over_posts(
             author_name=self.author_name
         )
 
         current_page = 0
+        all_skipped: list[SkippedPost] = []
+        unknown_content: set[UnknownContent] = set()
 
         async for page in posts_iterator:
             count = len(page.posts)
             current_page += 1
+
+            self._note_page_anomalies(page, all_skipped, unknown_content)
 
             page_task_id = self.context.progress_reporter.create_task(
                 f'Got new posts: [{count}]',
@@ -114,3 +146,7 @@ class DownloadAllPostUseCase:
             self.context.progress_reporter.success(
                 f'--- Finished page {current_page} ---'
             )
+
+        summary = format_run_summary(all_skipped, unknown_content)
+        if summary:
+            self.context.progress_reporter.warn(summary)

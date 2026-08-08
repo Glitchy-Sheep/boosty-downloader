@@ -4,6 +4,8 @@
 - Update yt-dlp to 2026.7.4: fixes external video downloading (security update)
 - Fix running download/check without --username: clear "Missing option" error and exit code 2 instead of a crash
 - Fix confusing "Unknown error" for a wrong username: clear "author not found" message and a hint about the blog name (#94)
+- Survive unknown Boosty content: new types and values are kept, skipped where needed, and listed in a final summary with exact paths instead of crashing the whole download
+- Broken posts no longer fail the whole page: they are skipped with a readable warning, and validation errors are shown as short lines instead of raw dumps
 
 ## 3.0.0
 

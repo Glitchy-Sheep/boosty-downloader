@@ -4,9 +4,14 @@ from __future__ import annotations
 
 from datetime import timedelta  # noqa: TC003 Pydantic should know this type fully
 from enum import Enum
-from typing import Literal
+from typing import Annotated, Literal
+
+from pydantic import Field
 
 from boosty_downloader.src.infrastructure.boosty_api.models.base import BoostyBaseDTO
+from boosty_downloader.src.infrastructure.boosty_api.models.unknown_value import (
+    UnknownValue,
+)
 
 
 class BoostyOkVideoType(Enum):
@@ -33,11 +38,20 @@ class BoostyOkVideoType(Enum):
     lowest = 'lowest'
 
 
+# Known types parse into the enum, anything new from Boosty is kept as
+# BoostyUnknownValue with the raw word for the run summary. left_to_right is
+# required: the default smart mode lets the catch-all swallow known values.
+TolerantOkVideoType = Annotated[
+    BoostyOkVideoType | UnknownValue,
+    Field(union_mode='left_to_right'),
+]
+
+
 class BoostyOkVideoUrl(BoostyBaseDTO):
     """Link to video with specific format (link can be empty for some formats)"""
 
     url: str
-    type: BoostyOkVideoType
+    type: TolerantOkVideoType
 
 
 class BoostyPostDataOkVideoDTO(BoostyBaseDTO):
