@@ -32,6 +32,15 @@ class BoostyOkVideoType(Enum):
     tiny = 'tiny'
     lowest = 'lowest'
 
+    # Fallback for url types this client doesn't know yet:
+    # Boosty adds new ones over time, they must parse fine
+    # and never win the quality ranking.
+    unknown = 'unknown'
+
+    @classmethod
+    def _missing_(cls, _value: object) -> BoostyOkVideoType:
+        return cls.unknown
+
 
 class BoostyOkVideoUrl(BoostyBaseDTO):
     """Link to video with specific format (link can be empty for some formats)"""
