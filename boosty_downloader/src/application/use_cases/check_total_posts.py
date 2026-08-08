@@ -1,9 +1,21 @@
 """Use case for reporting the total number of posts and their accessibility for a given Boosty author."""
 
+from typing import TYPE_CHECKING
+
 from boosty_downloader.src.infrastructure.boosty_api.core.client import (
     BoostyAPIClient,
 )
+from boosty_downloader.src.infrastructure.boosty_api.models.unknown_content import (
+    UnknownContent,
+    collect_unknown_content,
+)
+
+if TYPE_CHECKING:
+    from boosty_downloader.src.infrastructure.boosty_api.models.post.posts_request import (
+        SkippedPost,
+    )
 from boosty_downloader.src.infrastructure.boosty_api.utils.validation_errors import (
+    format_run_summary,
     format_skipped_post,
 )
 from boosty_downloader.src.infrastructure.loggers.logger_instances import RichLogger
@@ -35,11 +47,18 @@ class ReportTotalPostsCountUseCase:
         inaccessible_posts_count = 0
         inaccessible_posts_names: list[str] = []
 
+        all_skipped: list[SkippedPost] = []
+        unknown_content: set[UnknownContent] = set()
+
         async for page in self.boosty_api.iterate_over_posts(
             self.author_name, posts_per_page=100
         ):
             current_page += 1
             total_posts += len(page.posts)
+
+            all_skipped.extend(page.skipped_posts)
+            for post in page.posts:
+                unknown_content |= collect_unknown_content(post)
 
             for skipped in page.skipped_posts:
                 self.logger.warning(format_skipped_post(skipped))
@@ -66,3 +85,7 @@ class ReportTotalPostsCountUseCase:
             '\n'
             f'[bold]{inaccessible_titles_str}[/bold]'
         )
+
+        summary = format_run_summary(all_skipped, unknown_content)
+        if summary:
+            self.logger.warning(summary)

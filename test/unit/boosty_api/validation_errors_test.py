@@ -10,7 +10,12 @@ from pydantic import BaseModel, ValidationError
 from boosty_downloader.src.infrastructure.boosty_api.models.post.posts_request import (
     SkippedPost,
 )
+from boosty_downloader.src.infrastructure.boosty_api.models.unknown_content import (
+    UnknownContent,
+)
 from boosty_downloader.src.infrastructure.boosty_api.utils.validation_errors import (
+    GITHUB_ISSUES_URL,
+    format_run_summary,
     format_skipped_post,
     format_validation_errors,
 )
@@ -69,3 +74,19 @@ def test_skipped_post_block_names_the_post_and_lists_problems():
     assert 'broken post' in block
     assert 'b1' in block
     assert "data[0].type: unknown value 'nope'" in block
+
+
+def test_run_summary_lists_everything_and_asks_to_report():
+    summary = format_run_summary(
+        [SkippedPost(post_id='b1', title='broken post', errors=[])],
+        {UnknownContent(path='data[0].type', raw='novel_thing')},
+    )
+
+    assert summary is not None
+    assert 'broken post' in summary
+    assert "data[0].type = 'novel_thing'" in summary
+    assert GITHUB_ISSUES_URL in summary
+
+
+def test_run_summary_is_none_when_clean():
+    assert format_run_summary([], set()) is None

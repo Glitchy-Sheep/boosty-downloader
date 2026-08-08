@@ -23,6 +23,7 @@ from boosty_downloader.src.infrastructure.boosty_api.core.client import (
     BoostyAPIValidationError,
 )
 from boosty_downloader.src.infrastructure.boosty_api.utils.validation_errors import (
+    GITHUB_ISSUES_URL,
     format_validation_errors,
 )
 from boosty_downloader.src.infrastructure.loggers import logger_instances
@@ -32,8 +33,6 @@ typer_app = typer.Typer(
     rich_markup_mode='rich',
     invoke_without_command=True,
 )
-
-GITHUB_ISSUES_URL = 'https://github.com/Glitchy-Sheep/boosty-downloader/issues'
 
 
 @typer_app.callback()

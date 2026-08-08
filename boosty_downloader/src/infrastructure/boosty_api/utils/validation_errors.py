@@ -6,12 +6,18 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from collections.abc import Set as AbstractSet
 
     from pydantic_core import ErrorDetails
 
     from boosty_downloader.src.infrastructure.boosty_api.models.post.posts_request import (
         SkippedPost,
     )
+    from boosty_downloader.src.infrastructure.boosty_api.models.unknown_content import (
+        UnknownContent,
+    )
+
+GITHUB_ISSUES_URL = 'https://github.com/Glitchy-Sheep/boosty-downloader/issues'
 
 
 def format_validation_errors(errors: Sequence[ErrorDetails]) -> list[str]:
@@ -23,6 +29,38 @@ def format_validation_errors(errors: Sequence[ErrorDetails]) -> list[str]:
     of the full list of expected values.
     """
     return [_format_error(error) for error in errors]
+
+
+def format_run_summary(
+    skipped_posts: Sequence[SkippedPost],
+    unknown_content: AbstractSet[UnknownContent],
+) -> str | None:
+    """
+    Build the final block about everything this run didn't understand.
+
+    Returns None when there is nothing to report, so clean runs stay silent.
+    """
+    if not skipped_posts and not unknown_content:
+        return None
+
+    lines = ['Some content was not understood by this version of the downloader:']
+    if skipped_posts:
+        lines.append(f' Skipped posts ({len(skipped_posts)}):')
+        for skipped in skipped_posts:
+            lines.append(f'  - "{skipped.title}" (id {skipped.post_id})')
+            lines.extend(
+                f'     - {line}' for line in format_validation_errors(skipped.errors)
+            )
+    if unknown_content:
+        lines.append(' Unknown content (downloaded around, not lost):')
+        lines.extend(
+            f'  - {item.path} = {item.raw!r}'
+            for item in sorted(unknown_content, key=lambda u: (u.path, u.raw))
+        )
+    lines.append(
+        f'Please report this at {GITHUB_ISSUES_URL} so the client can be updated.'
+    )
+    return '\n'.join(lines)
 
 
 def format_skipped_post(skipped: SkippedPost) -> str:

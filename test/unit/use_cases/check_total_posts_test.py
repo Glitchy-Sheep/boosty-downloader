@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, cast
 
 import pytest
@@ -10,9 +11,16 @@ from boosty_downloader.src.application.use_cases.check_total_posts import (
     ReportTotalPostsCountUseCase,
 )
 from boosty_downloader.src.infrastructure.boosty_api.models.post.extra import Extra
+from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
+from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types import (
+    BoostyPostDataUnknownDTO,
+)
 from boosty_downloader.src.infrastructure.boosty_api.models.post.posts_request import (
     PostsResponse,
     SkippedPost,
+)
+from boosty_downloader.src.infrastructure.boosty_api.utils.validation_errors import (
+    GITHUB_ISSUES_URL,
 )
 
 if TYPE_CHECKING:
@@ -57,10 +65,22 @@ class _FakeApi:
         yield self._page
 
 
+def _make_post_with_unknown_chunk() -> PostDTO:
+    return PostDTO(
+        id='p1',
+        title='post with novelty',
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        has_access=True,
+        signed_query='',
+        data=[BoostyPostDataUnknownDTO(type='novel_thing')],
+    )
+
+
 @pytest.mark.asyncio
-async def test_skipped_post_becomes_a_warning():
+async def test_skipped_post_warns_inline_and_run_summary_reports_everything():
     page = PostsResponse(
-        posts=[],
+        posts=[_make_post_with_unknown_chunk()],
         extra=Extra(offset='', is_last=True),
         skipped_posts=[
             SkippedPost(
@@ -79,6 +99,9 @@ async def test_skipped_post_becomes_a_warning():
 
     await use_case.execute()
 
-    assert len(logger.warnings) == 1
-    assert 'broken post' in logger.warnings[0]
-    assert 'b1' in logger.warnings[0]
+    inline, summary = logger.warnings
+    assert 'broken post' in inline
+    assert 'b1' in inline
+    assert "data[0].type = 'novel_thing'" in summary
+    assert 'broken post' in summary
+    assert GITHUB_ISSUES_URL in summary
