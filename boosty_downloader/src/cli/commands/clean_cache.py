@@ -3,6 +3,7 @@
 # pyright: reportUnusedFunction=false
 from __future__ import annotations
 
+from contextlib import suppress
 from typing import TYPE_CHECKING
 
 from boosty_downloader.src.cli.cli_options import (
@@ -34,11 +35,28 @@ def _clean_cache(
         or config.downloading_settings.target_directory
     )
 
+    # Opening SQLitePostCache creates the database, so a missing cache
+    # must be answered before that - otherwise the command fabricates
+    # an empty cache and reports a false success.
+    cache_db = cache_dir.absolute() / username / SQLitePostCache.DEFAULT_CACHE_FILENAME
+    if not cache_db.exists():
+        logger_instances.downloader_logger.info(
+            f'No cache found for {username} - nothing to clean'
+        )
+        return
+
     with SQLitePostCache(
         destination=cache_dir.absolute() / username,
         logger=logger_instances.downloader_logger,
     ) as post_cache:
         post_cache.remove_cache_completely()
+
+    # remove_cache_completely recreates an empty database right away;
+    # drop it so a repeated clean honestly says there is nothing to clean.
+    cache_db.unlink(missing_ok=True)
+    with suppress(OSError):
+        # Keep the folder when it still holds downloaded posts.
+        cache_db.parent.rmdir()
 
     logger_instances.downloader_logger.success(
         f'Cache for {username} has been cleaned successfully'
