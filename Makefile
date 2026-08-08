@@ -1,4 +1,4 @@
-.PHONY: build test posts-example release help
+.PHONY: build test posts-example release help setup
 
 # Ensure that all the pipe-like commands work correctly.
 export PYTHONIOENCODING = utf-8
@@ -9,6 +9,7 @@ help:
 	@echo '  Boosty Downloader - Development Commands'
 	@echo ''
 	@echo '  🚀 Quick start:'
+	@echo '    make setup                                   first-time dev setup (venv + deps + editor)'
 	@echo '    make deps                                    install dependencies'
 	@echo '    poetry run python -m boosty_downloader.main  run locally'
 	@echo ''
@@ -46,6 +47,21 @@ help:
 
 deps:
 	poetry sync --no-interaction
+
+# First-time developer setup: the venv lives inside the project (./.venv),
+# so editors and CI resolve the same interpreter path. Generates VS Code
+# settings pointing at it - the file is gitignored, hence generated here.
+setup:
+	poetry config virtualenvs.in-project true --local
+	poetry sync --no-interaction
+	@mkdir -p .vscode
+	@if [ -f .vscode/settings.json ]; then \
+		echo '.vscode/settings.json exists - check python.defaultInterpreterPath points to .venv'; \
+	else \
+		printf '{\n    "python.defaultInterpreterPath": "$${workspaceFolder}/.venv/bin/python"\n}\n' > .vscode/settings.json; \
+		echo 'Created .vscode/settings.json'; \
+	fi
+	@echo 'Done. In VS Code: "Python: Select Interpreter" -> ./.venv/bin/python'
 
 build:
 	poetry build --no-cache
