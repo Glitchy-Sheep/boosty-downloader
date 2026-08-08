@@ -7,6 +7,9 @@ from boosty_downloader.src.application.ok_video_ranking import (
     BoostyOkVideoUrl,
     RankingDict,
 )
+from boosty_downloader.src.infrastructure.boosty_api.models.unknown_value import (
+    BoostyUnknownValue,
+)
 
 
 def test_ranking_dict_basic_operations():
@@ -104,8 +107,13 @@ def test_ranking_dict_with_duplicate_entries():
 
 def test_known_quality_beats_unknown_type():
     video_urls = [
-        BoostyOkVideoUrl(url='https://vd.example/unknown', type=BoostyOkVideoType.unknown),
-        BoostyOkVideoUrl(url='https://vd.example/medium', type=BoostyOkVideoType.medium),
+        BoostyOkVideoUrl(
+            url='https://vd.example/unknown',
+            type=BoostyUnknownValue(raw='ondemand_dash'),
+        ),
+        BoostyOkVideoUrl(
+            url='https://vd.example/medium', type=BoostyOkVideoType.medium
+        ),
     ]
 
     best_video = get_best_video(video_urls)
@@ -116,7 +124,10 @@ def test_known_quality_beats_unknown_type():
 
 def test_only_unknown_types_gives_none():
     video_urls = [
-        BoostyOkVideoUrl(url='https://vd.example/unknown', type=BoostyOkVideoType.unknown),
+        BoostyOkVideoUrl(
+            url='https://vd.example/unknown',
+            type=BoostyUnknownValue(raw='ondemand_dash'),
+        ),
     ]
 
     assert get_best_video(video_urls) is None

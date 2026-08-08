@@ -21,6 +21,11 @@ from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types
     BoostyPostDataListDTO,
     BoostyPostDataOkVideoDTO,
     BoostyPostDataTextDTO,
+    BoostyPostDataUnknownDTO,
+)
+from boosty_downloader.src.infrastructure.boosty_api.models.unknown_content import (
+    UnknownContent,
+    collect_unknown_content,
 )
 
 if TYPE_CHECKING:
@@ -40,6 +45,11 @@ class PostMappingResult:
     incomplete_content_types: set[DownloadContentTypeFilter] = field(
         default_factory=lambda: set[DownloadContentTypeFilter]()
     )
+    # Content this client doesn't know yet, raw. Rendering it for the user
+    # is the output layer's job (inline warnings and the run summary).
+    unknown_content: set[UnknownContent] = field(
+        default_factory=lambda: set[UnknownContent]()
+    )
 
 
 def map_post_dto_to_domain(  # noqa: C901
@@ -57,6 +67,9 @@ def map_post_dto_to_domain(  # noqa: C901
     )
 
     incomplete_content_types: set[DownloadContentTypeFilter] = set()
+    # One type-driven walk over the whole parsed post: any tolerant field
+    # or unknown chunk is reported automatically, wherever it sits.
+    unknown_content = collect_unknown_content(post_dto)
 
     for data_chunk in post_dto.data:
         match data_chunk:
@@ -96,8 +109,12 @@ def map_post_dto_to_domain(  # noqa: C901
                     incomplete_content_types.add(DownloadContentTypeFilter.audio)
                     continue
                 post.post_data_chunks.append(mappers.to_domain_audio_chunk(data_chunk))
+            case BoostyPostDataUnknownDTO():
+                # Reported by collect_unknown_content; nothing to map here.
+                pass
 
     return PostMappingResult(
         post=post,
         incomplete_content_types=incomplete_content_types,
+        unknown_content=unknown_content,
     )
