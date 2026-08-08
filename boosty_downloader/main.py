@@ -22,6 +22,9 @@ from boosty_downloader.src.infrastructure.boosty_api.core.client import (
     BoostyAPIUnknownError,
     BoostyAPIValidationError,
 )
+from boosty_downloader.src.infrastructure.boosty_api.utils.validation_errors import (
+    format_validation_errors,
+)
 from boosty_downloader.src.infrastructure.loggers import logger_instances
 
 typer_app = typer.Typer(
@@ -76,11 +79,14 @@ def entry_point() -> None:
             f'Unknown error occurred, please report this at GitHub issues of the project: {GITHUB_ISSUES_URL}'
         )
     except BoostyAPIValidationError as e:
+        details = '\n'.join(
+            f'  - {line}' for line in format_validation_errors(e.errors)
+        )
         logger_instances.downloader_logger.error(
             'Boosty API returned unexpected structures, the client probably needs to be updated.\n'
             f'Please report this at GitHub issues of the project: {GITHUB_ISSUES_URL}\n'
             '\n'
-            f'Details: {e.errors!s}'
+            f'{details}'
         )
     except ApplicationCancelledError:
         logger_instances.downloader_logger.warning(
