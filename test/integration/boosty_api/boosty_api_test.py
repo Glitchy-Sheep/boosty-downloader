@@ -26,21 +26,22 @@ pytest_plugins = [
 async def test_get_posts_existing_author_success(
     authorized_boosty_client: BoostyAPIClient, integration_config: IntegrationTestConfig
 ) -> None:
-    """Test successful retrieval of posts from an existing author."""
+    """The configured author must yield a non-empty, parsed page of posts."""
     response = await authorized_boosty_client.get_author_posts(
         author_name=integration_config.boosty_existing_author, limit=5
     )
 
-    assert response.posts is not None
-    assert response.extra is not None
-    assert len(response.posts) >= 0
+    assert response.posts, (
+        f'No posts for "{integration_config.boosty_existing_author}" - '
+        'BOOSTY_EXISTING_AUTHOR in ./.env must name an author with public posts'
+    )
 
 
 @pytest.mark.asyncio
 async def test_get_posts_nonexistent_author_raises_error(
     authorized_boosty_client: BoostyAPIClient, integration_config: IntegrationTestConfig
 ) -> None:
-    """Test that requesting posts from non-existent author raises BoostyAPINoUsernameError."""
+    """A wrong username must raise BoostyAPINoUsernameError - it powers the "author not found" message."""
     with pytest.raises(BoostyAPINoUsernameError):
         await authorized_boosty_client.get_author_posts(
             author_name=integration_config.boosty_nonexistent_author, limit=5
@@ -51,31 +52,35 @@ async def test_get_posts_nonexistent_author_raises_error(
 async def test_get_posts_with_pagination(
     authorized_boosty_client: BoostyAPIClient, integration_config: IntegrationTestConfig
 ) -> None:
-    """Test pagination functionality for author posts."""
+    """Two consecutive pages must contain different posts - else a full download would fetch duplicates."""
     first_page = await authorized_boosty_client.get_author_posts(
         author_name=integration_config.boosty_existing_author, limit=2
     )
 
-    if not first_page.extra.is_last and first_page.extra.offset:
-        second_page = await authorized_boosty_client.get_author_posts(
-            author_name=integration_config.boosty_existing_author,
-            limit=2,
-            offset=first_page.extra.offset,
+    if first_page.extra.is_last or not first_page.extra.offset:
+        pytest.skip(
+            f'"{integration_config.boosty_existing_author}" fits in one page - '
+            'pagination needs an author with 3+ posts to compare pages'
         )
 
-        # Posts should be different between pages (assuming author has more than 2 posts)
-        first_page_ids = {post.id for post in first_page.posts}
-        second_page_ids = {post.id for post in second_page.posts}
-        assert first_page_ids.isdisjoint(second_page_ids), (
-            'Pages should contain different posts'
-        )
+    second_page = await authorized_boosty_client.get_author_posts(
+        author_name=integration_config.boosty_existing_author,
+        limit=2,
+        offset=first_page.extra.offset,
+    )
+
+    first_page_ids = {post.id for post in first_page.posts}
+    second_page_ids = {post.id for post in second_page.posts}
+    assert first_page_ids.isdisjoint(second_page_ids), (
+        'Both pages returned the same posts - offset pagination is broken'
+    )
 
 
 @pytest.mark.asyncio
 async def test_iterate_over_posts(
     authorized_boosty_client: BoostyAPIClient, integration_config: IntegrationTestConfig
 ) -> None:
-    """Test the async generator for iterating over all author posts."""
+    """The pagination generator must yield pages with posts for an author who has them."""
     pages_count = 0
     total_posts = 0
 
@@ -90,16 +95,18 @@ async def test_iterate_over_posts(
         if pages_count >= 3:
             break
 
-    assert pages_count > 0, 'Should retrieve at least one page'
-    assert total_posts >= 0, 'Should count posts correctly'
+    assert pages_count > 0, 'The generator yielded no pages at all'
+    assert total_posts > 0, (
+        'The generator yielded pages but zero posts - page parsing inside iteration is broken'
+    )
 
 
 @pytest.mark.asyncio
-async def test_unathoirized_raises_error(
+async def test_invalid_token_raises_unauthorized_error(
     invalid_auth_boosty_client: BoostyAPIClient,
     integration_config: IntegrationTestConfig,
 ) -> None:
-    """Test that unauthorized access raises an error."""
+    """A stale/wrong token must raise BoostyAPIUnauthorizedError - it powers the "refresh your token" message."""
     with pytest.raises(BoostyAPIUnauthorizedError):
         await invalid_auth_boosty_client.get_author_posts(
             author_name=integration_config.boosty_existing_author, limit=5
