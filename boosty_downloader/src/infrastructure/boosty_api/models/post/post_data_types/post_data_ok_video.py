@@ -59,6 +59,7 @@ class BoostyPostDataOkVideoDTO(BoostyBaseDTO):
 
     type: Literal['ok_video']
 
+    id: str
     title: str
     failover_host: str
     duration: timedelta

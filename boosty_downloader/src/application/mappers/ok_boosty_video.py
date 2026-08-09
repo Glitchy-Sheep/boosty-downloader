@@ -32,6 +32,7 @@ def to_ok_boosty_video_content(
     best_video, choosed_quality = best_video_info
 
     return PostDataChunkBoostyVideo(
+        id=api_video_dto.id,
         url=best_video.url,
         title=api_video_dto.title,
         quality=choosed_quality.name,

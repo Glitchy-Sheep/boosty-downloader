@@ -71,6 +71,12 @@ def _form_post_url(username: str, post_id: str) -> str:
     return f'https://boosty.to/{username}/posts/{post_id}'
 
 
+def _boosty_video_filename(video: PostDataChunkBoostyVideo) -> str:
+    """Filename unique per video: titles repeat inside a post, ids never do."""
+    title = video.title.strip() or 'video'
+    return f'{title} ({video.id[:8]})'
+
+
 class DownloadSinglePostUseCase:
     """
     Use case for downloading all user's posts.
@@ -368,7 +374,7 @@ class DownloadSinglePostUseCase:
         """Download a Boosty video and return the path to the saved file."""
         return await self._download_with_progress(
             url=video.url,
-            filename=video.title,
+            filename=_boosty_video_filename(video),
             destination=self.boosty_videos_destination,
             task_label=f'[bold orange]Boosty Video[/bold orange]: {video.title}',
         )

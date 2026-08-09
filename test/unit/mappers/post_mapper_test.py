@@ -56,6 +56,7 @@ def _make_ok_video(
 ) -> BoostyPostDataOkVideoDTO:
     return BoostyPostDataOkVideoDTO(
         type='ok_video',
+        id='vid-1',
         title='test video',
         failover_host='https://example.com',
         duration=timedelta(seconds=120),
@@ -177,6 +178,7 @@ def test_unknown_chunk_is_skipped_and_counted():
 def test_unknown_video_url_type_is_reported_not_fatal():
     video = BoostyPostDataOkVideoDTO(
         type='ok_video',
+        id='vid-1',
         title='test video',
         failover_host='https://example.com',
         duration=timedelta(seconds=120),
