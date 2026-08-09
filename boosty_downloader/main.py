@@ -8,6 +8,7 @@ from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
 
 from boosty_downloader.src.application.exceptions.application_errors import (
     ApplicationCancelledError,
+    ApplicationTooManyFailuresError,
 )
 from boosty_downloader.src.cli.commands import (
     check,
@@ -90,6 +91,11 @@ def entry_point() -> None:
     except ApplicationCancelledError:
         logger_instances.downloader_logger.warning(
             'Download cancelled by user, see you later! 💘\n'
+        )
+    except ApplicationTooManyFailuresError as e:
+        logger_instances.downloader_logger.error(
+            f'Download stopped after {e.streak} failed posts in a row - '
+            'fix the cause and run the command again to resume.'
         )
     except ClientConnectorDNSError:
         logger_instances.downloader_logger.error(

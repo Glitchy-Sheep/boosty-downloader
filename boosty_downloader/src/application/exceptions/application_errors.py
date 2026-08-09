@@ -52,3 +52,16 @@ class ApplicationCancelledError(ApplicationBaseDownloadError):
 
     Typically stops the entire download process.
     """
+
+
+class ApplicationTooManyFailuresError(Exception):
+    """
+    Raised when the full-download run stops on an unbroken failure streak.
+
+    The streak points at a systemic cause (disk, permissions, network),
+    not at individual posts; the use case reports the details before raising.
+    """
+
+    def __init__(self, streak: int) -> None:
+        super().__init__()
+        self.streak = streak
