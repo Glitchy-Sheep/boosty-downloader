@@ -2,6 +2,7 @@
 
 ### Added
 
+- `--version` / `-V` flag shows the installed version
 - `--skip-all-failures` flag: skip failed posts without limit instead of stopping after 5 failures in a row
 
 ### Fixed
