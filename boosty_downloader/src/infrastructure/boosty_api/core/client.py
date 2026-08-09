@@ -220,6 +220,10 @@ class BoostyAPIClient:
     async def iterate_over_posts(
         self,
         author_name: str,
+        # Small default on purpose: signed media links live 24 hours from
+        # the listing fetch, and the download walk is sequential - a small
+        # page keeps links fresh by the time their post's turn comes.
+        # Metadata-only walks (check, post search) pass MAX_POSTS_PER_PAGE.
         posts_per_page: int = 5,
     ) -> AsyncGenerator[PostsResponse, None]:
         """
