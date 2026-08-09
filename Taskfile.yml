@@ -28,8 +28,7 @@ tasks:
       # Windows venvs keep the interpreter under Scripts/, POSIX under bin/.
       venvPython: '{{ternary ".venv/Scripts/python.exe" ".venv/bin/python" (eq OS "windows")}}'
     cmds:
-      - poetry config virtualenvs.in-project true --local
-      - poetry sync --no-interaction
+      - uv sync
       - mkdir -p .vscode
       - |
         if [ -f .vscode/settings.json ]; then
@@ -44,7 +43,7 @@ tasks:
     desc: Install/sync dependencies
     aliases: [deps]
     cmds:
-      - poetry sync --no-interaction
+      - uv sync
 
   fix:
     desc: Auto-fix lint and formatting, then type check
@@ -57,13 +56,13 @@ tasks:
     desc: Lint and auto-fix (ruff)
     aliases: [lint]
     cmds:
-      - poetry run ruff check --fix .
+      - uv run ruff check --fix .
 
   fix:format:
     desc: Format the code (ruff)
     aliases: [format]
     cmds:
-      - poetry run ruff format .
+      - uv run ruff format .
 
   check:
     desc: Run all CI checks (lint + format + types)
@@ -75,22 +74,22 @@ tasks:
   check:lint:
     desc: Lint only, no fixes (ruff)
     cmds:
-      - poetry run ruff check .
+      - uv run ruff check .
 
   check:format:
     desc: Check formatting without changes (ruff)
     cmds:
-      - poetry run ruff format --check .
+      - uv run ruff format --check .
 
   check:types:
     desc: Type check (pyright)
     cmds:
-      - poetry run pyright
+      - uv run pyright
 
   test:
     desc: "Run unit tests (extra pytest args after --: task test -- -v)"
     cmds:
-      - poetry run pytest {{.CLI_ARGS}} test/unit/
+      - uv run pytest {{.CLI_ARGS}} test/unit/
 
   test:api:
     desc: Run integration tests against the live API (requires ./.env)
@@ -111,19 +110,19 @@ tasks:
             BOOSTY_UNAVAILABLE_POST=<post url behind a paywall>
           Get token and cookies via: boosty-downloader show-auth-script
     cmds:
-      - poetry run python scripts/api_preflight.py
-      - poetry run pytest {{.CLI_ARGS}} test/integration/
+      - uv run python scripts/api_preflight.py
+      - uv run pytest {{.CLI_ARGS}} test/integration/
 
   build:
     desc: Build wheel and source distribution
     cmds:
-      - poetry build --no-cache
+      - uv build
       - echo "Build complete at ./dist/"
 
   build:install:
     desc: Build and install locally for testing
     cmds:
-      - poetry run python scripts/build_install.py
+      - uv run python scripts/build_install.py
 
   release:
     desc: "Interactive release wizard: task release -- minor"
@@ -136,7 +135,7 @@ tasks:
       After the PR merges, run task release:tag.
       See docs/development/04-releasing.md for the full flow.
     cmds:
-      - poetry run python scripts/release.py {{.CLI_ARGS}}
+      - uv run python scripts/release.py {{.CLI_ARGS}}
 
   release:tag:
     desc: Tag the merged release on main and trigger publishing
@@ -145,7 +144,7 @@ tasks:
       version, changelog section and tag, then pushes vX.Y.Z - the tag
       triggers the release workflow (build -> PyPI -> GitHub Release).
     cmds:
-      - poetry run python scripts/release.py tag
+      - uv run python scripts/release.py tag
 
   ci:
     desc: Run everything CI runs, locally (checks + tests + build)
@@ -180,4 +179,4 @@ tasks:
             BOOSTY_UNAVAILABLE_POST=<post url behind a paywall>
           Get token and cookies via: boosty-downloader show-auth-script
     cmds:
-      - poetry run python scripts/posts_example.py
+      - uv run python scripts/posts_example.py
