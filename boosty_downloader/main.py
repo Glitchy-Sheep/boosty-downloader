@@ -31,6 +31,9 @@ from boosty_downloader.src.infrastructure.boosty_api.utils.validation_errors imp
     format_validation_errors,
 )
 from boosty_downloader.src.infrastructure.loggers import logger_instances
+from boosty_downloader.src.infrastructure.loggers.debug_file import (
+    enable_debug_file_log,
+)
 
 typer_app = typer.Typer(
     add_completion=False,
@@ -45,6 +48,11 @@ def _print_version(value: bool) -> None:  # noqa: FBT001 - typer callback contra
         raise typer.Exit
 
 
+def _enable_debug(value: bool) -> None:  # noqa: FBT001 - typer callback contract
+    if value:
+        enable_debug_file_log()
+
+
 @typer_app.callback()
 def _app_callback(  # pyright: ignore[reportUnusedFunction]
     ctx: typer.Context,
@@ -55,6 +63,15 @@ def _app_callback(  # pyright: ignore[reportUnusedFunction]
             '-V',
             help='Show the version and exit',
             callback=_print_version,
+            is_eager=True,
+        ),
+    ] = False,
+    _debug: Annotated[  # noqa: FBT002 - typer flag contract
+        bool,
+        typer.Option(
+            '--debug',
+            help='Write a detailed log file for bug reports',
+            callback=_enable_debug,
             is_eager=True,
         ),
     ] = False,
