@@ -416,6 +416,8 @@ class DownloadSinglePostUseCase:
             filename=file.filename,
             destination=self.files_destination,
             task_label=f'File: {file.filename}',
+            # The author's original filename already carries its extension.
+            guess_extension=False,
         )
 
     async def download_image(self, image: PostDataChunkImage) -> Path:
@@ -425,7 +427,9 @@ class DownloadSinglePostUseCase:
             filename=URL(image.url).name,
             destination=self.images_destination,
             task_label=f'Image: {URL(image.url).name}',
-            guess_extension=False,
+            # The name is a bare uuid - Content-Type is the only source
+            # of an extension in existence.
+            guess_extension=True,
         )
 
     async def download_audio(self, audio: PostDataChunkAudio) -> Path:

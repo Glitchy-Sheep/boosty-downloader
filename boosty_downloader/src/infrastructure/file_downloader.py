@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import http
 import mimetypes
-import re
 from asyncio import CancelledError
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -48,6 +47,9 @@ class DownloadFileConfig:
     destination: Path
     on_status_update: Callable[[DownloadingStatus], None] = lambda _: None
 
+    # True only when the caller builds the filename without an extension
+    # (videos, images). Names that come from the author (files, audio)
+    # already carry their extension and must never be touched.
     guess_extension: bool = True
     chunk_size_bytes: int = 524288  # 512 KiB
 
@@ -114,21 +116,14 @@ class DownloadUnexpectedStatusError(DownloadError):
         self.response_message = response_message
 
 
-# A trailing dot plus 1-5 letters/digits, like ".zip" or ".mp4".
-# A dot inside a title ("Ep. 5 (a2dd6942)") does not count.
-_REAL_EXTENSION = re.compile(r'\.[A-Za-z0-9]{1,5}$')
-
-
-def _extension_to_append(filename: str, content_type: str | None) -> str | None:
+def _extension_to_append(content_type: str | None) -> str | None:
     """
-    Pick an extension to add to a name that has none.
+    Pick an extension for a name that has none by construction.
 
-    An existing extension always wins over the server's opinion, and
-    'application/octet-stream' ("bytes, type unknown") teaches us nothing -
-    no more ".bin" files born out of that.
+    Only callers whose filenames are built without an extension (videos,
+    images) ask for this. 'application/octet-stream' ("bytes, type
+    unknown") teaches nothing - no ".bin" is ever born out of it.
     """
-    if _REAL_EXTENSION.search(filename):
-        return None
     if not content_type or content_type == 'application/octet-stream':
         return None
     return mimetypes.guess_extension(content_type)
@@ -150,7 +145,7 @@ async def download_file(
         file_path = dl_config.destination / filename
 
         if dl_config.guess_extension:
-            ext = _extension_to_append(filename, response.content_type)
+            ext = _extension_to_append(response.content_type)
             if ext is not None:
                 file_path = file_path.with_name(file_path.name + ext)
 
