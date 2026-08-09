@@ -168,7 +168,7 @@ class ReleasePlan:
     @property
     def commit_commands(self) -> tuple[Command, ...]:
         return (
-            ('git', 'add', 'pyproject.toml', 'CHANGELOG.md'),
+            ('git', 'add', 'pyproject.toml', 'CHANGELOG.md', 'uv.lock'),
             ('git', 'commit', '-m', self.commit_message),
             ('git', 'push', '-u', 'origin', self.branch),
         )
@@ -308,7 +308,7 @@ def _plan_steps(plan: ReleasePlan) -> list[tuple[str, tuple[Command, ...]]]:
         )
     steps += [
         (f'bump [dim]{plan.old_version}[/] -> [bold]{plan.version}[/]'
-         ' in pyproject.toml', ()),
+         ' in pyproject.toml and uv.lock', ()),
         (f'promote "{UNRELEASED_HEADING}" -> "## {plan.version}" in CHANGELOG.md', ()),
         ('commit and push', plan.commit_commands),
         ('open the release PR', (plan.pr_command,)),
@@ -354,7 +354,11 @@ def _apply_bump(version: str) -> None:
         f'{UNRELEASED_HEADING}\n', f'{UNRELEASED_HEADING}\n\n## {version}\n', 1
     )
     CHANGELOG.write_text(changelog_text, encoding='utf-8')
-    _ok(f'pyproject.toml and CHANGELOG.md updated for {version}')
+
+    # uv.lock records the project's own version - it must move together
+    # with pyproject.toml, or the next `uv run` dirties the tree.
+    _run('uv', 'lock')
+    _ok(f'pyproject.toml, CHANGELOG.md and uv.lock updated for {version}')
 
 
 def _commit_and_push(plan: ReleasePlan) -> None:
