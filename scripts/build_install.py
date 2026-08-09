@@ -52,24 +52,25 @@ def main() -> None:
     wheel = wheels[0]
     console.print(f'     [green]{wheel.name}[/]')
 
-    # --- Step 3: Install to user site-packages ----------------------------------
-    # Use base Python (not venv) so --user works even from activated venv.
-    global_python = Path(sys.base_prefix) / 'python.exe'
-    if not global_python.exists():
-        global_python = Path(sys.base_prefix) / 'bin' / 'python'
+    # --- Step 3: Install globally via pipx ------------------------------------
+    # pipx puts the wheel into its own isolated env with the CLI on PATH -
+    # the same end-user layout on macOS / Linux / Windows. A bare
+    # `pip install --user` breaks on Homebrew/system pythons (PEP 668).
+    pipx = shutil.which('pipx')
+    if pipx is None:
+        console.print(
+            '  [red bold]Error:[/] pipx is required to install the wheel globally.'
+        )
+        console.print(
+            '  Install it: [cyan]brew install pipx[/] (macOS) / '
+            '[cyan]scoop install pipx[/] (Windows) / '
+            '[cyan]python3 -m pip install --user pipx[/]'
+        )
+        sys.exit(1)
 
-    console.print(f'  [dim]3.[/] Installing globally via [cyan]{global_python}[/]...')
+    console.print('  [dim]3.[/] Installing globally via [cyan]pipx[/]...')
     subprocess.run(
-        [
-            str(global_python),
-            '-m',
-            'pip',
-            'install',
-            '--user',
-            '--force-reinstall',
-            '--no-deps',
-            str(wheel),
-        ],
+        [pipx, 'install', '--force', str(wheel)],
         check=True,
     )
 

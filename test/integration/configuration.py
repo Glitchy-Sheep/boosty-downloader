@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -7,8 +7,9 @@ class IntegrationTestConfig(BaseSettings):
     Loads and validates integration test config from environment variables.
     """
 
-    boosty_auth_token: str = Field(..., alias='BOOSTY_TOKEN')
-    boosty_cookies: str = Field(..., alias='BOOSTY_COOKIES')
+    # SecretStr: a failing test prints fixture reprs - credentials must not leak there.
+    boosty_auth_token: SecretStr = Field(..., alias='BOOSTY_TOKEN')
+    boosty_cookies: SecretStr = Field(..., alias='BOOSTY_COOKIES')
 
     boosty_available_post_url: str = Field(..., alias='BOOSTY_AVAILABLE_POST')
     boosty_unavailable_post_url: str = Field(..., alias='BOOSTY_UNAVAILABLE_POST')

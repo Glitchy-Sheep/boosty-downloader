@@ -1,25 +1,25 @@
 # Releasing
 
-Releases are handled by a two-part process: a local script that bumps versions and updates the changelog, and a GitHub Actions workflow that publishes to PyPI and creates a GitHub Release.
+One release = one PR with the version bump, then a tag on main. The tag triggers the workflow that publishes to PyPI and creates the GitHub Release.
 
-## Step by Step
+## Step by step
 
-### 1. Verify the Changelog
+### 1. Check the changelog
 
-Make sure `## Unreleased` in `CHANGELOG.md` has all changes for this release listed. This is the content that will appear in the GitHub Release notes.
+`## Unreleased` in `CHANGELOG.md` must list everything for this release - these lines become the GitHub Release notes.
 
-### 2. Run the Release Script
+### 2. Run the wizard
 
 ```bash
-make release v=patch    # 2.1.2 -> 2.1.3
-make release v=minor    # 2.1.2 -> 2.2.0
-make release v=major    # 2.1.2 -> 3.0.0
-make release v=2.2.0    # explicit version
+task release -- minor   # or: patch / major / X.Y.Z
 ```
 
-The script (`scripts/release.py`) does two things:
+Start from `main` (the wizard fast-forwards it) or from an existing `release/vX.Y.Z` branch. Before touching anything the wizard verifies: `git` and `gh` present and authorized, clean tree (only `CHANGELOG.md` edits are allowed - they ride in the release commit), non-empty `## Unreleased`, the version is free on PyPI, the tag does not exist. Then it shows a preview panel and, after your confirmation:
+
+- Creates `release/vX.Y.Z` (when starting from `main`)
 - Updates `version` in `pyproject.toml`
 - Promotes `## Unreleased` entries to a new `## X.Y.Z` heading and adds a fresh empty `## Unreleased` above it
+- Commits, pushes and opens the release PR (assignee: you, label `ci/skip-changelog` - the release PR empties `Unreleased` instead of adding to it)
 
 **Before:**
 ```markdown
@@ -45,38 +45,29 @@ The script (`scripts/release.py`) does two things:
 ...
 ```
 
-### 3. Review, Commit, Tag, Push
+### 3. Merge the PR
+
+Wait for the CI checks, merge. The ruleset lets changes into main only through PRs - the tag comes next, not a direct push.
+
+### 4. Tag the merge commit on main
 
 ```bash
-git diff                                  # review changes
-git add pyproject.toml CHANGELOG.md
-git commit -m "chore: release v2.2.0"
-git tag v2.2.0
-git push && git push origin v2.2.0
+git checkout main
+task release:tag
 ```
 
-### 4. Automated Publishing
+The wizard pulls fresh main, verifies the version, the changelog section and the tag, shows what will be tagged and pushes `vX.Y.Z` after confirmation. Tagging happens on fresh main because squash creates a new commit - your local release commit is not the one on main.
 
-Pushing the tag triggers `.github/workflows/release.yaml`, which:
+### 5. The workflow does the rest
 
-1. **Validates** the release:
-   - Tag version matches `pyproject.toml` version
-   - `CHANGELOG.md` contains a `## X.Y.Z` heading for this version
-   - Version doesn't already exist on PyPI
-2. **Builds** the wheel and source distribution
-3. **Publishes** to PyPI using trusted publishing (no API tokens needed)
-4. **Creates a GitHub Release** with the changelog section as release notes and the dist artifacts attached
+The `v*` tag triggers `.github/workflows/release.yaml`:
 
-## Safety Checks
+- **validate** - the tag matches `pyproject.toml`, the changelog has the `## X.Y.Z` section, the version is free on PyPI
+- **build** - wheel and sdist
+- **release** - publish to PyPI (trusted publishing, no tokens stored) and create the GitHub Release with the changelog section as notes
 
-The release script prevents common mistakes:
+### 6. Verify
 
-| Check | Error |
-|-------|-------|
-| Invalid format | `expected major/minor/patch or X.Y.Z` |
-| Version not higher than current | `must be higher than current X.Y.Z` |
-| Version already in changelog | `version X.Y.Z already exists` |
-| Missing `## Unreleased` heading | `section not found` |
-| Empty `## Unreleased` section | `section is empty - nothing to release` |
-
-Running the script twice with the same version is safe - it will refuse with an error.
+- [PyPI](https://pypi.org/project/boosty-downloader/) shows the new version
+- The GitHub Releases page has `vX.Y.Z` with notes
+- A fresh `pipx install boosty-downloader` gets the new version

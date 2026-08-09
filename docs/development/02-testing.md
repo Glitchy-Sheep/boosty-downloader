@@ -7,8 +7,8 @@ The project uses [pytest](https://docs.pytest.org/) with [pytest-asyncio](https:
 Located in `test/unit/`. Fast, no network access or credentials needed.
 
 ```bash
-make test            # quick run
-make test-verbose    # verbose output
+task test            # quick run
+task test -- -v      # verbose output
 ```
 
 ### Running a Single Test
@@ -38,15 +38,17 @@ test/unit/
 Located in `test/integration/`. These hit the real Boosty API.
 
 ```bash
-make test-api            # quick run
-make test-api-verbose    # verbose output
+task test:api            # quick run
+task test:api -- -v      # verbose output
 ```
+
+Before pytest starts, a preflight script checks the config and makes one cheap live request. A missing `.env`, an unfilled key, or a stale token gives one clear hint with the fix instead of a wall of failed tests.
 
 ### Credentials Setup
 
 1. Copy the example env file:
    ```bash
-   cp test/integration/.env.example test/integration/.env
+   cp .env.example .env
    ```
 2. Fill in your Boosty API credentials in `.env`
 
@@ -68,5 +70,5 @@ Tests have relaxed ruff rules (configured in `ruff.toml`):
 A special test for dumping raw API responses, useful for debugging the Boosty API:
 
 ```bash
-make posts-example
+task posts-example
 ```

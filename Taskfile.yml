@@ -1,0 +1,183 @@
+version: "3"
+
+env:
+  # Pipe-heavy commands need predictable encoding on Windows.
+  PYTHONIOENCODING: utf-8
+
+tasks:
+  default:
+    desc: List available tasks
+    silent: true
+    env:
+      # Emoji per task group; a group without an entry gets a plain arrow.
+      TASKLIST_EMOJI: "setup=🌱 fix=🔧 check=🩺 test=🧪 build=📦 release=🚀 misc=🧰"
+    cmds:
+      # The grouped listing needs sh and awk; Windows falls back to a plain list.
+      - cmd: ./tools/list-tasks.sh
+        platforms: [linux, darwin]
+      - cmd: task --list --sort none
+        platforms: [windows]
+
+  setup:
+    desc: First-time dev setup (in-project venv + deps + editor settings)
+    summary: |
+      Puts the virtualenv inside the project (./.venv), installs
+      dependencies and generates VS Code interpreter settings.
+      An existing .vscode/settings.json is never overwritten.
+    vars:
+      # Windows venvs keep the interpreter under Scripts/, POSIX under bin/.
+      venvPython: '{{ternary ".venv/Scripts/python.exe" ".venv/bin/python" (eq OS "windows")}}'
+    cmds:
+      - poetry config virtualenvs.in-project true --local
+      - poetry sync --no-interaction
+      - mkdir -p .vscode
+      - |
+        if [ -f .vscode/settings.json ]; then
+          echo '.vscode/settings.json exists - check python.defaultInterpreterPath points to .venv'
+        else
+          printf '{\n    "python.defaultInterpreterPath": "${workspaceFolder}/{{.venvPython}}"\n}\n' > .vscode/settings.json
+          echo 'Created .vscode/settings.json'
+        fi
+      - 'echo ''Done. In VS Code: "Python: Select Interpreter" -> ./{{.venvPython}}'''
+
+  setup:deps:
+    desc: Install/sync dependencies
+    aliases: [deps]
+    cmds:
+      - poetry sync --no-interaction
+
+  fix:
+    desc: Auto-fix lint and formatting, then type check
+    cmds:
+      - task: fix:lint
+      - task: fix:format
+      - task: check:types
+
+  fix:lint:
+    desc: Lint and auto-fix (ruff)
+    aliases: [lint]
+    cmds:
+      - poetry run ruff check --fix .
+
+  fix:format:
+    desc: Format the code (ruff)
+    aliases: [format]
+    cmds:
+      - poetry run ruff format .
+
+  check:
+    desc: Run all CI checks (lint + format + types)
+    cmds:
+      - task: check:lint
+      - task: check:format
+      - task: check:types
+
+  check:lint:
+    desc: Lint only, no fixes (ruff)
+    cmds:
+      - poetry run ruff check .
+
+  check:format:
+    desc: Check formatting without changes (ruff)
+    cmds:
+      - poetry run ruff format --check .
+
+  check:types:
+    desc: Type check (pyright)
+    cmds:
+      - poetry run pyright
+
+  test:
+    desc: "Run unit tests (extra pytest args after --: task test -- -v)"
+    cmds:
+      - poetry run pytest {{.CLI_ARGS}} test/unit/
+
+  test:api:
+    desc: Run integration tests against the live API (requires ./.env)
+    summary: |
+      A preflight script checks the config and the credentials with one
+      cheap live request first: a stale token gives one clear hint
+      instead of a wall of failed tests. Extra pytest args go after --.
+    preconditions:
+      - sh: test -f .env
+        msg: |-
+          .env is missing in the repo root. Integration runs need Boosty
+          credentials and test targets. Create ./.env with:
+            BOOSTY_TOKEN=<Bearer token>
+            BOOSTY_COOKIES=<cookie string>
+            BOOSTY_EXISTING_AUTHOR=<public author name>
+            BOOSTY_NONEXISTENT_AUTHOR=<any missing name>
+            BOOSTY_AVAILABLE_POST=<post url you can read>
+            BOOSTY_UNAVAILABLE_POST=<post url behind a paywall>
+          Get token and cookies via: boosty-downloader show-auth-script
+    cmds:
+      - poetry run python scripts/api_preflight.py
+      - poetry run pytest {{.CLI_ARGS}} test/integration/
+
+  build:
+    desc: Build wheel and source distribution
+    cmds:
+      - poetry build --no-cache
+      - echo "Build complete at ./dist/"
+
+  build:install:
+    desc: Build and install locally for testing
+    cmds:
+      - poetry run python scripts/build_install.py
+
+  release:
+    desc: "Interactive release wizard: task release -- minor"
+    summary: |
+      Checks tools and repo invariants (git + gh auth, clean tree, fresh
+      main, non-empty Unreleased, version free on PyPI, free tag), shows
+      a preview, then bumps the version, promotes the changelog, pushes
+      the release branch and opens the release PR.
+
+      After the PR merges, run task release:tag.
+      See docs/development/04-releasing.md for the full flow.
+    cmds:
+      - poetry run python scripts/release.py {{.CLI_ARGS}}
+
+  release:tag:
+    desc: Tag the merged release on main and trigger publishing
+    summary: |
+      Run after the release PR is merged. Pulls fresh main, verifies the
+      version, changelog section and tag, then pushes vX.Y.Z - the tag
+      triggers the release workflow (build -> PyPI -> GitHub Release).
+    cmds:
+      - poetry run python scripts/release.py tag
+
+  ci:
+    desc: Run everything CI runs, locally (checks + tests + build)
+    summary: |
+      Mirrors the three code jobs of the CI pipeline: lint + format + types,
+      unit tests (plus integration tests when ./.env exists),
+      and the package build. The changelog gate is PR-only and is left out.
+    cmds:
+      - task: check
+      - task: test
+        vars: { CLI_ARGS: -v }
+      - cmd: |
+          if [ -f .env ]; then
+            task test:api -- -v
+          else
+            echo "⏭️ Skipping integration tests (no .env config available)"
+          fi
+      - task: build
+
+  posts-example:
+    desc: Show posts JSON for the configured author (requires ./.env)
+    preconditions:
+      - sh: test -f .env
+        msg: |-
+          .env is missing in the repo root. Integration runs need Boosty
+          credentials and test targets. Create ./.env with:
+            BOOSTY_TOKEN=<Bearer token>
+            BOOSTY_COOKIES=<cookie string>
+            BOOSTY_EXISTING_AUTHOR=<public author name>
+            BOOSTY_NONEXISTENT_AUTHOR=<any missing name>
+            BOOSTY_AVAILABLE_POST=<post url you can read>
+            BOOSTY_UNAVAILABLE_POST=<post url behind a paywall>
+          Get token and cookies via: boosty-downloader show-auth-script
+    cmds:
+      - poetry run python scripts/posts_example.py

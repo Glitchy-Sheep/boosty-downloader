@@ -26,11 +26,11 @@ jobs:
       - name: Setup environment
         uses: ./.github/actions/setup
       - name: Ruff check
-        run: make lint-check
+        run: task check:lint
       - name: Ruff format
-        run: make format-check
+        run: task check:format
       - name: Pyright
-        run: make types
+        run: task check:types
 
   test:
     name: 🧪 Tests
@@ -41,15 +41,14 @@ jobs:
         uses: actions/checkout@v7
       - name: Setup environment
         uses: ./.github/actions/setup
-      # Integration tests need Boosty API credentials stored in test/integration/.env.
-      # Fork PRs won't have this file (it's gitignored and contains secrets),
-      # so we check if it exists before running. This prevents confusing
-      # ValidationError failures for external contributors.
+      # Integration tests need Boosty API credentials stored in ./.env
+      # (repo root - that's where pydantic-settings loads it from).
+      # The file is gitignored, so CI and fork PRs run unit tests only.
       - name: Run tests
         run: |
-          make test-verbose
-          if [ -f test/integration/.env ]; then
-            make test-api-verbose
+          task test -- -v
+          if [ -f .env ]; then
+            task test:api -- -v
           else
             echo "⏭️ Skipping integration tests (no .env config available)"
           fi
@@ -66,7 +65,7 @@ jobs:
         uses: ./.github/actions/setup
       - name: Build & verify
         run: |
-          make build
+          task build
           ls dist/*.whl dist/*.tar.gz || { echo "❌ Build artifacts missing"; exit 1; }
           echo "✅ Build artifacts created successfully"
 
