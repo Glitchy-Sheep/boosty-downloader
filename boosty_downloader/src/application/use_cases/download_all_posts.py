@@ -235,7 +235,7 @@ class DownloadAllPostUseCase:
                     breaker.record_success()
                 elif breaker.record_failure():
                     self._report_systemic_stop(processed_ok)
-                    self._print_run_summary(all_skipped, unknown_content)
+                    self._print_run_summary(all_skipped, unknown_content, failed_posts)
                     raise ApplicationTooManyFailuresError(
                         streak=CONSECUTIVE_FAILURES_LIMIT
                     )
@@ -245,7 +245,7 @@ class DownloadAllPostUseCase:
                 f'--- Finished page {current_page} ---'
             )
 
-        self._print_run_summary(all_skipped, unknown_content)
+        self._print_run_summary(all_skipped, unknown_content, failed_posts)
 
     def _report_systemic_stop(self, processed_ok: int) -> None:
         self.context.progress_reporter.error(
@@ -262,7 +262,8 @@ class DownloadAllPostUseCase:
         self,
         all_skipped: 'list[SkippedPost]',
         unknown_content: set[UnknownContent],
+        failed_posts: list[str],
     ) -> None:
-        summary = format_run_summary(all_skipped, unknown_content)
+        summary = format_run_summary(all_skipped, unknown_content, failed_posts)
         if summary:
             self.context.progress_reporter.warn(summary)

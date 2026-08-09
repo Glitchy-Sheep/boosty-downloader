@@ -34,16 +34,27 @@ def format_validation_errors(errors: Sequence[ErrorDetails]) -> list[str]:
 def format_run_summary(
     skipped_posts: Sequence[SkippedPost],
     unknown_content: AbstractSet[UnknownContent],
+    failed_posts: Sequence[str] = (),
 ) -> str | None:
     """
-    Build the final block about everything this run didn't understand.
+    Build the final block about everything this run skipped or didn't understand.
 
     Returns None when there is nothing to report, so clean runs stay silent.
     """
-    if not skipped_posts and not unknown_content:
+    if not skipped_posts and not unknown_content and not failed_posts:
         return None
 
-    lines = ['Some content was not understood by this version of the downloader:']
+    lines: list[str] = []
+    if failed_posts:
+        lines.append(
+            f'Posts that failed to download ({len(failed_posts)}), '
+            'details in failed_downloads.log:'
+        )
+        lines.extend(f'  - {item}' for item in failed_posts)
+    if not skipped_posts and not unknown_content:
+        return '\n'.join(lines)
+
+    lines.append('Some content was not understood by this version of the downloader:')
     if skipped_posts:
         lines.append(f' Skipped posts ({len(skipped_posts)}):')
         for skipped in skipped_posts:
