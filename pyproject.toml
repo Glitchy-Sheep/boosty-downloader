@@ -1,6 +1,6 @@
 [project]
 name = "boosty-downloader"
-version = "3.1.0"
+version = "3.2.0"
 description = "Download any type of content from boosty.to"
 authors = [{ name = "Roman Berezkin", email = "Glitchy-Sheep@users.noreply.github.com" }]
 requires-python = ">=3.10,<4"
