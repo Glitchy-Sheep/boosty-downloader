@@ -22,6 +22,14 @@ CLI (typer)
 5. **Render.** Chunks processed in this run become `post.html` via Jinja templates.
 6. **Remember.** The cache records which content types finished, so the next run downloads only what is missing.
 
+## Page size and the 24-hour links
+
+Media links in a listing answer are signed and live 24 hours from the fetch.
+
+- The download walk uses small pages (5 posts) on purpose. Posts download one by one, and a small page means every link is still fresh when its post's turn comes.
+- Metadata-only walks use pages of 100: counting posts in `check` and finding a post by url download nothing between pages, so nothing can get old - and the walk makes 20x fewer requests.
+- If a page still outlives its links (a huge video queue on a slow connection), those downloads fail, the failure-streak stop fires, and a re-run continues from the cache with fresh links.
+
 ## Layers
 
 - `cli/` - typer commands and console output
