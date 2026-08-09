@@ -129,8 +129,12 @@ def main() -> None:
     console.print('  [dim]1.[/] git diff')
     console.print('  [dim]2.[/] git add pyproject.toml CHANGELOG.md')
     console.print(f'  [dim]3.[/] git commit -m [cyan]"chore: release v{version}"[/]')
-    console.print(f'  [dim]4.[/] git tag [cyan]v{version}[/]')
-    console.print(f'  [dim]5.[/] git push && git push origin [cyan]v{version}[/]')
+    console.print('  [dim]4.[/] push the branch, open a PR, merge it')
+    console.print('  [dim]5.[/] git checkout main && git pull')
+    console.print(
+        f'  [dim]6.[/] git tag [cyan]v{version}[/] && git push origin [cyan]v{version}[/]'
+    )
+    console.print('  [dim]See docs/development/04-releasing.md for details[/]')
     console.print()
 
 

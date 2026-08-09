@@ -46,7 +46,7 @@ def integration_config() -> IntegrationTestConfig:
 def boosty_headers(integration_config: IntegrationTestConfig) -> LooseHeaders:
     """Returns headers with authorization token for Boosty API requests."""
     return {
-        'Authorization': integration_config.boosty_auth_token,
+        'Authorization': integration_config.boosty_auth_token.get_secret_value(),
         'Content-Type': 'application/json',
     }
 
@@ -56,7 +56,7 @@ async def boosty_cookies_jar_async(
     integration_config: IntegrationTestConfig,
 ) -> CookieJar:
     # This avoids 'no running event loop' error by ensuring the jar is created in an async context
-    return parse_session_cookie(integration_config.boosty_cookies)
+    return parse_session_cookie(integration_config.boosty_cookies.get_secret_value())
 
 
 # ------------------------------------------------------------------------------

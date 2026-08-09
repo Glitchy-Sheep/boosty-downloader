@@ -9,6 +9,9 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Install Task
+      uses: go-task/setup-task@v2
+
     - name: Set up Python
       id: python
       uses: actions/setup-python@v7

@@ -14,5 +14,9 @@
     },
     "reportMissingImports": "error",
     "reportMissingTypeStubs": false,
-    "pythonVersion": "3.10"
+    "pythonVersion": "3.10",
+    "executionEnvironments": [
+        { "root": "scripts", "extraPaths": ["test", "scripts"] },
+        { "root": "test", "extraPaths": ["test"] }
+    ]
 }

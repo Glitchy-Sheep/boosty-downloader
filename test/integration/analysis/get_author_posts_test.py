@@ -35,6 +35,10 @@ async def test_get_author_posts(
     posts_data = await posts_raw.json()
 
     assert posts_data is not None
+    assert 'error' not in posts_data, (
+        'Boosty answered with an error - check BOOSTY_TOKEN / BOOSTY_COOKIES in ./.env '
+        f'(repo root, refresh via show-auth-script): {posts_data}'
+    )
 
     rich.print_json(data=posts_data)
 
@@ -58,6 +62,10 @@ async def test_all_data_chunk_types(
     posts_data = await posts_raw.json()
 
     assert posts_data is not None
+    assert 'error' not in posts_data, (
+        'Boosty answered with an error - check BOOSTY_TOKEN / BOOSTY_COOKIES in ./.env '
+        f'(repo root, refresh via show-auth-script): {posts_data}'
+    )
 
     unique_data_types: Any = {}
 
