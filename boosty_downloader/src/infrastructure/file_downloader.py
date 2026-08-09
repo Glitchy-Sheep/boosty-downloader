@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import http
 import mimetypes
+import re
 from asyncio import CancelledError
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -113,6 +114,26 @@ class DownloadUnexpectedStatusError(DownloadError):
         self.response_message = response_message
 
 
+# A trailing dot plus 1-5 letters/digits, like ".zip" or ".mp4".
+# A dot inside a title ("Ep. 5 (a2dd6942)") does not count.
+_REAL_EXTENSION = re.compile(r'\.[A-Za-z0-9]{1,5}$')
+
+
+def _extension_to_append(filename: str, content_type: str | None) -> str | None:
+    """
+    Pick an extension to add to a name that has none.
+
+    An existing extension always wins over the server's opinion, and
+    'application/octet-stream' ("bytes, type unknown") teaches us nothing -
+    no more ".bin" files born out of that.
+    """
+    if _REAL_EXTENSION.search(filename):
+        return None
+    if not content_type or content_type == 'application/octet-stream':
+        return None
+    return mimetypes.guess_extension(content_type)
+
+
 async def download_file(
     dl_config: DownloadFileConfig,
 ) -> Path:
@@ -128,11 +149,10 @@ async def download_file(
         filename = sanitize_string(dl_config.filename)
         file_path = dl_config.destination / filename
 
-        content_type = response.content_type
-        if content_type and dl_config.guess_extension:
-            ext = mimetypes.guess_extension(content_type)
+        if dl_config.guess_extension:
+            ext = _extension_to_append(filename, response.content_type)
             if ext is not None:
-                file_path = file_path.with_suffix(ext)
+                file_path = file_path.with_name(file_path.name + ext)
 
         total_downloaded = 0
 
