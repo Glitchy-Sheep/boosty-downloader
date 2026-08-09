@@ -126,15 +126,26 @@ tasks:
       - poetry run python scripts/build_install.py
 
   release:
-    desc: "Bump the version and promote the changelog: task release -- minor"
+    desc: "Interactive release wizard: task release -- minor"
     summary: |
-      Runs scripts/release.py with the given bump (patch / minor / major
-      or an explicit X.Y.Z). The script updates pyproject.toml, promotes
-      the Unreleased changelog section and prints the next steps.
+      Checks tools and repo invariants (git + gh auth, clean tree, fresh
+      main, non-empty Unreleased, version free on PyPI, free tag), shows
+      a preview, then bumps the version, promotes the changelog, pushes
+      the release branch and opens the release PR.
 
+      After the PR merges, run task release:tag.
       See docs/development/04-releasing.md for the full flow.
     cmds:
       - poetry run python scripts/release.py {{.CLI_ARGS}}
+
+  release:tag:
+    desc: Tag the merged release on main and trigger publishing
+    summary: |
+      Run after the release PR is merged. Pulls fresh main, verifies the
+      version, changelog section and tag, then pushes vX.Y.Z - the tag
+      triggers the release workflow (build -> PyPI -> GitHub Release).
+    cmds:
+      - poetry run python scripts/release.py tag
 
   ci:
     desc: Run everything CI runs, locally (checks + tests + build)

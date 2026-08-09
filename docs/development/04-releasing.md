@@ -8,16 +8,18 @@ One release = one PR with the version bump, then a tag on main. The tag triggers
 
 `## Unreleased` in `CHANGELOG.md` must list everything for this release - these lines become the GitHub Release notes.
 
-### 2. Branch and bump
+### 2. Run the wizard
 
 ```bash
-git checkout -b release/vX.Y.Z
 task release -- minor   # or: patch / major / X.Y.Z
 ```
 
-The script (`scripts/release.py`) does two things:
+Start from `main` (the wizard fast-forwards it) or from an existing `release/vX.Y.Z` branch. Before touching anything the wizard verifies: `git` and `gh` present and authorized, clean tree (only `CHANGELOG.md` edits are allowed - they ride in the release commit), non-empty `## Unreleased`, the version is free on PyPI, the tag does not exist. Then it shows a preview panel and, after your confirmation:
+
+- Creates `release/vX.Y.Z` (when starting from `main`)
 - Updates `version` in `pyproject.toml`
 - Promotes `## Unreleased` entries to a new `## X.Y.Z` heading and adds a fresh empty `## Unreleased` above it
+- Commits, pushes and opens the release PR (assignee: you, label `ci/skip-changelog` - the release PR empties `Unreleased` instead of adding to it)
 
 **Before:**
 ```markdown
@@ -43,25 +45,18 @@ The script (`scripts/release.py`) does two things:
 ...
 ```
 
-### 3. Commit and open a PR
+### 3. Merge the PR
 
-```bash
-git add pyproject.toml CHANGELOG.md
-git commit -m "chore: release vX.Y.Z"
-git push -u origin release/vX.Y.Z
-```
-
-Open the PR, wait for the four CI checks, merge. The ruleset lets changes into main only through PRs - the tag comes next, not a direct push.
+Wait for the CI checks, merge. The ruleset lets changes into main only through PRs - the tag comes next, not a direct push.
 
 ### 4. Tag the merge commit on main
 
 ```bash
-git checkout main && git pull
-git tag vX.Y.Z
-git push origin vX.Y.Z
+git checkout main
+task release:tag
 ```
 
-Tag after the merge, on a fresh main: squash creates a new commit, so your local release commit is not the one on main.
+The wizard pulls fresh main, verifies the version, the changelog section and the tag, shows what will be tagged and pushes `vX.Y.Z` after confirmation. Tagging happens on fresh main because squash creates a new commit - your local release commit is not the one on main.
 
 ### 5. The workflow does the rest
 
