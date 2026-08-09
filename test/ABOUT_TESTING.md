@@ -1,6 +1,6 @@
-# Structure 
+# Structure
 
-Tests structure doesn't mirror the application structure, but rather groups tests by their functionality or "domain":
+Tests are grouped by functionality ("domain"), not by the application structure:
 
 ```
 test/
@@ -8,19 +8,18 @@ test/
 │   └── ...
 │ 
 └── integration  - Integration tests against the live Boosty API, grouped by "domains"
-    └── analysis - Dumps for exploring known endpoints
+    └── flows    - End-to-end paths: credentials + author name -> domain-ready posts
 ```
 
-# Add a new test 
+To explore raw API responses, run the `task posts-example` dev helper.
 
-**If you want to add a new test:**
-1. *Decide whether it is a unit test or an integration test.*
-    - **Integration** tests depends on external services (Boosty) or network, can be configurable.
-    - **Unit** tests are isolated and can be run any time without configuration or setup.
-2. *Decide which "domain" it belongs to*
-    - For example ok_video_ranking is the boosty_downloader's domain.
-3. *Create test file, following the naming convention `<filename>_test.py`.*
-4. Test some functionality with `test_<functionality>` function name.
-    - Use `assert` statements to check expected outcomes.
-5. *Run the test using `task test` for unit tests or `task test:api` for integration tests (they need `./.env`, see [Testing](../docs/development/02-testing.md)).*
-6. *Make a pull request with your changes.* (see [CONTRIBUTING.md](../CONTRIBUTING.md) for more details)
+# Add a new test
+
+1. Decide whether it is a unit test or an integration test:
+    - **Unit** tests are isolated and run anytime without setup.
+    - **Integration** tests hit the live Boosty API and need `./.env` (see [Testing](../docs/development/02-testing.md)).
+2. Decide which "domain" it belongs to - for example, `ok_video_ranking`.
+3. Create the test file, following the naming convention `<filename>_test.py`.
+4. Name the test function `test_<functionality>` and check outcomes with `assert`.
+5. Run it: `task test` for unit tests, `task test:api` for integration tests.
+6. Make a pull request (see [CONTRIBUTING.md](../CONTRIBUTING.md)).

@@ -42,7 +42,7 @@ task test:api            # quick run
 task test:api -- -v      # verbose output
 ```
 
-Before pytest starts, a preflight script checks the config and makes one cheap live request. A missing `.env`, an unfilled key, or a stale token gives one clear hint with the fix instead of a wall of failed tests.
+Before pytest starts, a preflight script checks the config and makes one cheap live request. A missing `.env`, an unfilled key, or a stale token stops the run with a single hint on how to fix it.
 
 ### Credentials Setup
 
@@ -67,7 +67,7 @@ Tests have relaxed ruff rules (configured in `ruff.toml`):
 
 ## API Analysis
 
-A special test for dumping raw API responses, useful for debugging the Boosty API:
+A dev helper that dumps the raw posts JSON of the configured author - useful for debugging the Boosty API:
 
 ```bash
 task posts-example

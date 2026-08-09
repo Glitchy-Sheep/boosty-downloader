@@ -78,14 +78,6 @@ async def authorized_http_session(
 
 
 @pytest_asyncio.fixture
-async def unauthorized_http_session() -> AsyncGenerator[ClientSession, None]:
-    """Creates an HTTP session without authorization headers."""
-    session = ClientSession()
-    yield session
-    await session.close()
-
-
-@pytest_asyncio.fixture
 async def invalid_auth_http_session() -> AsyncGenerator[ClientSession, None]:
     session = ClientSession(
         headers={
@@ -98,7 +90,7 @@ async def invalid_auth_http_session() -> AsyncGenerator[ClientSession, None]:
 
 
 # ------------------------------------------------------------------------------
-# Clients for Boosty API
+# Retry clients over the sessions
 
 
 @pytest_asyncio.fixture
@@ -109,20 +101,6 @@ async def authorized_retry_client(
     retry_options = ExponentialRetry(attempts=3, start_timeout=1.0)
     client = RetryClient(
         client_session=authorized_http_session,
-        retry_options=retry_options,
-    )
-    yield client
-    await client.close()
-
-
-@pytest_asyncio.fixture
-async def unauthorized_retry_client(
-    unauthorized_http_session: ClientSession,
-) -> AsyncGenerator[RetryClient, None]:
-    """Creates a retry client without authentication for testing unauthorized scenarios."""
-    retry_options = ExponentialRetry(attempts=3, start_timeout=1.0)
-    client = RetryClient(
-        client_session=unauthorized_http_session,
         retry_options=retry_options,
     )
     yield client
@@ -153,14 +131,6 @@ async def authorized_boosty_client(
 ) -> BoostyAPIClient:
     """Creates a Boosty API client configured with authentication."""
     return BoostyAPIClient(session=authorized_retry_client)
-
-
-@pytest_asyncio.fixture
-async def unauthorized_boosty_client(
-    unauthorized_retry_client: RetryClient,
-) -> BoostyAPIClient:
-    """Creates a Boosty API client without authentication for testing unauthorized scenarios."""
-    return BoostyAPIClient(session=unauthorized_retry_client, request_delay_seconds=1)
 
 
 @pytest_asyncio.fixture
