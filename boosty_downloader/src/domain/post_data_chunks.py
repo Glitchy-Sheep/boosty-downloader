@@ -68,6 +68,9 @@ class PostDataChunkText:
 class PostDataChunkBoostyVideo:
     """Represent a Boosty video data chunk within a post."""
 
+    # Unique video id from the API: several videos in one post often share
+    # a title, the id keeps their filenames apart.
+    id: str
     title: str
     url: str
     quality: str
