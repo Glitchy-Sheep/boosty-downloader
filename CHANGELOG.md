@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 3.2.0
+
 ### Added
 
 - `--version` / `-V` flag shows the installed version
