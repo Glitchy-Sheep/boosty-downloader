@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -12,12 +13,17 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NoReturn
+from typing import TYPE_CHECKING, NoReturn, TypeAlias
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 from rich.console import Console
 from rich.markup import escape
 from rich.panel import Panel
 from rich.prompt import Confirm
+
+Command: TypeAlias = tuple[str, ...]
 
 PYPROJECT = Path('pyproject.toml')
 CHANGELOG = Path('CHANGELOG.md')
@@ -55,11 +61,13 @@ def _abort(msg: str) -> NoReturn:
     sys.exit(0)
 
 
-def _run(*cmd: str) -> str:
+def _run(*cmd: str, echo: bool = False) -> str:
     """Run a command that must succeed; a failure stops the wizard."""
+    if echo:
+        console.print(f'  [dim]$ {escape(shlex.join(cmd))}[/]')
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode != 0:
-        _error(f'`{" ".join(cmd)}` failed:\n{result.stderr.strip()}')
+        _error(f'`{shlex.join(cmd)}` failed:\n{result.stderr.strip()}')
     return result.stdout.strip()
 
 
@@ -67,6 +75,17 @@ def _try(*cmd: str) -> tuple[int, str]:
     """Run a command whose failure is an expected outcome, not an error."""
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     return result.returncode, result.stdout.strip()
+
+
+def _render_commands(commands: Sequence[Command], indent: str) -> list[str]:
+    """Render a command ladder: ├─ for every command, └─ for the last one."""
+    if not commands:
+        return []
+    joints = ['├─'] * (len(commands) - 1) + ['└─']
+    return [
+        f'{indent}[dim]{joint} {escape(shlex.join(cmd))}[/]'
+        for joint, cmd in zip(joints, commands, strict=True)
+    ]
 
 
 # --- Version helpers ---------------------------------------------------------
@@ -104,6 +123,24 @@ def _resolve_version(arg: str) -> str:
     return arg
 
 
+def _notes_summary(entries: str) -> str:
+    """Compress the release notes into one line: '7 entries: 1 added, 5 fixed'."""
+    counts: dict[str, int] = {}
+    section = ''
+    total = 0
+    for line in entries.splitlines():
+        if line.startswith('### '):
+            section = line[4:].strip().lower()
+        elif line.startswith('- '):
+            total += 1
+            if section:
+                counts[section] = counts.get(section, 0) + 1
+    if not counts:
+        return f'{total} entries'
+    parts = ', '.join(f'{n} {name}' for name, n in counts.items())
+    return f'{total} entries: {parts}'
+
+
 # --- Release plan ------------------------------------------------------------
 
 
@@ -121,12 +158,30 @@ class ReleasePlan:
         return f'release/v{self.version}'
 
     @property
-    def tag(self) -> str:
-        return f'v{self.version}'
-
-    @property
     def commit_message(self) -> str:
         return f'chore: release v{self.version}'
+
+    @property
+    def branch_command(self) -> Command | None:
+        return ('git', 'switch', '-c', self.branch) if self.needs_branch else None
+
+    @property
+    def commit_commands(self) -> tuple[Command, ...]:
+        return (
+            ('git', 'add', 'pyproject.toml', 'CHANGELOG.md'),
+            ('git', 'commit', '-m', self.commit_message),
+            ('git', 'push', '-u', 'origin', self.branch),
+        )
+
+    @property
+    def pr_command(self) -> Command:
+        return (
+            'gh', 'pr', 'create',
+            '--base', 'main',
+            '--title', self.commit_message,
+            '--assignee', '@me',
+            '--label', 'ci/skip-changelog',
+        )  # fmt: skip
 
 
 # --- Preflight checks --------------------------------------------------------
@@ -193,8 +248,7 @@ def _check_changelog(version: str) -> str:
     entries = _extract_unreleased(text)
     if not entries:
         _error(f'"{UNRELEASED_HEADING}" section is empty - nothing to release')
-    count = sum(1 for line in entries.splitlines() if line.startswith('- '))
-    _ok(f'changelog has {count} unreleased entries')
+    _ok(f'changelog: {_notes_summary(entries)}')
     return entries
 
 
@@ -246,27 +300,39 @@ def _build_plan(arg: str) -> ReleasePlan:
     )
 
 
-def _plan_steps(plan: ReleasePlan) -> list[str]:
-    branch_step = (
-        f'create branch [cyan]{plan.branch}[/] from main'
-        if plan.needs_branch
-        else f'stay on [cyan]{plan.branch}[/]'
-    )
-    return [
-        branch_step,
-        f'bump [dim]{plan.old_version}[/] -> [bold]{plan.version}[/] in pyproject.toml',
-        f'promote "{UNRELEASED_HEADING}" to "## {plan.version}" in CHANGELOG.md',
-        f'commit [cyan]{plan.commit_message}[/] and push',
-        'open the release PR (assignee: you, label: ci/skip-changelog)',
-    ]
+def _plan_steps(plan: ReleasePlan) -> list[tuple[str, tuple[Command, ...]]]:
+    steps: list[tuple[str, tuple[Command, ...]]] = []
+    if plan.branch_command:
+        steps.append(
+            (f'create [cyan]{plan.branch}[/] from main', (plan.branch_command,))
+        )
+    steps += [
+        (f'bump [dim]{plan.old_version}[/] -> [bold]{plan.version}[/]'
+         ' in pyproject.toml', ()),
+        (f'promote "{UNRELEASED_HEADING}" -> "## {plan.version}" in CHANGELOG.md', ()),
+        ('commit and push', plan.commit_commands),
+        ('open the release PR', (plan.pr_command,)),
+    ]  # fmt: skip
+    return steps
 
 
 def _confirm_release(plan: ReleasePlan) -> None:
-    steps = '\n'.join(f'{i}. {step}' for i, step in enumerate(_plan_steps(plan), 1))
+    lines: list[str] = []
+    if not plan.needs_branch:
+        lines.append(
+            f'Already on [cyan]{plan.branch}[/] - releasing from this branch.\n'
+        )
+    for number, (title, commands) in enumerate(_plan_steps(plan), 1):
+        lines.append(f'{number}. {title}')
+        lines.extend(_render_commands(commands, '   '))
+    footer = (
+        f'[dim]Release notes ({_notes_summary(plan.entries)}) '
+        'go to the PR body and the GitHub Release.[/]'
+    )
     console.print()
     console.print(
         Panel(
-            f'{steps}\n\n[bold]Release notes:[/]\n\n{escape(plan.entries)}',
+            '\n'.join(lines) + f'\n\n{footer}',
             title=f'Release v{plan.version}',
             border_style='cyan',
         )
@@ -292,11 +358,10 @@ def _apply_bump(version: str) -> None:
 
 
 def _commit_and_push(plan: ReleasePlan) -> None:
-    if plan.needs_branch:
-        _run('git', 'switch', '-c', plan.branch)
-    _run('git', 'add', str(PYPROJECT), str(CHANGELOG))
-    _run('git', 'commit', '-m', plan.commit_message)
-    _run('git', 'push', '-u', 'origin', plan.branch)
+    if plan.branch_command:
+        _run(*plan.branch_command, echo=True)
+    for cmd in plan.commit_commands:
+        _run(*cmd, echo=True)
     _ok(f'pushed {plan.branch}')
 
 
@@ -321,15 +386,7 @@ def _open_pr(plan: ReleasePlan) -> None:
     ) as body:
         body.write(_pr_body(plan))
         body_path = body.name
-    create_cmd = (
-        'gh', 'pr', 'create',
-        '--base', 'main',
-        '--title', plan.commit_message,
-        '--body-file', body_path,
-        '--assignee', '@me',
-        '--label', 'ci/skip-changelog',
-    )  # fmt: skip
-    url = _run(*create_cmd)
+    url = _run(*plan.pr_command, '--body-file', body_path, echo=True)
     Path(body_path).unlink(missing_ok=True)
     _ok(f'release PR opened: {url}')
 
@@ -372,14 +429,15 @@ def _check_main_ready() -> str:
     return version
 
 
-def _confirm_tag(version: str) -> None:
+def _confirm_tag(version: str, commands: Sequence[Command]) -> None:
     head = _run('git', 'log', '-1', '--format=%h %s')
+    ladder = '\n'.join(_render_commands(commands, ''))
     console.print()
     console.print(
         Panel(
             f'Tag [bold]v{version}[/] on:\n  {escape(head)}\n\n'
-            'Pushing the tag triggers the release workflow:\n'
-            'build -> PyPI -> GitHub Release.',
+            f'{ladder}\n\n'
+            '[dim]The tag push triggers: build -> PyPI -> GitHub Release.[/]',
             title=f'Tag v{version}',
             border_style='cyan',
         )
@@ -395,9 +453,13 @@ def _tag_flow() -> None:
     version = _check_main_ready()
     _check_tag_free(f'v{version}')
 
-    _confirm_tag(version)
-    _run('git', 'tag', f'v{version}')
-    _run('git', 'push', 'origin', f'v{version}')
+    commands: tuple[Command, ...] = (
+        ('git', 'tag', f'v{version}'),
+        ('git', 'push', 'origin', f'v{version}'),
+    )
+    _confirm_tag(version, commands)
+    for cmd in commands:
+        _run(*cmd, echo=True)
     console.print()
     console.print(
         Panel(
