@@ -11,6 +11,10 @@ from urllib.request import urlopen
 
 from packaging import version
 
+# The update notice is a courtesy, not a feature worth waiting for:
+# an unreachable PyPI must not delay the start of the actual work.
+PYPI_TIMEOUT_SECONDS = 5
+
 
 class UpdateCheckStatus(Enum):
     """Represents the status of an update check."""
@@ -44,7 +48,10 @@ UpdateResult = UpdateAvailable | NoUpdate | CheckFailed
 def get_pypi_latest_version(package_name: str) -> str | None:
     """Fetch the latest version string of a package from PyPI."""
     try:
-        with urlopen(f'https://pypi.org/pypi/{package_name}/json') as resp:
+        with urlopen(
+            f'https://pypi.org/pypi/{package_name}/json',
+            timeout=PYPI_TIMEOUT_SECONDS,
+        ) as resp:
             data = json.load(resp)
             return data['info']['version']
     except Exception:  # noqa: BLE001 It doesn't matter what exception is raised, we just need to 100% catch it
