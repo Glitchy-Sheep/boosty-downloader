@@ -47,6 +47,9 @@ class DownloadFileConfig:
     destination: Path
     on_status_update: Callable[[DownloadingStatus], None] = lambda _: None
 
+    # True only when the caller builds the filename without an extension
+    # (videos, images). Names that come from the author (files, audio)
+    # already carry their extension and must never be touched.
     guess_extension: bool = True
     chunk_size_bytes: int = 524288  # 512 KiB
 
@@ -113,6 +116,19 @@ class DownloadUnexpectedStatusError(DownloadError):
         self.response_message = response_message
 
 
+def _extension_to_append(content_type: str | None) -> str | None:
+    """
+    Pick an extension for a name that has none by construction.
+
+    Only callers whose filenames are built without an extension (videos,
+    images) ask for this. 'application/octet-stream' ("bytes, type
+    unknown") teaches nothing - no ".bin" is ever born out of it.
+    """
+    if not content_type or content_type == 'application/octet-stream':
+        return None
+    return mimetypes.guess_extension(content_type)
+
+
 async def download_file(
     dl_config: DownloadFileConfig,
 ) -> Path:
@@ -128,11 +144,10 @@ async def download_file(
         filename = sanitize_string(dl_config.filename)
         file_path = dl_config.destination / filename
 
-        content_type = response.content_type
-        if content_type and dl_config.guess_extension:
-            ext = mimetypes.guess_extension(content_type)
+        if dl_config.guess_extension:
+            ext = _extension_to_append(response.content_type)
             if ext is not None:
-                file_path = file_path.with_suffix(ext)
+                file_path = file_path.with_name(file_path.name + ext)
 
         total_downloaded = 0
 
