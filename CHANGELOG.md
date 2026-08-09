@@ -6,6 +6,7 @@
 
 ### Fixed
 
+- The app can no longer hang forever: a silent server connection now times out and goes through the usual retries, and an unreachable PyPI delays startup by 5 seconds at most
 - A broken config.yaml is reported with exact fields and line numbers instead of being silently replaced - the saved token survives
 - Multiple videos in one post no longer overwrite each other: filenames carry the video id, like `My stream (a2dd6942)` (#104)
 - One broken post no longer kills the whole download: it is skipped into failed_downloads.log and the run summary, and 5 failures in a row stop the run early with a resume hint (#88)

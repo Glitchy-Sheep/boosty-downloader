@@ -68,7 +68,12 @@ class AppEnvironment:
             aiohttp.ClientSession(
                 headers=self.boosty_headers,
                 cookie_jar=self.boosty_cookies_jar,
-                timeout=aiohttp.ClientTimeout(total=None),
+                # No limit on the whole download: big videos legally take
+                # hours. Limits are on silence only - a dead connection must
+                # surface as an error, not as an eternal hang:
+                # - connect: a healthy server answers in under a second
+                # - sock_read: max quiet time between received chunks
+                timeout=aiohttp.ClientTimeout(total=None, connect=30, sock_read=90),
                 trust_env=True,
             )
         )

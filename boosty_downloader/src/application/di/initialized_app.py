@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import importlib.metadata
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
@@ -81,7 +82,8 @@ async def initialized_app(
         },
     )
 
-    _check_and_log_updates()
+    # to_thread: the PyPI request is blocking; the event loop stays free.
+    await asyncio.to_thread(_check_and_log_updates)
 
     async with AppEnvironment(
         config=AppEnvironment.AppConfig(
