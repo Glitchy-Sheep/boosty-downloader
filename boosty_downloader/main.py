@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import importlib.metadata
+from typing import Annotated
+
 import typer
 from aiohttp.client_exceptions import ClientConnectorDNSError
 from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
@@ -36,8 +39,26 @@ typer_app = typer.Typer(
 )
 
 
+def _print_version(value: bool) -> None:  # noqa: FBT001 - typer callback contract
+    if value:
+        typer.echo(importlib.metadata.version('boosty-downloader'))
+        raise typer.Exit
+
+
 @typer_app.callback()
-def _app_callback(ctx: typer.Context) -> None:  # pyright: ignore[reportUnusedFunction]
+def _app_callback(  # pyright: ignore[reportUnusedFunction]
+    ctx: typer.Context,
+    _version: Annotated[  # noqa: FBT002 - typer flag contract
+        bool,
+        typer.Option(
+            '--version',
+            '-V',
+            help='Show the version and exit',
+            callback=_print_version,
+            is_eager=True,
+        ),
+    ] = False,
+) -> None:
     """
     CLI tool to download Boosty posts by author username.
 
