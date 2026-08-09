@@ -6,7 +6,9 @@ One release = one PR with the version bump, then a tag on main. The tag triggers
 
 ### 1. Check the changelog
 
-`## Unreleased` in `CHANGELOG.md` must list everything for this release - these lines become the GitHub Release notes.
+`## Unreleased` in `CHANGELOG.md` must list everything for this release - these lines become the GitHub Release notes, word for word.
+
+The section fills up during development: the 📝 Changelog CI job requires every PR to add its entries (infra PRs skip it with the `ci/skip-changelog` label). Write entries about the effect for the user, not the mechanics, and group them under `### Added` / `### Fixed` / `### Security` - the grouping survives all the way to the release page.
 
 ### 2. Run the wizard
 

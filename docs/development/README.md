@@ -22,7 +22,10 @@ boosty_downloader/
     infrastructure/          # API client, caching, HTML rendering, yt-dlp
     cli/                     # Typer CLI options, progress reporter
 scripts/
-  release.py                 # Release automation script
+  release.py                 # Release wizard (bump, changelog, PR, tag)
+  api_preflight.py           # Credentials check before integration tests
+  posts_example.py           # Dev helper: dump posts JSON
+  build_install.py           # Build the wheel and install it via pipx
 test/
   unit/                      # Fast tests, no network
   integration/               # API tests, require .env credentials
