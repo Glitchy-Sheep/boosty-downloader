@@ -1,12 +1,22 @@
 ## Unreleased
 
-- Fix crash on failed downloads: show a readable error message instead of an AttributeError traceback (#105, #89)
-- Update yt-dlp to 2026.7.4: fixes external video downloading (security update)
-- Fix running download/check without --username: clear "Missing option" error and exit code 2 instead of a crash
-- Fix confusing "Unknown error" for a wrong username: clear "author not found" message and a hint about the blog name (#94)
+## 3.1.0
+
+### Added
+
 - Survive unknown Boosty content: new types and values are kept, skipped where needed, and listed in a final summary with exact paths instead of crashing the whole download
+
+### Fixed
+
+- Crash on failed downloads: a readable error message instead of an AttributeError traceback (#105, #89)
+- Running download/check without --username: clear "Missing option" error and exit code 2 instead of a crash
+- Confusing "Unknown error" for a wrong username: clear "author not found" message and a hint about the blog name (#94)
 - Broken posts no longer fail the whole page: they are skipped with a readable warning, and validation errors are shown as short lines instead of raw dumps
 - clean-cache says when there was no cache to clean instead of reporting a false success
+
+### Security
+
+- Update yt-dlp to 2026.7.4: fixes external video downloading and closes a security advisory
 
 ## 3.0.0
 
