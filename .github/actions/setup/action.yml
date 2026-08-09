@@ -9,8 +9,9 @@ runs:
 
     # uv installs the Python from .python-version itself and caches its
     # package cache keyed by uv.lock - no separate setup-python/cache steps.
+    # Exact tag: setup-uv publishes no floating major tags (v9 does not resolve).
     - name: Install uv
-      uses: astral-sh/setup-uv@v9
+      uses: astral-sh/setup-uv@v9.0.0
       with:
         enable-cache: true
 
