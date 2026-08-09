@@ -20,7 +20,7 @@ Thanks for your interest in contributing! This guide will help you get started. 
    ```
 4. Run the project locally:
    ```bash
-   poetry run python -m boosty_downloader.main
+   uv run python -m boosty_downloader.main
    ```
 
 All available commands are listed via bare `task`.

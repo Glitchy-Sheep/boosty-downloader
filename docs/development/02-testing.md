@@ -15,10 +15,10 @@ task test -- -v      # verbose output
 
 ```bash
 # specific file
-poetry run pytest test/unit/download_manager/ok_video_ranking_test.py
+uv run pytest test/unit/download_manager/ok_video_ranking_test.py
 
 # specific test function
-poetry run pytest test/unit/path_test.py::test_specific_function -v
+uv run pytest test/unit/path_test.py::test_specific_function -v
 ```
 
 ### File Naming Convention

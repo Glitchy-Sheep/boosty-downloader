@@ -40,7 +40,7 @@ def main() -> None:
     # --- Step 2: Build -------------------------------------------------------
     console.print('  [dim]2.[/] Building wheel...')
     subprocess.run(
-        ['poetry', 'build', '--no-cache'],
+        ['uv', 'build'],
         check=True,
     )
 

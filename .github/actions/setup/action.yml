@@ -1,10 +1,5 @@
-name: Setup Python & Poetry
-description: Python, Poetry and a cached in-project virtualenv
-
-inputs:
-  python-version:
-    description: Python version to set up
-    default: '3.12'
+name: Setup Python & uv
+description: Task, uv with a managed Python and cached dependencies
 
 runs:
   using: composite
@@ -12,25 +7,13 @@ runs:
     - name: Install Task
       uses: go-task/setup-task@v2
 
-    - name: Set up Python
-      id: python
-      uses: actions/setup-python@v7
+    # uv installs the Python from .python-version itself and caches its
+    # package cache keyed by uv.lock - no separate setup-python/cache steps.
+    - name: Install uv
+      uses: astral-sh/setup-uv@v9
       with:
-        python-version: ${{ inputs.python-version }}
-
-    - name: Install Poetry
-      uses: snok/install-poetry@v1
-      with:
-        virtualenvs-in-project: true
-
-    # The whole in-project .venv is cached, keyed by the lockfile:
-    # on a cache hit `poetry sync` is a fast no-op instead of a reinstall.
-    - name: Cache virtualenv
-      uses: actions/cache@v6
-      with:
-        path: .venv
-        key: venv-${{ runner.os }}-py${{ steps.python.outputs.python-version }}-${{ hashFiles('poetry.lock') }}
+        enable-cache: true
 
     - name: Install dependencies
-      run: poetry sync --no-interaction
+      run: uv sync
       shell: bash

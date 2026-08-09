@@ -163,7 +163,7 @@ async def use_reporter(
 
 # ------------------------------------------------------------------------------
 # Usage example: run it as a script to see how it works:
-# poetry run boosty_downloader .../console_progress_reporter.py
+# uv run boosty_downloader .../console_progress_reporter.py
 
 if __name__ == '__main__':
     import asyncio

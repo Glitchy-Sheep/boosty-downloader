@@ -22,7 +22,7 @@
   minimumReleaseAge: '3 days',
 
   // Runtime dependencies: while a new release fits the allowed range,
-  // only poetry.lock moves - users already get these versions on install.
+  // only uv.lock moves - users already get these versions on install.
   rangeStrategy: 'update-lockfile',
 
   // Security fixes: created immediately and merged by the bot itself -
@@ -37,7 +37,9 @@
     {
       // Dev tools (ruff, pyright, pytest...) never reach users - safe to
       // merge on green CI. Grouped into one PR to keep the noise down.
-      matchDepTypes: ['dev'],
+      // 'dependency-groups' is the pep621 manager's depType for PEP 735
+      // groups; the only group here is dev.
+      matchDepTypes: ['dependency-groups'],
       groupName: 'dev tools',
       automerge: true,
     },

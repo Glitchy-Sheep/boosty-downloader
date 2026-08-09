@@ -2,11 +2,17 @@
 name = "boosty-downloader"
 version = "3.1.0"
 description = "Download any type of content from boosty.to"
-authors = [
-    { name = "Roman Berezkin", email = "Glitchy-Sheep@users.noreply.github.com" },
-]
-readme = "README.md"
+authors = [{ name = "Roman Berezkin", email = "Glitchy-Sheep@users.noreply.github.com" }]
 requires-python = ">=3.10,<4"
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
 dependencies = [
     "aiofiles (>=24.1.0,<25.0.0)",
     "aiohttp (>=3.11.12,<4.0.0)",
@@ -31,17 +37,18 @@ boosty-downloader = "boosty_downloader.main:entry_point"
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.poetry.group.dev.dependencies]
-ruff = ">=0.9.6,<0.13.0"
-pyright = "^1.1.394"
-pytest = "^9.0.0"
-pytest-asyncio = "^1.1.0"
+[dependency-groups]
+dev = [
+    "ruff>=0.9.6,<0.13.0",
+    "pyright>=1.1.394,<2",
+    "pytest>=9.0.0,<10",
+    "pytest-asyncio>=1.1.0,<2",
+]
 
+[tool.uv]
+default-groups = "all"
 
+# poetry-core stays as the build backend: uv build drives it through PEP 517,
+# and the packaging output stays identical to the pre-migration wheels.
 [tool.poetry]
-name = "boosty-downloader"
-description = "Download any type of content from boosty.to"
-authors = ["Roman Berezkin"]
-readme = "README.md"
-
 packages = [{ include = "boosty_downloader" }]
