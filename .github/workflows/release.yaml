@@ -110,14 +110,14 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
+      # Notes travel through a file: inlined into the script, any quote
+      # character in the changelog breaks the shell (it did on v3.1.0).
       - name: Extract changelog for version
-        id: changelog
         run: |
           VERSION="${{ needs.validate.outputs.version }}"
-          BODY=$(sed -n "/^## $VERSION/,/^## /{/^## $VERSION/d;/^## /d;p}" CHANGELOG.md)
-          echo "body<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$BODY" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          sed -n "/^## $VERSION/,/^## /{/^## $VERSION/d;/^## /d;p}" CHANGELOG.md > release-notes.md
+          echo "Release notes:"
+          cat release-notes.md
 
       - name: Create GitHub Release
         env:
@@ -126,4 +126,4 @@ jobs:
           VERSION="${{ needs.validate.outputs.version }}"
           gh release create "v$VERSION" dist/* \
             --title "v$VERSION" \
-            --notes "${{ steps.changelog.outputs.body }}"
+            --notes-file release-notes.md
