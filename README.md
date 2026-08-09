@@ -28,6 +28,7 @@ The post content itself is saved in html with a little bit of styling.
       - [Option 2 - With helper script](#option-2---with-helper-script)
     - [Step 2: Paste the cookie and auth header into the config file](#step-2-paste-the-cookie-and-auth-header-into-the-config-file)
     - [Step 3: Run the utility](#step-3-run-the-utility)
+  - [🛡️ When downloads fail](#️-when-downloads-fail)
   - [💖 Contributing](#-contributing)
   - [📜 License](#-license)
 
@@ -115,6 +116,18 @@ Now you can just download your content with the following command:
 ```bash
 boosty-downloader download --username YOUR_CREATOR_NAME
 ```
+
+## 🛡️ When downloads fail
+
+One bad post never costs you the whole run:
+
+- A post that fails to download is skipped, and the run continues.
+- Every skipped post is written to `failed_downloads.log` next to your downloads.
+- At the end, a summary lists everything that was skipped and why.
+- If 5 posts in a row fail, the downloader stops early: a streak like this means the problem is not in the posts - check your disk, folder permissions, or network.
+- Prefer to finish the pass no matter what? Add `--skip-all-failures` - the run never stops on a failure streak.
+
+Downloaded posts are cached. After you fix the cause, run the same command again - finished posts are skipped in seconds, and the download continues where it stopped.
 
 ## 💖 Contributing
 
