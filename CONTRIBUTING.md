@@ -13,16 +13,17 @@ Thanks for your interest in contributing! This guide will help you get started. 
 ## 🔧 Getting Started
 
 1. Fork and clone the repository
-2. Install dependencies:
+2. Install the [Task](https://taskfile.dev) runner - per-OS commands are in [Dev Tools](docs/development/01-dev-tools.md)
+3. Set up the environment (in-project venv + dependencies + editor settings):
    ```bash
-   make deps
+   task setup
    ```
-3. Run the project locally:
+4. Run the project locally:
    ```bash
    poetry run python -m boosty_downloader.main
    ```
 
-All available commands are listed via `make help`.
+All available commands are listed via bare `task`.
 
 ## 👩‍💻 Making Changes
 
@@ -47,9 +48,10 @@ CI verifies that new lines were **added** to the `## Unreleased` section - simpl
 ## 🩺 Code Quality
 
 ```bash
-make ci-check    # Run all checks (lint + types + format)
-make test        # Run unit tests
-make dev-fix     # Auto-fix lint and formatting issues
+task check    # Run all checks (lint + format + types)
+task test     # Run unit tests
+task fix      # Auto-fix lint and formatting, then type check
+task ci       # Everything CI runs: checks + tests + build
 ```
 
 The project uses:
@@ -72,25 +74,16 @@ Describe not only **what** changed, but **why**.
 ## 🚀 Releasing (Maintainers)
 
 1. Make sure `## Unreleased` in CHANGELOG.md has all changes listed
-2. Run:
+2. Run the release wizard:
    ```bash
-   make release v=patch   # 2.1.2 -> 2.1.3
-   make release v=minor   # 2.1.2 -> 2.2.0
-   make release v=major   # 2.1.2 -> 3.0.0
-   make release v=2.2.0   # explicit version
+   task release -- patch   # or: minor / major / X.Y.Z
    ```
-3. Review the diff, stage and commit:
+   It checks the tools and the repo invariants, shows a preview and - after your confirmation - bumps the version, promotes the changelog, pushes the release branch and opens the release PR.
+3. Merge the release PR.
+4. Tag from fresh main:
    ```bash
-   git diff
-   git add pyproject.toml CHANGELOG.md
-   git commit -m "chore: release vX.Y.Z"
-   ```
-4. Tag and push:
-   ```bash
-   git tag vX.Y.Z
-   git push && git push origin vX.Y.Z
+   git checkout main
+   task release:tag
    ```
 
-The release workflow will automatically publish to PyPI and create a GitHub Release.
-
-The script validates that the new version is higher than the current one, the `## Unreleased` section exists and is not empty, and prevents releasing the same version twice.
+The tag triggers the release workflow: build -> PyPI -> GitHub Release. The full flow with every check explained: [Releasing](docs/development/04-releasing.md).

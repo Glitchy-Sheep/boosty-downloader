@@ -4,13 +4,11 @@ Tests structure doesn't mirror the application structure, but rather groups test
 
 ```
 test/
-├── analysis     - Tests ONLY for purpose to analyze responses by known endpoints
+├── unit         - Unit tests for the application, grouped by "domains"
 │   └── ...
 │ 
-├── unit         - Unit tests for the application, groupped by "domains"
-│   └── ...
-│ 
-└── integration  - Integration tests for the application, groupped by "domains"
+└── integration  - Integration tests against the live Boosty API, grouped by "domains"
+    └── analysis - Dumps for exploring known endpoints
 ```
 
 # Add a new test 
@@ -24,5 +22,5 @@ test/
 3. *Create test file, following the naming convention `<filename>_test.py`.*
 4. Test some functionality with `test_<functionality>` function name.
     - Use `assert` statements to check expected outcomes.
-5. *Run the test using `make test` for unit tests or `make test-integration` for integration tests.*
+5. *Run the test using `task test` for unit tests or `task test:api` for integration tests (they need `./.env`, see [Testing](../docs/development/02-testing.md)).*
 6. *Make a pull request with your changes.* (see [CONTRIBUTING.md](../CONTRIBUTING.md) for more details)
