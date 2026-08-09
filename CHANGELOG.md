@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Added
+
+- `--skip-all-failures` flag: skip failed posts without limit instead of stopping after 5 failures in a row
+
 ### Fixed
 
 - One broken post no longer kills the whole download: it is skipped into failed_downloads.log and the run summary, and 5 failures in a row stop the run early with a resume hint (#88)

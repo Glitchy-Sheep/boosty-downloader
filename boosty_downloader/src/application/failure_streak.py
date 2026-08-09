@@ -12,9 +12,12 @@ class FailureStreakBreaker:
     An unbroken streak means the world around the run is broken (disk,
     permissions, network) - going on would grind for hours downloading
     nothing. Any success resets the streak.
+
+    A None threshold disables the breaker: failures are counted
+    but the run is never stopped.
     """
 
-    threshold: int
+    threshold: int | None
     _streak: int = 0
 
     def record_success(self) -> None:
@@ -24,4 +27,6 @@ class FailureStreakBreaker:
     def record_failure(self) -> bool:
         """Count a failed post; True means the threshold is reached."""
         self._streak += 1
+        if self.threshold is None:
+            return False
         return self._streak >= self.threshold

@@ -94,3 +94,14 @@ CacheDirectoryOption = Annotated[
         show_default=False,
     ),
 ]
+
+
+SkipAllFailuresOption = Annotated[
+    bool,
+    typer.Option(
+        '--skip-all-failures',
+        help='Skip failed posts without limit '
+        'instead of stopping after 5 failures in a row',
+        rich_help_panel=HelpPanels.actions,
+    ),
+]

@@ -63,12 +63,15 @@ class DownloadAllPostUseCase:
         boosty_api: BoostyAPIClient,
         destination: Path,
         download_context: DownloadContext,
+        *,
+        skip_all_failures: bool = False,
     ) -> None:
         self.author_name = author_name
 
         self.boosty_api = boosty_api
         self.destination = destination
         self.context = download_context
+        self.skip_all_failures = skip_all_failures
 
     def _note_page_anomalies(
         self,
@@ -180,7 +183,11 @@ class DownloadAllPostUseCase:
         all_skipped: list[SkippedPost] = []
         failed_posts: list[str] = []
         unknown_content: set[UnknownContent] = set()
-        breaker = FailureStreakBreaker(threshold=CONSECUTIVE_FAILURES_LIMIT)
+        # --skip-all-failures turns the breaker off: posts keep skipping
+        # without limit, the run always reaches the end.
+        breaker = FailureStreakBreaker(
+            threshold=None if self.skip_all_failures else CONSECUTIVE_FAILURES_LIMIT
+        )
 
         async for page in posts_iterator:
             count = len(page.posts)

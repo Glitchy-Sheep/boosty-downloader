@@ -25,6 +25,7 @@ from boosty_downloader.src.cli.cli_options import (
     PostUrlOption,  # noqa: TC001
     PreferredVideoQualityOption,  # noqa: TC001
     RequestDelaySecondsOption,  # noqa: TC001
+    SkipAllFailuresOption,  # noqa: TC001
     UsernameOption,  # noqa: TC001
 )
 from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
@@ -79,6 +80,7 @@ async def _download_handler(  # noqa: PLR0913
     request_delay_seconds: float,
     destination_directory: Path | None,
     cache_directory: Path | None,
+    skip_all_failures: bool,
 ) -> None:
     async with initialized_app(
         username=username,
@@ -119,6 +121,7 @@ async def _download_handler(  # noqa: PLR0913
             boosty_api=app_env.boosty_api_client,
             destination=app_env.destination_directory,
             download_context=downloading_context,
+            skip_all_failures=skip_all_failures,
         ).execute()
 
 
@@ -138,6 +141,7 @@ def register(app: typer.Typer) -> None:
         preferred_video_quality: PreferredVideoQualityOption = VideoQualityOption.medium,
         destination_directory: DestinationDirectoryOption = None,
         cache_directory: CacheDirectoryOption = None,
+        skip_all_failures: SkipAllFailuresOption = False,
     ) -> None:
         """
         Download posts from a Boosty creator.
@@ -185,5 +189,6 @@ def register(app: typer.Typer) -> None:
                 request_delay_seconds=request_delay_seconds,
                 destination_directory=destination_directory,
                 cache_directory=cache_directory,
+                skip_all_failures=skip_all_failures,
             ),
         )
