@@ -129,6 +129,8 @@ One bad post never costs you the whole run:
 
 Downloaded posts are cached. After you fix the cause, run the same command again - finished posts are skipped in seconds, and the download continues where it stopped.
 
+Can't tell what's breaking? Re-run with `--debug`: it writes `boosty-downloader-debug.log` with every request and full error details, safe to attach to a [GitHub issue](https://github.com/Glitchy-Sheep/boosty-downloader/issues) - download links are logged without their signed keys.
+
 ## 💖 Contributing
 
 If you want to contribute to this project, please see the [CONTRIBUTING.md](CONTRIBUTING.md).
