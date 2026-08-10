@@ -58,7 +58,7 @@ class RichLogger:
 
     @staticmethod
     def _create_handler() -> RichHandler:
-        return RichHandler(
+        handler = RichHandler(
             log_time_format='[%H:%M:%S]',
             markup=True,
             show_time=True,
@@ -66,6 +66,10 @@ class RichLogger:
             show_path=False,
             show_level=False,
         )
+        # The screen shows INFO and up; DEBUG lines belong to the
+        # --debug log file only.
+        handler.setLevel(logging.INFO)
+        return handler
 
     def _log(
         self,

@@ -15,6 +15,9 @@ from boosty_downloader.src.cli.console_progress_reporter import (
 )
 from boosty_downloader.src.infrastructure.boosty_api.core.client import BoostyAPIClient
 from boosty_downloader.src.infrastructure.loggers.logger_instances import RichLogger
+from boosty_downloader.src.infrastructure.loggers.request_tracing import (
+    create_request_trace_config,
+)
 from boosty_downloader.src.infrastructure.post_caching.post_cache import SQLitePostCache
 
 
@@ -75,6 +78,7 @@ class AppEnvironment:
                 # - sock_read: max quiet time between received chunks
                 timeout=aiohttp.ClientTimeout(total=None, connect=30, sock_read=90),
                 trust_env=True,
+                trace_configs=[create_request_trace_config()],
             )
         )
 

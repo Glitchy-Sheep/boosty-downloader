@@ -1,5 +1,6 @@
 """CLI option definitions for Boosty Downloader."""
 
+import importlib.metadata
 from pathlib import Path
 from typing import Annotated
 
@@ -10,6 +11,9 @@ from boosty_downloader.src.application.filtering import (
     VideoQualityOption,
 )
 from boosty_downloader.src.cli.help_panels import HelpPanels
+from boosty_downloader.src.infrastructure.loggers.debug_file import (
+    enable_debug_file_log,
+)
 
 UsernameOption = Annotated[
     str,
@@ -103,5 +107,38 @@ SkipAllFailuresOption = Annotated[
         help='Skip failed posts without limit '
         'instead of stopping after 5 failures in a row',
         rich_help_panel=HelpPanels.actions,
+    ),
+]
+
+
+def _print_version(value: bool) -> None:  # noqa: FBT001 - typer callback contract
+    if value:
+        typer.echo(importlib.metadata.version('boosty-downloader'))
+        raise typer.Exit
+
+
+def _enable_debug(value: bool) -> None:  # noqa: FBT001 - typer callback contract
+    if value:
+        enable_debug_file_log()
+
+
+VersionOption = Annotated[
+    bool,
+    typer.Option(
+        '--version',
+        '-V',
+        help='Show the version and exit',
+        callback=_print_version,
+        is_eager=True,
+    ),
+]
+
+DebugOption = Annotated[
+    bool,
+    typer.Option(
+        '--debug',
+        help='Write a detailed log file for bug reports',
+        callback=_enable_debug,
+        is_eager=True,
     ),
 ]

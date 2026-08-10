@@ -1,5 +1,13 @@
 ## Unreleased
 
+### Added
+
+- `--debug` flag writes `boosty-downloader-debug.log`: app version, platform, every request and full error tracebacks - attach it to bug reports; download links are logged without their signed keys, so the file is safe for public issues
+
+### Fixed
+
+- Network errors now say what actually broke instead of a generic connection message: a DNS failure names the host and suggests trying another DNS or a VPN that covers all apps (#109)
+
 ## 3.2.0
 
 ### Added
