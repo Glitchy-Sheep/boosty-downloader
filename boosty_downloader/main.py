@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-import importlib.metadata
-from typing import Annotated
-
 import typer
-from aiohttp.client_exceptions import ClientConnectorDNSError
+from aiohttp.client_exceptions import ClientError
 from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
 
 from boosty_downloader.src.application.exceptions.application_errors import (
     ApplicationCancelledError,
     ApplicationTooManyFailuresError,
+)
+from boosty_downloader.src.cli.cli_options import (
+    DebugOption,  # noqa: TC001
+    VersionOption,  # noqa: TC001
 )
 from boosty_downloader.src.cli.commands import (
     check,
@@ -19,6 +20,7 @@ from boosty_downloader.src.cli.commands import (
     download,
     show_auth_script,
 )
+from boosty_downloader.src.cli.error_reporting import report_network_error
 from boosty_downloader.src.infrastructure.boosty_api.core.client import (
     BoostyAPIInvalidUsernameError,
     BoostyAPINoUsernameError,
@@ -31,9 +33,6 @@ from boosty_downloader.src.infrastructure.boosty_api.utils.validation_errors imp
     format_validation_errors,
 )
 from boosty_downloader.src.infrastructure.loggers import logger_instances
-from boosty_downloader.src.infrastructure.loggers.debug_file import (
-    enable_debug_file_log,
-)
 
 typer_app = typer.Typer(
     add_completion=False,
@@ -42,39 +41,11 @@ typer_app = typer.Typer(
 )
 
 
-def _print_version(value: bool) -> None:  # noqa: FBT001 - typer callback contract
-    if value:
-        typer.echo(importlib.metadata.version('boosty-downloader'))
-        raise typer.Exit
-
-
-def _enable_debug(value: bool) -> None:  # noqa: FBT001 - typer callback contract
-    if value:
-        enable_debug_file_log()
-
-
 @typer_app.callback()
 def _app_callback(  # pyright: ignore[reportUnusedFunction]
     ctx: typer.Context,
-    _version: Annotated[  # noqa: FBT002 - typer flag contract
-        bool,
-        typer.Option(
-            '--version',
-            '-V',
-            help='Show the version and exit',
-            callback=_print_version,
-            is_eager=True,
-        ),
-    ] = False,
-    _debug: Annotated[  # noqa: FBT002 - typer flag contract
-        bool,
-        typer.Option(
-            '--debug',
-            help='Write a detailed log file for bug reports',
-            callback=_enable_debug,
-            is_eager=True,
-        ),
-    ] = False,
+    _version: VersionOption = False,  # noqa: FBT002 - typer flag contract
+    _debug: DebugOption = False,  # noqa: FBT002 - typer flag contract
 ) -> None:
     """
     CLI tool to download Boosty posts by author username.
@@ -135,10 +106,8 @@ def entry_point() -> None:
             f'Download stopped after {e.streak} failed posts in a row - '
             'fix the cause and run the command again to resume.'
         )
-    except ClientConnectorDNSError:
-        logger_instances.downloader_logger.error(
-            'Network error: Unable to connect to Boosty API, please check your internet connection.'
-        )
+    except ClientError as e:
+        report_network_error(e)
     except (
         OperationalError,
         DatabaseError,

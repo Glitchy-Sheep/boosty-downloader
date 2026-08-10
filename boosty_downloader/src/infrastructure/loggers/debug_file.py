@@ -23,24 +23,35 @@ DEBUG_LOG_FILENAME = 'boosty-downloader-debug.log'
 # Third-party debug noise (asyncio, charset probes) stays out.
 _LOGGER_NAMES = ('Boosty_Downloader', 'boosty_downloader')
 
-_enabled = False
+
+class _DebugFileHandler(RichHandler):
+    """
+    Marker subclass: its presence on a logger means the debug file is on.
+
+    The logging tree is the single source of truth - no separate flag
+    to keep in sync.
+    """
 
 
 def is_debug_enabled() -> bool:
     """Tell whether this run writes the debug log file."""
-    return _enabled
+    return any(
+        isinstance(handler, _DebugFileHandler)
+        for handler in logging.getLogger(_LOGGER_NAMES[0]).handlers
+    )
 
 
 def enable_debug_file_log() -> Path:
     """Start writing DEBUG and above into ./boosty-downloader-debug.log."""
-    global _enabled  # noqa: PLW0603 - single process-wide switch
     log_path = Path(DEBUG_LOG_FILENAME)
+    if is_debug_enabled():
+        return log_path
     file_console = Console(
         file=log_path.open('w', encoding='utf-8'),
         no_color=True,
         width=120,
     )
-    handler = RichHandler(
+    handler = _DebugFileHandler(
         console=file_console,
         log_time_format='[%H:%M:%S]',
         markup=True,
@@ -61,5 +72,4 @@ def enable_debug_file_log() -> Path:
         f'Python {platform.python_version()}'
     )
     file_console.print(f'argv: {" ".join(sys.argv)}')
-    _enabled = True
     return log_path
