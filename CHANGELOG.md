@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 3.3.0
+
 ### Added
 
 - `--debug` flag writes `boosty-downloader-debug.log`: app version, platform, every request and full error tracebacks - attach it to bug reports; download links are logged without their signed keys, so the file is safe for public issues
