@@ -43,13 +43,11 @@ class PostMappingResult:
 
     post: Post
     incomplete_content_types: set[DownloadContentTypeFilter] = field(
-        default_factory=lambda: set[DownloadContentTypeFilter]()
+        default_factory=set[DownloadContentTypeFilter]
     )
     # Content this client doesn't know yet, raw. Rendering it for the user
     # is the output layer's job (inline warnings and the run summary).
-    unknown_content: set[UnknownContent] = field(
-        default_factory=lambda: set[UnknownContent]()
-    )
+    unknown_content: set[UnknownContent] = field(default_factory=set[UnknownContent])
 
 
 def map_post_dto_to_domain(  # noqa: C901

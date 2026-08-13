@@ -55,7 +55,9 @@ class SQLitePostCache:
             )
             self._reinitialize_db()
 
-    def __enter__(self) -> 'SQLitePostCache':
+    # typing.Self needs py3.11+, the package supports 3.10; typing_extensions
+    # is not a declared dependency and one annotation does not justify it.
+    def __enter__(self) -> 'SQLitePostCache':  # noqa: PYI034
         """Create a context manager for the SQLitePostCache."""
         return self
 

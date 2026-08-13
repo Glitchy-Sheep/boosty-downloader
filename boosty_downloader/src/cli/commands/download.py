@@ -181,9 +181,7 @@ def register(app: typer.Typer) -> None:
                 username=username,
                 post_url=post_url,
                 content_type_filter=(
-                    content_type_filter
-                    if content_type_filter
-                    else list(DownloadContentTypeFilter)
+                    content_type_filter or list(DownloadContentTypeFilter)
                 ),
                 preferred_video_quality=preferred_video_quality,
                 request_delay_seconds=request_delay_seconds,
