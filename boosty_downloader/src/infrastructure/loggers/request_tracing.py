@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlsplit
 
 from aiohttp import TraceConfig
 
@@ -25,12 +25,17 @@ def redacted_url(url: str) -> str:
     """
     Make a URL safe for the log file.
 
-    The query string carries signed, expiring credentials - the log is
-    meant to be attached to public issues, so only scheme, host and path
-    survive.
+    Query values carry signed, expiring credentials - the log is meant
+    to be attached to public issues, so values are masked. Query keys
+    stay: they show the request shape without giving anything away.
     """
     parts = urlsplit(url)
-    return f'{parts.scheme}://{parts.netloc}{parts.path}'
+    base = f'{parts.scheme}://{parts.netloc}{parts.path}'
+    if not parts.query:
+        return base
+    keys = [key for key, _ in parse_qsl(parts.query, keep_blank_values=True)]
+    masked_query = '&'.join(f'{key}=...' for key in keys)
+    return f'{base}?{masked_query}'
 
 
 async def _log_request_start(

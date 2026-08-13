@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Changed
+
+- Debug log now keeps query keys in logged URLs (`?sig=...&expire=...` instead of cutting the query off) - easier to match a failing request to an endpoint, values stay hidden
+
 ## 3.3.0
 
 ### Added

@@ -5,11 +5,11 @@ from __future__ import annotations
 from boosty_downloader.src.infrastructure.loggers.request_tracing import redacted_url
 
 
-def test_redacted_url_drops_the_signed_query() -> None:
-    """A logged CDN link with its query would hand out working credentials."""
+def test_redacted_url_masks_query_values_but_keeps_keys() -> None:
+    """Values are working credentials; keys are needed to match the endpoint."""
     url = 'https://cdn.boosty.to/file/181ac169?sig=SECRET&expire=1770000000'
 
-    assert redacted_url(url) == 'https://cdn.boosty.to/file/181ac169'
+    assert redacted_url(url) == 'https://cdn.boosty.to/file/181ac169?sig=...&expire=...'
 
 
 def test_redacted_url_keeps_a_plain_url_intact() -> None:
