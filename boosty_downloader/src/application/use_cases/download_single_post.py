@@ -5,7 +5,7 @@ It encapsulates the logic required to download a post from a specific author.
 """
 
 import uuid
-from asyncio import CancelledError
+from asyncio import CancelledError, to_thread
 from pathlib import Path
 
 from yarl import URL
@@ -341,7 +341,7 @@ class DownloadSinglePostUseCase:
         guess_extension: bool = True,
     ) -> Path:
         """Download a file with progress tracking and return path relative to post directory."""
-        destination.mkdir(parents=True, exist_ok=True)
+        await to_thread(destination.mkdir, parents=True, exist_ok=True)
         task_id = self.context.progress_reporter.create_task(task_label, indent_level=2)
 
         def update_progress(status: DownloadingStatus) -> None:

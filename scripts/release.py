@@ -257,7 +257,7 @@ def _check_pypi_free(version: str) -> None:
     url = f'https://pypi.org/pypi/{PYPI_PROJECT}/{version}/json'
     # For this check 404 is the good outcome: the version is not on PyPI yet.
     try:
-        urllib.request.urlopen(url, timeout=15)  # noqa: S310 - fixed https host
+        urllib.request.urlopen(url, timeout=15)
     except urllib.error.HTTPError as err:
         if err.code != HTTP_NOT_FOUND:
             _error(f'PyPI answered {err.code} for {url}')
@@ -307,8 +307,8 @@ def _plan_steps(plan: ReleasePlan) -> list[tuple[str, tuple[Command, ...]]]:
             (f'create [cyan]{plan.branch}[/] from main', (plan.branch_command,))
         )
     steps += [
-        (f'bump [dim]{plan.old_version}[/] -> [bold]{plan.version}[/]'
-         ' in pyproject.toml and uv.lock', ()),
+        ((f'bump [dim]{plan.old_version}[/] -> [bold]{plan.version}[/]'
+         ' in pyproject.toml and uv.lock'), ()),
         (f'promote "{UNRELEASED_HEADING}" -> "## {plan.version}" in CHANGELOG.md', ()),
         ('commit and push', plan.commit_commands),
         ('open the release PR', (plan.pr_command,)),

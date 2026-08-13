@@ -29,6 +29,4 @@ class PostsResponse:
     extra: Extra
     # Posts with structures this client doesn't understand. Raw details here;
     # rendering them for the user is the output layer's job.
-    skipped_posts: list[SkippedPost] = field(
-        default_factory=lambda: list[SkippedPost]()
-    )
+    skipped_posts: list[SkippedPost] = field(default_factory=list[SkippedPost])

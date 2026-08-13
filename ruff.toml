@@ -15,6 +15,7 @@ lint.ignore = [
     "G004",   # don't log f-strings (personal preference)
     "D203",   # incorrected blank line before class is incompatible with D211
     "COM812", # missing trailing comma (formatter conflicts with this)
+    "CPY",    # no copyright headers in this project
 ]
 
 [lint.per-file-ignores]
@@ -34,6 +35,9 @@ lint.ignore = [
 
 [format]
 quote-style = "single"
+# Don't format code blocks inside markdown (new in ruff 0.16):
+# reports and docs keep their hand-written snippets as is.
+exclude = ["*.md"]
 
 [lint.flake8-quotes]
 inline-quotes = "single"

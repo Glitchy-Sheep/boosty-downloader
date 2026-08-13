@@ -37,7 +37,9 @@ TolerantListItemType = Annotated[
 # BoostyUnknownValue instead of failing the whole page. left_to_right is
 # required: the default smart mode lets the catch-all swallow known values.
 TolerantListStyle = Annotated[
-    BoostyListStyle | None | UnknownValue,
+    # Order is validation priority, not cosmetics: None must precede the
+    # catch-all UnknownValue, or a null style gets wrapped as unknown.
+    BoostyListStyle | None | UnknownValue,  # noqa: RUF036
     Field(union_mode='left_to_right'),
 ]
 
@@ -54,10 +56,10 @@ class BoostyPostDataListItemDTO(BoostyBaseDTO):
     """Represents a single item in a list of post data chunks."""
 
     items: list['BoostyPostDataListItemDTO'] = Field(
-        default_factory=lambda: list['BoostyPostDataListItemDTO']()
+        default_factory=list['BoostyPostDataListItemDTO']
     )
     data: list[BoostyPostDataListDataItemDTO] = Field(
-        default_factory=lambda: list[BoostyPostDataListDataItemDTO]()
+        default_factory=list[BoostyPostDataListDataItemDTO]
     )
 
 

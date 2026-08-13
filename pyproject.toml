@@ -40,7 +40,7 @@ build-backend = "poetry.core.masonry.api"
 
 [dependency-groups]
 dev = [
-    "ruff>=0.9.6,<0.13.0",
+    "ruff>=0.16.2,<0.17.0",
     "pyright>=1.1.394,<2",
     "pytest>=9.0.0,<10",
     "pytest-asyncio>=1.1.0,<2",

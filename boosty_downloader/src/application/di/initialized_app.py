@@ -25,7 +25,7 @@ from boosty_downloader.src.infrastructure.update_checker.pypi_checker import (
 from boosty_downloader.src.infrastructure.yaml_configuration.config import init_config
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncGenerator
     from pathlib import Path
 
 
@@ -61,7 +61,7 @@ async def initialized_app(
     request_delay_seconds: float,
     destination_directory: Path | None = None,
     cache_directory: Path | None = None,
-) -> AsyncIterator[AppEnvironment.Environment]:
+) -> AsyncGenerator[AppEnvironment.Environment]:
     """Load config, check for updates, and yield an initialized AppEnvironment."""
     config = init_config()
 
