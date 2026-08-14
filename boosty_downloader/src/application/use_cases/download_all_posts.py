@@ -25,6 +25,10 @@ from boosty_downloader.src.infrastructure.boosty_api.utils.validation_errors imp
     format_run_summary,
     format_skipped_post,
 )
+from boosty_downloader.src.infrastructure.path_sanitizer import (
+    PATH_TOO_LONG_HINT,
+    is_path_too_long_error,
+)
 
 # Failures of posts in a row, without a single success in between.
 # Scattered failures are per-post problems; a streak like this almost
@@ -129,9 +133,11 @@ class DownloadAllPostUseCase:
         attempts: int,
     ) -> _PostOutcome:
         """Give up on a post whose known failure survived all retries."""
-        failed_posts.append(f'{full_post_title} ({error.message})')
+        hint = f' Hint: {PATH_TOO_LONG_HINT}.' if is_path_too_long_error(error) else ''
+        failed_posts.append(f'{full_post_title} ({error.message}){hint}')
         self.context.progress_reporter.error(
-            f'Skip post after {attempts} failed attempts: {full_post_title} ({error.message})'
+            f'Skip post after {attempts} failed attempts: '
+            f'{full_post_title} ({error.message}){hint}'
         )
         return _PostOutcome.failed
 
@@ -143,13 +149,14 @@ class DownloadAllPostUseCase:
         error: Exception,
     ) -> _PostOutcome:
         """Give up on a post immediately: unexpected errors do not heal by retrying."""
-        failed_posts.append(f'{full_post_title} ({error})')
+        hint = f' Hint: {PATH_TOO_LONG_HINT}.' if is_path_too_long_error(error) else ''
+        failed_posts.append(f'{full_post_title} ({error}){hint}')
         self.context.progress_reporter.error(
-            f'Skip post after unexpected error: {full_post_title} ({error})'
+            f'Skip post after unexpected error: {full_post_title} ({error}){hint}'
         )
         await self.context.failed_logger.add_error(
             post_id,
-            f'Unexpected error: {error}',
+            f'Unexpected error: {error}{hint}',
         )
         return _PostOutcome.failed
 

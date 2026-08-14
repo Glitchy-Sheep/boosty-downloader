@@ -24,6 +24,10 @@ from boosty_downloader.src.infrastructure.boosty_api.utils.validation_errors imp
     format_run_summary,
     format_skipped_post,
 )
+from boosty_downloader.src.infrastructure.path_sanitizer import (
+    PATH_TOO_LONG_HINT,
+    is_path_too_long_error,
+)
 
 if TYPE_CHECKING:
     from boosty_downloader.src.infrastructure.boosty_api.models.post.post import (
@@ -159,8 +163,9 @@ class DownloadPostByUrlUseCase:
             self.context.progress_reporter.warn('Download cancelled by user. Bye!')
             return _PostDownloadOutcome.cancelled
         except ApplicationFailedDownloadError as e:
+            hint = f' Hint: {PATH_TOO_LONG_HINT}.' if is_path_too_long_error(e) else ''
             self.context.progress_reporter.error(
-                f'Failed to download post: {e.message}, RESOURCE: ({e.resource})'
+                f'Failed to download post: {e.message}, RESOURCE: ({e.resource}){hint}'
             )
             return _PostDownloadOutcome.failed
         return _PostDownloadOutcome.downloaded
