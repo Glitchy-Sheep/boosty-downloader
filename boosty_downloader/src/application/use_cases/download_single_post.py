@@ -76,10 +76,19 @@ def _form_post_url(username: str, post_id: str) -> str:
     return f'https://boosty.to/{username}/posts/{post_id}'
 
 
+# download_file appends a guessed extension to video names later:
+# the byte budget here leaves room so that never re-truncates the name.
+_GUESSED_EXTENSION_RESERVE_BYTES = 8
+
+
 def _boosty_video_filename(video: PostDataChunkBoostyVideo) -> str:
     """Filename unique per video: titles repeat inside a post, ids never do."""
     title = video.title.strip() or 'video'
-    return f'{title} ({video.id[:8]})'
+    return sanitize_filename(
+        title,
+        suffix=f' ({video.id[:8]})',
+        max_bytes=MAX_NAME_BYTES - _GUESSED_EXTENSION_RESERVE_BYTES,
+    )
 
 
 def compose_post_directory_name(title: str, created_at: datetime, post_id: str) -> str:

@@ -19,13 +19,6 @@ _RESERVED_NAMES = frozenset(
 )
 
 
-def sanitize_string(string: str) -> str:
-    """Remove unsafe filesystem characters from a string"""
-    # Convert path to a string and sanitize it
-    unsafe_chars = r'[<>:"/\\|?*]'
-    return re.sub(unsafe_chars, '', str(string))
-
-
 def sanitize_filename(
     name: str,
     *,
