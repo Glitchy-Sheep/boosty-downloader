@@ -6,6 +6,7 @@ It encapsulates the logic required to download a post from a specific author.
 
 import uuid
 from asyncio import CancelledError, to_thread
+from datetime import datetime
 from pathlib import Path
 
 from yarl import URL
@@ -65,6 +66,10 @@ from boosty_downloader.src.infrastructure.html_generator.renderer import (
 from boosty_downloader.src.infrastructure.human_readable_filesize import (
     human_readable_size,
 )
+from boosty_downloader.src.infrastructure.path_sanitizer import (
+    MAX_NAME_BYTES,
+    sanitize_filename,
+)
 
 
 def _form_post_url(username: str, post_id: str) -> str:
@@ -75,6 +80,20 @@ def _boosty_video_filename(video: PostDataChunkBoostyVideo) -> str:
     """Filename unique per video: titles repeat inside a post, ids never do."""
     title = video.title.strip() or 'video'
     return f'{title} ({video.id[:8]})'
+
+
+def compose_post_directory_name(title: str, created_at: datetime, post_id: str) -> str:
+    """
+    One folder per post: 'YYYY-MM-DD - Title (id8)'.
+
+    The id tail keeps two same-titled posts apart; the title is cut to
+    fit the filesystem name limit, the date and the id always survive.
+    """
+    clean_title = title.strip() or 'No title'
+    prefix = f'{created_at.date()} - '
+    suffix = f' ({post_id[:8]})'
+    budget = MAX_NAME_BYTES - len(prefix.encode('utf-8'))
+    return prefix + sanitize_filename(clean_title, suffix=suffix, max_bytes=budget)
 
 
 class DownloadSinglePostUseCase:

@@ -14,6 +14,7 @@ from boosty_downloader.src.application.exceptions.application_errors import (
 from boosty_downloader.src.application.failure_streak import FailureStreakBreaker
 from boosty_downloader.src.application.use_cases.download_single_post import (
     DownloadSinglePostUseCase,
+    compose_post_directory_name,
 )
 from boosty_downloader.src.infrastructure.boosty_api.core.client import BoostyAPIClient
 from boosty_downloader.src.infrastructure.boosty_api.models.unknown_content import (
@@ -23,9 +24,6 @@ from boosty_downloader.src.infrastructure.boosty_api.models.unknown_content impo
 from boosty_downloader.src.infrastructure.boosty_api.utils.validation_errors import (
     format_run_summary,
     format_skipped_post,
-)
-from boosty_downloader.src.infrastructure.path_sanitizer import (
-    sanitize_string,
 )
 
 # Failures of posts in a row, without a single success in between.
@@ -208,16 +206,9 @@ class DownloadAllPostUseCase:
                     )
                     continue
 
-                # For empty titles use post ID as a fallback (first 8 chars)
-                if len(post_dto.title) == 0:
-                    post_dto.title = f'No title (id_{post_dto.id[:8]})'
-
-                post_dto.title = (
-                    sanitize_string(post_dto.title).replace('.', '').strip()
+                full_post_title = compose_post_directory_name(
+                    post_dto.title, post_dto.created_at, post_dto.id
                 )
-
-                # date - TITLE (UUID_PART) for deduplication in case of same names with different posts
-                full_post_title = f'{post_dto.created_at.date()} - {post_dto.title} ({post_dto.id[:8]})'
 
                 single_post_use_case = DownloadSinglePostUseCase(
                     destination=self.destination / full_post_title,

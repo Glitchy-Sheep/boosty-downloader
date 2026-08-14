@@ -14,6 +14,7 @@ from boosty_downloader.src.application.use_cases.check_total_posts import (
 from boosty_downloader.src.application.use_cases.download_single_post import (
     ApplicationFailedDownloadError,
     DownloadSinglePostUseCase,
+    compose_post_directory_name,
 )
 from boosty_downloader.src.infrastructure.boosty_api.models.unknown_content import (
     collect_unknown_content,
@@ -23,7 +24,6 @@ from boosty_downloader.src.infrastructure.boosty_api.utils.validation_errors imp
     format_run_summary,
     format_skipped_post,
 )
-from boosty_downloader.src.infrastructure.file_downloader import sanitize_string
 
 if TYPE_CHECKING:
     from boosty_downloader.src.infrastructure.boosty_api.models.post.post import (
@@ -147,12 +147,7 @@ class DownloadPostByUrlUseCase:
         if summary:
             self.context.progress_reporter.warn(summary)
 
-        post_title = post.title
-        if len(post_title) == 0:
-            post_title = f'No title (id_{post.id[:8]})'
-
-        post_name = f'{post.created_at.date()} - {post_title}'
-        post_name = sanitize_string(post_name).replace('.', '').strip()
+        post_name = compose_post_directory_name(post.title, post.created_at, post.id)
 
         try:
             await DownloadSinglePostUseCase(
