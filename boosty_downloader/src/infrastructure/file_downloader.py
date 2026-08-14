@@ -6,13 +6,14 @@ import http
 import mimetypes
 from asyncio import CancelledError
 from dataclasses import dataclass
+from pathlib import PurePath
 from typing import TYPE_CHECKING
 
 import aiofiles
 from aiohttp import ClientConnectionError, ClientPayloadError
 
 from boosty_downloader.src.infrastructure.path_sanitizer import (
-    sanitize_string,
+    sanitize_filename,
 )
 
 if TYPE_CHECKING:
@@ -116,6 +117,18 @@ class DownloadUnexpectedStatusError(DownloadError):
         self.response_message = response_message
 
 
+def _app_built_filename(name: str, guessed_ext: str | None) -> str:
+    """App-built names (videos, images): the guessed extension is glued on."""
+    return sanitize_filename(name, suffix=guessed_ext or '')
+
+
+def _author_filename(name: str) -> str:
+    """Truncate an author-given name; its own extension always survives."""
+    pure = PurePath(name)
+    ext = pure.suffix
+    return sanitize_filename(pure.stem, suffix=sanitize_filename(ext) if ext else '')
+
+
 def _extension_to_append(content_type: str | None) -> str | None:
     """
     Pick an extension for a name that has none by construction.
@@ -141,13 +154,13 @@ async def download_file(
                 response_message=response.reason or 'No reason provided',
             )
 
-        filename = sanitize_string(dl_config.filename)
-        file_path = dl_config.destination / filename
-
         if dl_config.guess_extension:
-            ext = _extension_to_append(response.content_type)
-            if ext is not None:
-                file_path = file_path.with_name(file_path.name + ext)
+            filename = _app_built_filename(
+                dl_config.filename, _extension_to_append(response.content_type)
+            )
+        else:
+            filename = _author_filename(dl_config.filename)
+        file_path = dl_config.destination / filename
 
         total_downloaded = 0
 

@@ -1,8 +1,16 @@
 ## Unreleased
 
+### Fixed
+
+- Long post titles no longer crash the download with "File name too long" (#93, #88): folder and file names are cut to fit the filesystem limit, and the post date, the dedup id and the file extension always survive the cut
+- If the full path is still too long for the OS (a deep destination folder on Windows), the error now says what to do: move the destination folder closer to the drive root
+- Titles with dots keep them: a post named "v2.0" no longer turns into "v20"
+
 ### Changed
 
+- Single-post downloads (`--post-url`) now name the folder the same way as the full run: `date - title (id)` - the id tail keeps same-titled posts apart
 - Debug log now keeps query keys in logged URLs (`?sig=...&expire=...` instead of cutting the query off) - easier to match a failing request to an endpoint, values stay hidden
+- Already downloaded posts are untouched: folders are never renamed, a new-style name appears only when an updated post is re-downloaded
 
 ## 3.3.0
 

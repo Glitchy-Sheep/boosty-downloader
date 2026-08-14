@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -175,6 +176,23 @@ async def test_unexpected_error_skips_the_post_and_the_run_continues(
     summary = reporter.warnings[-1]
     assert 'failed to download' in summary
     assert 'post p1' in summary
+
+
+@pytest.mark.asyncio
+async def test_path_too_long_error_carries_the_folder_hint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A bare 'File name too long' leaves the user without a way out (#93)."""
+    reporter = _FakeReporter()
+    failed_logger = _FakeFailedLogger()
+    error = OSError(errno.ENAMETOOLONG, 'File name too long')
+    _script_outcomes(monkeypatch, {'p1': error})
+
+    await _use_case(['p1'], reporter, failed_logger).execute()
+
+    hint = 'move the destination folder closer to the drive root'
+    assert any(hint in message for message in reporter.errors)
+    assert any(hint in message for _, message in failed_logger.entries)
 
 
 @pytest.mark.asyncio

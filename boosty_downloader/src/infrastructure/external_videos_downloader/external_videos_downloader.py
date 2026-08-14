@@ -12,6 +12,15 @@ from typing import Any, ClassVar, cast
 from yt_dlp.YoutubeDL import YoutubeDL
 from yt_dlp.utils import DownloadError
 
+from boosty_downloader.src.infrastructure.path_sanitizer import (
+    MAX_NAME_BYTES,
+    sanitize_filename,
+)
+
+# yt-dlp appends the real extension to the template ('.webm', '.mp4', ...):
+# the title byte budget leaves room for it.
+_EXTENSION_RESERVE_BYTES = 8
+
 YtDlOptions = dict[str, Any]
 ExternalVideoDownloadProgressHook = Callable[['ExternalVideoDownloadStatus'], None]
 
@@ -155,8 +164,11 @@ class ExternalVideosDownloader:
 
     @staticmethod
     def _sanitize_title(text: str) -> str:
-        # Cross-platform safe subset.
-        return ''.join(ch for ch in text if ch.isalnum() or ch == ' ')
+        # Cross-platform safe subset, capped so the appended extension fits.
+        safe = ''.join(ch for ch in text if ch.isalnum() or ch == ' ')
+        return sanitize_filename(
+            safe, max_bytes=MAX_NAME_BYTES - _EXTENSION_RESERVE_BYTES
+        )
 
     @staticmethod
     def _build_outtmpl(destination_directory: Path, title: str) -> str:
