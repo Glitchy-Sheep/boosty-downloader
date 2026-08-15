@@ -174,6 +174,11 @@ class DownloadSinglePostUseCase:
             self.context.progress_reporter.warn(
                 f'Post has unfinished uploads (will retry next run): {self.destination.name}'
             )
+        for video_title in mapping_result.stream_only_videos:
+            self.context.progress_reporter.warn(
+                'Skip video (streams are not supported yet): '
+                + (video_title.strip() or 'video')
+            )
 
         missing_parts: list[DownloadContentTypeFilter] = (
             self.context.post_cache.get_post_missing_parts(

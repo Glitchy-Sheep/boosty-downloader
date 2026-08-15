@@ -131,3 +131,30 @@ def test_only_unknown_types_gives_none():
     ]
 
     assert get_best_video(video_urls) is None
+
+
+def test_stream_manifest_is_never_selected():
+    """A manifest url handed to download_file lands on disk as a text file."""
+    video_urls = [
+        BoostyOkVideoUrl(
+            url='https://vd.example/video.m3u8', type=BoostyOkVideoType.hls
+        ),
+        BoostyOkVideoUrl(url='https://vd.example/mpd', type=BoostyOkVideoType.dash),
+    ]
+
+    assert get_best_video(video_urls) is None
+
+
+def test_progressive_beats_a_stream_regardless_of_rank():
+    """The lowest mp4 is a real video; the best manifest is not downloadable."""
+    video_urls = [
+        BoostyOkVideoUrl(
+            url='https://vd.example/video.m3u8', type=BoostyOkVideoType.hls
+        ),
+        BoostyOkVideoUrl(url='https://vd.example/tiny', type=BoostyOkVideoType.tiny),
+    ]
+
+    best_video = get_best_video(video_urls)
+
+    assert best_video is not None
+    assert best_video[1] == BoostyOkVideoType.tiny
