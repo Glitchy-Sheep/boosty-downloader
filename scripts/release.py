@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn, TypeAlias
 
+import tomllib
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -99,10 +101,11 @@ def _parse_semver(text: str) -> tuple[int, int, int]:
 
 
 def _current_version() -> str:
-    m = re.search(r'version = "(\d+\.\d+\.\d+)"', PYPROJECT.read_text(encoding='utf-8'))
-    if not m:
+    data = tomllib.loads(PYPROJECT.read_text(encoding='utf-8'))
+    version = data.get('project', {}).get('version')
+    if not isinstance(version, str):
         _error(f'could not find version in {PYPROJECT}')
-    return m.group(1)
+    return version
 
 
 def _bumped(current: str, part: str) -> str:
