@@ -59,7 +59,7 @@ def test_success_outcome_shows_status_timing_and_phases(
 def test_failed_attempt_names_the_error_chain(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """The night incident: a reset handshake must be readable from the log."""
+    """A TLS handshake reset by the network must be readable from the log."""
     caplog.set_level(logging.DEBUG, logger=_LOGGER_NAME)
     ctx = SimpleNamespace(trace_request_ctx=None)
     error = ConnectionError('cannot connect')
@@ -81,7 +81,7 @@ def test_failed_attempt_names_the_error_chain(
 def test_hang_leaves_connecting_as_the_last_line(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A hard hang used to leave the log silent - now the phase is visible live."""
+    """During a hang the last log line must name the stuck phase."""
     caplog.set_level(logging.DEBUG, logger=_LOGGER_NAME)
     ctx = SimpleNamespace(trace_request_ctx=None)
 
@@ -127,6 +127,30 @@ def test_request_lines_share_one_id(caplog: pytest.LogCaptureFixture) -> None:
     ids = {message.split()[0] for message in caplog.messages}
     assert len(ids) == 1
     assert ids.pop().startswith('#')
+
+
+def test_retry_attempt_number_lands_in_the_start_line(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Silent retries hide that a request is dying: attempt 2/5 tells it."""
+    caplog.set_level(logging.DEBUG, logger=_LOGGER_NAME)
+    ctx = SimpleNamespace(trace_request_ctx={'current_attempt': 2}, total_attempts=5)
+
+    _run_hooks(request_tracing._log_request_start(_SESSION, ctx, _start_params()))
+
+    assert caplog.messages[-1].endswith('(attempt 2/5)')
+
+
+def test_requests_without_retry_context_get_no_attempt_mark(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A request outside RetryClient must not invent attempt numbers."""
+    caplog.set_level(logging.DEBUG, logger=_LOGGER_NAME)
+    ctx = SimpleNamespace(trace_request_ctx=None)
+
+    _run_hooks(request_tracing._log_request_start(_SESSION, ctx, _start_params()))
+
+    assert '(attempt' not in caplog.messages[-1]
 
 
 def test_redacted_url_masks_query_values_but_keeps_keys() -> None:

@@ -10,16 +10,16 @@ hang or a killed handshake is readable straight from the log.
 from __future__ import annotations
 
 import logging
+from functools import partial
 from itertools import count
 from time import monotonic
-from typing import TYPE_CHECKING
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, cast
 from urllib.parse import parse_qsl, urlsplit
 
 from aiohttp import TraceConfig
 
 if TYPE_CHECKING:
-    from types import SimpleNamespace
-
     from aiohttp import (
         ClientSession,
         TraceConnectionCreateEndParams,
@@ -98,6 +98,18 @@ def _phases(ctx: SimpleNamespace) -> str:
     return ', '.join(parts)
 
 
+def _attempt_label(ctx: SimpleNamespace) -> str:
+    """Format the retry attempt mark for requests made through RetryClient."""
+    request_ctx = getattr(ctx, 'trace_request_ctx', None)
+    if not isinstance(request_ctx, dict):
+        return ''
+    attempt = cast('dict[str, object]', request_ctx).get('current_attempt')
+    if not isinstance(attempt, int):
+        return ''
+    total = getattr(ctx, 'total_attempts', None)
+    return f' (attempt {attempt}/{total})' if total else f' (attempt {attempt})'
+
+
 async def _log_request_start(
     _session: ClientSession,
     ctx: SimpleNamespace,
@@ -105,7 +117,13 @@ async def _log_request_start(
 ) -> None:
     ctx.req_id = next(_request_ids)
     ctx.started = monotonic()
-    _log.debug('#%d %s %s', ctx.req_id, params.method, redacted_url(str(params.url)))
+    _log.debug(
+        '#%d %s %s%s',
+        ctx.req_id,
+        params.method,
+        redacted_url(str(params.url)),
+        _attempt_label(ctx),
+    )
 
 
 async def _log_connection_start(
@@ -180,9 +198,18 @@ async def _log_request_exception(
     )
 
 
-def create_request_trace_config() -> TraceConfig:
-    """Build the request observer to attach to the ClientSession."""
-    trace_config = TraceConfig()
+def create_request_trace_config(total_attempts: int | None = None) -> TraceConfig:
+    """
+    Build the request observer to attach to the ClientSession.
+
+    `total_attempts` is the retry budget: with it the start line reads
+    'attempt 2/5' instead of a bare 'attempt 2'.
+    """
+    # Every per-request ctx is born knowing the retry budget.
+    ctx_factory = partial(SimpleNamespace, total_attempts=total_attempts)
+    trace_config = TraceConfig(
+        trace_config_ctx_factory=cast('type[SimpleNamespace]', ctx_factory)
+    )
     trace_config.on_request_start.append(_log_request_start)
     trace_config.on_connection_create_start.append(_log_connection_start)
     trace_config.on_connection_create_end.append(_mark_connection_end)
