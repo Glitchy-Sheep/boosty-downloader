@@ -2,8 +2,13 @@
 
 ### Fixed
 
+- Long runs no longer die on expired download links: when the CDN rejects a link that lived past its ~24-hour signature, the post is re-fetched from the API once and the download retries with fresh links - no manual rerun needed
 - New Boosty video url types `ondemand_dash` / `ondemand_hls` no longer trigger the "please report this at GitHub" warning - the client knows them now
 - A video that offers only streaming manifests (hls/dash/live) is skipped with an honest "streams are not supported yet" warning and retried on the next run; a manifest can no longer end up on disk pretending to be a video file
+
+### Changed
+
+- `--post-url` finds the post with one direct API request instead of walking the whole blog page by page - instant start and download links that are always fresh; a paywalled post without access now says so instead of saving an empty preview
 
 ## 3.4.0
 
