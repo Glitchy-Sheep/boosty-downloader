@@ -186,7 +186,7 @@ def test_unknown_video_url_type_is_reported_not_fatal():
         complete=True,
         player_urls=[
             BoostyOkVideoUrl(
-                type=BoostyUnknownValue(raw='ondemand_dash'), url='https://e/1'
+                type=BoostyUnknownValue(raw='imaginary_dash'), url='https://e/1'
             ),
             BoostyOkVideoUrl(type=BoostyOkVideoType.medium, url='https://e/2'),
         ],
@@ -198,7 +198,7 @@ def test_unknown_video_url_type_is_reported_not_fatal():
 
     assert len(result.post.post_data_chunks) == 1
     assert result.unknown_content == {
-        UnknownContent(path='data[0].playerUrls[0].type', raw='ondemand_dash')
+        UnknownContent(path='data[0].playerUrls[0].type', raw='imaginary_dash')
     }
 
 

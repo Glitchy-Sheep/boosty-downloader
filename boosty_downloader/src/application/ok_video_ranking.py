@@ -70,6 +70,8 @@ def get_quality_ranking() -> RankingDict[BoostyOkVideoType]:
     quality_ranking[BoostyOkVideoType.dash] = 3
     quality_ranking[BoostyOkVideoType.dash_uni] = 2
     quality_ranking[BoostyOkVideoType.live_cmaf] = 1
+    quality_ranking[BoostyOkVideoType.ondemand_hls] = 0
+    quality_ranking[BoostyOkVideoType.ondemand_dash] = -1
 
     return quality_ranking
 

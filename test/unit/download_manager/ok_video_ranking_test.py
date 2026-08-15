@@ -109,7 +109,7 @@ def test_known_quality_beats_unknown_type():
     video_urls = [
         BoostyOkVideoUrl(
             url='https://vd.example/unknown',
-            type=BoostyUnknownValue(raw='ondemand_dash'),
+            type=BoostyUnknownValue(raw='imaginary_dash'),
         ),
         BoostyOkVideoUrl(
             url='https://vd.example/medium', type=BoostyOkVideoType.medium
@@ -126,7 +126,7 @@ def test_only_unknown_types_gives_none():
     video_urls = [
         BoostyOkVideoUrl(
             url='https://vd.example/unknown',
-            type=BoostyUnknownValue(raw='ondemand_dash'),
+            type=BoostyUnknownValue(raw='imaginary_dash'),
         ),
     ]
 

@@ -42,10 +42,10 @@ def _real_errors(payload: dict) -> list:
 
 def test_enum_error_shows_the_offending_word():
     lines = format_validation_errors(
-        _real_errors({'data': [{'type': 'ondemand_dash'}], 'title': 't'})
+        _real_errors({'data': [{'type': 'imaginary_dash'}], 'title': 't'})
     )
 
-    assert lines == ["data[0].type: unknown value 'ondemand_dash'"]
+    assert lines == ["data[0].type: unknown value 'imaginary_dash'"]
 
 
 def test_non_enum_error_keeps_pydantic_message():

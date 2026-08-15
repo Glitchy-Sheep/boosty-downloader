@@ -27,6 +27,8 @@ class BoostyOkVideoType(Enum):
     dash = 'dash'
     dash_uni = 'dash_uni'
     live_cmaf = 'live_cmaf'
+    ondemand_hls = 'ondemand_hls'
+    ondemand_dash = 'ondemand_dash'
 
     ultra_hd = 'ultra_hd'
     quad_hd = 'quad_hd'
