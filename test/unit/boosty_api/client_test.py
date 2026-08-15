@@ -12,6 +12,7 @@ from aiohttp import ContentTypeError
 from boosty_downloader.src.infrastructure.boosty_api.core.client import (
     BoostyAPIClient,
     BoostyAPIInvalidUsernameError,
+    BoostyAPINoPostError,
     BoostyAPINoUsernameError,
     BoostyAPIUnauthorizedError,
     BoostyAPIUnknownError,
@@ -190,3 +191,43 @@ async def test_broken_pagination_still_fails_the_page():
 
     with pytest.raises(BoostyAPIValidationError):
         await client.get_author_posts('any_author', limit=1)
+
+
+@pytest.mark.asyncio
+async def test_single_post_parses_into_dto():
+    client = _make_client(_FakeResponse(status=200, json_data=VALID_POST))
+
+    post = await client.get_single_post('any_author', 'p1')
+
+    assert post.id == 'p1'
+    assert post.title == 'ok post'
+
+
+@pytest.mark.asyncio
+async def test_single_post_404_names_the_missing_post():
+    """A silent None would make 'not found' look like a network problem."""
+    client = _make_client(_FakeResponse(status=404, json_data={}))
+
+    with pytest.raises(BoostyAPINoPostError, match=r'p1.*any_author'):
+        await client.get_single_post('any_author', 'p1')
+
+
+@pytest.mark.asyncio
+async def test_single_post_validation_error_carries_details():
+    """One post has no page to survive on: broken parsing must say what broke."""
+    client = _make_client(
+        _FakeResponse(status=200, json_data={'id': 'b1', 'title': 'broken'})
+    )
+
+    with pytest.raises(BoostyAPIValidationError) as exc_info:
+        await client.get_single_post('any_author', 'b1')
+
+    assert exc_info.value.errors
+
+
+@pytest.mark.asyncio
+async def test_single_post_401_raises_unauthorized():
+    client = _make_client(_FakeResponse(status=401, json_data={}))
+
+    with pytest.raises(BoostyAPIUnauthorizedError):
+        await client.get_single_post('any_author', 'p1')
