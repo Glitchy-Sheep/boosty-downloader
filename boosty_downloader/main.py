@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+
 import typer
 from aiohttp.client_exceptions import ClientError
 from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
@@ -73,20 +75,24 @@ def entry_point() -> None:
             f"Author '{e.username}' not found. "
             'Username is the blog name from the author page URL: boosty.to/<username>'
         )
+        sys.exit(1)
     except BoostyAPIInvalidUsernameError as e:
         logger_instances.downloader_logger.error(
             f"'{e.username}' is not a valid username. "
             'Use the blog name from the author page URL (boosty.to/<username>), '
             'not an email'
         )
+        sys.exit(1)
     except BoostyAPIUnauthorizedError:
         logger_instances.downloader_logger.error(
             'Unauthorized: Bad credentials, please relogin and update your config file'
         )
+        sys.exit(1)
     except BoostyAPIUnknownError:
         logger_instances.downloader_logger.error(
             f'Unknown error occurred, please report this at GitHub issues of the project: {GITHUB_ISSUES_URL}'
         )
+        sys.exit(1)
     except BoostyAPIValidationError as e:
         details = '\n'.join(
             f'  - {line}' for line in format_validation_errors(e.errors)
@@ -97,17 +103,21 @@ def entry_point() -> None:
             '\n'
             f'{details}'
         )
+        sys.exit(1)
     except ApplicationCancelledError:
         logger_instances.downloader_logger.warning(
             'Download cancelled by user, see you later! 💘\n'
         )
+        sys.exit(130)
     except ApplicationTooManyFailuresError as e:
         logger_instances.downloader_logger.error(
             f'Download stopped after {e.streak} failed posts in a row - '
             'fix the cause and run the command again to resume.'
         )
+        sys.exit(1)
     except ClientError as e:
         report_network_error(e)
+        sys.exit(1)
     except (
         OperationalError,
         DatabaseError,
@@ -124,6 +134,7 @@ def entry_point() -> None:
             '👉 If this will still happen - please report it at GitHub issues:'
         )
         logger_instances.downloader_logger.info(f'👉 {GITHUB_ISSUES_URL}')
+        sys.exit(1)
 
 
 if __name__ == '__main__':
