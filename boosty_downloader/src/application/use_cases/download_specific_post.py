@@ -16,6 +16,13 @@ from boosty_downloader.src.application.use_cases.download_single_post import (
     DownloadSinglePostUseCase,
     compose_post_directory_name,
 )
+from boosty_downloader.src.infrastructure.boosty_api.core.client import (
+    BoostyAPINoPostError,
+    BoostyAPIValidationError,
+)
+from boosty_downloader.src.infrastructure.boosty_api.models.post.posts_request import (
+    SkippedPost,
+)
 from boosty_downloader.src.infrastructure.boosty_api.models.unknown_content import (
     collect_unknown_content,
 )
@@ -33,9 +40,6 @@ if TYPE_CHECKING:
     from boosty_downloader.src.infrastructure.boosty_api.models.post.post import (
         PostDTO,
     )
-    from boosty_downloader.src.infrastructure.boosty_api.models.post.posts_request import (
-        PostsResponse,
-    )
 
 
 class _PostDownloadOutcome(Enum):
@@ -50,10 +54,7 @@ class DownloadPostByUrlUseCase:
     """
     Handles downloading a specific Boosty post given its URL.
 
-    Right now it just iterates over the post and downloads it if UUID matches.
-    Because I can't find a way to get post by URL directly at this moment.
-
-    If you know how to do it, please open an issue on GitHub or PR with this functionality.
+    The post is requested directly by id - one API call, fresh signed urls.
     """
 
     def __init__(
@@ -93,22 +94,6 @@ class DownloadPostByUrlUseCase:
         else:
             return author, post_uuid
 
-    def _report_if_target_skipped(self, page: 'PostsResponse', post_uuid: str) -> bool:
-        """
-        Tell the user when the searched post exists but this client can't parse it.
-
-        A misleading "not found" would hide the real problem.
-        """
-        for skipped in page.skipped_posts:
-            if skipped.post_id == post_uuid:
-                self.context.progress_reporter.error(format_skipped_post(skipped))
-                self.context.progress_reporter.error(
-                    f'Please report this at {GITHUB_ISSUES_URL} '
-                    'so the client can be updated.'
-                )
-                return True
-        return False
-
     async def execute(self) -> None:
         author_name, post_uuid = self.extract_author_and_uuid_from_url()
         if not author_name or not post_uuid:
@@ -117,29 +102,37 @@ class DownloadPostByUrlUseCase:
             )
             return
 
-        current_page = 0
-
-        async for page in self.boosty_api.iterate_over_posts(
-            author_name=author_name, posts_per_page=100
-        ):
-            current_page += 1
-            self.context.progress_reporter.info(
-                f'[Page({current_page})] Searching for the post with UUID: {post_uuid}... '
-            )
-            if self._report_if_target_skipped(page, post_uuid):
-                return
-
-            for post in page.posts:
-                if post.id == post_uuid:
-                    outcome = await self._download_post(post)
-                    if outcome is _PostDownloadOutcome.downloaded:
-                        return
-                    # Note: cancel does not stop the search - it moves on
-                    # like a failed download.
-
-        self.context.progress_reporter.error(
-            'Failed to find and download the specified post.'
+        self.context.progress_reporter.info(
+            f'Requesting the post with UUID: {post_uuid}...'
         )
+        try:
+            post = await self.boosty_api.get_single_post(author_name, post_uuid)
+        except BoostyAPINoPostError:
+            self.context.progress_reporter.error(
+                'Failed to find and download the specified post.'
+            )
+            return
+        except BoostyAPIValidationError as e:
+            # The searched post exists but this client can't parse it -
+            # a misleading "not found" would hide the real problem.
+            self.context.progress_reporter.error(
+                format_skipped_post(
+                    SkippedPost(post_id=post_uuid, title='<unparsed>', errors=e.errors)
+                )
+            )
+            self.context.progress_reporter.error(
+                f'Please report this at {GITHUB_ISSUES_URL} '
+                'so the client can be updated.'
+            )
+            return
+
+        if not post.has_access:
+            self.context.progress_reporter.error(
+                f'Skip post (no access to content): {post.title}'
+            )
+            return
+
+        await self._download_post(post)
 
     async def _download_post(self, post: 'PostDTO') -> _PostDownloadOutcome:
         """Download the found post and name how it went."""
