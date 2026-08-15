@@ -186,7 +186,7 @@ def test_unknown_video_url_type_is_reported_not_fatal():
         complete=True,
         player_urls=[
             BoostyOkVideoUrl(
-                type=BoostyUnknownValue(raw='ondemand_dash'), url='https://e/1'
+                type=BoostyUnknownValue(raw='imaginary_dash'), url='https://e/1'
             ),
             BoostyOkVideoUrl(type=BoostyOkVideoType.medium, url='https://e/2'),
         ],
@@ -198,8 +198,54 @@ def test_unknown_video_url_type_is_reported_not_fatal():
 
     assert len(result.post.post_data_chunks) == 1
     assert result.unknown_content == {
-        UnknownContent(path='data[0].playerUrls[0].type', raw='ondemand_dash')
+        UnknownContent(path='data[0].playerUrls[0].type', raw='imaginary_dash')
     }
+
+
+def _video_with_urls(urls: list[BoostyOkVideoUrl]) -> BoostyPostDataOkVideoDTO:
+    return BoostyPostDataOkVideoDTO(
+        type='ok_video',
+        id='vid-1',
+        title='Стрим-запись',
+        failover_host='https://example.com',
+        duration=timedelta(seconds=120),
+        upload_status='ok',
+        complete=True,
+        player_urls=urls,
+    )
+
+
+def test_stream_only_video_is_skipped_with_a_warning_and_a_retry():
+    """A silent drop hides the video from the user forever."""
+    video = _video_with_urls(
+        [BoostyOkVideoUrl(type=BoostyOkVideoType.hls, url='https://e/v.m3u8')]
+    )
+
+    result = map_post_dto_to_domain(
+        _make_post_dto([video]), preferred_video_quality=BoostyOkVideoType.medium
+    )
+
+    assert result.post.post_data_chunks == []
+    assert result.stream_only_videos == ['Стрим-запись']
+    assert DownloadContentTypeFilter.boosty_videos in result.incomplete_content_types
+
+
+def test_video_with_all_empty_urls_stays_silently_dropped():
+    """No content at all is not a stream: the warning must not lie."""
+    video = _video_with_urls(
+        [
+            BoostyOkVideoUrl(type=BoostyOkVideoType.hls, url=''),
+            BoostyOkVideoUrl(type=BoostyOkVideoType.medium, url=''),
+        ]
+    )
+
+    result = map_post_dto_to_domain(
+        _make_post_dto([video]), preferred_video_quality=BoostyOkVideoType.medium
+    )
+
+    assert result.post.post_data_chunks == []
+    assert result.stream_only_videos == []
+    assert result.incomplete_content_types == set()
 
 
 def test_list_with_unknown_style_keeps_its_items():

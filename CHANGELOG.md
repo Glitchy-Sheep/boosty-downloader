@@ -1,5 +1,10 @@
 ## Unreleased
 
+### Fixed
+
+- New Boosty video url types `ondemand_dash` / `ondemand_hls` no longer trigger the "please report this at GitHub" warning - the client knows them now
+- A video that offers only streaming manifests (hls/dash/live) is skipped with an honest "streams are not supported yet" warning and retried on the next run; a manifest can no longer end up on disk pretending to be a video file
+
 ## 3.4.0
 
 ### Added

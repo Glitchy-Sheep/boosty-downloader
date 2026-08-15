@@ -50,6 +50,23 @@ class RankingDict(Generic[KT]):
         return None
 
 
+# The only formats download_file can save: plain progressive mp4 files.
+# Everything else (hls/dash/live/ondemand) is a streaming manifest and
+# needs a stream assembler the client does not have.
+DOWNLOADABLE_TYPES = frozenset(
+    {
+        BoostyOkVideoType.ultra_hd,
+        BoostyOkVideoType.quad_hd,
+        BoostyOkVideoType.full_hd,
+        BoostyOkVideoType.high,
+        BoostyOkVideoType.medium,
+        BoostyOkVideoType.low,
+        BoostyOkVideoType.tiny,
+        BoostyOkVideoType.lowest,
+    }
+)
+
+
 def get_quality_ranking() -> RankingDict[BoostyOkVideoType]:
     """Get the ranking dict for video quality"""
     quality_ranking = RankingDict[BoostyOkVideoType]()
@@ -70,6 +87,8 @@ def get_quality_ranking() -> RankingDict[BoostyOkVideoType]:
     quality_ranking[BoostyOkVideoType.dash] = 3
     quality_ranking[BoostyOkVideoType.dash_uni] = 2
     quality_ranking[BoostyOkVideoType.live_cmaf] = 1
+    quality_ranking[BoostyOkVideoType.ondemand_hls] = 0
+    quality_ranking[BoostyOkVideoType.ondemand_dash] = -1
 
     return quality_ranking
 
@@ -87,6 +106,8 @@ def get_best_video(
     while highest_rank_video_type := quality_ranking.pop_max():
         highest_rank_video_type = highest_rank_video_type[0]
 
+        if highest_rank_video_type not in DOWNLOADABLE_TYPES:
+            continue
         video_url = video_urls_map.get(highest_rank_video_type)
         if video_url and video_url.url:
             return video_url, highest_rank_video_type

@@ -22,7 +22,7 @@ GITHUB_ISSUES_URL = 'https://github.com/Glitchy-Sheep/boosty-downloader/issues'
 
 def format_validation_errors(errors: Sequence[ErrorDetails]) -> list[str]:
     """
-    Turn pydantic error details into lines like ``data[8].playerUrls[4].type: unknown value 'ondemand_dash'``.
+    Turn pydantic error details into lines like ``data[8].playerUrls[4].type: unknown value 'imaginary_dash'``.
 
     The path style matches collect_unknown_content, so users see the same
     addressing everywhere. Enum mismatches show the offending word instead
