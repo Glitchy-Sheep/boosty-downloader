@@ -211,6 +211,18 @@ def _check_tree_clean() -> None:
         _ok('working tree clean')
 
 
+def _offer_switch_to_main(current: str, refusal: str) -> None:
+    """Move to main with consent; local edits must not travel between branches."""
+    # -uno: untracked files stay put on switch, only tracked edits can travel.
+    if _run('git', 'status', '--porcelain', '-uno'):
+        _error(f'{refusal} - and the tree has local changes, commit or stash them')
+    _warn(f'current branch is {current}, the release continues from main')
+    if not Confirm.ask('  Switch to main?', default=False):
+        _error(refusal)
+    _run('git', 'switch', 'main', echo=True)
+    _ok('switched to main')
+
+
 def _check_branch(branch: str) -> bool:
     """
     Ensure the start point: a fresh main or the existing release branch.
@@ -226,7 +238,9 @@ def _check_branch(branch: str) -> bool:
         _ok(f'already on {branch} - continuing here')
         return False
     if current != 'main':
-        _error(f'start from main (or {branch}), current branch is {current}')
+        _offer_switch_to_main(
+            current, f'start from main (or {branch}), current branch is {current}'
+        )
     _run('git', 'pull', '--ff-only', 'origin', 'main')
     _ok('on main, fast-forwarded to origin/main')
     return True
@@ -422,7 +436,7 @@ def _check_main_ready() -> str:
     """Tagging happens on a fresh main that already carries the merged release."""
     current = _run('git', 'rev-parse', '--abbrev-ref', 'HEAD')
     if current != 'main':
-        _error(f'tagging happens on main - run: git checkout main (now on {current})')
+        _offer_switch_to_main(current, f'tagging happens on main (now on {current})')
     _check_tree_clean()
     _run('git', 'pull', '--ff-only')
     _run('git', 'fetch', '--tags', 'origin')
