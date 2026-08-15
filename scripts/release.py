@@ -3,17 +3,19 @@
 from __future__ import annotations
 
 import io
+import json
 import re
 import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, NoReturn, TypeAlias
+from typing import TYPE_CHECKING, NoReturn, TypeAlias, cast
 
 import tomllib
 
@@ -450,6 +452,51 @@ def _check_main_ready() -> str:
     return version
 
 
+# GitHub spawns the run a few seconds after the tag push; each gh call
+# itself takes ~5s, so the window is tries x (sleep + call) = ~30s.
+_RUN_POLL_TRIES = 5
+_RUN_POLL_SECONDS = 2
+
+
+def _parse_runs(raw: str) -> list[dict[str, str]]:
+    """Parse `gh run list --json` output; anything malformed means no runs."""
+    try:
+        data: object = json.loads(raw)
+    except ValueError:
+        return []
+    if not isinstance(data, list):
+        return []
+    return [
+        cast('dict[str, str]', item)
+        for item in cast('list[object]', data)
+        if isinstance(item, dict)
+    ]
+
+
+def _release_run_url(tag: str) -> str:
+    """
+    Resolve the workflow run the tag push has started.
+
+    The run page shows the whole pipeline live; when the run does not
+    appear within the poll window, the workflow's runs list is the answer.
+    """
+    for attempt in range(_RUN_POLL_TRIES):
+        if attempt:
+            time.sleep(_RUN_POLL_SECONDS)
+        code, out = _try(
+            'gh', 'run', 'list',
+            '--workflow', 'release.yaml',
+            '--limit', '10',
+            '--json', 'headBranch,url',
+        )  # fmt: skip
+        if code != 0:
+            continue
+        for run in _parse_runs(out):
+            if run.get('headBranch') == tag and run.get('url'):
+                return run['url']
+    return ACTIONS_URL
+
+
 def _confirm_tag(version: str, commands: Sequence[Command]) -> None:
     head = _run('git', 'log', '-1', '--format=%h %s')
     ladder = '\n'.join(_render_commands(commands, ''))
@@ -481,10 +528,12 @@ def _tag_flow() -> None:
     _confirm_tag(version, commands)
     for cmd in commands:
         _run(*cmd, echo=True)
+    console.print('  [dim]waiting for the workflow run to appear...[/]')
+    run_url = _release_run_url(f'v{version}')
     console.print()
     console.print(
         Panel(
-            f'v{version} is on its way:\n{ACTIONS_URL}',
+            f'v{version} is on its way:\n{run_url}',
             title='🎉 Released',
             border_style='green',
         )
