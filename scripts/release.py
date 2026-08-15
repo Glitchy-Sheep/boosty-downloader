@@ -3,17 +3,21 @@
 from __future__ import annotations
 
 import io
+import json
 import re
 import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, NoReturn, TypeAlias
+from typing import TYPE_CHECKING, NoReturn, TypeAlias, cast
+
+import tomllib
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -99,10 +103,11 @@ def _parse_semver(text: str) -> tuple[int, int, int]:
 
 
 def _current_version() -> str:
-    m = re.search(r'version = "(\d+\.\d+\.\d+)"', PYPROJECT.read_text(encoding='utf-8'))
-    if not m:
+    data = tomllib.loads(PYPROJECT.read_text(encoding='utf-8'))
+    version = data.get('project', {}).get('version')
+    if not isinstance(version, str):
         _error(f'could not find version in {PYPROJECT}')
-    return m.group(1)
+    return version
 
 
 def _bumped(current: str, part: str) -> str:
@@ -211,6 +216,18 @@ def _check_tree_clean() -> None:
         _ok('working tree clean')
 
 
+def _offer_switch_to_main(current: str, refusal: str) -> None:
+    """Move to main with consent; local edits must not travel between branches."""
+    # -uno: untracked files stay put on switch, only tracked edits can travel.
+    if _run('git', 'status', '--porcelain', '-uno'):
+        _error(f'{refusal} - and the tree has local changes, commit or stash them')
+    _warn(f'current branch is {current}, the release continues from main')
+    if not Confirm.ask('  Switch to main?', default=False):
+        _error(refusal)
+    _run('git', 'switch', 'main', echo=True)
+    _ok('switched to main')
+
+
 def _check_branch(branch: str) -> bool:
     """
     Ensure the start point: a fresh main or the existing release branch.
@@ -226,7 +243,9 @@ def _check_branch(branch: str) -> bool:
         _ok(f'already on {branch} - continuing here')
         return False
     if current != 'main':
-        _error(f'start from main (or {branch}), current branch is {current}')
+        _offer_switch_to_main(
+            current, f'start from main (or {branch}), current branch is {current}'
+        )
     _run('git', 'pull', '--ff-only', 'origin', 'main')
     _ok('on main, fast-forwarded to origin/main')
     return True
@@ -422,7 +441,7 @@ def _check_main_ready() -> str:
     """Tagging happens on a fresh main that already carries the merged release."""
     current = _run('git', 'rev-parse', '--abbrev-ref', 'HEAD')
     if current != 'main':
-        _error(f'tagging happens on main - run: git checkout main (now on {current})')
+        _offer_switch_to_main(current, f'tagging happens on main (now on {current})')
     _check_tree_clean()
     _run('git', 'pull', '--ff-only')
     _run('git', 'fetch', '--tags', 'origin')
@@ -431,6 +450,51 @@ def _check_main_ready() -> str:
         _error(f'CHANGELOG.md has no "## {version}" section - is the PR merged?')
     _ok(f'main carries v{version} with its changelog section')
     return version
+
+
+# GitHub spawns the run a few seconds after the tag push; each gh call
+# itself takes ~5s, so the window is tries x (sleep + call) = ~30s.
+_RUN_POLL_TRIES = 5
+_RUN_POLL_SECONDS = 2
+
+
+def _parse_runs(raw: str) -> list[dict[str, str]]:
+    """Parse `gh run list --json` output; anything malformed means no runs."""
+    try:
+        data: object = json.loads(raw)
+    except ValueError:
+        return []
+    if not isinstance(data, list):
+        return []
+    return [
+        cast('dict[str, str]', item)
+        for item in cast('list[object]', data)
+        if isinstance(item, dict)
+    ]
+
+
+def _release_run_url(tag: str) -> str:
+    """
+    Resolve the workflow run the tag push has started.
+
+    The run page shows the whole pipeline live; when the run does not
+    appear within the poll window, the workflow's runs list is the answer.
+    """
+    for attempt in range(_RUN_POLL_TRIES):
+        if attempt:
+            time.sleep(_RUN_POLL_SECONDS)
+        code, out = _try(
+            'gh', 'run', 'list',
+            '--workflow', 'release.yaml',
+            '--limit', '10',
+            '--json', 'headBranch,url',
+        )  # fmt: skip
+        if code != 0:
+            continue
+        for run in _parse_runs(out):
+            if run.get('headBranch') == tag and run.get('url'):
+                return run['url']
+    return ACTIONS_URL
 
 
 def _confirm_tag(version: str, commands: Sequence[Command]) -> None:
@@ -464,10 +528,12 @@ def _tag_flow() -> None:
     _confirm_tag(version, commands)
     for cmd in commands:
         _run(*cmd, echo=True)
+    console.print('  [dim]waiting for the workflow run to appear...[/]')
+    run_url = _release_run_url(f'v{version}')
     console.print()
     console.print(
         Panel(
-            f'v{version} is on its way:\n{ACTIONS_URL}',
+            f'v{version} is on its way:\n{run_url}',
             title='🎉 Released',
             border_style='green',
         )
