@@ -10,9 +10,11 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
+from boosty_downloader.src.application import post_retry as post_retry_module
 from boosty_downloader.src.application.di.download_context import DownloadContext
 from boosty_downloader.src.application.exceptions.application_errors import (
     ApplicationCancelledError,
+    ApplicationFailedDownloadError,
     ApplicationTooManyFailuresError,
 )
 from boosty_downloader.src.application.filtering import BoostyOkVideoType
@@ -22,10 +24,16 @@ from boosty_downloader.src.application.use_cases.download_all_posts import (
 from boosty_downloader.src.application.use_cases.download_single_post import (
     DownloadSinglePostUseCase,
 )
+from boosty_downloader.src.infrastructure.boosty_api.core.client import (
+    BoostyAPIUnknownError,
+)
 from boosty_downloader.src.infrastructure.boosty_api.models.post.extra import Extra
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
 from boosty_downloader.src.infrastructure.boosty_api.models.post.posts_request import (
     PostsResponse,
+)
+from boosty_downloader.src.infrastructure.file_downloader import (
+    DownloadUnexpectedStatusError,
 )
 
 if TYPE_CHECKING:
@@ -89,16 +97,28 @@ class _FakeFailedLogger:
 
 
 class _FakeApi:
-    """One page of posts, then stop."""
+    """One page of posts, then stop; single-post re-fetch is scriptable."""
 
-    def __init__(self, page: PostsResponse) -> None:
+    def __init__(
+        self, page: PostsResponse | None = None, refetch_error: Exception | None = None
+    ) -> None:
         self._page = page
+        self._refetch_error = refetch_error
+        self.refetched: list[str] = []
 
     async def iterate_over_posts(
         self, *args: object, **kwargs: object
     ) -> AsyncGenerator[PostsResponse, None]:
         del args, kwargs
+        assert self._page is not None
         yield self._page
+
+    async def get_single_post(self, author_name: str, post_id: str) -> PostDTO:
+        del author_name
+        self.refetched.append(post_id)
+        if self._refetch_error is not None:
+            raise self._refetch_error
+        return _post(post_id)
 
 
 def _post(post_id: str) -> PostDTO:
@@ -119,11 +139,14 @@ def _use_case(
     failed_logger: _FakeFailedLogger,
     *,
     skip_all_failures: bool = False,
+    api: _FakeApi | None = None,
 ) -> DownloadAllPostUseCase:
     page = PostsResponse(
         posts=[_post(post_id) for post_id in post_ids],
         extra=Extra(offset='', is_last=True),
     )
+    if api is not None:
+        api._page = page
     context = DownloadContext(
         author_name='author',
         downloader_session=cast('RetryClient', None),
@@ -136,7 +159,7 @@ def _use_case(
     )
     return DownloadAllPostUseCase(
         author_name='author',
-        boosty_api=cast('BoostyAPIClient', _FakeApi(page)),
+        boosty_api=cast('BoostyAPIClient', api if api is not None else _FakeApi(page)),
         destination=Path('unused'),
         download_context=context,
         skip_all_failures=skip_all_failures,
@@ -264,3 +287,90 @@ async def test_skip_all_failures_never_stops(
     assert len(calls) == 7, 'every post must be attempted despite the streak'
     summary = reporter.warnings[-1]
     assert 'failed to download (7)' in summary
+
+
+def _expired_error(post_id: str = 'p1') -> ApplicationFailedDownloadError:
+    error = ApplicationFailedDownloadError(
+        post_uuid=post_id, message='dead link', resource='r'
+    )
+    error.__cause__ = DownloadUnexpectedStatusError(
+        status=400, response_message='Bad Request', resource_url='https://cdn/x'
+    )
+    return error
+
+
+def _script_failing_then_ok(
+    monkeypatch: pytest.MonkeyPatch, failures: dict[str, Exception]
+) -> list[str]:
+    """Each scripted error fires once; later calls for that post succeed."""
+    calls: list[str] = []
+
+    async def scripted_execute(self: DownloadSinglePostUseCase) -> None:
+        calls.append(self.post_dto.id)
+        error = failures.pop(self.post_dto.id, None)
+        if error is not None:
+            raise error
+
+    monkeypatch.setattr(DownloadSinglePostUseCase, 'execute', scripted_execute)
+    return calls
+
+
+def _disable_retry_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _no_sleep(_delay: float) -> None:
+        return
+
+    monkeypatch.setattr(post_retry_module.asyncio, 'sleep', _no_sleep)
+
+
+@pytest.mark.asyncio
+async def test_expired_link_is_refreshed_and_the_post_downloads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Retrying the same dead url five times guaranteed a skipped post."""
+    reporter = _FakeReporter()
+    failed_logger = _FakeFailedLogger()
+    api = _FakeApi()
+    calls = _script_failing_then_ok(monkeypatch, {'p1': _expired_error()})
+
+    await _use_case(['p1'], reporter, failed_logger, api=api).execute()
+
+    assert api.refetched == ['p1'], 'the post must be re-fetched exactly once'
+    assert calls == ['p1', 'p1'], 'the second try must run with the fresh post'
+    assert reporter.errors == [], 'a healed post must not be reported as failed'
+    assert any('refreshing the post' in message for message in reporter.warnings)
+
+
+@pytest.mark.asyncio
+async def test_expired_link_is_refreshed_only_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Endless refreshes would loop forever when 400 is not about expiry."""
+    reporter = _FakeReporter()
+    failed_logger = _FakeFailedLogger()
+    api = _FakeApi()
+    _disable_retry_sleep(monkeypatch)
+    calls = _script_outcomes(monkeypatch, {'p1': _expired_error()})
+
+    await _use_case(['p1'], reporter, failed_logger, api=api).execute()
+
+    assert api.refetched == ['p1']
+    assert len(calls) == 5, 'the refresh consumes one slot of the 5-attempt budget'
+    assert any('Skip post after' in message for message in reporter.errors)
+
+
+@pytest.mark.asyncio
+async def test_failed_refresh_falls_back_to_the_normal_retry_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A dead API must not add a second failure on top of the dead link."""
+    reporter = _FakeReporter()
+    failed_logger = _FakeFailedLogger()
+    api = _FakeApi(refetch_error=BoostyAPIUnknownError(500, 'api down'))
+    _disable_retry_sleep(monkeypatch)
+    calls = _script_outcomes(monkeypatch, {'p1': _expired_error()})
+
+    await _use_case(['p1'], reporter, failed_logger, api=api).execute()
+
+    assert api.refetched == ['p1']
+    assert len(calls) == 5
+    assert any('Skip post after' in message for message in reporter.errors)

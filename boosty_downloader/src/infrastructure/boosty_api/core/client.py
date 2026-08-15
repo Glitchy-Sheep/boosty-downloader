@@ -70,6 +70,13 @@ class BoostyAPIUnknownError(BoostyAPIError):
         self.details = details
 
 
+class BoostyAPINoPostError(BoostyAPIError):
+    """Raised when the requested post does not exist in the author's blog."""
+
+    def __init__(self, author_name: str, post_id: str) -> None:
+        super().__init__(f'Post {post_id} not found in blog {author_name}')
+
+
 class BoostyAPIValidationError(BoostyAPIError):
     """
     Raised when validation error occurs, e.g. when response data is invalid.
@@ -216,6 +223,40 @@ class BoostyAPIClient:
             extra=extra,
             skipped_posts=skipped_posts,
         )
+
+    async def get_single_post(self, author_name: str, post_id: str) -> PostDTO:
+        """
+        Request one post directly: fresh signed urls in a single call.
+
+        Used to find a post by url without walking the listing and to
+        refresh expired signed links mid-run.
+        """
+        endpoint = f'blog/{author_name}/post/{post_id}'
+        post_raw = await self._throttled_get(endpoint)
+
+        if post_raw.status == HTTPStatus.NOT_FOUND:
+            raise BoostyAPINoPostError(author_name, post_id)
+        if post_raw.status == HTTPStatus.UNAUTHORIZED:
+            raise BoostyAPIUnauthorizedError
+        if post_raw.status != HTTPStatus.OK:
+            raise BoostyAPIUnknownError(
+                post_raw.status, f'Unexpected status code: {post_raw.status}'
+            )
+
+        # Status is OK here, so a non-JSON body means a broken response
+        try:
+            post_data = await post_raw.json()
+        except (ContentTypeError, json.JSONDecodeError) as e:
+            raise BoostyAPIUnknownError(
+                post_raw.status, 'Non-JSON response from the API'
+            ) from e
+
+        # A single post has no page to survive on: a post this client
+        # can't parse is an explicit error with the details to report.
+        try:
+            return PostDTO.model_validate(post_data)
+        except ValidationError as e:
+            raise BoostyAPIValidationError(errors=e.errors()) from e
 
     async def iterate_over_posts(
         self,

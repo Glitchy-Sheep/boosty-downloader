@@ -129,6 +129,26 @@ def _author_filename(name: str) -> str:
     return sanitize_filename(pure.stem, suffix=sanitize_filename(ext) if ext else '')
 
 
+# What a CDN answers on a dead signature; 403 can also mean genuinely
+# no access - one refresh attempt safely tells the two apart.
+_EXPIRED_LINK_STATUSES = frozenset(
+    {http.HTTPStatus.BAD_REQUEST, http.HTTPStatus.FORBIDDEN}
+)
+
+
+def is_expired_link_error(error: BaseException | None) -> bool:
+    """Check the error or its causes for a CDN answer typical of expired urls."""
+    current = error
+    while current is not None:
+        if (
+            isinstance(current, DownloadUnexpectedStatusError)
+            and current.status_code in _EXPIRED_LINK_STATUSES
+        ):
+            return True
+        current = current.__cause__
+    return False
+
+
 def _extension_to_append(content_type: str | None) -> str | None:
     """
     Pick an extension for a name that has none by construction.
