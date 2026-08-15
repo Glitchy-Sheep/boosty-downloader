@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Added
+
+- Debug log now tells what happened to every request, not only that it started: outcome lines with status and timing (`-> 200 in 0.31s`) or the error chain (`-> FAIL ClientConnectorError <- ConnectionResetError in 12.1s`), dns/connect phase timings, retry attempt numbers (`attempt 2/5`), and a live `connecting...` line - a hang or a killed handshake is readable straight from the log
+
 ### Fixed
 
 - Long post titles no longer crash the download with "File name too long" (#93, #88): folder and file names are cut to fit the filesystem limit, and the post date, the dedup id and the file extension always survive the cut

@@ -24,7 +24,8 @@ lint.ignore = [
 # S101: pytest is built on assert
 # PLR2004: magic numbers are fine in test assertions
 # INP001: test dir is not a package, no __init__.py needed
-"test/*" = ["D", "ANN201", "S101", "PLR2004", "INP001"]
+# SLF001: tests exercise private helpers directly
+"test/*" = ["D", "ANN201", "S101", "PLR2004", "INP001", "SLF001"]
 # T201: dev scripts may use print()
 # INP001: scripts dir is not a package
 # S603: subprocess with fixed args in trusted dev scripts

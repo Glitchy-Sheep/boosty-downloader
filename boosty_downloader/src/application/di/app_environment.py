@@ -78,7 +78,11 @@ class AppEnvironment:
                 # - sock_read: max quiet time between received chunks
                 timeout=aiohttp.ClientTimeout(total=None, connect=30, sock_read=90),
                 trust_env=True,
-                trace_configs=[create_request_trace_config()],
+                trace_configs=[
+                    create_request_trace_config(
+                        total_attempts=self.retry_options.attempts
+                    )
+                ],
             )
         )
 
