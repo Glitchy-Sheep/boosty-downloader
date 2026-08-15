@@ -11,8 +11,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
-import pytest
-
 from boosty_downloader.src.application.use_cases.download_single_post import (
     DownloadSinglePostUseCase,
 )
@@ -25,6 +23,8 @@ from boosty_downloader.src.domain.post import (
 from boosty_downloader.src.infrastructure.file_downloader import _extension_to_append
 
 if TYPE_CHECKING:
+    import pytest
+
     from boosty_downloader.src.application.di.download_context import DownloadContext
     from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
 
@@ -64,7 +64,6 @@ def _use_case_with_captured_flags(
     return use_case, captured
 
 
-@pytest.mark.asyncio
 async def test_author_names_are_never_touched(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -77,7 +76,6 @@ async def test_author_names_are_never_touched(
     assert captured == {'any.appimage': False, 'song.mp3': False}
 
 
-@pytest.mark.asyncio
 async def test_app_built_names_ask_for_an_extension(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

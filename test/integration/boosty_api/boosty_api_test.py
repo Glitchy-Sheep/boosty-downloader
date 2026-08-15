@@ -22,7 +22,6 @@ pytest_plugins = [
 ]
 
 
-@pytest.mark.asyncio
 async def test_get_posts_existing_author_success(
     authorized_boosty_client: BoostyAPIClient, integration_config: IntegrationTestConfig
 ) -> None:
@@ -37,7 +36,6 @@ async def test_get_posts_existing_author_success(
     )
 
 
-@pytest.mark.asyncio
 async def test_get_posts_nonexistent_author_raises_error(
     authorized_boosty_client: BoostyAPIClient, integration_config: IntegrationTestConfig
 ) -> None:
@@ -48,7 +46,6 @@ async def test_get_posts_nonexistent_author_raises_error(
         )
 
 
-@pytest.mark.asyncio
 async def test_get_posts_with_pagination(
     authorized_boosty_client: BoostyAPIClient, integration_config: IntegrationTestConfig
 ) -> None:
@@ -76,7 +73,6 @@ async def test_get_posts_with_pagination(
     )
 
 
-@pytest.mark.asyncio
 async def test_iterate_over_posts(
     authorized_boosty_client: BoostyAPIClient, integration_config: IntegrationTestConfig
 ) -> None:
@@ -101,7 +97,6 @@ async def test_iterate_over_posts(
     )
 
 
-@pytest.mark.asyncio
 async def test_invalid_token_raises_unauthorized_error(
     invalid_auth_boosty_client: BoostyAPIClient,
     integration_config: IntegrationTestConfig,

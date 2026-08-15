@@ -44,10 +44,27 @@ dev = [
     "pyright>=1.1.394,<2",
     "pytest>=9.0.0,<10",
     "pytest-asyncio>=1.1.0,<2",
+    "pytest-cov>=7.0.0,<8",
 ]
 
 [tool.uv]
 default-groups = "all"
+
+[tool.pytest.ini_options]
+# auto mode: every async test runs under asyncio without a manual mark.
+asyncio_mode = "auto"
+# Bare `pytest` runs only unit tests: integration ones need live credentials.
+# An explicit path argument (task test:api) overrides this.
+testpaths = ["test/unit"]
+# -ra: show the reason for every skip/xfail in the summary.
+addopts = "-ra --strict-markers"
+
+[tool.coverage.run]
+source = ["boosty_downloader"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
 
 # poetry-core stays as the build backend: uv build drives it through PEP 517,
 # and the packaging output stays identical to the pre-migration wheels.

@@ -16,7 +16,7 @@ from boosty_downloader.src.infrastructure.html_generator.renderer import (
 )
 
 
-def test_html_generator_templates():
+def test_html_generator_templates(tmp_path: Path):
     chunks: list[HtmlGenChunk] = [
         HtmlGenText(
             text_fragments=[
@@ -149,12 +149,10 @@ def test_html_generator_templates():
 
     data = render_html(chunks)
 
-    test_output_file = Path('test_output.html')
+    test_output_file = tmp_path / 'test_output.html'
 
     render_html_to_file(chunks, test_output_file)
 
     assert test_output_file.exists()
     assert test_output_file.read_text(encoding='utf-8') == data
     assert len(data) > 0
-
-    test_output_file.unlink(missing_ok=True)

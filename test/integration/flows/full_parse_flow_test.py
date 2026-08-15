@@ -6,8 +6,6 @@ Every stage failure names the place where the fix belongs.
 
 import warnings
 
-import pytest
-
 from boosty_downloader.src.application.mappers.post_mapper import (
     map_post_dto_to_domain,
 )
@@ -24,7 +22,6 @@ pytest_plugins = [
 DTO_DIR = 'boosty_downloader/src/infrastructure/boosty_api/models/post/post_data_types/'
 
 
-@pytest.mark.asyncio
 async def test_posts_page_parses_and_maps_to_domain(
     authorized_boosty_client: BoostyAPIClient, integration_config: IntegrationTestConfig
 ) -> None:

@@ -182,7 +182,6 @@ def _script_outcomes(
     return calls
 
 
-@pytest.mark.asyncio
 async def test_unexpected_error_skips_the_post_and_the_run_continues(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -201,7 +200,6 @@ async def test_unexpected_error_skips_the_post_and_the_run_continues(
     assert 'post p1' in summary
 
 
-@pytest.mark.asyncio
 async def test_path_too_long_error_carries_the_folder_hint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -218,7 +216,6 @@ async def test_path_too_long_error_carries_the_folder_hint(
     assert any(hint in message for _, message in failed_logger.entries)
 
 
-@pytest.mark.asyncio
 async def test_cancellation_reraises_and_stops_immediately(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -235,7 +232,6 @@ async def test_cancellation_reraises_and_stops_immediately(
     assert calls == ['p1'], 'nothing after the cancelled post may be downloaded'
 
 
-@pytest.mark.asyncio
 async def test_failure_streak_stops_the_run_with_a_systemic_diagnosis(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -256,7 +252,6 @@ async def test_failure_streak_stops_the_run_with_a_systemic_diagnosis(
     assert 'cached' in diagnosis, 'the stop message must explain how to resume'
 
 
-@pytest.mark.asyncio
 async def test_success_resets_the_streak(monkeypatch: pytest.MonkeyPatch) -> None:
     """Scattered failures are per-post problems - the run must reach the end."""
     reporter = _FakeReporter()
@@ -270,7 +265,6 @@ async def test_success_resets_the_streak(monkeypatch: pytest.MonkeyPatch) -> Non
     assert len(calls) == 9, 'four failures, a success, four more - never a stop'
 
 
-@pytest.mark.asyncio
 async def test_skip_all_failures_never_stops(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -322,7 +316,6 @@ def _disable_retry_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(post_retry_module.asyncio, 'sleep', _no_sleep)
 
 
-@pytest.mark.asyncio
 async def test_expired_link_is_refreshed_and_the_post_downloads(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -340,7 +333,6 @@ async def test_expired_link_is_refreshed_and_the_post_downloads(
     assert any('refreshing the post' in message for message in reporter.warnings)
 
 
-@pytest.mark.asyncio
 async def test_expired_link_is_refreshed_only_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -358,7 +350,6 @@ async def test_expired_link_is_refreshed_only_once(
     assert any('Skip post after' in message for message in reporter.errors)
 
 
-@pytest.mark.asyncio
 async def test_failed_refresh_falls_back_to_the_normal_retry_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

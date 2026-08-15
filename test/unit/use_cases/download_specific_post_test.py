@@ -7,8 +7,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
-import pytest
-
 from boosty_downloader.src.application.di.download_context import DownloadContext
 from boosty_downloader.src.application.filtering import BoostyOkVideoType
 from boosty_downloader.src.application.use_cases.download_single_post import (
@@ -24,6 +22,7 @@ from boosty_downloader.src.infrastructure.boosty_api.core.client import (
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
 
 if TYPE_CHECKING:
+    import pytest
     from aiohttp_retry import RetryClient
 
     from boosty_downloader.src.cli.console_progress_reporter import ProgressReporter
@@ -136,7 +135,6 @@ def _script_download(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return calls
 
 
-@pytest.mark.asyncio
 async def test_post_downloads_via_one_direct_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -152,7 +150,6 @@ async def test_post_downloads_via_one_direct_request(
     assert reporter.errors == []
 
 
-@pytest.mark.asyncio
 async def test_missing_post_reports_not_found(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -166,7 +163,6 @@ async def test_missing_post_reports_not_found(
     assert any('Failed to find' in message for message in reporter.errors)
 
 
-@pytest.mark.asyncio
 async def test_unparsable_post_asks_to_report(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -181,7 +177,6 @@ async def test_unparsable_post_asks_to_report(
     assert any('Please report this' in message for message in reporter.errors)
 
 
-@pytest.mark.asyncio
 async def test_no_access_post_is_not_downloaded(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
