@@ -8,6 +8,7 @@
 
 ### Changed
 
+- The app now exits with code 1 on every handled error (author not found, bad credentials, network failure, stopped run) and 130 on Ctrl+C - scripts and cron jobs can finally tell a failed run from a successful one
 - `--post-url` finds the post with one direct API request instead of walking the whole blog page by page - instant start and download links that are always fresh; a paywalled post without access now says so instead of saving an empty preview
 
 ## 3.4.0
