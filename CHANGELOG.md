@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 3.4.0
+
 ### Added
 
 - Debug log now tells what happened to every request, not only that it started: outcome lines with status and timing (`-> 200 in 0.31s`) or the error chain (`-> FAIL ClientConnectorError <- ConnectionResetError in 12.1s`), dns/connect phase timings, retry attempt numbers (`attempt 2/5`), and a live `connecting...` line - a hang or a killed handshake is readable straight from the log
