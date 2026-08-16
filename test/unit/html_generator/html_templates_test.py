@@ -10,6 +10,7 @@ from boosty_downloader.src.infrastructure.html_generator.models import (
     HtmlGenText,
     HtmlGenVideo,
     HtmlListItem,
+    HtmlListStyle,
     HtmlTextFragment,
     HtmlTextStyle,
 )
@@ -28,7 +29,7 @@ def _showcase_chunks() -> list[HtmlGenChunk]:
                 HtmlTextFragment(
                     text='This post includes various elements: text, media, and lists.',
                 ),
-                HtmlTextFragment(text='<NEW_LINE_SYMBOL>'),
+                HtmlTextFragment(text='\n'),
                 HtmlTextFragment(
                     text="Let's dive in below:",
                     style=HtmlTextStyle(italic=True),
@@ -134,6 +135,23 @@ def _showcase_chunks() -> list[HtmlGenChunk]:
                 )
             ]
         ),
+        HtmlGenList(
+            style=HtmlListStyle.ORDERED,
+            items=[
+                HtmlListItem(
+                    data=[
+                        HtmlGenText(text_fragments=[HtmlTextFragment(text='Step one')])
+                    ],
+                    nested_items=[],
+                ),
+                HtmlListItem(
+                    data=[
+                        HtmlGenText(text_fragments=[HtmlTextFragment(text='Step two')])
+                    ],
+                    nested_items=[],
+                ),
+            ],
+        ),
         HtmlGenImage(url='https://example.com/banner.jpg'),
         HtmlGenVideo(
             title='Exclusive Behind the Scenes',
@@ -142,7 +160,7 @@ def _showcase_chunks() -> list[HtmlGenChunk]:
         HtmlGenVideo(url='https://www.youtube.com/watch?v=dQw4w9WgXcQ'),
         HtmlGenText(
             text_fragments=[
-                HtmlTextFragment(text='<NEW_LINE_SYMBOL>'),
+                HtmlTextFragment(text='\n'),
                 HtmlTextFragment(text='Thanks for reading!', header_level=2),
                 HtmlTextFragment(
                     text='Feel free to leave a comment or suggestion below.',
@@ -150,8 +168,8 @@ def _showcase_chunks() -> list[HtmlGenChunk]:
             ]
         ),
         HtmlGenFile(
-            # The markup in the name pins current renderer behavior: file links
-            # are built with a plain f-string, the name goes into HTML unescaped.
+            # Markup in the name pins the escaping: it must land in HTML
+            # as text, never as tags.
             url='files/release-notes.zip',
             filename='release <v2> & notes.zip',
         ),
@@ -162,11 +180,11 @@ def _showcase_chunks() -> list[HtmlGenChunk]:
 def test_html_generator_templates(tmp_path: Path):
     chunks = _showcase_chunks()
 
-    data = render_html(chunks)
+    data = render_html(chunks, page_title='Showcase post')
 
     test_output_file = tmp_path / 'test_output.html'
 
-    render_html_to_file(chunks, test_output_file)
+    render_html_to_file(chunks, test_output_file, page_title='Showcase post')
 
     assert test_output_file.exists()
     assert test_output_file.read_text(encoding='utf-8') == data
@@ -182,7 +200,7 @@ def test_showcase_matches_the_pinned_golden_html():
     An intentional template change regenerates the file:
     UPDATE_GOLDEN=1 task test - then review the golden diff.
     """
-    html = render_html(_showcase_chunks())
+    html = render_html(_showcase_chunks(), page_title='Showcase post')
 
     if os.environ.get('UPDATE_GOLDEN') == '1':
         GOLDEN_FILE.write_text(html, encoding='utf-8')

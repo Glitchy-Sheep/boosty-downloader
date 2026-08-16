@@ -24,6 +24,7 @@ from boosty_downloader.src.domain.post_data_chunks import (
 )
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_list import (
     BoostyListItemType,
+    BoostyListStyle,
     BoostyPostDataListDTO,
     BoostyPostDataListItemDTO,
 )
@@ -67,4 +68,12 @@ def to_domain_list_chunk(post_list: BoostyPostDataListDTO) -> PostDataChunkTextu
     # Convert all items
     domain_items = [convert_list_item(api_item) for api_item in post_list.items]
 
-    return PostDataChunkTextualList(items=domain_items)
+    # Only 'ordered' switches the numbering on: an absent or unknown style
+    # falls back to a plain bullet list instead of failing the post.
+    style = (
+        PostDataChunkTextualList.ListStyle.ordered
+        if post_list.style is BoostyListStyle.ordered
+        else PostDataChunkTextualList.ListStyle.unordered
+    )
+
+    return PostDataChunkTextualList(items=domain_items, style=style)

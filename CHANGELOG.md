@@ -2,6 +2,11 @@
 
 ### Fixed
 
+- Rendered posts look right in the browser and in the editor: the tab shows the post title instead of "HTML Report", numbered lists keep their numbering instead of turning into bullets, and post.html itself is ~2.5x smaller with properly indented markup instead of walls of blank lines
+- A file whose name contains HTML markup (like `report <final>.zip`) no longer breaks the post page - names are escaped now
+- External videos saved as webm/mkv get a matching MIME type in the player instead of a hardcoded mp4 one
+- Already downloaded posts keep their old HTML: the new rendering applies to new and updated posts (a full re-render command is planned separately)
+
 - Long runs no longer die on expired download links: when the CDN rejects a link that lived past its ~24-hour signature, the post is re-fetched from the API once and the download retries with fresh links - no manual rerun needed
 - New Boosty video url types `ondemand_dash` / `ondemand_hls` no longer trigger the "please report this at GitHub" warning - the client knows them now
 - A video that offers only streaming manifests (hls/dash/live) is skipped with an honest "streams are not supported yet" warning and retried on the next run; a manifest can no longer end up on disk pretending to be a video file

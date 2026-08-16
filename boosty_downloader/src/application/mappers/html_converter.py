@@ -66,8 +66,11 @@ def convert_list_to_html(chunk: PostDataChunkTextualList) -> HtmlGenList:
         return HtmlListItem(data=data, nested_items=nested_items)
 
     items = [convert_list_item(item) for item in chunk.items]
-    # Default to unordered list since the domain model doesn't have style
-    style = HtmlListStyle.UNORDERED
+    style = (
+        HtmlListStyle.ORDERED
+        if chunk.style is PostDataChunkTextualList.ListStyle.ordered
+        else HtmlListStyle.UNORDERED
+    )
 
     return HtmlGenList(items=items, style=style)
 

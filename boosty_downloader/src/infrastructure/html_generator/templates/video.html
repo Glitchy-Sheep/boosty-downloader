@@ -1,4 +1,4 @@
 <video controls>
-    <source src="{{ video.url }}" type="video/mp4">
+    <source src="{{ src }}"{% if mime_type %} type="{{ mime_type }}"{% endif %}>
     Your browser does not support the video tag.
 </video>

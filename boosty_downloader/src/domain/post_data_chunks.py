@@ -25,7 +25,7 @@ class PostDataChunkImage:
 
 @dataclass
 class PostDataChunkText:
-    """
+    r"""
     Represent a textual data chunk within a post.
 
     It can contain multiple text fragments, each with optional styling and links.
@@ -36,7 +36,7 @@ class PostDataChunkText:
                 PostDataChunkText.TextFragment(text="Hello, world!", bold=True),
                 PostDataChunkText.TextFragment(text="Visit Boosty", link_data="https://boosty.com", header_level=1),
                 PostDataChunkText.TextFragment(text="This is a normal text."),
-                PostDataChunkText.TextFragment(text="<NEW_LINE_SYMBOL>"),
+                PostDataChunkText.TextFragment(text="\n"),
             ]
     """
 
@@ -158,3 +158,4 @@ class PostDataChunkTextualList:
         unordered = 'unordered'
 
     items: list[ListItem]
+    style: ListStyle = ListStyle.unordered

@@ -217,7 +217,13 @@ class DownloadSinglePostUseCase:
 
             if DownloadContentTypeFilter.post_content in missing_parts:
                 try:
-                    render_html_to_file(post_html, out_path=self.post_file_path)
+                    render_html_to_file(
+                        post_html,
+                        out_path=self.post_file_path,
+                        # Empty titles happen: the folder name always carries
+                        # the date, the title and the id.
+                        page_title=post.title.strip() or self.destination.name,
+                    )
                 except CancelledError:
                     self.post_file_path.unlink(missing_ok=True)
                     raise
