@@ -1,0 +1,275 @@
+{
+  "donators": {
+    "data": [],
+    "extra": {
+      "isLast": true
+    }
+  },
+  "donations": 0,
+  "hasAccess": true,
+  "intId": 101,
+  "price": 0,
+  "int_id": 101,
+  "currencyDonations": {
+    "EUR": 0,
+    "RUB": 0,
+    "USD": 0
+  },
+  "isBlocked": false,
+  "isCommentsDenied": false,
+  "user": {
+    "avatarUrl": "https://images.example/avatar.png",
+    "blogUrl": "example_author",
+    "currency": "RUB",
+    "flags": {
+      "showPostDonations": false
+    },
+    "hasAvatar": true,
+    "id": 424242,
+    "isOfficial": false,
+    "name": "Example Author"
+  },
+  "reactionCounters": [],
+  "data": [
+    {
+      "type": "text",
+      "content": "[\"Hello from the fixture post!\", \"unstyled\", []]",
+      "modificator": ""
+    },
+    {
+      "content": "",
+      "modificator": "BLOCK_END",
+      "type": "text"
+    },
+    {
+      "type": "text",
+      "content": "[\"\", \"unstyled\", []]",
+      "modificator": ""
+    },
+    {
+      "type": "text",
+      "modificator": "BLOCK_END",
+      "content": ""
+    },
+    {
+      "type": "text",
+      "content": "[\"\", \"unstyled\", []]",
+      "modificator": ""
+    },
+    {
+      "content": "",
+      "modificator": "BLOCK_END",
+      "type": "text"
+    },
+    {
+      "height": 208,
+      "id": "10000000-0000-4000-8000-000000000201",
+      "isInvalid": null,
+      "size": 10941,
+      "rendition": "",
+      "url": "https://images.example/image/10000000-0000-4000-8000-000000000201",
+      "width": 1216,
+      "type": "image"
+    },
+    {
+      "url": "https://cdn.example/file/10000000-0000-4000-8000-000000000301",
+      "title": "fixture-archive.zip",
+      "type": "file",
+      "complete": true,
+      "size": 4444053,
+      "id": "10000000-0000-4000-8000-000000000301",
+      "isInvalid": null
+    },
+    {
+      "type": "ok_video",
+      "url": "",
+      "playerUrls": [
+        {
+          "url": "https://video.example/dash.mpd?fake-sig",
+          "type": "dash"
+        },
+        {
+          "url": "https://video.example/low.mp4?fake-sig",
+          "type": "low"
+        },
+        {
+          "type": "live_cmaf",
+          "url": ""
+        },
+        {
+          "url": "",
+          "type": "live_dash"
+        },
+        {
+          "type": "dash_uni",
+          "url": ""
+        },
+        {
+          "url": "",
+          "type": "live_playback_hls"
+        },
+        {
+          "url": "https://video.example/medium.mp4?fake-sig",
+          "type": "medium"
+        },
+        {
+          "type": "lowest",
+          "url": "https://video.example/lowest.mp4?fake-sig"
+        },
+        {
+          "type": "live_hls",
+          "url": ""
+        },
+        {
+          "url": "https://video.example/hls.m3u8?fake-sig",
+          "type": "hls"
+        },
+        {
+          "type": "tiny",
+          "url": "https://video.example/tiny.mp4?fake-sig"
+        },
+        {
+          "type": "ondemand_dash",
+          "url": ""
+        },
+        {
+          "url": "",
+          "type": "quad_hd"
+        },
+        {
+          "url": "",
+          "type": "high"
+        },
+        {
+          "url": "",
+          "type": "full_hd"
+        },
+        {
+          "url": "",
+          "type": "ultra_hd"
+        },
+        {
+          "type": "live_playback_dash",
+          "url": ""
+        },
+        {
+          "url": "",
+          "type": "ondemand_hls"
+        },
+        {
+          "type": "live_ondemand_hls",
+          "url": ""
+        }
+      ],
+      "duration": 198,
+      "isInvalid": null,
+      "defaultPreview": "https://images.example/preview/default",
+      "viewsCounter": 0,
+      "timeCode": 5,
+      "title": "Fixture video",
+      "uploadStatus": "ok",
+      "preview": "https://images.example/preview/full",
+      "status": "ok",
+      "complete": true,
+      "width": 654,
+      "showViewsCounter": true,
+      "failoverHost": "video-failover.example",
+      "vid": "9000000000000",
+      "id": "10000000-0000-4000-8000-000000000400",
+      "height": 480
+    },
+    {
+      "type": "audio_file",
+      "duration": 3,
+      "viewsCounter": 0,
+      "showViewsCounter": true,
+      "title": "fixture-song.mp3",
+      "fileType": "MP3",
+      "artist": "Example Artist",
+      "size": 24494,
+      "isInvalid": null,
+      "track": "",
+      "complete": true,
+      "uploadStatus": null,
+      "timeCode": 3,
+      "album": "",
+      "id": "10000000-0000-4000-8000-000000000500",
+      "url": "https://cdn.example/audio/10000000-0000-4000-8000-000000000500"
+    },
+    {
+      "type": "hologram_message",
+      "id": "10000000-0000-4000-8000-000000000600",
+      "complete": true
+    }
+  ],
+  "isWaitingVideo": false,
+  "teaser": [],
+  "frame": {
+    "next": {
+      "title": "Trying audio",
+      "publishTime": 1767584516,
+      "id": "369e29ef-ae70-412c-9278-15a355a1f15f"
+    },
+    "previous": null
+  },
+  "title": "Fixture post with every content type",
+  "count": {
+    "likes": 0,
+    "comments": 0,
+    "reactions": {}
+  },
+  "isPinned": false,
+  "contentCounters": [
+    {
+      "count": 1,
+      "size": 4444053,
+      "type": "file"
+    },
+    {
+      "type": "text",
+      "size": 0,
+      "count": 6
+    },
+    {
+      "type": "image",
+      "size": 10941,
+      "count": 1
+    },
+    {
+      "size": 0,
+      "type": "ok_video",
+      "count": 1
+    }
+  ],
+  "isPublished": true,
+  "id": "00000000-0000-4000-8000-000000000001",
+  "isMarketing": false,
+  "publishTime": 1750000000,
+  "showViewsCounter": true,
+  "createdAt": 1750000000,
+  "signedQuery": "?fake-signed-query",
+  "isLiked": false,
+  "isRecord": false,
+  "comments": {
+    "data": [],
+    "extra": {
+      "isFirst": true,
+      "isLast": true
+    }
+  },
+  "reactionsDisabled": false,
+  "updatedAt": 1750100000,
+  "tags": [],
+  "isDeleted": false,
+  "promo": null,
+  "hasAdultContent": false,
+  "sortOrder": 1767499341,
+  "currencyPrices": {
+    "EUR": 0,
+    "RUB": 0,
+    "USD": 0
+  },
+  "isShowcaseVisible": false,
+  "bundleIds": [],
+  "advertiserInfo": null
+}

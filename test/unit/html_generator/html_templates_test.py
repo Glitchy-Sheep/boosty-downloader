@@ -1,7 +1,10 @@
+import os
 from pathlib import Path
 
 from boosty_downloader.src.infrastructure.html_generator.models import (
+    HtmlGenAudio,
     HtmlGenChunk,
+    HtmlGenFile,
     HtmlGenImage,
     HtmlGenList,
     HtmlGenText,
@@ -16,8 +19,9 @@ from boosty_downloader.src.infrastructure.html_generator.renderer import (
 )
 
 
-def test_html_generator_templates(tmp_path: Path):
-    chunks: list[HtmlGenChunk] = [
+def _showcase_chunks() -> list[HtmlGenChunk]:
+    """Fresh chunks per call: the renderer mutates video and audio urls in place."""
+    return [
         HtmlGenText(
             text_fragments=[
                 HtmlTextFragment(text='Welcome to my Boosty!', header_level=1),
@@ -145,7 +149,18 @@ def test_html_generator_templates(tmp_path: Path):
                 ),
             ]
         ),
+        HtmlGenFile(
+            # The markup in the name pins current renderer behavior: file links
+            # are built with a plain f-string, the name goes into HTML unescaped.
+            url='files/release-notes.zip',
+            filename='release <v2> & notes.zip',
+        ),
+        HtmlGenAudio(title='fixture-song.mp3', url='audio/fixture-song.mp3'),
     ]
+
+
+def test_html_generator_templates(tmp_path: Path):
+    chunks = _showcase_chunks()
 
     data = render_html(chunks)
 
@@ -156,3 +171,20 @@ def test_html_generator_templates(tmp_path: Path):
     assert test_output_file.exists()
     assert test_output_file.read_text(encoding='utf-8') == data
     assert len(data) > 0
+
+
+GOLDEN_FILE = Path(__file__).parents[2] / 'fixtures' / 'rendered_post.html'
+
+
+def test_showcase_matches_the_pinned_golden_html():
+    """A refactoring must not change a single rendered byte unnoticed.
+
+    An intentional template change regenerates the file:
+    UPDATE_GOLDEN=1 task test - then review the golden diff.
+    """
+    html = render_html(_showcase_chunks())
+
+    if os.environ.get('UPDATE_GOLDEN') == '1':
+        GOLDEN_FILE.write_text(html, encoding='utf-8')
+
+    assert html == GOLDEN_FILE.read_text(encoding='utf-8')
