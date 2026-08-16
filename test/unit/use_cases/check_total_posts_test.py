@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, cast
 
-import pytest
-
 from boosty_downloader.src.application.use_cases.check_total_posts import (
     ReportTotalPostsCountUseCase,
 )
@@ -77,7 +75,6 @@ def _make_post_with_unknown_chunk() -> PostDTO:
     )
 
 
-@pytest.mark.asyncio
 async def test_skipped_post_warns_inline_and_run_summary_reports_everything():
     page = PostsResponse(
         posts=[_make_post_with_unknown_chunk()],

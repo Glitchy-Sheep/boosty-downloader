@@ -60,7 +60,6 @@ def _make_client(response: _FakeResponse) -> BoostyAPIClient:
 VALID_EXTRA: Any = {'offset': '', 'isLast': True}
 
 
-@pytest.mark.asyncio
 async def test_404_maps_to_no_username_error_without_parsing_body():
     client = _make_client(
         _FakeResponse(status=404, json_error=_JsonMustNotBeCalledError())
@@ -72,7 +71,6 @@ async def test_404_maps_to_no_username_error_without_parsing_body():
     assert exc_info.value.username == 'ghost_author'
 
 
-@pytest.mark.asyncio
 async def test_401_maps_to_unauthorized_error_without_parsing_body():
     client = _make_client(
         _FakeResponse(status=401, json_error=_JsonMustNotBeCalledError())
@@ -82,7 +80,6 @@ async def test_401_maps_to_unauthorized_error_without_parsing_body():
         await client.get_author_posts('any_author', limit=1)
 
 
-@pytest.mark.asyncio
 async def test_400_maps_to_invalid_username_error_without_parsing_body():
     client = _make_client(
         _FakeResponse(status=400, json_error=_JsonMustNotBeCalledError())
@@ -94,7 +91,6 @@ async def test_400_maps_to_invalid_username_error_without_parsing_body():
     assert exc_info.value.username == 'someone@gmail.com'
 
 
-@pytest.mark.asyncio
 async def test_unexpected_status_maps_to_unknown_error():
     client = _make_client(
         _FakeResponse(status=500, json_error=_JsonMustNotBeCalledError())
@@ -112,7 +108,6 @@ async def test_unexpected_status_maps_to_unknown_error():
     ],
     ids=['wrong_content_type', 'broken_json_body'],
 )
-@pytest.mark.asyncio
 async def test_200_with_non_json_body_maps_to_unknown_error(parse_error: Exception):
     client = _make_client(_FakeResponse(status=200, json_error=parse_error))
 
@@ -120,7 +115,6 @@ async def test_200_with_non_json_body_maps_to_unknown_error(parse_error: Excepti
         await client.get_author_posts('any_author', limit=1)
 
 
-@pytest.mark.asyncio
 async def test_200_with_valid_empty_page_returns_posts_response():
     client = _make_client(
         _FakeResponse(status=200, json_data={'data': [], 'extra': VALID_EXTRA})
@@ -144,7 +138,6 @@ VALID_POST: Any = {
 }
 
 
-@pytest.mark.asyncio
 async def test_broken_post_is_skipped_and_page_survives():
     client = _make_client(
         _FakeResponse(
@@ -165,7 +158,6 @@ async def test_broken_post_is_skipped_and_page_survives():
     assert response.skipped_posts[0].errors
 
 
-@pytest.mark.asyncio
 async def test_page_of_only_broken_posts_returns_empty_not_error():
     client = _make_client(
         _FakeResponse(
@@ -180,7 +172,6 @@ async def test_page_of_only_broken_posts_returns_empty_not_error():
     assert len(response.skipped_posts) == 2
 
 
-@pytest.mark.asyncio
 async def test_broken_pagination_still_fails_the_page():
     client = _make_client(
         _FakeResponse(
@@ -193,7 +184,6 @@ async def test_broken_pagination_still_fails_the_page():
         await client.get_author_posts('any_author', limit=1)
 
 
-@pytest.mark.asyncio
 async def test_single_post_parses_into_dto():
     client = _make_client(_FakeResponse(status=200, json_data=VALID_POST))
 
@@ -203,7 +193,6 @@ async def test_single_post_parses_into_dto():
     assert post.title == 'ok post'
 
 
-@pytest.mark.asyncio
 async def test_single_post_404_names_the_missing_post():
     """A silent None would make 'not found' look like a network problem."""
     client = _make_client(_FakeResponse(status=404, json_data={}))
@@ -212,7 +201,6 @@ async def test_single_post_404_names_the_missing_post():
         await client.get_single_post('any_author', 'p1')
 
 
-@pytest.mark.asyncio
 async def test_single_post_validation_error_carries_details():
     """One post has no page to survive on: broken parsing must say what broke."""
     client = _make_client(
@@ -225,7 +213,6 @@ async def test_single_post_validation_error_carries_details():
     assert exc_info.value.errors
 
 
-@pytest.mark.asyncio
 async def test_single_post_401_raises_unauthorized():
     client = _make_client(_FakeResponse(status=401, json_data={}))
 
