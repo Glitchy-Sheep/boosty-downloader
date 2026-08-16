@@ -75,8 +75,11 @@ def render_html_chunk(chunk: HtmlGenChunk) -> str:
 def render_html(chunks: list[HtmlGenChunk], page_title: str) -> str:
     """Render a list of HTML chunks to a full HTML page."""
     rendered = [render_html_chunk(chunk) for chunk in chunks]
+    # Empty chunks (e.g. text with no fragments) would otherwise leave
+    # blank lines between their neighbours.
+    parts = [part.strip('\n') for part in rendered if part.strip()]
     return env.get_template('base.html').render(
-        content='\n'.join(rendered), title=page_title
+        content='\n'.join(parts), title=page_title
     )
 
 

@@ -29,7 +29,7 @@ def _showcase_chunks() -> list[HtmlGenChunk]:
                 HtmlTextFragment(
                     text='This post includes various elements: text, media, and lists.',
                 ),
-                HtmlTextFragment(text='<NEW_LINE_SYMBOL>'),
+                HtmlTextFragment(text='\n'),
                 HtmlTextFragment(
                     text="Let's dive in below:",
                     style=HtmlTextStyle(italic=True),
@@ -160,7 +160,7 @@ def _showcase_chunks() -> list[HtmlGenChunk]:
         HtmlGenVideo(url='https://www.youtube.com/watch?v=dQw4w9WgXcQ'),
         HtmlGenText(
             text_fragments=[
-                HtmlTextFragment(text='<NEW_LINE_SYMBOL>'),
+                HtmlTextFragment(text='\n'),
                 HtmlTextFragment(text='Thanks for reading!', header_level=2),
                 HtmlTextFragment(
                     text='Feel free to leave a comment or suggestion below.',
@@ -168,8 +168,8 @@ def _showcase_chunks() -> list[HtmlGenChunk]:
             ]
         ),
         HtmlGenFile(
-            # The markup in the name pins current renderer behavior: file links
-            # are built with a plain f-string, the name goes into HTML unescaped.
+            # Markup in the name pins the escaping: it must land in HTML
+            # as text, never as tags.
             url='files/release-notes.zip',
             filename='release <v2> & notes.zip',
         ),

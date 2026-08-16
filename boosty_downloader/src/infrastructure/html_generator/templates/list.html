@@ -2,14 +2,14 @@
 {% macro render_item(item) %}
 <li>
 {% for txt in item.data %}
-{{ render_chunk(txt) | trim | safe }}
+{{ render_chunk(txt) | trim | indent(4, first=True) | safe }}
 {% endfor %}
 {% if item.nested_items %}
-<{{ tag }}>
+    <{{ tag }}>
 {% for nested in item.nested_items %}
-{{ render_item(nested) | trim | indent(4, first=True) | safe }}
+{{ render_item(nested) | trim | indent(8, first=True) | safe }}
 {% endfor %}
-</{{ tag }}>
+    </{{ tag }}>
 {% endif %}
 </li>
 {% endmacro %}
