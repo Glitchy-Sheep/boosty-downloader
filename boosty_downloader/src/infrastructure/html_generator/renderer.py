@@ -6,6 +6,7 @@ You can also dump the rendered HTML to a file.
 Current implementation uses Jinja2 templates to render HTML with a little styling.
 """
 
+import mimetypes
 from pathlib import Path
 
 from jinja2 import Environment, PackageLoader, select_autoescape
@@ -28,7 +29,22 @@ env = Environment(
         'boosty_downloader.src.infrastructure.html_generator', 'templates'
     ),
     autoescape=select_autoescape(['html']),
+    # Swallow the newlines and indentation of {% ... %} lines: without this
+    # every template control line leaks blank lines into the rendered page.
+    trim_blocks=True,
+    lstrip_blocks=True,
 )
+
+
+def _media_src(url: str) -> str:
+    """Media urls are file paths relative to the post folder: web slashes only."""
+    return str(url).replace('\\', '/')
+
+
+def _media_mime_type(url: str) -> str | None:
+    """MIME by file extension; None omits the attribute so the browser sniffs."""
+    mime_type, _ = mimetypes.guess_type(_media_src(url))
+    return mime_type
 
 
 def render_html_chunk(chunk: HtmlGenChunk) -> str:
@@ -39,17 +55,21 @@ def render_html_chunk(chunk: HtmlGenChunk) -> str:
         case HtmlGenImage():
             return env.get_template('image.html').render(image=chunk)
         case HtmlGenVideo():
-            chunk.url = str(chunk.url).replace('\\', '/')
-            return env.get_template('video.html').render(video=chunk)
+            return env.get_template('video.html').render(
+                video=chunk,
+                src=_media_src(chunk.url),
+                mime_type=_media_mime_type(chunk.url),
+            )
         case HtmlGenAudio():
-            chunk.url = str(chunk.url).replace('\\', '/')
-            return env.get_template('audio.html').render(audio=chunk)
+            return env.get_template('audio.html').render(
+                audio=chunk, src=_media_src(chunk.url)
+            )
         case HtmlGenList():
             return env.get_template('list.html').render(
                 lst=chunk, render_chunk=render_html_chunk
             )
         case HtmlGenFile():
-            return f'<a href="{chunk.url}" download>{chunk.filename}</a>'
+            return env.get_template('file.html').render(file=chunk)
 
 
 def render_html(chunks: list[HtmlGenChunk]) -> str:
