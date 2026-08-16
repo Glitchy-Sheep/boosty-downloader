@@ -162,11 +162,11 @@ def _showcase_chunks() -> list[HtmlGenChunk]:
 def test_html_generator_templates(tmp_path: Path):
     chunks = _showcase_chunks()
 
-    data = render_html(chunks)
+    data = render_html(chunks, page_title='Showcase post')
 
     test_output_file = tmp_path / 'test_output.html'
 
-    render_html_to_file(chunks, test_output_file)
+    render_html_to_file(chunks, test_output_file, page_title='Showcase post')
 
     assert test_output_file.exists()
     assert test_output_file.read_text(encoding='utf-8') == data
@@ -182,7 +182,7 @@ def test_showcase_matches_the_pinned_golden_html():
     An intentional template change regenerates the file:
     UPDATE_GOLDEN=1 task test - then review the golden diff.
     """
-    html = render_html(_showcase_chunks())
+    html = render_html(_showcase_chunks(), page_title='Showcase post')
 
     if os.environ.get('UPDATE_GOLDEN') == '1':
         GOLDEN_FILE.write_text(html, encoding='utf-8')

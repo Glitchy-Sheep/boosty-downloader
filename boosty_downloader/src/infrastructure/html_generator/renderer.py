@@ -72,14 +72,18 @@ def render_html_chunk(chunk: HtmlGenChunk) -> str:
             return env.get_template('file.html').render(file=chunk)
 
 
-def render_html(chunks: list[HtmlGenChunk]) -> str:
-    """Render a list of HTML chunks to HTML."""
+def render_html(chunks: list[HtmlGenChunk], page_title: str) -> str:
+    """Render a list of HTML chunks to a full HTML page."""
     rendered = [render_html_chunk(chunk) for chunk in chunks]
-    return env.get_template('base.html').render(content='\n'.join(rendered))
+    return env.get_template('base.html').render(
+        content='\n'.join(rendered), title=page_title
+    )
 
 
-def render_html_to_file(chunks: list[HtmlGenChunk], out_path: Path) -> None:
+def render_html_to_file(
+    chunks: list[HtmlGenChunk], out_path: Path, page_title: str
+) -> None:
     """Render HTML chunks to HTML file."""
-    html = render_html(chunks)
+    html = render_html(chunks, page_title)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(html, encoding='utf-8')
