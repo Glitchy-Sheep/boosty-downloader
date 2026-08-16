@@ -10,6 +10,7 @@ from boosty_downloader.src.infrastructure.html_generator.models import (
     HtmlGenText,
     HtmlGenVideo,
     HtmlListItem,
+    HtmlListStyle,
     HtmlTextFragment,
     HtmlTextStyle,
 )
@@ -133,6 +134,23 @@ def _showcase_chunks() -> list[HtmlGenChunk]:
                     ],
                 )
             ]
+        ),
+        HtmlGenList(
+            style=HtmlListStyle.ORDERED,
+            items=[
+                HtmlListItem(
+                    data=[
+                        HtmlGenText(text_fragments=[HtmlTextFragment(text='Step one')])
+                    ],
+                    nested_items=[],
+                ),
+                HtmlListItem(
+                    data=[
+                        HtmlGenText(text_fragments=[HtmlTextFragment(text='Step two')])
+                    ],
+                    nested_items=[],
+                ),
+            ],
         ),
         HtmlGenImage(url='https://example.com/banner.jpg'),
         HtmlGenVideo(

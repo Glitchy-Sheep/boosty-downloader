@@ -158,3 +158,4 @@ class PostDataChunkTextualList:
         unordered = 'unordered'
 
     items: list[ListItem]
+    style: ListStyle = ListStyle.unordered
