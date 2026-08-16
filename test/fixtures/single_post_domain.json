@@ -1,0 +1,99 @@
+{
+  "incomplete_content_types": [],
+  "post": {
+    "created_at": "2025-06-15T15:06:40+00:00",
+    "has_access": true,
+    "post_data_chunks": [
+      {
+        "text_fragments": [
+          {
+            "header_level": 0,
+            "link_url": null,
+            "style": {
+              "bold": false,
+              "italic": false,
+              "underline": false
+            },
+            "text": "Hello from the fixture post!"
+          }
+        ]
+      },
+      {
+        "text_fragments": [
+          {
+            "header_level": 0,
+            "link_url": null,
+            "style": {
+              "bold": false,
+              "italic": false,
+              "underline": false
+            },
+            "text": "\n"
+          }
+        ]
+      },
+      {
+        "text_fragments": []
+      },
+      {
+        "text_fragments": [
+          {
+            "header_level": 0,
+            "link_url": null,
+            "style": {
+              "bold": false,
+              "italic": false,
+              "underline": false
+            },
+            "text": "\n"
+          }
+        ]
+      },
+      {
+        "text_fragments": []
+      },
+      {
+        "text_fragments": [
+          {
+            "header_level": 0,
+            "link_url": null,
+            "style": {
+              "bold": false,
+              "italic": false,
+              "underline": false
+            },
+            "text": "\n"
+          }
+        ]
+      },
+      {
+        "url": "https://images.example/image/10000000-0000-4000-8000-000000000201"
+      },
+      {
+        "filename": "fixture-archive.zip",
+        "url": "https://cdn.example/file/10000000-0000-4000-8000-000000000301?fake-signed-query"
+      },
+      {
+        "id": "10000000-0000-4000-8000-000000000400",
+        "quality": "medium",
+        "title": "Fixture video",
+        "url": "https://video.example/medium.mp4?fake-sig"
+      },
+      {
+        "title": "fixture-song.mp3",
+        "url": "https://cdn.example/audio/10000000-0000-4000-8000-000000000500"
+      }
+    ],
+    "signed_query": "?fake-signed-query",
+    "title": "Fixture post with every content type",
+    "updated_at": "2025-06-16T18:53:20+00:00",
+    "uuid": "00000000-0000-4000-8000-000000000001"
+  },
+  "stream_only_videos": [],
+  "unknown_content": [
+    {
+      "path": "data[10].type",
+      "raw": "hologram_message"
+    }
+  ]
+}
