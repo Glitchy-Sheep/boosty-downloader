@@ -89,12 +89,12 @@ tasks:
   test:
     desc: "Run unit tests (extra pytest args after --: task test -- -v)"
     cmds:
-      - uv run pytest {{.CLI_ARGS}} test/unit/
+      - uv run pytest {{.CLI_ARGS}} test/unit/ test/e2e/
 
   test:cov:
     desc: "Run unit tests with a coverage report (uncovered lines included)"
     cmds:
-      - uv run pytest --cov --cov-report=term-missing {{.CLI_ARGS}} test/unit/
+      - uv run pytest --cov --cov-report=term-missing {{.CLI_ARGS}} test/unit/ test/e2e/
 
   test:api:
     desc: Run integration tests against the live API (requires ./.env)

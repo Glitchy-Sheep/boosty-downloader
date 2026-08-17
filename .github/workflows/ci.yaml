@@ -44,9 +44,11 @@ jobs:
       # Integration tests need Boosty API credentials stored in ./.env
       # (repo root - that's where pydantic-settings loads it from).
       # The file is gitignored, so CI and fork PRs run unit tests only.
+      # Coverage is reported, not enforced: watch the number in the log
+      # (78% on 2026-08-17).
       - name: Run tests
         run: |
-          task test -- -v
+          task test:cov -- -v
           if [ -f .env ]; then
             task test:api -- -v
           else

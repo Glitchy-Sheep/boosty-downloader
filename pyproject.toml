@@ -53,9 +53,9 @@ default-groups = "all"
 [tool.pytest.ini_options]
 # auto mode: every async test runs under asyncio without a manual mark.
 asyncio_mode = "auto"
-# Bare `pytest` runs only unit tests: integration ones need live credentials.
-# An explicit path argument (task test:api) overrides this.
-testpaths = ["test/unit"]
+# Bare `pytest` runs unit and e2e (local server) tests: integration ones
+# need live credentials. An explicit path argument (task test:api) overrides this.
+testpaths = ["test/unit", "test/e2e"]
 # -ra: show the reason for every skip/xfail in the summary.
 addopts = "-ra --strict-markers"
 
