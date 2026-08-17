@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 3.5.0
+
 ### Fixed
 
 - Rendered posts look right in the browser and in the editor: the tab shows the post title instead of "HTML Report", numbered lists keep their numbering instead of turning into bullets, and post.html itself is ~2.5x smaller with properly indented markup instead of walls of blank lines
