@@ -3,6 +3,7 @@
 ### Fixed
 
 - `--post-url` now exits with code 1 when the post is not found, not accessible or fails to download, and with 130 on Ctrl+C - previously every failure looked like a success to scripts and cron
+- A removed or restricted external video no longer crashes the run with a raw traceback - it is reported and written to failed_downloads.log like any other failed download
 
 ## 3.5.0
 

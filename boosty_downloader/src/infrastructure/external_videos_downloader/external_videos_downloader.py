@@ -28,19 +28,17 @@ ExternalVideoDownloadProgressHook = Callable[['ExternalVideoDownloadStatus'], No
 class ExtVideoError(Exception):
     """Base class for external video download errors."""
 
+    def __init__(self, url: str | None = None) -> None:
+        super().__init__(url or '')
+        self.video_url = url
+
 
 class ExtVideoInfoError(ExtVideoError):
     """Raised when video information (e.g., title) cannot be extracted."""
 
-    def __init__(self, url: str) -> None:
-        self.video_url = url
-
 
 class ExtVideoDownloadError(ExtVideoError):
     """Raised when the video download fails."""
-
-    def __init__(self, url: str) -> None:
-        self.video_url = url
 
 
 class ExtVideoInterruptedByUserError(ExtVideoError):
@@ -140,7 +138,7 @@ class ExternalVideosDownloader:
                 raise ExtVideoDownloadError(url)
 
         except DownloadError as e:
-            raise ExtVideoError(url) from e
+            raise ExtVideoDownloadError(url) from e
 
         if state.final_filename is not None:
             return state.final_filename
