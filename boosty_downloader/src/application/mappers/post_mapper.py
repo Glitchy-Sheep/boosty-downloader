@@ -23,10 +23,6 @@ from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types
     BoostyPostDataTextDTO,
     BoostyPostDataUnknownDTO,
 )
-from boosty_downloader.src.infrastructure.boosty_api.models.unknown_content import (
-    UnknownContent,
-    collect_unknown_content,
-)
 
 if TYPE_CHECKING:
     from boosty_downloader.src.infrastructure.boosty_api.models.post.post import (
@@ -45,9 +41,6 @@ class PostMappingResult:
     incomplete_content_types: set[DownloadContentTypeFilter] = field(
         default_factory=set[DownloadContentTypeFilter]
     )
-    # Content this client doesn't know yet, raw. Rendering it for the user
-    # is the output layer's job (inline warnings and the run summary).
-    unknown_content: set[UnknownContent] = field(default_factory=set[UnknownContent])
     # Titles of videos that offer only streaming manifests: skipped with
     # a warning and retried next run in case downloadable urls appear.
     stream_only_videos: list[str] = field(default_factory=list[str])
@@ -69,9 +62,6 @@ def map_post_dto_to_domain(  # noqa: C901, PLR0912 - one match-dispatcher over e
 
     incomplete_content_types: set[DownloadContentTypeFilter] = set()
     stream_only_videos: list[str] = []
-    # One type-driven walk over the whole parsed post: any tolerant field
-    # or unknown chunk is reported automatically, wherever it sits.
-    unknown_content = collect_unknown_content(post_dto)
 
     for data_chunk in post_dto.data:
         match data_chunk:
@@ -124,6 +114,5 @@ def map_post_dto_to_domain(  # noqa: C901, PLR0912 - one match-dispatcher over e
     return PostMappingResult(
         post=post,
         incomplete_content_types=incomplete_content_types,
-        unknown_content=unknown_content,
         stream_only_videos=stream_only_videos,
     )

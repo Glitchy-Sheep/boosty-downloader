@@ -21,6 +21,9 @@ from boosty_downloader.src.application.mappers.post_mapper import (
     map_post_dto_to_domain,
 )
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
+from boosty_downloader.src.infrastructure.boosty_api.models.unknown_content import (
+    collect_unknown_content,
+)
 
 FIXTURES = Path(__file__).parents[2] / 'fixtures'
 FIXTURE_FILE = FIXTURES / 'single_post.json'
@@ -56,3 +59,5 @@ def test_real_post_shape_maps_to_the_pinned_domain():
         GOLDEN_FILE.write_text(snapshot, encoding='utf-8')
 
     assert snapshot == GOLDEN_FILE.read_text(encoding='utf-8')
+    # The fixture's unknown chunk must stay visible to the tolerant reader.
+    assert [u.path for u in collect_unknown_content(dto)] == ['data[10].type']

@@ -89,11 +89,5 @@
     "updated_at": "2025-06-16T18:53:20+00:00",
     "uuid": "00000000-0000-4000-8000-000000000001"
   },
-  "stream_only_videos": [],
-  "unknown_content": [
-    {
-      "path": "data[10].type",
-      "raw": "hologram_message"
-    }
-  ]
+  "stream_only_videos": []
 }

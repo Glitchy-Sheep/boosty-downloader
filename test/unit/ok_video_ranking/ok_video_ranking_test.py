@@ -1,11 +1,9 @@
-from boosty_downloader.src.application.mappers import (
-    get_best_video,
-    get_quality_ranking,
-)
 from boosty_downloader.src.application.ok_video_ranking import (
     BoostyOkVideoType,
     BoostyOkVideoUrl,
     RankingDict,
+    get_best_video,
+    get_quality_ranking,
 )
 from boosty_downloader.src.infrastructure.boosty_api.models.unknown_value import (
     BoostyUnknownValue,

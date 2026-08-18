@@ -1,17 +1,11 @@
 """Converters from domain models to HTML generator models."""
 
 from boosty_downloader.src.domain.post import (
-    PostDataChunkImage,
     PostDataChunkText,
     PostDataChunkTextualList,
 )
-from boosty_downloader.src.domain.post_data_chunks import (
-    PostDataChunkFile,
-)
 from boosty_downloader.src.infrastructure.html_generator.models import (
     HtmlGenAudio,
-    HtmlGenFile,
-    HtmlGenImage,
     HtmlGenList,
     HtmlGenText,
     HtmlGenVideo,
@@ -42,19 +36,9 @@ def convert_text_to_html(chunk: PostDataChunkText) -> HtmlGenText:
     return HtmlGenText(text_fragments=fragments)
 
 
-def convert_image_to_html(chunk: PostDataChunkImage) -> HtmlGenImage:
-    """Convert domain image chunk to HTML image model."""
-    return HtmlGenImage(url=chunk.url)
-
-
 def convert_video_to_html(src: str, title: str) -> HtmlGenVideo:
     """Convert domain video chunk to HTML video model."""
     return HtmlGenVideo(url=src, title=title)
-
-
-def convert_file_to_html(chunk: PostDataChunkFile) -> HtmlGenFile:
-    """Convert domain file chunk to HTML file model."""
-    return HtmlGenFile(url=chunk.url, filename=chunk.filename)
 
 
 def convert_list_to_html(chunk: PostDataChunkTextualList) -> HtmlGenList:

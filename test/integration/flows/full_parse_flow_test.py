@@ -9,9 +9,14 @@ import warnings
 from boosty_downloader.src.application.mappers.post_mapper import (
     map_post_dto_to_domain,
 )
-from boosty_downloader.src.infrastructure.boosty_api import BoostyAPIClient
+from boosty_downloader.src.infrastructure.boosty_api.core.client import (
+    BoostyAPIClient,
+)
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_ok_video import (
     BoostyOkVideoType,
+)
+from boosty_downloader.src.infrastructure.boosty_api.models.unknown_content import (
+    collect_unknown_content,
 )
 from integration.configuration import IntegrationTestConfig
 
@@ -49,10 +54,10 @@ async def test_posts_page_parses_and_maps_to_domain(
     # A mapper crash here fails the test with a traceback into the broken mapper.
     unknown_paths: set[str] = set()
     for post_dto in response.posts:
-        result = map_post_dto_to_domain(
+        map_post_dto_to_domain(
             post_dto, preferred_video_quality=BoostyOkVideoType.medium
         )
-        unknown_paths |= {content.path for content in result.unknown_content}
+        unknown_paths |= {content.path for content in collect_unknown_content(post_dto)}
 
     # Stage 4: unknown content is tolerated by design, but never silent.
     if unknown_paths:
