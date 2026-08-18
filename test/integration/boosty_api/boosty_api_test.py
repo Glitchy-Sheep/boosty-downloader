@@ -7,10 +7,8 @@ Please see test/ABOUT_TESTING.md for more details.
 
 import pytest
 
-from boosty_downloader.src.infrastructure.boosty_api import (
-    BoostyAPIClient,
-)
 from boosty_downloader.src.infrastructure.boosty_api.core.client import (
+    BoostyAPIClient,
     BoostyAPINoUsernameError,
     BoostyAPIUnauthorizedError,
 )

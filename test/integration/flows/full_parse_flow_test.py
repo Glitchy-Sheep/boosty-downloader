@@ -9,7 +9,9 @@ import warnings
 from boosty_downloader.src.application.mappers.post_mapper import (
     map_post_dto_to_domain,
 )
-from boosty_downloader.src.infrastructure.boosty_api import BoostyAPIClient
+from boosty_downloader.src.infrastructure.boosty_api.core.client import (
+    BoostyAPIClient,
+)
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_ok_video import (
     BoostyOkVideoType,
 )

@@ -1,5 +1,1 @@
-from .core.client import BoostyAPIClient
-
-__all__ = [
-    'BoostyAPIClient',
-]
+"""Boosty API client infrastructure."""
