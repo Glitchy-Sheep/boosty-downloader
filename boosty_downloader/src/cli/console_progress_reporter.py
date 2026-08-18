@@ -1,14 +1,12 @@
 """
 Progress reporting and logging utilities for console-based Boosty downloader interface.
 
-Includes a ProgressReporter class for rich progress bars and logging, and a FakeDownloader for demonstration/testing.
+Includes a ProgressReporter class for rich progress bars and logging.
 """
 
-import asyncio
 import logging
-import secrets
 import uuid
-from collections.abc import AsyncGenerator, Sequence
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from rich.console import Console
@@ -21,8 +19,6 @@ from rich.progress import (
     TaskProgressColumn,
     TimeElapsedColumn,
 )
-
-from boosty_downloader.src.infrastructure.loggers.base import RichLogger
 
 
 class ProgressReporter:
@@ -119,13 +115,6 @@ class ProgressReporter:
             self._uuid_to_level.pop(task_uuid, None)
             self._uuid_to_name.pop(task_uuid, None)
 
-    def newline(self, count: int = 1) -> None:
-        for _ in range(count):
-            self.console.print()
-
-    def headline_rule(self) -> None:
-        self.console.rule()
-
     def info(self, message: str) -> None:
         self._logger.info(message)
 
@@ -143,11 +132,6 @@ class ProgressReporter:
             f'[bold yellow]NOTICE:[/bold yellow] {message}', highlight=False
         )
 
-    def log_list(self, title: str, items: Sequence[str]) -> None:
-        self.console.print(f'[bold cyan]{title}[/bold cyan]:')
-        for item in items:
-            self.console.print(f' • {item}')
-
 
 @asynccontextmanager
 async def use_reporter(
@@ -159,98 +143,3 @@ async def use_reporter(
         yield reporter
     finally:
         reporter.stop()
-
-
-# ------------------------------------------------------------------------------
-# Usage example: run it as a script to see how it works:
-# uv run boosty_downloader .../console_progress_reporter.py
-
-if __name__ == '__main__':
-    import asyncio
-
-    class FakeDownloader:
-        """Just Stupid faker"""
-
-        def __init__(self, reporter: ProgressReporter) -> None:
-            self.reporter = reporter
-
-        async def iterate_pages(
-            self, total_pages: int = 3, posts_per_page: int = 5
-        ) -> AsyncGenerator[list[str], None]:
-            """Simulate stuff"""
-            for page_num in range(1, total_pages + 1):
-                await asyncio.sleep(0.5)
-                posts = [
-                    f'post_{(page_num - 1) * posts_per_page + i + 1:02}'
-                    for i in range(posts_per_page)
-                ]
-                yield posts
-
-        async def download_file(self, task_name: str, size_kb: int) -> None:
-            """Simulate downloading a file of size size_kb KB with progress"""
-            chunk_size = 50
-            total_chunks = (size_kb + chunk_size - 1) // chunk_size
-            download_task_id = self.reporter.create_task(task_name, total=total_chunks)
-
-            for chunk in range(total_chunks):
-                # Simulate delay proportional to chunk size
-                await asyncio.sleep(secrets.randbelow(11) / 100 + 0.05)
-                self.reporter.update_task(
-                    download_task_id,
-                    advance=1,
-                    description=f'{task_name} [{min((chunk + 1) * chunk_size, size_kb)} KB / {size_kb} KB]',
-                )
-            self.reporter.complete_task(download_task_id)
-
-        async def download_all_posts(self, username: str) -> None:
-            """Simulate downloading all posts for a user with progress reporting"""
-            self.reporter.notice(f'Starting download for user: {username}')
-            self.reporter.headline_rule()
-
-            total_posts = None
-            download_task_id = self.reporter.create_task('posts', total=total_posts)
-
-            downloaded_posts = 0
-
-            async for posts in self.iterate_pages():
-                self.reporter.info(f'Loaded new page with {len(posts)} posts')
-
-                for post_title in posts:
-                    self.reporter.info(f'Processing post: {post_title}')
-
-                    if secrets.randbelow(10) == 0:
-                        self.reporter.warn(f'Skipping inaccessible post: {post_title}')
-                        self.reporter.update_task(download_task_id, advance=1)
-                        continue
-
-                    files = {
-                        'image_1': secrets.randbelow(201) + 100,  # 100-300 KB
-                        'video_1': secrets.randbelow(1501) + 1000,  # 1-2.5 MB
-                        'attachment_1': secrets.randbelow(301) + 200,  # 200-500 KB
-                    }
-
-                    for fname, size_kb in files.items():
-                        task_name = f'{post_title}::{fname}'
-                        await self.download_file(task_name, size_kb)
-                        self.reporter.success(f'Finished {fname} of {post_title}')
-
-                    downloaded_posts += 1
-                    self.reporter.update_task(download_task_id, advance=1)
-
-                self.reporter.headline_rule()
-
-            self.reporter.success(f'✅ Finished downloading {downloaded_posts} posts.')
-
-    async def main() -> None:
-        """Run a demonstration of the FakeDownloader with progress reporting."""
-        logger = RichLogger('dumb')
-
-        reporter = ProgressReporter(
-            logger=logger.logging_logger_obj,
-            console=logger.console,
-        )
-        async with use_reporter(reporter):
-            downloader = FakeDownloader(reporter)
-            await downloader.download_all_posts('demo_user')
-
-    asyncio.run(main())

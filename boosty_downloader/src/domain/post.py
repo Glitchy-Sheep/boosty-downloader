@@ -25,10 +25,6 @@ PostDataAllChunks = (
 
 PostDataAllChunksList = list[PostDataAllChunks]
 
-PostDataPostOnlyChunksList = list[
-    PostDataChunkText | PostDataChunkImage | PostDataChunkTextualList
-]
-
 
 @dataclass
 class Post:

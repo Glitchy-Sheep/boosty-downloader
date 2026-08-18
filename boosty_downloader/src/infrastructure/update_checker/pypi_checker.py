@@ -6,7 +6,6 @@ Provides functions and data structures to check for updates of any package on Py
 
 import json
 from dataclasses import dataclass
-from enum import Enum, auto
 from urllib.request import urlopen
 
 from packaging import version
@@ -14,14 +13,6 @@ from packaging import version
 # The update notice is a courtesy, not a feature worth waiting for:
 # an unreachable PyPI must not delay the start of the actual work.
 PYPI_TIMEOUT_SECONDS = 5
-
-
-class UpdateCheckStatus(Enum):
-    """Represents the status of an update check."""
-
-    NO_UPDATE = auto()
-    UPDATE_AVAILABLE = auto()
-    CHECK_FAILED = auto()
 
 
 @dataclass
