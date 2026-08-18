@@ -6,12 +6,15 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
+import typer
+
 from boosty_downloader.src.application.di.download_context import DownloadContext
 from boosty_downloader.src.application.di.initialized_app import initialized_app
 from boosty_downloader.src.application.filtering import (
     DownloadContentTypeFilter,
     VideoQualityOption,
 )
+from boosty_downloader.src.application.post_retry import PostOutcome
 from boosty_downloader.src.application.use_cases.download_all_posts import (
     DownloadAllPostUseCase,
 )
@@ -37,8 +40,6 @@ from boosty_downloader.src.infrastructure.loggers.failed_downloads_logger import
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    import typer
 
     from boosty_downloader.src.cli.console_progress_reporter import (
         ProgressReporter,
@@ -102,12 +103,15 @@ async def _download_handler(  # noqa: PLR0913
         )
 
         if post_url is not None:
-            await DownloadPostByUrlUseCase(
+            outcome = await DownloadPostByUrlUseCase(
                 post_url=post_url,
                 boosty_api=app_env.boosty_api_client,
                 destination=app_env.destination_directory,
                 download_context=downloading_context,
             ).execute()
+            if outcome is PostOutcome.failed:
+                # Scripts rely on the exit code: a failed download is not a success.
+                raise typer.Exit(1)
             return
 
         _show_start_summary(

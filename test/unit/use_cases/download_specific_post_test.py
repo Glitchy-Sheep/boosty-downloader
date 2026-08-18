@@ -7,8 +7,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
+import pytest
+
 from boosty_downloader.src.application.di.download_context import DownloadContext
+from boosty_downloader.src.application.exceptions.application_errors import (
+    ApplicationCancelledError,
+    ApplicationFailedDownloadError,
+)
 from boosty_downloader.src.application.filtering import BoostyOkVideoType
+from boosty_downloader.src.application.post_retry import PostOutcome
 from boosty_downloader.src.application.use_cases.download_single_post import (
     DownloadSinglePostUseCase,
 )
@@ -22,7 +29,6 @@ from boosty_downloader.src.infrastructure.boosty_api.core.client import (
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
 
 if TYPE_CHECKING:
-    import pytest
     from aiohttp_retry import RetryClient
 
     from boosty_downloader.src.cli.console_progress_reporter import ProgressReporter
@@ -143,11 +149,12 @@ async def test_post_downloads_via_one_direct_request(
     api = _FakeApi(post=_post())
     calls = _script_download(monkeypatch)
 
-    await _use_case(api, reporter).execute()
+    outcome = await _use_case(api, reporter).execute()
 
     assert api.requests == [('author', POST_UUID)]
     assert calls == [POST_UUID]
     assert reporter.errors == []
+    assert outcome is PostOutcome.downloaded
 
 
 async def test_missing_post_reports_not_found(
@@ -157,10 +164,11 @@ async def test_missing_post_reports_not_found(
     api = _FakeApi(error=BoostyAPINoPostError('author', POST_UUID))
     calls = _script_download(monkeypatch)
 
-    await _use_case(api, reporter).execute()
+    outcome = await _use_case(api, reporter).execute()
 
     assert calls == []
     assert any('Failed to find' in message for message in reporter.errors)
+    assert outcome is PostOutcome.failed, 'a script must see the failure in $?'
 
 
 async def test_unparsable_post_asks_to_report(
@@ -171,10 +179,11 @@ async def test_unparsable_post_asks_to_report(
     api = _FakeApi(error=BoostyAPIValidationError(errors=[]))
     calls = _script_download(monkeypatch)
 
-    await _use_case(api, reporter).execute()
+    outcome = await _use_case(api, reporter).execute()
 
     assert calls == []
     assert any('Please report this' in message for message in reporter.errors)
+    assert outcome is PostOutcome.failed
 
 
 async def test_no_access_post_is_not_downloaded(
@@ -185,7 +194,49 @@ async def test_no_access_post_is_not_downloaded(
     api = _FakeApi(post=_post(has_access=False))
     calls = _script_download(monkeypatch)
 
-    await _use_case(api, reporter).execute()
+    outcome = await _use_case(api, reporter).execute()
 
     assert calls == []
     assert any('no access' in message for message in reporter.errors)
+    assert outcome is PostOutcome.failed
+
+
+def _script_download_error(
+    monkeypatch: pytest.MonkeyPatch, error: BaseException
+) -> None:
+    async def failing_execute(self: DownloadSinglePostUseCase) -> None:
+        del self
+        raise error
+
+    monkeypatch.setattr(DownloadSinglePostUseCase, 'execute', failing_execute)
+
+
+async def test_failed_download_is_a_failed_outcome(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The bug: a dead link during --post-url still ended the process with exit 0."""
+    reporter = _FakeReporter()
+    api = _FakeApi(post=_post())
+    _script_download_error(
+        monkeypatch,
+        ApplicationFailedDownloadError(
+            post_uuid=POST_UUID, message='dead link', resource='r'
+        ),
+    )
+
+    outcome = await _use_case(api, reporter).execute()
+
+    assert outcome is PostOutcome.failed
+    assert any('Failed to download post' in message for message in reporter.errors)
+
+
+async def test_cancellation_propagates_for_the_130_exit_code(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Swallowing Ctrl+C here reported an interrupted run as a success."""
+    reporter = _FakeReporter()
+    api = _FakeApi(post=_post())
+    _script_download_error(monkeypatch, ApplicationCancelledError(post_uuid=POST_UUID))
+
+    with pytest.raises(ApplicationCancelledError):
+        await _use_case(api, reporter).execute()
