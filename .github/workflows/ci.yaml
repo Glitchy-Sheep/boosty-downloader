@@ -70,6 +70,13 @@ jobs:
           task build
           ls dist/*.whl dist/*.tar.gz || { echo "❌ Build artifacts missing"; exit 1; }
           echo "✅ Build artifacts created successfully"
+      # The renderer loads its Jinja templates from the installed package:
+      # a wheel without them builds fine and crashes at render time.
+      - name: Verify templates are inside the wheel
+        run: |
+          TEMPLATES=$(unzip -l dist/*.whl | grep -c 'html_generator/templates/.*\.html' || true)
+          echo "Templates found in wheel: $TEMPLATES"
+          [ "$TEMPLATES" -ge 7 ] || { echo "❌ Jinja templates missing from the wheel"; exit 1; }
 
   changelog:
     name: 📝 Changelog
