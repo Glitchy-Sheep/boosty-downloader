@@ -1,6 +1,6 @@
 """Mapping functions for converting API PostDataFile objects to domain PostDataChunkFile objects."""
 
-from boosty_downloader.src.domain.post import PostDataChunkFile
+from boosty_downloader.src.domain.post_data_chunks import PostDataChunkFile
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types import (
     BoostyPostDataFileDTO,
 )

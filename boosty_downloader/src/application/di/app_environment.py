@@ -14,7 +14,7 @@ from boosty_downloader.src.cli.console_progress_reporter import (
     use_reporter,
 )
 from boosty_downloader.src.infrastructure.boosty_api.core.client import BoostyAPIClient
-from boosty_downloader.src.infrastructure.loggers.logger_instances import RichLogger
+from boosty_downloader.src.infrastructure.loggers.base import RichLogger
 from boosty_downloader.src.infrastructure.loggers.request_tracing import (
     create_request_trace_config,
 )
