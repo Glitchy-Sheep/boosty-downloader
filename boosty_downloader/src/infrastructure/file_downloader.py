@@ -5,6 +5,7 @@ from __future__ import annotations
 import http
 import mimetypes
 from asyncio import CancelledError
+from asyncio import TimeoutError as AsyncioTimeoutError
 from dataclasses import dataclass
 from pathlib import PurePath
 from typing import TYPE_CHECKING
@@ -81,7 +82,7 @@ class DownloadTimeoutError(DownloadError):
 
     def __init__(self, resource_url: str, file: Path | None = None) -> None:
         super().__init__(
-            'Download timed out for the destination server',
+            'Download timed out: the server stopped sending data',
             file,
             resource_url=resource_url,
         )
@@ -205,7 +206,10 @@ async def download_file(
                 raise DownloadCancelledError(
                     file=file_path, resource_url=dl_config.url
                 ) from e
-            except DownloadTimeoutError as e:
+            # Must precede the connection branch: aiohttp's read-timeout
+            # errors inherit from both families, and "the server went
+            # quiet" is the diagnosis the user can act on.
+            except (TimeoutError, AsyncioTimeoutError) as e:
                 raise DownloadTimeoutError(
                     file=file_path, resource_url=dl_config.url
                 ) from e

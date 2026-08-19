@@ -1,13 +1,10 @@
 """Use case for downloading a specific Boosty post by URL."""
 
-from enum import Enum, auto
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from boosty_downloader.src.application.di.download_context import DownloadContext
-from boosty_downloader.src.application.exceptions.application_errors import (
-    ApplicationCancelledError,
-)
+from boosty_downloader.src.application.post_retry import PostOutcome
 from boosty_downloader.src.application.use_cases.check_total_posts import (
     BoostyAPIClient,
 )
@@ -40,14 +37,6 @@ if TYPE_CHECKING:
     from boosty_downloader.src.infrastructure.boosty_api.models.post.post import (
         PostDTO,
     )
-
-
-class _PostDownloadOutcome(Enum):
-    """Outcome of downloading the found post."""
-
-    downloaded = auto()
-    failed = auto()
-    cancelled = auto()
 
 
 class DownloadPostByUrlUseCase:
@@ -94,13 +83,14 @@ class DownloadPostByUrlUseCase:
         else:
             return author, post_uuid
 
-    async def execute(self) -> None:
+    async def execute(self) -> PostOutcome:
+        """Find and download the post; the caller turns the outcome into an exit code."""
         author_name, post_uuid = self.extract_author_and_uuid_from_url()
         if not author_name or not post_uuid:
             self.context.progress_reporter.error(
                 'Failed to extract author and UUID from the provided URL, aborting...'
             )
-            return
+            return PostOutcome.failed
 
         self.context.progress_reporter.info(
             f'Requesting the post with UUID: {post_uuid}...'
@@ -111,7 +101,7 @@ class DownloadPostByUrlUseCase:
             self.context.progress_reporter.error(
                 'Failed to find and download the specified post.'
             )
-            return
+            return PostOutcome.failed
         except BoostyAPIValidationError as e:
             # The searched post exists but this client can't parse it -
             # a misleading "not found" would hide the real problem.
@@ -124,17 +114,17 @@ class DownloadPostByUrlUseCase:
                 f'Please report this at {GITHUB_ISSUES_URL} '
                 'so the client can be updated.'
             )
-            return
+            return PostOutcome.failed
 
         if not post.has_access:
             self.context.progress_reporter.error(
                 f'Skip post (no access to content): {post.title}'
             )
-            return
+            return PostOutcome.failed
 
-        await self._download_post(post)
+        return await self._download_post(post)
 
-    async def _download_post(self, post: 'PostDTO') -> _PostDownloadOutcome:
+    async def _download_post(self, post: 'PostDTO') -> PostOutcome:
         """Download the found post and name how it went."""
         self.context.progress_reporter.success(
             f'Found post with UUID: {post.id}, starting download...'
@@ -152,13 +142,10 @@ class DownloadPostByUrlUseCase:
                 destination=self.destination / post_name,
                 download_context=self.context,
             ).execute()
-        except ApplicationCancelledError:
-            self.context.progress_reporter.warn('Download cancelled by user. Bye!')
-            return _PostDownloadOutcome.cancelled
         except ApplicationFailedDownloadError as e:
             hint = f' Hint: {PATH_TOO_LONG_HINT}.' if is_path_too_long_error(e) else ''
             self.context.progress_reporter.error(
                 f'Failed to download post: {e.message}, RESOURCE: ({e.resource}){hint}'
             )
-            return _PostDownloadOutcome.failed
-        return _PostDownloadOutcome.downloaded
+            return PostOutcome.failed
+        return PostOutcome.downloaded

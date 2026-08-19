@@ -45,7 +45,7 @@ from boosty_downloader.src.domain.post_data_chunks import (
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
 from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
     ExternalVideoDownloadStatus,
-    ExtVideoDownloadError,
+    ExtVideoError,
     ExtVideoInfoError,
     ExtVideoInterruptedByUserError,
 )
@@ -306,15 +306,18 @@ class DownloadSinglePostUseCase:
                 message='External video unavailable or access restricted.',
                 resource='UNAVAILABLE',
             ) from e
-        except ExtVideoDownloadError as e:
+        # The base class catches every present and future family member:
+        # a raw yt-dlp failure must never escape as a traceback.
+        except ExtVideoError as e:
+            resource = e.video_url or 'unknown video url'
             await self.context.failed_logger.add_error(
-                f'{_form_post_url(username=self.context.author_name, post_id=post.uuid)} - {e.video_url}',
+                f'{_form_post_url(username=self.context.author_name, post_id=post.uuid)} - {resource}',
                 'External video download failed',
             )
             raise ApplicationFailedDownloadError(
                 post_uuid=post.uuid,
                 message="Couldn't download external video",
-                resource=e.video_url,
+                resource=resource,
             ) from e
 
     async def _process_chunk(  # noqa: C901, PLR0911
