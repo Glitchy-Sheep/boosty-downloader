@@ -18,7 +18,7 @@ from boosty_downloader.src.infrastructure.boosty_api.utils.validation_errors imp
     format_run_summary,
     format_skipped_post,
 )
-from boosty_downloader.src.infrastructure.loggers.logger_instances import RichLogger
+from boosty_downloader.src.infrastructure.loggers.base import RichLogger
 
 
 class ReportTotalPostsCountUseCase:

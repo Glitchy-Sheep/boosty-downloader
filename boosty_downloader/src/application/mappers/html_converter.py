@@ -1,6 +1,6 @@
 """Converters from domain models to HTML generator models."""
 
-from boosty_downloader.src.domain.post import (
+from boosty_downloader.src.domain.post_data_chunks import (
     PostDataChunkText,
     PostDataChunkTextualList,
 )

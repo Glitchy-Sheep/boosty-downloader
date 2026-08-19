@@ -19,28 +19,25 @@ from boosty_downloader.src.application.exceptions.application_errors import (
 from boosty_downloader.src.application.filtering import (
     DownloadContentTypeFilter,
 )
-from boosty_downloader.src.application.mappers import (
-    PostMappingResult,
-    map_post_dto_to_domain,
-)
 from boosty_downloader.src.application.mappers.html_converter import (
-    PostDataChunkTextualList,
     convert_audio_to_html,
     convert_list_to_html,
     convert_text_to_html,
     convert_video_to_html,
 )
-from boosty_downloader.src.domain.post import (
-    Post,
-    PostDataAllChunks,
-    PostDataChunkImage,
+from boosty_downloader.src.application.mappers.post_mapper import (
+    PostMappingResult,
+    map_post_dto_to_domain,
 )
+from boosty_downloader.src.domain.post import Post, PostDataAllChunks
 from boosty_downloader.src.domain.post_data_chunks import (
     PostDataChunkAudio,
     PostDataChunkBoostyVideo,
     PostDataChunkExternalVideo,
     PostDataChunkFile,
+    PostDataChunkImage,
     PostDataChunkText,
+    PostDataChunkTextualList,
 )
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
 from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (

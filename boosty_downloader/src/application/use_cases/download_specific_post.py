@@ -4,16 +4,16 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from boosty_downloader.src.application.di.download_context import DownloadContext
-from boosty_downloader.src.application.post_retry import PostOutcome
-from boosty_downloader.src.application.use_cases.check_total_posts import (
-    BoostyAPIClient,
-)
-from boosty_downloader.src.application.use_cases.download_single_post import (
+from boosty_downloader.src.application.exceptions.application_errors import (
     ApplicationFailedDownloadError,
+)
+from boosty_downloader.src.application.post_retry import PostOutcome
+from boosty_downloader.src.application.use_cases.download_single_post import (
     DownloadSinglePostUseCase,
     compose_post_directory_name,
 )
 from boosty_downloader.src.infrastructure.boosty_api.core.client import (
+    BoostyAPIClient,
     BoostyAPINoPostError,
     BoostyAPIValidationError,
 )

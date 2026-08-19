@@ -3,7 +3,7 @@
 from boosty_downloader.src.application.ok_video_ranking import (
     get_best_video,
 )
-from boosty_downloader.src.domain.post import PostDataChunkBoostyVideo
+from boosty_downloader.src.domain.post_data_chunks import PostDataChunkBoostyVideo
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types import (
     BoostyPostDataOkVideoDTO,
 )

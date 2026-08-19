@@ -1,6 +1,6 @@
 """Image content mapper module to transform Boosty API DTO to domain model."""
 
-from boosty_downloader.src.domain.post import PostDataChunkImage
+from boosty_downloader.src.domain.post_data_chunks import PostDataChunkImage
 from boosty_downloader.src.infrastructure.boosty_api.models.post.base_post_data import (
     BoostyPostDataImageDTO,
 )

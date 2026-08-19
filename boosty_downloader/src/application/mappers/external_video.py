@@ -1,6 +1,6 @@
 """Mapping functions for converting external video API DTOs to domain objects."""
 
-from boosty_downloader.src.domain.post import PostDataChunkExternalVideo
+from boosty_downloader.src.domain.post_data_chunks import PostDataChunkExternalVideo
 from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types import (
     BoostyPostDataExternalVideoDTO,
 )
