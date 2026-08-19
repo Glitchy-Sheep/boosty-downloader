@@ -5,6 +5,8 @@ description = "Download any type of content from boosty.to"
 authors = [{ name = "Roman Berezkin", email = "Glitchy-Sheep@users.noreply.github.com" }]
 requires-python = ">=3.10,<4"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -28,15 +30,29 @@ dependencies = [
     "aiolimiter (>=1.2.1,<2.0.0)",
     "packaging (>=25.0,<26.0)",
     "pyperclip (>=1.9.0,<2.0.0)",
-    "pyyaml>=6.0,<7.0",
+    "pyyaml (>=6.0,<7.0)",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Glitchy-Sheep/boosty-downloader"
+Issues = "https://github.com/Glitchy-Sheep/boosty-downloader/issues"
+Changelog = "https://github.com/Glitchy-Sheep/boosty-downloader/blob/main/CHANGELOG.md"
 
 [project.scripts]
 boosty-downloader = "boosty_downloader.main:entry_point"
 
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["boosty_downloader"]
+
+# Explicit allowlist: by default hatchling packs every non-vcs-ignored file
+# into the sdist, including untracked local notes. Only the package ships;
+# pyproject.toml, README and LICENSE are added automatically.
+[tool.hatch.build.targets.sdist]
+only-include = ["boosty_downloader"]
 
 [dependency-groups]
 dev = [
@@ -65,8 +81,3 @@ source = ["boosty_downloader"]
 [tool.coverage.report]
 show_missing = true
 skip_covered = true
-
-# poetry-core stays as the build backend: uv build drives it through PEP 517,
-# and the packaging output stays identical to the pre-migration wheels.
-[tool.poetry]
-packages = [{ include = "boosty_downloader" }]
