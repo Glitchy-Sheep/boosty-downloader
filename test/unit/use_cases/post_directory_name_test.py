@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from boosty_downloader.src.application.use_cases.download_single_post import (
+from boosty_downloader.application.use_cases.download_single_post import (
     compose_post_directory_name,
 )
 

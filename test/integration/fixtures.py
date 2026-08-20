@@ -10,8 +10,8 @@ from aiohttp.typedefs import LooseHeaders
 from aiohttp_retry import ExponentialRetry, RetryClient
 from pydantic import ValidationError
 
-from boosty_downloader.src.infrastructure.boosty_api.core.client import BoostyAPIClient
-from boosty_downloader.src.infrastructure.boosty_api.utils.auth_parsers import (
+from boosty_downloader.infrastructure.boosty_api.core.client import BoostyAPIClient
+from boosty_downloader.infrastructure.boosty_api.utils.auth_parsers import (
     parse_session_cookie,
 )
 from integration.configuration import IntegrationTestConfig

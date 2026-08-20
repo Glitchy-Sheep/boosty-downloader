@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'test'))
 
 from integration.configuration import IntegrationTestConfig
 
-from boosty_downloader.src.infrastructure.boosty_api.core.endpoints import (
+from boosty_downloader.infrastructure.boosty_api.core.endpoints import (
     BOOSTY_DEFAULT_BASE_URL,
 )
 

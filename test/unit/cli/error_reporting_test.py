@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from aiohttp.client_exceptions import ClientConnectorDNSError, ClientError
 from aiohttp.client_reqrep import ConnectionKey
 
-from boosty_downloader.src.cli.error_reporting import report_network_error
+from boosty_downloader.cli.error_reporting import report_network_error
 
 if TYPE_CHECKING:
     import pytest

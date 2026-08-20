@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 import yaml
 
-from boosty_downloader.src.infrastructure.yaml_configuration.config import (
+from boosty_downloader.infrastructure.yaml_configuration.config import (
     _broken_yaml_message,
     _human_message,
     init_config,

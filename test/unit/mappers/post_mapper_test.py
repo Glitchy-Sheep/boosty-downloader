@@ -3,39 +3,39 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
-from boosty_downloader.src.application.filtering import DownloadContentTypeFilter
-from boosty_downloader.src.application.mappers.post_mapper import (
+from boosty_downloader.application.filtering import DownloadContentTypeFilter
+from boosty_downloader.application.mappers.post_mapper import (
     PostMappingResult,
     map_post_dto_to_domain,
 )
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
-from boosty_downloader.src.infrastructure.boosty_api.models.unknown_content import (
+from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
+from boosty_downloader.infrastructure.boosty_api.models.unknown_content import (
     UnknownContent,
     collect_unknown_content,
 )
 
 if TYPE_CHECKING:
-    from boosty_downloader.src.infrastructure.boosty_api.models.post.base_post_data import (
+    from boosty_downloader.infrastructure.boosty_api.models.post.base_post_data import (
         BasePostData,
     )
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_audio import (
+from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types.post_data_audio import (
     BoostyPostDataAudioDTO,
 )
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_list import (
+from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types.post_data_list import (
     BoostyPostDataListDTO,
 )
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_ok_video import (
+from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types.post_data_ok_video import (
     BoostyOkVideoType,
     BoostyOkVideoUrl,
     BoostyPostDataOkVideoDTO,
 )
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_text import (
+from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types.post_data_text import (
     BoostyPostDataTextDTO,
 )
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_unknown import (
+from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types.post_data_unknown import (
     BoostyPostDataUnknownDTO,
 )
-from boosty_downloader.src.infrastructure.boosty_api.models.unknown_value import (
+from boosty_downloader.infrastructure.boosty_api.models.unknown_value import (
     BoostyUnknownValue,
 )
 

@@ -1,4 +1,4 @@
-from boosty_downloader.src.infrastructure.file_downloader import (
+from boosty_downloader.infrastructure.file_downloader import (
     DownloadError,
     DownloadUnexpectedStatusError,
 )

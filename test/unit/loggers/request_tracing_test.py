@@ -7,8 +7,8 @@ import logging
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 
-from boosty_downloader.src.infrastructure.loggers import request_tracing
-from boosty_downloader.src.infrastructure.loggers.request_tracing import redacted_url
+from boosty_downloader.infrastructure.loggers import request_tracing
+from boosty_downloader.infrastructure.loggers.request_tracing import redacted_url
 
 if TYPE_CHECKING:
     import pytest

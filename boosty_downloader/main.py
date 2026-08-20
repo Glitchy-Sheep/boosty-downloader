@@ -8,33 +8,33 @@ import typer
 from aiohttp.client_exceptions import ClientError
 from sqlalchemy.exc import DatabaseError, IntegrityError, OperationalError
 
-from boosty_downloader.src.application.exceptions.application_errors import (
+from boosty_downloader.application.exceptions.application_errors import (
     ApplicationCancelledError,
     ApplicationTooManyFailuresError,
 )
-from boosty_downloader.src.cli.cli_options import (
+from boosty_downloader.cli.cli_options import (
     DebugOption,  # noqa: TC001
     VersionOption,  # noqa: TC001
 )
-from boosty_downloader.src.cli.commands import (
+from boosty_downloader.cli.commands import (
     check,
     clean_cache,
     download,
     show_auth_script,
 )
-from boosty_downloader.src.cli.error_reporting import report_network_error
-from boosty_downloader.src.infrastructure.boosty_api.core.client import (
+from boosty_downloader.cli.error_reporting import report_network_error
+from boosty_downloader.infrastructure.boosty_api.core.client import (
     BoostyAPIInvalidUsernameError,
     BoostyAPINoUsernameError,
     BoostyAPIUnauthorizedError,
     BoostyAPIUnknownError,
     BoostyAPIValidationError,
 )
-from boosty_downloader.src.infrastructure.boosty_api.utils.validation_errors import (
+from boosty_downloader.infrastructure.boosty_api.utils.validation_errors import (
     GITHUB_ISSUES_URL,
     format_validation_errors,
 )
-from boosty_downloader.src.infrastructure.loggers import logger_instances
+from boosty_downloader.infrastructure.loggers import logger_instances
 
 typer_app = typer.Typer(
     add_completion=False,

@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from boosty_downloader.src.application.use_cases.download_single_post import (
+from boosty_downloader.application.use_cases.download_single_post import (
     _boosty_video_filename,
 )
-from boosty_downloader.src.domain.post import PostDataChunkBoostyVideo
-from boosty_downloader.src.infrastructure.file_downloader import (
+from boosty_downloader.domain.post import PostDataChunkBoostyVideo
+from boosty_downloader.infrastructure.file_downloader import (
     _app_built_filename,
     _author_filename,
 )
-from boosty_downloader.src.infrastructure.path_sanitizer import MAX_NAME_BYTES
+from boosty_downloader.infrastructure.path_sanitizer import MAX_NAME_BYTES
 
 
 def test_author_extension_survives_truncation() -> None:

@@ -16,12 +16,12 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 
-from boosty_downloader.src.application.filtering import BoostyOkVideoType
-from boosty_downloader.src.application.mappers.post_mapper import (
+from boosty_downloader.application.filtering import BoostyOkVideoType
+from boosty_downloader.application.mappers.post_mapper import (
     map_post_dto_to_domain,
 )
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
-from boosty_downloader.src.infrastructure.boosty_api.models.unknown_content import (
+from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
+from boosty_downloader.infrastructure.boosty_api.models.unknown_content import (
     collect_unknown_content,
 )
 
