@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import errno
 
-from boosty_downloader.src.infrastructure.path_sanitizer import (
+from boosty_downloader.infrastructure.path_sanitizer import (
     is_path_too_long_error,
 )
 

@@ -6,16 +6,16 @@ Every stage failure names the place where the fix belongs.
 
 import warnings
 
-from boosty_downloader.src.application.mappers.post_mapper import (
+from boosty_downloader.application.mappers.post_mapper import (
     map_post_dto_to_domain,
 )
-from boosty_downloader.src.infrastructure.boosty_api.core.client import (
+from boosty_downloader.infrastructure.boosty_api.core.client import (
     BoostyAPIClient,
 )
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_ok_video import (
+from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types.post_data_ok_video import (
     BoostyOkVideoType,
 )
-from boosty_downloader.src.infrastructure.boosty_api.models.unknown_content import (
+from boosty_downloader.infrastructure.boosty_api.models.unknown_content import (
     collect_unknown_content,
 )
 from integration.configuration import IntegrationTestConfig
@@ -24,7 +24,7 @@ pytest_plugins = [
     'integration.fixtures',
 ]
 
-DTO_DIR = 'boosty_downloader/src/infrastructure/boosty_api/models/post/post_data_types/'
+DTO_DIR = 'boosty_downloader/infrastructure/boosty_api/models/post/post_data_types/'
 
 
 async def test_posts_page_parses_and_maps_to_domain(

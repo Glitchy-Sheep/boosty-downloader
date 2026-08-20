@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
+from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
 )
-from boosty_downloader.src.infrastructure.path_sanitizer import MAX_NAME_BYTES
+from boosty_downloader.infrastructure.path_sanitizer import MAX_NAME_BYTES
 
 
 def test_long_title_leaves_room_for_the_extension() -> None:

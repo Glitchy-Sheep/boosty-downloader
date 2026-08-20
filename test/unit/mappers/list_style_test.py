@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import pytest
 
-from boosty_downloader.src.application.mappers.html_converter import (
+from boosty_downloader.application.mappers.html_converter import (
     convert_list_to_html,
 )
-from boosty_downloader.src.application.mappers.list import to_domain_list_chunk
-from boosty_downloader.src.domain.post_data_chunks import PostDataChunkTextualList
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_list import (
+from boosty_downloader.application.mappers.list import to_domain_list_chunk
+from boosty_downloader.domain.post_data_chunks import PostDataChunkTextualList
+from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types.post_data_list import (
     BoostyPostDataListDTO,
 )
-from boosty_downloader.src.infrastructure.html_generator.models import HtmlListStyle
+from boosty_downloader.infrastructure.html_generator.models import HtmlListStyle
 
 ListStyle = PostDataChunkTextualList.ListStyle
 

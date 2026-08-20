@@ -5,29 +5,29 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, cast
 
-from boosty_downloader.src.application.use_cases.check_total_posts import (
+from boosty_downloader.application.use_cases.check_total_posts import (
     ReportTotalPostsCountUseCase,
 )
-from boosty_downloader.src.infrastructure.boosty_api.models.post.extra import Extra
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types import (
+from boosty_downloader.infrastructure.boosty_api.models.post.extra import Extra
+from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
+from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types import (
     BoostyPostDataUnknownDTO,
 )
-from boosty_downloader.src.infrastructure.boosty_api.models.post.posts_request import (
+from boosty_downloader.infrastructure.boosty_api.models.post.posts_request import (
     PostsResponse,
     SkippedPost,
 )
-from boosty_downloader.src.infrastructure.boosty_api.utils.validation_errors import (
+from boosty_downloader.infrastructure.boosty_api.utils.validation_errors import (
     GITHUB_ISSUES_URL,
 )
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
-    from boosty_downloader.src.infrastructure.boosty_api.core.client import (
+    from boosty_downloader.infrastructure.boosty_api.core.client import (
         BoostyAPIClient,
     )
-    from boosty_downloader.src.infrastructure.loggers.logger_instances import RichLogger
+    from boosty_downloader.infrastructure.loggers.logger_instances import RichLogger
 
 
 class _FakeLogger:

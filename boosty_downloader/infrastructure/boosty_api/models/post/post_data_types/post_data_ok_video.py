@@ -1,0 +1,71 @@
+"""Module with ok video representation of posts data"""
+
+from __future__ import annotations
+
+from datetime import timedelta  # noqa: TC003 Pydantic should know this type fully
+from enum import Enum
+from typing import Annotated, Literal
+
+from pydantic import Field
+
+from boosty_downloader.infrastructure.boosty_api.models.base import BoostyBaseDTO
+from boosty_downloader.infrastructure.boosty_api.models.unknown_value import (
+    UnknownValue,
+)
+
+
+class BoostyOkVideoType(Enum):
+    """All the types which boosty provides for ok video"""
+
+    live_playback_dash = 'live_playback_dash'
+    live_playback_hls = 'live_playback_hls'
+    live_ondemand_hls = 'live_ondemand_hls'
+
+    live_dash = 'live_dash'
+    live_hls = 'live_hls'
+    hls = 'hls'
+    dash = 'dash'
+    dash_uni = 'dash_uni'
+    live_cmaf = 'live_cmaf'
+    ondemand_hls = 'ondemand_hls'
+    ondemand_dash = 'ondemand_dash'
+
+    ultra_hd = 'ultra_hd'
+    quad_hd = 'quad_hd'
+    full_hd = 'full_hd'
+    high = 'high'
+    medium = 'medium'
+    low = 'low'
+    tiny = 'tiny'
+    lowest = 'lowest'
+
+
+# Known types parse into the enum, anything new from Boosty is kept as
+# BoostyUnknownValue with the raw word for the run summary. left_to_right is
+# required: the default smart mode lets the catch-all swallow known values.
+TolerantOkVideoType = Annotated[
+    BoostyOkVideoType | UnknownValue,
+    Field(union_mode='left_to_right'),
+]
+
+
+class BoostyOkVideoUrl(BoostyBaseDTO):
+    """Link to video with specific format (link can be empty for some formats)"""
+
+    url: str
+    type: TolerantOkVideoType
+
+
+class BoostyPostDataOkVideoDTO(BoostyBaseDTO):
+    """Ok video content piece in posts"""
+
+    type: Literal['ok_video']
+
+    id: str
+    title: str
+    failover_host: str
+    duration: timedelta
+
+    upload_status: str | None = None
+    complete: bool
+    player_urls: list[BoostyOkVideoUrl]

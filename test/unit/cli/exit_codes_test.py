@@ -5,11 +5,11 @@ from __future__ import annotations
 import pytest
 
 from boosty_downloader import main as main_module
-from boosty_downloader.src.application.exceptions.application_errors import (
+from boosty_downloader.application.exceptions.application_errors import (
     ApplicationCancelledError,
     ApplicationTooManyFailuresError,
 )
-from boosty_downloader.src.infrastructure.boosty_api.core.client import (
+from boosty_downloader.infrastructure.boosty_api.core.client import (
     BoostyAPINoUsernameError,
     BoostyAPIUnauthorizedError,
 )

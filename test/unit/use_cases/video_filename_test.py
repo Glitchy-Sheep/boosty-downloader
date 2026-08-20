@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from boosty_downloader.src.application.use_cases.download_single_post import (
+from boosty_downloader.application.use_cases.download_single_post import (
     _boosty_video_filename,
 )
-from boosty_downloader.src.domain.post import PostDataChunkBoostyVideo
+from boosty_downloader.domain.post import PostDataChunkBoostyVideo
 
 
 def _video(video_id: str, title: str) -> PostDataChunkBoostyVideo:

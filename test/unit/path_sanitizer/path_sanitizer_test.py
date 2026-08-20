@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from boosty_downloader.src.infrastructure.path_sanitizer import (
+from boosty_downloader.infrastructure.path_sanitizer import (
     MAX_NAME_BYTES,
     sanitize_filename,
 )

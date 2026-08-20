@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from boosty_downloader.src.infrastructure.html_generator.models import (
+from boosty_downloader.infrastructure.html_generator.models import (
     HtmlGenAudio,
     HtmlGenChunk,
     HtmlGenFile,
@@ -14,7 +14,7 @@ from boosty_downloader.src.infrastructure.html_generator.models import (
     HtmlTextFragment,
     HtmlTextStyle,
 )
-from boosty_downloader.src.infrastructure.html_generator.renderer import (
+from boosty_downloader.infrastructure.html_generator.renderer import (
     render_html,
     render_html_to_file,
 )

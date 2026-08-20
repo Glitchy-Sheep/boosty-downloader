@@ -14,9 +14,9 @@ from typing import TYPE_CHECKING
 import pytest
 from sqlalchemy.exc import DatabaseError
 
-from boosty_downloader.src.application.filtering import DownloadContentTypeFilter
-from boosty_downloader.src.infrastructure.loggers.base import RichLogger
-from boosty_downloader.src.infrastructure.post_caching.post_cache import (
+from boosty_downloader.application.filtering import DownloadContentTypeFilter
+from boosty_downloader.infrastructure.loggers.base import RichLogger
+from boosty_downloader.infrastructure.post_caching.post_cache import (
     SQLitePostCache,
 )
 

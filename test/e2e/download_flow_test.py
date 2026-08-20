@@ -17,28 +17,28 @@ from aiohttp import ClientSession, web
 from aiohttp.test_utils import TestServer
 from aiohttp_retry import ExponentialRetry, RetryClient
 
-from boosty_downloader.src.application.di.download_context import DownloadContext
-from boosty_downloader.src.application.filtering import (
+from boosty_downloader.application.di.download_context import DownloadContext
+from boosty_downloader.application.filtering import (
     BoostyOkVideoType,
     DownloadContentTypeFilter,
 )
-from boosty_downloader.src.application.use_cases.download_all_posts import (
+from boosty_downloader.application.use_cases.download_all_posts import (
     DownloadAllPostUseCase,
 )
-from boosty_downloader.src.infrastructure.boosty_api.core.client import BoostyAPIClient
-from boosty_downloader.src.infrastructure.loggers.base import RichLogger
-from boosty_downloader.src.infrastructure.loggers.failed_downloads_logger import (
+from boosty_downloader.infrastructure.boosty_api.core.client import BoostyAPIClient
+from boosty_downloader.infrastructure.loggers.base import RichLogger
+from boosty_downloader.infrastructure.loggers.failed_downloads_logger import (
     FailedDownloadsLogger,
 )
-from boosty_downloader.src.infrastructure.post_caching.post_cache import (
+from boosty_downloader.infrastructure.post_caching.post_cache import (
     SQLitePostCache,
 )
 
 if TYPE_CHECKING:
     from yarl import URL
 
-    from boosty_downloader.src.cli.console_progress_reporter import ProgressReporter
-    from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
+    from boosty_downloader.cli.console_progress_reporter import ProgressReporter
+    from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
         ExternalVideosDownloader,
     )
 

@@ -11,22 +11,22 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
-from boosty_downloader.src.application.use_cases.download_single_post import (
+from boosty_downloader.application.use_cases.download_single_post import (
     DownloadSinglePostUseCase,
 )
-from boosty_downloader.src.domain.post import (
+from boosty_downloader.domain.post import (
     PostDataChunkAudio,
     PostDataChunkBoostyVideo,
     PostDataChunkFile,
     PostDataChunkImage,
 )
-from boosty_downloader.src.infrastructure.file_downloader import _extension_to_append
+from boosty_downloader.infrastructure.file_downloader import _extension_to_append
 
 if TYPE_CHECKING:
     import pytest
 
-    from boosty_downloader.src.application.di.download_context import DownloadContext
-    from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
+    from boosty_downloader.application.di.download_context import DownloadContext
+    from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
 
 
 def test_type_unknown_never_produces_an_extension() -> None:

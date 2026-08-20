@@ -7,13 +7,13 @@ from enum import Enum
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from boosty_downloader.src.infrastructure.boosty_api.models.post.posts_request import (
+from boosty_downloader.infrastructure.boosty_api.models.post.posts_request import (
     SkippedPost,
 )
-from boosty_downloader.src.infrastructure.boosty_api.models.unknown_content import (
+from boosty_downloader.infrastructure.boosty_api.models.unknown_content import (
     UnknownContent,
 )
-from boosty_downloader.src.infrastructure.boosty_api.utils.validation_errors import (
+from boosty_downloader.infrastructure.boosty_api.utils.validation_errors import (
     GITHUB_ISSUES_URL,
     format_run_summary,
     format_skipped_post,

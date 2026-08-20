@@ -10,29 +10,29 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
-from boosty_downloader.src.application import post_retry as post_retry_module
-from boosty_downloader.src.application.di.download_context import DownloadContext
-from boosty_downloader.src.application.exceptions.application_errors import (
+from boosty_downloader.application import post_retry as post_retry_module
+from boosty_downloader.application.di.download_context import DownloadContext
+from boosty_downloader.application.exceptions.application_errors import (
     ApplicationCancelledError,
     ApplicationFailedDownloadError,
     ApplicationTooManyFailuresError,
 )
-from boosty_downloader.src.application.filtering import BoostyOkVideoType
-from boosty_downloader.src.application.use_cases.download_all_posts import (
+from boosty_downloader.application.filtering import BoostyOkVideoType
+from boosty_downloader.application.use_cases.download_all_posts import (
     DownloadAllPostUseCase,
 )
-from boosty_downloader.src.application.use_cases.download_single_post import (
+from boosty_downloader.application.use_cases.download_single_post import (
     DownloadSinglePostUseCase,
 )
-from boosty_downloader.src.infrastructure.boosty_api.core.client import (
+from boosty_downloader.infrastructure.boosty_api.core.client import (
     BoostyAPIUnknownError,
 )
-from boosty_downloader.src.infrastructure.boosty_api.models.post.extra import Extra
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
-from boosty_downloader.src.infrastructure.boosty_api.models.post.posts_request import (
+from boosty_downloader.infrastructure.boosty_api.models.post.extra import Extra
+from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
+from boosty_downloader.infrastructure.boosty_api.models.post.posts_request import (
     PostsResponse,
 )
-from boosty_downloader.src.infrastructure.file_downloader import (
+from boosty_downloader.infrastructure.file_downloader import (
     DownloadUnexpectedStatusError,
 )
 
@@ -41,17 +41,17 @@ if TYPE_CHECKING:
 
     from aiohttp_retry import RetryClient
 
-    from boosty_downloader.src.cli.console_progress_reporter import ProgressReporter
-    from boosty_downloader.src.infrastructure.boosty_api.core.client import (
+    from boosty_downloader.cli.console_progress_reporter import ProgressReporter
+    from boosty_downloader.infrastructure.boosty_api.core.client import (
         BoostyAPIClient,
     )
-    from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
+    from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
         ExternalVideosDownloader,
     )
-    from boosty_downloader.src.infrastructure.loggers.failed_downloads_logger import (
+    from boosty_downloader.infrastructure.loggers.failed_downloads_logger import (
         FailedDownloadsLogger,
     )
-    from boosty_downloader.src.infrastructure.post_caching.post_cache import (
+    from boosty_downloader.infrastructure.post_caching.post_cache import (
         SQLitePostCache,
     )
 

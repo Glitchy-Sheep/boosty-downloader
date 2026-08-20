@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, cast
 import pytest
 from aiohttp import ContentTypeError
 
-from boosty_downloader.src.infrastructure.boosty_api.core.client import (
+from boosty_downloader.infrastructure.boosty_api.core.client import (
     BoostyAPIClient,
     BoostyAPIInvalidUsernameError,
     BoostyAPINoPostError,

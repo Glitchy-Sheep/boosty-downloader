@@ -5,20 +5,20 @@ from __future__ import annotations
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from boosty_downloader.src.infrastructure.boosty_api.models.post.base_post_data import (
+from boosty_downloader.infrastructure.boosty_api.models.post.base_post_data import (
     BasePostData,
 )
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types import (
+from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types import (
     BoostyPostDataListDTO,
     BoostyPostDataTextDTO,
     BoostyPostDataUnknownDTO,
 )
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types.post_data_list import (
+from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types.post_data_list import (
     BoostyListItemType,
     BoostyListStyle,
     BoostyPostDataListDataItemDTO,
 )
-from boosty_downloader.src.infrastructure.boosty_api.models.unknown_value import (
+from boosty_downloader.infrastructure.boosty_api.models.unknown_value import (
     BoostyUnknownValue,
 )
 

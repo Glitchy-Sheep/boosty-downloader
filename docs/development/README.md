@@ -16,11 +16,10 @@ Start here, then follow the documents in order - each builds on the previous:
 ```
 boosty_downloader/
   main.py                    # Entry point
-  src/
-    domain/                  # Pure data models (Post, PostDataChunks)
-    application/             # Business logic, use cases, DI
-    infrastructure/          # API client, caching, HTML rendering, yt-dlp
-    cli/                     # Typer CLI options, progress reporter
+  domain/                    # Pure data models (Post, PostDataChunks)
+  application/               # Business logic, use cases, DI
+  infrastructure/            # API client, caching, HTML rendering, yt-dlp
+  cli/                       # Typer CLI options, progress reporter
 scripts/
   release.py                 # Release wizard (bump, changelog, PR, tag)
   api_preflight.py           # Credentials check before integration tests

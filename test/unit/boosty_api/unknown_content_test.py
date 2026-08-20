@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from boosty_downloader.src.infrastructure.boosty_api.models.post.post_data_types import (
+from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types import (
     BoostyPostDataListDTO,
 )
-from boosty_downloader.src.infrastructure.boosty_api.models.unknown_content import (
+from boosty_downloader.infrastructure.boosty_api.models.unknown_content import (
     UnknownContent,
     collect_unknown_content,
 )

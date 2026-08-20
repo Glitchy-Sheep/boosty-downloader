@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, cast
 import pytest
 from aiohttp import SocketTimeoutError
 
-from boosty_downloader.src.infrastructure.file_downloader import (
+from boosty_downloader.infrastructure.file_downloader import (
     DownloadConnectionError,
     DownloadFileConfig,
     DownloadTimeoutError,

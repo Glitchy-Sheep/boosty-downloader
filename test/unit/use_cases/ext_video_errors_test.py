@@ -8,24 +8,24 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
-from boosty_downloader.src.application.exceptions.application_errors import (
+from boosty_downloader.application.exceptions.application_errors import (
     ApplicationFailedDownloadError,
 )
-from boosty_downloader.src.application.filtering import DownloadContentTypeFilter
-from boosty_downloader.src.application.use_cases.download_single_post import (
+from boosty_downloader.application.filtering import DownloadContentTypeFilter
+from boosty_downloader.application.use_cases.download_single_post import (
     DownloadSinglePostUseCase,
 )
-from boosty_downloader.src.domain.post import Post
-from boosty_downloader.src.domain.post_data_chunks import PostDataChunkExternalVideo
-from boosty_downloader.src.infrastructure.external_videos_downloader.external_videos_downloader import (
+from boosty_downloader.domain.post import Post
+from boosty_downloader.domain.post_data_chunks import PostDataChunkExternalVideo
+from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
     ExtVideoDownloadError,
     ExtVideoError,
     ExtVideoInfoError,
 )
 
 if TYPE_CHECKING:
-    from boosty_downloader.src.application.di.download_context import DownloadContext
-    from boosty_downloader.src.infrastructure.boosty_api.models.post.post import PostDTO
+    from boosty_downloader.application.di.download_context import DownloadContext
+    from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
 
 NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
