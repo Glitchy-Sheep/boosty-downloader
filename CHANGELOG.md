@@ -1,5 +1,10 @@
 ## Unreleased
 
+### Security
+
+- The account token and cookies no longer travel with media downloads: they went to every CDN and third-party video host with each downloaded file, though only the Boosty API needs them. Downloads now use a separate credential-free connection - access to protected media comes from the signed link itself
+- Images and audio now carry the same signed access query as files, so protected media downloads do not depend on session cookies
+
 ### Fixed
 
 - `--post-url` now exits with code 1 when the post is not found, not accessible or fails to download, and with 130 on Ctrl+C - previously every failure looked like a success to scripts and cron
