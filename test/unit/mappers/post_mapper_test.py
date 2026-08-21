@@ -8,6 +8,9 @@ from boosty_downloader.application.mappers.post_mapper import (
     PostMappingResult,
     map_post_dto_to_domain,
 )
+from boosty_downloader.infrastructure.boosty_api.models.post.base_post_data import (
+    BoostyPostDataImageDTO,
+)
 from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
 from boosty_downloader.infrastructure.boosty_api.models.unknown_content import (
     UnknownContent,
@@ -294,3 +297,26 @@ def test_non_text_list_item_is_reported_not_silent():
     assert collect_unknown_content(post_dto) == {
         UnknownContent(path='data[0].items[1].items[0].data[0].type', raw='image')
     }
+
+
+def test_image_and_audio_urls_carry_the_signed_query():
+    """Only files got the access signature: protected images and audio hit 403."""
+    image = BoostyPostDataImageDTO.model_validate(
+        {
+            'type': 'image',
+            'id': 'im-1',
+            'url': 'https://cdn/img',
+            'width': 1,
+            'height': 1,
+            'size': 1,
+        }
+    )
+
+    result = map_post_dto_to_domain(
+        _make_post_dto([image, _make_audio(complete=True)]),
+        preferred_video_quality=BoostyOkVideoType.medium,
+    )
+
+    urls = [chunk.url for chunk in result.post.post_data_chunks]
+    assert urls, 'both chunks must map'
+    assert all(url.endswith('sig=abc') for url in urls), urls

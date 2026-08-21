@@ -7,10 +7,10 @@ from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types imp
 
 
 def to_domain_audio_chunk(
-    api_audio: BoostyPostDataAudioDTO,
+    api_audio: BoostyPostDataAudioDTO, signed_query: str
 ) -> PostDataChunkAudio:
     """Convert API PostDataAudio to domain PostDataChunkAudio."""
     return PostDataChunkAudio(
-        url=api_audio.url,
+        url=api_audio.url + signed_query,
         title=api_audio.title,
     )
