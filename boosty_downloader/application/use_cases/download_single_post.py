@@ -4,8 +4,9 @@ Use case for downloading a single post from Boosty.
 It encapsulates the logic required to download a post from a specific author.
 """
 
+import threading
 import uuid
-from asyncio import CancelledError, to_thread
+from asyncio import CancelledError, get_running_loop, to_thread
 from datetime import datetime
 from pathlib import Path
 
@@ -427,6 +428,9 @@ class DownloadSinglePostUseCase:
             f'External video: {external_video.url}', indent_level=2
         )
 
+        loop = get_running_loop()
+        cancel_requested = threading.Event()
+
         def update_progress(status: ExternalVideoDownloadStatus) -> None:
             downloaded = human_readable_size(status.downloaded_bytes)
             total = human_readable_size(status.total_bytes)
@@ -437,12 +441,27 @@ class DownloadSinglePostUseCase:
                 description=f'External video [{downloaded} / {total}]: {external_video.url}',
             )
 
+        def thread_safe_progress(status: ExternalVideoDownloadStatus) -> None:
+            # KeyboardInterrupt is yt-dlp's own abort path: raising it inside
+            # the worker thread stops the download shortly after Ctrl+C.
+            if cancel_requested.is_set():
+                raise KeyboardInterrupt
+            # yt-dlp calls the hook from its worker thread; the progress
+            # display must be touched only from the event loop.
+            loop.call_soon_threadsafe(update_progress, status)
+
         try:
-            path = self.context.external_videos_downloader.download_video(
+            # yt-dlp is fully blocking: run it off the loop, or it freezes
+            # every parallel download and the progress display.
+            path = await to_thread(
+                self.context.external_videos_downloader.download_video,
                 url=external_video.url,
                 destination_directory=self.external_videos_destination,
-                progress_hook=update_progress,
+                progress_hook=thread_safe_progress,
             )
+        except CancelledError:
+            cancel_requested.set()
+            raise
         finally:
             self.context.progress_reporter.complete_task(task_id)
 
