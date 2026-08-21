@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 3.6.0
+
 ### Security
 
 - The account token and cookies no longer travel with media downloads: they went to every CDN and third-party video host with each downloaded file, though only the Boosty API needs them. Downloads now use a separate credential-free connection - access to protected media comes from the signed link itself
