@@ -67,7 +67,7 @@
         ]
       },
       {
-        "url": "https://images.example/image/10000000-0000-4000-8000-000000000201"
+        "url": "https://images.example/image/10000000-0000-4000-8000-000000000201?fake-signed-query"
       },
       {
         "filename": "fixture-archive.zip",
@@ -81,7 +81,7 @@
       },
       {
         "title": "fixture-song.mp3",
-        "url": "https://cdn.example/audio/10000000-0000-4000-8000-000000000500"
+        "url": "https://cdn.example/audio/10000000-0000-4000-8000-000000000500?fake-signed-query"
       }
     ],
     "signed_query": "?fake-signed-query",

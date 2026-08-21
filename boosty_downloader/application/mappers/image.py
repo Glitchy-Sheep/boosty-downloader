@@ -6,8 +6,10 @@ from boosty_downloader.infrastructure.boosty_api.models.post.base_post_data impo
 )
 
 
-def to_domain_image_chunk(api_image: BoostyPostDataImageDTO) -> PostDataChunkImage:
+def to_domain_image_chunk(
+    api_image: BoostyPostDataImageDTO, signed_query: str
+) -> PostDataChunkImage:
     """Convert API PostDataImage to domain PostDataChunkImage."""
     return PostDataChunkImage(
-        url=api_image.url,
+        url=api_image.url + signed_query,
     )

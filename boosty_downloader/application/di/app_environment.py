@@ -65,18 +65,35 @@ class AppEnvironment:
         self._exit_stack = AsyncExitStack()
         await self._exit_stack.__aenter__()
 
+        # No limit on the whole download: big videos legally take hours.
+        # Limits are on silence only - a dead connection must surface as an
+        # error, not as an eternal hang:
+        # - connect: a healthy server answers in under a second
+        # - sock_read: max quiet time between received chunks
+        network_timeout = aiohttp.ClientTimeout(total=None, connect=30, sock_read=90)
+
         authorized_boosty_session = await self._exit_stack.enter_async_context(
-            # Don't: set BASE_URL here, the BoostyAPIClient will handle it internally.
-            # Why: this session will be used for both downloading and API requests with different bases.
+            # Credentials live ONLY here: this session talks to the Boosty API.
             aiohttp.ClientSession(
                 headers=self.boosty_headers,
                 cookie_jar=self.boosty_cookies_jar,
-                # No limit on the whole download: big videos legally take
-                # hours. Limits are on silence only - a dead connection must
-                # surface as an error, not as an eternal hang:
-                # - connect: a healthy server answers in under a second
-                # - sock_read: max quiet time between received chunks
-                timeout=aiohttp.ClientTimeout(total=None, connect=30, sock_read=90),
+                timeout=network_timeout,
+                trust_env=True,
+                trace_configs=[
+                    create_request_trace_config(
+                        total_attempts=self.retry_options.attempts
+                    )
+                ],
+            )
+        )
+
+        download_session = await self._exit_stack.enter_async_context(
+            # Media downloads carry no credentials: access to protected files
+            # comes from the signed query inside the url. The account token
+            # must not travel to CDN and third-party video hosts.
+            aiohttp.ClientSession(
+                cookie_jar=aiohttp.DummyCookieJar(),
+                timeout=network_timeout,
                 trust_env=True,
                 trace_configs=[
                     create_request_trace_config(
@@ -98,6 +115,9 @@ class AppEnvironment:
         authorized_retry_client = RetryClient(
             authorized_boosty_session, retry_options=self.retry_options
         )
+        downloading_retry_client = RetryClient(
+            download_session, retry_options=self.retry_options
+        )
 
         boosty_api_client = BoostyAPIClient(
             authorized_retry_client,
@@ -113,7 +133,7 @@ class AppEnvironment:
 
         return self.Environment(
             boosty_api_client=boosty_api_client,
-            downloading_retry_client=authorized_retry_client,
+            downloading_retry_client=downloading_retry_client,
             progress_reporter=progress_reporter,
             destination_directory=self.target_directory / self.author_name,
             post_cache=post_cache,

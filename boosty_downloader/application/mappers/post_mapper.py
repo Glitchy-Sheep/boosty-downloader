@@ -66,7 +66,9 @@ def map_post_dto_to_domain(  # noqa: C901, PLR0912 - one match-dispatcher over e
     for data_chunk in post_dto.data:
         match data_chunk:
             case BoostyPostDataImageDTO():
-                post.post_data_chunks.append(mappers.to_domain_image_chunk(data_chunk))
+                post.post_data_chunks.append(
+                    mappers.to_domain_image_chunk(data_chunk, post.signed_query)
+                )
             case (
                 BoostyPostDataHeaderDTO()
                 | BoostyPostDataLinkDTO()
@@ -106,7 +108,9 @@ def map_post_dto_to_domain(  # noqa: C901, PLR0912 - one match-dispatcher over e
                 if not data_chunk.complete:
                     incomplete_content_types.add(DownloadContentTypeFilter.audio)
                     continue
-                post.post_data_chunks.append(mappers.to_domain_audio_chunk(data_chunk))
+                post.post_data_chunks.append(
+                    mappers.to_domain_audio_chunk(data_chunk, post.signed_query)
+                )
             case BoostyPostDataUnknownDTO():
                 # Reported by collect_unknown_content; nothing to map here.
                 pass
