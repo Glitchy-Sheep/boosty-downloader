@@ -8,7 +8,9 @@ and use-case refactoring stages: the on-disk tree must not change.
 
 from __future__ import annotations
 
+import asyncio
 import json
+import time
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -82,7 +84,7 @@ class _QuietReporter:
         self.errors.append(message)
 
 
-def _build_app(served_media: list[str]) -> web.Application:
+def _build_app(served_media: list[str], media_delay: float = 0.0) -> web.Application:
     fixture_text = FIXTURE_FILE.read_text(encoding='utf-8')
 
     async def listing(request: web.Request) -> web.Response:
@@ -98,6 +100,8 @@ def _build_app(served_media: list[str]) -> web.Application:
 
     async def blob(request: web.Request) -> web.Response:
         served_media.append(request.path)
+        if media_delay:
+            await asyncio.sleep(media_delay)
         if '/image/' in request.path:
             return web.Response(body=b'png bytes', content_type='image/png')
         if request.path.endswith('.mp4'):
@@ -193,5 +197,35 @@ async def test_second_run_serves_from_cache(tmp_path: Path) -> None:
 
         assert len(served_media) == media_after_first
         assert any('cached' in notice for notice in reporter.notices)
+    finally:
+        await server.close()
+
+
+async def test_media_of_one_post_downloads_in_parallel(tmp_path: Path) -> None:
+    """Four media on a 0.4s-slow server must overlap: the sequential flow
+    needed at least 1.6s, the parallel one fits well under that."""
+    served_media: list[str] = []
+    server = TestServer(_build_app(served_media, media_delay=0.4))
+    await server.start_server()
+    try:
+        reporter = _QuietReporter()
+        started = time.monotonic()
+        await _run_download(tmp_path, server.make_url('/'), reporter)
+        duration = time.monotonic() - started
+
+        assert reporter.errors == []
+        media_requests = [p for p in served_media if p != '/']
+        assert len(media_requests) >= 4, 'the fixture post carries 4 media'
+        assert duration < 1.3, (
+            f'4 media x 0.4s must overlap, not queue (took {duration:.2f}s)'
+        )
+
+        html = (tmp_path / POST_DIR_NAME / 'post.html').read_text(encoding='utf-8')
+        image_at = html.index('images/')
+        video_at = html.index('boosty_videos/')
+        audio_at = html.index('audio/')
+        assert image_at < video_at < audio_at, (
+            'the page must keep the author chunk order despite parallel finishes'
+        )
     finally:
         await server.close()

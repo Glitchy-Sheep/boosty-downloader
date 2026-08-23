@@ -1,5 +1,10 @@
 ## Unreleased
 
+### Added
+
+- Media of a post now downloads up to 4 files at once instead of strictly one by one. The CDN caps the speed of every single connection, so image-heavy posts get up to ~10x faster and video posts 2-3x on a wide channel; the page layout, retries and Ctrl+C behave exactly as before
+- External videos (yt-dlp) no longer freeze the progress display and other downloads while they run
+
 ## 3.6.0
 
 ### Security

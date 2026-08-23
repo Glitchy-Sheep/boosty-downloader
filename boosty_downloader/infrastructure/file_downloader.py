@@ -53,7 +53,9 @@ class DownloadFileConfig:
     # (videos, images). Names that come from the author (files, audio)
     # already carry their extension and must never be touched.
     guess_extension: bool = True
-    chunk_size_bytes: int = 524288  # 512 KiB
+    # 2 MiB: on fast channels the old 512 KiB meant 4x more per-chunk
+    # bookkeeping (progress callback + write) for no benefit.
+    chunk_size_bytes: int = 2097152
 
 
 class DownloadError(Exception):

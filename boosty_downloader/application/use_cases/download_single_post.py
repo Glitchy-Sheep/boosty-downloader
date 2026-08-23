@@ -4,8 +4,9 @@ Use case for downloading a single post from Boosty.
 It encapsulates the logic required to download a post from a specific author.
 """
 
+import threading
 import uuid
-from asyncio import CancelledError, to_thread
+from asyncio import CancelledError, Semaphore, gather, get_running_loop, to_thread
 from datetime import datetime
 from pathlib import Path
 
@@ -76,6 +77,11 @@ def _form_post_url(username: str, post_id: str) -> str:
 # download_file appends a guessed extension to video names later:
 # the byte budget here leaves room so that never re-truncates the name.
 _GUESSED_EXTENSION_RESERVE_BYTES = 8
+
+# One post's media download in parallel. The CDN caps every single
+# connection, and each cold small file pays seconds of request latency;
+# four connections reclaim most of the channel without hammering the host.
+MEDIA_CONCURRENCY = 4
 
 
 def _boosty_video_filename(video: PostDataChunkBoostyVideo) -> str:
@@ -200,17 +206,14 @@ class DownloadSinglePostUseCase:
 
         self.destination.mkdir(parents=True, exist_ok=True)
         post_task_id = self._start_post_task(post)
+
         try:
-            post_html: list[HtmlGenChunk] = []
-
-            for chunk in post.post_data_chunks:
-                html_chunk = await self._safely_process_chunk(
-                    chunk, missing_parts, post
-                )
-                if html_chunk:
-                    post_html.append(html_chunk)
-
-                self._update_post_task(post_task_id)
+            results = await self._process_chunks_concurrently(
+                post, missing_parts, post_task_id
+            )
+            post_html: list[HtmlGenChunk] = [
+                html_chunk for html_chunk in results if html_chunk
+            ]
 
             if DownloadContentTypeFilter.post_content in missing_parts:
                 try:
@@ -240,6 +243,34 @@ class DownloadSinglePostUseCase:
             )
         finally:
             self.context.progress_reporter.complete_task(post_task_id)
+
+    async def _process_chunks_concurrently(
+        self,
+        post: Post,
+        missing_parts: list[DownloadContentTypeFilter],
+        post_task_id: uuid.UUID,
+    ) -> list[HtmlGenChunk | None]:
+        """
+        Download every chunk, MEDIA_CONCURRENCY at a time.
+
+        Results come back in the author's chunk order, whatever finishes
+        first. An outer cancel surfaces as ApplicationCancelledError; a
+        failed chunk surfaces as its own error.
+        """
+        semaphore = Semaphore(MEDIA_CONCURRENCY)
+
+        async def one_chunk(chunk: PostDataAllChunks) -> HtmlGenChunk | None:
+            async with semaphore:
+                html_chunk = await self._safely_process_chunk(
+                    chunk, missing_parts, post
+                )
+            self._update_post_task(post_task_id)
+            return html_chunk
+
+        try:
+            return await gather(*(one_chunk(chunk) for chunk in post.post_data_chunks))
+        except CancelledError as e:
+            raise ApplicationCancelledError(post_uuid=post.uuid) from e
 
     def _start_post_task(self, post: Post) -> uuid.UUID:
         return self.context.progress_reporter.create_task(
@@ -427,6 +458,9 @@ class DownloadSinglePostUseCase:
             f'External video: {external_video.url}', indent_level=2
         )
 
+        loop = get_running_loop()
+        cancel_requested = threading.Event()
+
         def update_progress(status: ExternalVideoDownloadStatus) -> None:
             downloaded = human_readable_size(status.downloaded_bytes)
             total = human_readable_size(status.total_bytes)
@@ -437,12 +471,27 @@ class DownloadSinglePostUseCase:
                 description=f'External video [{downloaded} / {total}]: {external_video.url}',
             )
 
+        def thread_safe_progress(status: ExternalVideoDownloadStatus) -> None:
+            # KeyboardInterrupt is yt-dlp's own abort path: raising it inside
+            # the worker thread stops the download shortly after Ctrl+C.
+            if cancel_requested.is_set():
+                raise KeyboardInterrupt
+            # yt-dlp calls the hook from its worker thread; the progress
+            # display must be touched only from the event loop.
+            loop.call_soon_threadsafe(update_progress, status)
+
         try:
-            path = self.context.external_videos_downloader.download_video(
+            # yt-dlp is fully blocking: run it off the loop, or it freezes
+            # every parallel download and the progress display.
+            path = await to_thread(
+                self.context.external_videos_downloader.download_video,
                 url=external_video.url,
                 destination_directory=self.external_videos_destination,
-                progress_hook=update_progress,
+                progress_hook=thread_safe_progress,
             )
+        except CancelledError:
+            cancel_requested.set()
+            raise
         finally:
             self.context.progress_reporter.complete_task(task_id)
 
