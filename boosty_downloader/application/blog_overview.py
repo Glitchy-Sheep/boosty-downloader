@@ -77,13 +77,40 @@ class AccessGroup:
 
 
 @dataclass(frozen=True, slots=True)
+class UnlockCost:
+    """
+    What opening a set of posts takes: one subscription tier plus one-off purchases.
+
+    Boosty tiers are nested - a higher tier opens every lower one - so one
+    subscription to the most expensive tier covers all tier posts.
+    """
+
+    # The most expensive tier among the posts. None when no post needs one.
+    tier: str | None
+    # Rubles per month, 0 without a tier or for a free tier.
+    tier_price: float
+    # Posts sold one by one that no tier covers.
+    one_off_posts: int
+    # Rubles for all of them.
+    one_off_total: float
+
+    @property
+    def is_free(self) -> bool:
+        return self.tier is None and self.one_off_posts == 0
+
+
+@dataclass(frozen=True, slots=True)
 class BlogOverview:
     """Summary of an author's posts built from the listing."""
 
+    author_name: str
     total_posts: int
     accessible_posts: int
     # Free posts first, then tiers by price, then posts sold one by one.
     access_groups: list[AccessGroup]
+    # What every post of the blog costs to open, and what this account still lacks.
+    full_access_cost: UnlockCost
+    remaining_cost: UnlockCost
     # Media of accessible posts only: a locked post carries a teaser, not its content.
     media: MediaCounts
     first_post_at: datetime | None
@@ -92,16 +119,20 @@ class BlogOverview:
     locked_post_titles: tuple[str, ...]
 
 
-def summarize_posts(posts: Iterable[PostDTO]) -> BlogOverview:
+def summarize_posts(author_name: str, posts: Iterable[PostDTO]) -> BlogOverview:
     """Build the overview of a post listing."""
     posts = list(posts)
     accessible = [post for post in posts if post.has_access]
     media = sum((count_media(post.data) for post in accessible), MediaCounts())
     created_at = [post.created_at for post in posts]
+    groups = _group_by_access(posts)
     return BlogOverview(
+        author_name=author_name,
         total_posts=len(posts),
         accessible_posts=len(accessible),
-        access_groups=_group_by_access(posts),
+        access_groups=groups,
+        full_access_cost=_unlock_cost(groups, locked_only=False),
+        remaining_cost=_unlock_cost(groups, locked_only=True),
         media=media,
         first_post_at=min(created_at) if created_at else None,
         last_post_at=max(created_at) if created_at else None,
@@ -164,3 +195,27 @@ def _display_order(group: AccessGroup) -> tuple[int, float, float, str]:
         return (1, group.tier_price, group.post_price, group.tier)
     is_free = group.post_price == 0
     return (0 if is_free else 2, 0, group.post_price, '')
+
+
+def _unlock_cost(groups: Iterable[AccessGroup], *, locked_only: bool) -> UnlockCost:
+    """Pick the top tier among the groups and sum every post sold one by one."""
+    tier: str | None = None
+    tier_price = 0.0
+    one_off_posts = 0
+    one_off_total = 0.0
+    for group in groups:
+        count = group.posts - group.accessible if locked_only else group.posts
+        if count == 0:
+            continue
+        if group.tier is not None:
+            if tier is None or group.tier_price > tier_price:
+                tier, tier_price = group.tier, group.tier_price
+        elif group.post_price > 0:
+            one_off_posts += count
+            one_off_total += count * group.post_price
+    return UnlockCost(
+        tier=tier,
+        tier_price=tier_price,
+        one_off_posts=one_off_posts,
+        one_off_total=one_off_total,
+    )

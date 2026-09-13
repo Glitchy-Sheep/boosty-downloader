@@ -12,6 +12,7 @@ from boosty_downloader.application.blog_overview import (
     AccessGroup,
     BlogOverview,
     MediaCounts,
+    UnlockCost,
 )
 from boosty_downloader.cli.blog_overview_rendering import render_blog_overview
 
@@ -19,10 +20,14 @@ _NOW = datetime(2026, 8, 22, 12, 0, tzinfo=timezone.utc)
 
 
 def _overview(**overrides: object) -> BlogOverview:
+    free = UnlockCost(tier=None, tier_price=0, one_off_posts=0, one_off_total=0)
     defaults: dict[str, object] = {
+        'author_name': 'author',
         'total_posts': 8,
         'accessible_posts': 4,
         'access_groups': [],
+        'full_access_cost': free,
+        'remaining_cost': free,
         'media': MediaCounts(),
         'first_post_at': datetime(2023, 5, 12, tzinfo=timezone.utc),
         'last_post_at': datetime(2026, 8, 19, tzinfo=timezone.utc),

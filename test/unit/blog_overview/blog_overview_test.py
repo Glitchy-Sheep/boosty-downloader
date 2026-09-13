@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from boosty_downloader.application.blog_overview import (
     AccessGroup,
     MediaCounts,
+    UnlockCost,
     summarize_posts,
 )
 from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
@@ -64,7 +65,7 @@ def test_posts_group_by_the_way_they_unlock_in_display_order():
         _post('single-100-locked', has_access=False, price=100),
     ]
 
-    overview = summarize_posts(posts)
+    overview = summarize_posts('author', posts)
 
     assert overview.total_posts == 8
     assert overview.accessible_posts == 4
@@ -125,7 +126,7 @@ def test_media_is_counted_by_kind_and_only_in_accessible_posts():
     )
     locked_post = _post('locked', has_access=False, data=[image])
 
-    overview = summarize_posts([accessible_post, locked_post])
+    overview = summarize_posts('author', [accessible_post, locked_post])
 
     assert overview.media == MediaCounts(
         images=2, files=1, boosty_videos=1, external_videos=1, audio=1
@@ -142,13 +143,13 @@ def test_date_range_does_not_depend_on_listing_order():
         _post('old', created_at=oldest),
     ]
 
-    overview = summarize_posts(posts)
+    overview = summarize_posts('author', posts)
 
     assert (overview.first_post_at, overview.last_post_at) == (oldest, newest)
 
 
 def test_empty_listing_gives_an_empty_overview():
-    overview = summarize_posts([])
+    overview = summarize_posts('author', [])
 
     assert overview.total_posts == 0
     assert overview.access_groups == []
@@ -178,10 +179,53 @@ def test_prices_group_by_the_stable_rub_value():
         }
     )
 
-    overview = summarize_posts([post])
+    overview = summarize_posts('author', [post])
 
     assert overview.access_groups == [
         AccessGroup(
             tier='Regular', tier_price=199, post_price=100, posts=1, accessible=0
         ),
     ]
+
+
+def test_full_access_costs_the_top_tier_plus_every_single_purchase():
+    """Tiers nest: one subscription to the top tier opens the lower ones too."""
+    posts = [
+        _post('follower', tier=('Follower', 0)),
+        _post('tester', tier=('Tester', 10)),
+        _post('pro', has_access=False, tier=('Pro', 300)),
+        _post('single-100-a', price=100),
+        _post('single-100-b', has_access=False, price=100),
+        _post('single-300', has_access=False, price=300),
+        # Covered by the Pro subscription: not a one-off purchase.
+        _post('tier-and-price', has_access=False, tier=('Tester', 10), price=50),
+    ]
+
+    overview = summarize_posts('author', posts)
+
+    assert overview.full_access_cost == UnlockCost(
+        tier='Pro', tier_price=300, one_off_posts=3, one_off_total=500
+    )
+    # Only what this account cannot open yet.
+    assert overview.remaining_cost == UnlockCost(
+        tier='Pro', tier_price=300, one_off_posts=2, one_off_total=400
+    )
+
+
+def test_free_blog_costs_nothing_and_needs_nothing():
+    overview = summarize_posts('author', [_post('a'), _post('b')])
+
+    assert overview.full_access_cost.is_free
+    assert overview.remaining_cost.is_free
+
+
+def test_locked_free_tier_is_still_a_subscription_to_get():
+    """A followers-only post costs nothing but does need the (free) tier."""
+    overview = summarize_posts(
+        'author', [_post('followers', has_access=False, tier=('Follower', 0))]
+    )
+
+    assert overview.remaining_cost == UnlockCost(
+        tier='Follower', tier_price=0, one_off_posts=0, one_off_total=0
+    )
+    assert not overview.remaining_cost.is_free
