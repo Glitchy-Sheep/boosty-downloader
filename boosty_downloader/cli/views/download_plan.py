@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from rich.console import RenderableType
 
     from boosty_downloader.application.download_plan import DownloadPlan
-    from boosty_downloader.application.filtering import DownloadContentTypeFilter
+    from boosty_downloader.domain.content_types import DownloadContentTypeFilter
 
 
 def render_download_plan(

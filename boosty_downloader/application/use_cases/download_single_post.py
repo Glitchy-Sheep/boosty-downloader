@@ -27,7 +27,6 @@ from boosty_downloader.application.exceptions.application_errors import (
     ApplicationFailedDownloadError,
 )
 from boosty_downloader.application.filtering import (
-    DownloadContentTypeFilter,
     post_has_content_for,
 )
 from boosty_downloader.application.mappers.html_converter import (
@@ -40,6 +39,7 @@ from boosty_downloader.application.mappers.post_mapper import (
     PostMappingResult,
     map_post_dto_to_domain,
 )
+from boosty_downloader.domain.content_types import DownloadContentTypeFilter
 from boosty_downloader.domain.post import Post, PostDataAllChunks
 from boosty_downloader.domain.post_data_chunks import (
     PostDataChunkAudio,

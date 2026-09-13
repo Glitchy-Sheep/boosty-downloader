@@ -16,7 +16,6 @@ from boosty_downloader.application.exceptions.application_errors import (
 )
 from boosty_downloader.application.filtering import (
     BoostyOkVideoType,
-    DownloadContentTypeFilter,
 )
 from boosty_downloader.application.run_statistics import RunStatistics
 from boosty_downloader.application.use_cases import (
@@ -25,6 +24,7 @@ from boosty_downloader.application.use_cases import (
 from boosty_downloader.application.use_cases.download_single_post import (
     DownloadSinglePostUseCase,
 )
+from boosty_downloader.domain.content_types import DownloadContentTypeFilter
 from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
 
 if TYPE_CHECKING:

@@ -12,10 +12,10 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
-from boosty_downloader.application.filtering import DownloadContentTypeFilter
 from boosty_downloader.application.use_cases.download_single_post import (
     DownloadSinglePostUseCase,
 )
+from boosty_downloader.domain.content_types import DownloadContentTypeFilter
 from boosty_downloader.domain.post import Post
 from boosty_downloader.domain.post_data_chunks import (
     PostDataChunkAudio,

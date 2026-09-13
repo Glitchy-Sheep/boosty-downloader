@@ -7,10 +7,10 @@ from typing import Annotated
 import typer
 
 from boosty_downloader.application.filtering import (
-    DownloadContentTypeFilter,
     VideoQualityOption,
 )
 from boosty_downloader.cli.help_panels import HelpPanels
+from boosty_downloader.domain.content_types import DownloadContentTypeFilter
 from boosty_downloader.infrastructure.loggers.debug_file import (
     enable_debug_file_log,
 )

@@ -8,7 +8,7 @@ from sqlalchemy import create_engine, inspect
 from sqlalchemy.exc import DatabaseError, OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
-from boosty_downloader.application.filtering import DownloadContentTypeFilter
+from boosty_downloader.domain.content_types import DownloadContentTypeFilter
 from boosty_downloader.infrastructure.loggers.base import RichLogger
 
 from .migrations import apply_migrations

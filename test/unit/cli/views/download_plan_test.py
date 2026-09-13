@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING
 
 from boosty_downloader.application.blog_overview import MediaCounts
 from boosty_downloader.application.download_plan import DownloadPlan
-from boosty_downloader.application.filtering import DownloadContentTypeFilter
 from boosty_downloader.cli.views.download_plan import render_download_plan
+from boosty_downloader.domain.content_types import DownloadContentTypeFilter
 
 if TYPE_CHECKING:
     from collections.abc import Callable

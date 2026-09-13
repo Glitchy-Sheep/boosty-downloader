@@ -6,7 +6,7 @@ from datetime import datetime
 from sqlalchemy import String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from boosty_downloader.application.filtering import DownloadContentTypeFilter
+from boosty_downloader.domain.content_types import DownloadContentTypeFilter
 
 
 class Base(DeclarativeBase):

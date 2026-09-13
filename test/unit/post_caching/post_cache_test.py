@@ -11,7 +11,7 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from boosty_downloader.application.filtering import DownloadContentTypeFilter
+from boosty_downloader.domain.content_types import DownloadContentTypeFilter
 from boosty_downloader.infrastructure.loggers.base import RichLogger
 from boosty_downloader.infrastructure.post_caching.post_cache import (
     SQLitePostCache,

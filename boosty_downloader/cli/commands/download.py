@@ -11,7 +11,6 @@ import typer
 
 from boosty_downloader.application.download_context import DownloadContext
 from boosty_downloader.application.filtering import (
-    DownloadContentTypeFilter,
     VideoQualityOption,
 )
 from boosty_downloader.application.post_retry import PostOutcome
@@ -40,6 +39,7 @@ from boosty_downloader.cli.update_check import notify_about_updates
 from boosty_downloader.cli.views.blog_overview import render_blog_overview
 from boosty_downloader.cli.views.download_plan import render_download_plan
 from boosty_downloader.cli.views.run_statistics import render_run_statistics
+from boosty_downloader.domain.content_types import DownloadContentTypeFilter
 from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
 )
