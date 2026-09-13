@@ -16,7 +16,7 @@ from boosty_downloader.cli.cli_options import (
     DestinationDirectoryOption,  # noqa: TC001
     RequestDelaySecondsOption,  # noqa: TC001
     ShowPostsOption,  # noqa: TC001
-    UsernameOption,  # noqa: TC001
+    UsernameArgument,  # noqa: TC001
 )
 from boosty_downloader.cli.views.blog_overview import render_blog_overview
 from boosty_downloader.infrastructure.loggers import logger_instances
@@ -67,7 +67,7 @@ def register(app: typer.Typer) -> None:
     )
     def check_entrypoint(
         *,
-        username: UsernameOption,
+        username: UsernameArgument,
         request_delay_seconds: RequestDelaySecondsOption = 2.5,
         destination_directory: DestinationDirectoryOption = None,
         cache_directory: CacheDirectoryOption = None,

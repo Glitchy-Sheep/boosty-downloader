@@ -116,7 +116,7 @@ This config will be created during first run of the app in the current working d
 Now you can just download your content with the following command:
 
 ```bash
-boosty-downloader download --username YOUR_CREATOR_NAME
+boosty-downloader download YOUR_CREATOR_NAME
 ```
 
 ## 🛡️ When downloads fail

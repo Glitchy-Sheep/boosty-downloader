@@ -15,12 +15,12 @@ from boosty_downloader.infrastructure.loggers.debug_file import (
     enable_debug_file_log,
 )
 
-UsernameOption = Annotated[
+UsernameArgument = Annotated[
     str,
-    typer.Option(
-        '--username',
-        '-u',
-        help='Username to download posts from.',
+    typer.Argument(
+        metavar='USERNAME',
+        help='Creator name: the part of the blog url after boosty.to/',
+        show_default=False,
     ),
 ]
 

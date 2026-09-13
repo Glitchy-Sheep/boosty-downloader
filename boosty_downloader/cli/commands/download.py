@@ -34,7 +34,7 @@ from boosty_downloader.cli.cli_options import (
     PreferredVideoQualityOption,  # noqa: TC001
     RequestDelaySecondsOption,  # noqa: TC001
     SkipAllFailuresOption,  # noqa: TC001
-    UsernameOption,  # noqa: TC001
+    UsernameArgument,  # noqa: TC001
 )
 from boosty_downloader.cli.views.blog_overview import render_blog_overview
 from boosty_downloader.cli.views.download_plan import render_download_plan
@@ -192,7 +192,7 @@ def register(app: typer.Typer) -> None:
     )
     def download_entrypoint(  # noqa: PLR0913
         *,
-        username: UsernameOption,
+        username: UsernameArgument,
         request_delay_seconds: RequestDelaySecondsOption = 2.5,
         post_url: PostUrlOption = None,
         content_type_filter: ContentTypeFilterOption = None,
@@ -203,7 +203,7 @@ def register(app: typer.Typer) -> None:
         dry_run: DryRunOption = False,
     ) -> None:
         """
-        Download posts from a Boosty creator.
+        Download posts from a Boosty creator: boosty-downloader download USERNAME
 
         [bold]DETAILS:[/bold]
 
@@ -217,7 +217,7 @@ def register(app: typer.Typer) -> None:
         [bold]CONTENT FILTERING:[/bold]
 
             - Use multiple `-f` flags to select content types (all included by default).
-            - Example: [italic]boosty-downloader download --username <USERNAME> -f files -f post_content[/italic]
+            - Example: [italic]boosty-downloader download <USERNAME> -f files -f post_content[/italic]
             - [bold red]NOTE:[/bold red] If you specify [italic]post_content[/italic] without [italic]boosty_videos[/italic] or [italic]external_videos[/italic],
                     videos won't attach to post previews due to cache limitations.
             - For best results, just leave all filters by default.
