@@ -7,7 +7,6 @@ import asyncio
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from boosty_downloader.application.di.initialized_app import initialized_app
 from boosty_downloader.application.use_cases.check_total_posts import (
     ReportTotalPostsCountUseCase,
 )
@@ -18,6 +17,8 @@ from boosty_downloader.cli.cli_options import (
     ShowPostsOption,  # noqa: TC001
     UsernameArgument,  # noqa: TC001
 )
+from boosty_downloader.cli.composition_root import load_settings, open_app
+from boosty_downloader.cli.update_check import notify_about_updates
 from boosty_downloader.cli.views.blog_overview import render_blog_overview
 from boosty_downloader.infrastructure.loggers import logger_instances
 
@@ -35,19 +36,24 @@ async def _check_handler(
     cache_directory: Path | None,
     show_posts: bool,
 ) -> None:
-    async with initialized_app(
+    logger = logger_instances.downloader_logger
+    settings = load_settings(
         username=username,
-        request_delay_seconds=request_delay_seconds,
         destination_directory=destination_directory,
         cache_directory=cache_directory,
-    ) as app_env:
+    )
+    await notify_about_updates(logger)
+
+    async with open_app(
+        settings, request_delay_seconds=request_delay_seconds, logger=logger
+    ) as app:
         report = await ReportTotalPostsCountUseCase(
-            author_name=username,
-            logger=logger_instances.downloader_logger,
-            boosty_api=app_env.boosty_api_client,
+            author_name=settings.author_name,
+            logger=logger,
+            boosty_api=app.api,
         ).execute()
         # Local time: "last post N days ago" must follow the user's calendar.
-        app_env.progress_reporter.console.print(
+        app.reporter.console.print(
             render_blog_overview(
                 report.overview,
                 now=datetime.now(timezone.utc).astimezone(),
@@ -55,7 +61,7 @@ async def _check_handler(
             )
         )
         if report.problems:
-            logger_instances.downloader_logger.warning(report.problems)
+            logger.warning(report.problems)
 
 
 def register(app: typer.Typer) -> None:
