@@ -13,4 +13,5 @@ def to_domain_audio_chunk(
     return PostDataChunkAudio(
         url=api_audio.url + signed_query,
         title=api_audio.title,
+        size=api_audio.size,
     )

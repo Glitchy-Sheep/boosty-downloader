@@ -19,6 +19,7 @@ from boosty_downloader.application.exceptions.application_errors import (
 )
 from boosty_downloader.application.filtering import (
     DownloadContentTypeFilter,
+    post_has_content_for,
 )
 from boosty_downloader.application.mappers.html_converter import (
     convert_audio_to_html,
@@ -139,21 +140,7 @@ class DownloadSinglePostUseCase:
         self, post: Post, missing_parts: list[DownloadContentTypeFilter]
     ) -> bool:
         """Check if the post has any content matching the requested filters."""
-        chunk_to_filter: dict[type, DownloadContentTypeFilter] = {
-            PostDataChunkAudio: DownloadContentTypeFilter.audio,
-            PostDataChunkBoostyVideo: DownloadContentTypeFilter.boosty_videos,
-            PostDataChunkExternalVideo: DownloadContentTypeFilter.external_videos,
-            PostDataChunkFile: DownloadContentTypeFilter.files,
-            PostDataChunkText: DownloadContentTypeFilter.post_content,
-            PostDataChunkTextualList: DownloadContentTypeFilter.post_content,
-            PostDataChunkImage: DownloadContentTypeFilter.post_content,
-        }
-
-        for chunk in post.post_data_chunks:
-            filter_type = chunk_to_filter.get(type(chunk))
-            if filter_type and filter_type in missing_parts:
-                return True
-        return False
+        return post_has_content_for(post, missing_parts)
 
     # --------------------------------------------------------------------------
     # Main method do start the action

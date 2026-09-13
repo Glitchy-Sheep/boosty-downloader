@@ -19,6 +19,7 @@ from aiohttp import ClientSession, web
 from aiohttp.test_utils import TestServer
 from aiohttp_retry import ExponentialRetry, RetryClient
 
+from boosty_downloader.application.blog_overview import MediaCounts
 from boosty_downloader.application.di.download_context import DownloadContext
 from boosty_downloader.application.filtering import (
     BoostyOkVideoType,
@@ -26,6 +27,10 @@ from boosty_downloader.application.filtering import (
 )
 from boosty_downloader.application.use_cases.download_all_posts import (
     DownloadAllPostUseCase,
+)
+from boosty_downloader.application.use_cases.plan_download import (
+    DryRunReport,
+    PlanDownloadUseCase,
 )
 from boosty_downloader.infrastructure.boosty_api.core.client import BoostyAPIClient
 from boosty_downloader.infrastructure.loggers.base import RichLogger
@@ -227,5 +232,56 @@ async def test_media_of_one_post_downloads_in_parallel(tmp_path: Path) -> None:
         assert image_at < video_at < audio_at, (
             'the page must keep the author chunk order despite parallel finishes'
         )
+    finally:
+        await server.close()
+
+
+async def _dry_run(destination: Path, api_base: URL) -> DryRunReport:
+    """The dry-run wired exactly like the CLI does it."""
+    async with ClientSession() as session:
+        retry_client = RetryClient(
+            session, retry_options=ExponentialRetry(attempts=2, start_timeout=0.1)
+        )
+        boosty_api = BoostyAPIClient(retry_client, base_url=api_base / 'v1/')
+        with SQLitePostCache(destination, RichLogger('e2e-dry')) as cache:
+            return await PlanDownloadUseCase(
+                author_name=AUTHOR,
+                boosty_api=boosty_api,
+                logger=RichLogger('e2e-dry'),
+                post_cache=cache,
+                filters=list(DownloadContentTypeFilter),
+                preferred_video_quality=BoostyOkVideoType.medium,
+            ).execute()
+
+
+async def test_dry_run_promises_the_post_but_touches_no_media(tmp_path: Path) -> None:
+    """The --dry-run contract: an honest plan and zero media requests."""
+    served_media: list[str] = []
+    server = TestServer(_build_app(served_media))
+    await server.start_server()
+    try:
+        report = await _dry_run(tmp_path, server.make_url('/'))
+
+        assert served_media == [], 'the dry-run must not touch a single media url'
+        assert report.plan.new_posts == 1
+        assert report.plan.media == MediaCounts(
+            images=1, files=1, boosty_videos=1, audio=1
+        )
+        # Image, file and audio sizes straight from the fixture.
+        assert report.plan.known_bytes == 10941 + 4444053 + 24494
+        assert report.plan.unknown_size_videos == 1
+        assert report.overview.total_posts == 1
+
+        # After a real run the same plan collapses to "everything complete".
+        await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
+        media_downloaded = len(served_media)
+        assert media_downloaded > 0
+
+        report = await _dry_run(tmp_path, server.make_url('/'))
+
+        assert report.plan.complete_posts == 1
+        assert report.plan.new_posts == 0
+        assert report.plan.media == MediaCounts()
+        assert len(served_media) == media_downloaded, 'second dry-run fetched media'
     finally:
         await server.close()

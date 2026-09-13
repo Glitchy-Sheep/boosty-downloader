@@ -13,4 +13,5 @@ def to_domain_file_chunk(
     return PostDataChunkFile(
         url=api_file.url + signed_query,
         filename=api_file.title,
+        size=api_file.size,
     )

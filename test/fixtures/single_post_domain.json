@@ -67,10 +67,12 @@
         ]
       },
       {
+        "size": 10941,
         "url": "https://images.example/image/10000000-0000-4000-8000-000000000201?fake-signed-query"
       },
       {
         "filename": "fixture-archive.zip",
+        "size": 4444053,
         "url": "https://cdn.example/file/10000000-0000-4000-8000-000000000301?fake-signed-query"
       },
       {
@@ -80,6 +82,7 @@
         "url": "https://video.example/medium.mp4?fake-sig"
       },
       {
+        "size": 24494,
         "title": "fixture-song.mp3",
         "url": "https://cdn.example/audio/10000000-0000-4000-8000-000000000500?fake-signed-query"
       }

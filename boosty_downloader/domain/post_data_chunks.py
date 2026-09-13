@@ -14,6 +14,8 @@ class PostDataChunkAudio:
 
     url: str
     title: str
+    # Bytes as the API reports them; None when the API stays silent.
+    size: int | None = None
 
 
 @dataclass
@@ -21,6 +23,8 @@ class PostDataChunkImage:
     """Represent an image data chunk within a post."""
 
     url: str
+    # Bytes as the API reports them; None when the API stays silent.
+    size: int | None = None
 
 
 @dataclass
@@ -93,6 +97,8 @@ class PostDataChunkFile:
 
     url: str
     filename: str
+    # Bytes as the API reports them; None when the API stays silent.
+    size: int | None = None
 
 
 @dataclass

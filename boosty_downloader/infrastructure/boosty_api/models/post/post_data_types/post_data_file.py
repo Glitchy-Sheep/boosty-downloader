@@ -11,3 +11,4 @@ class BoostyPostDataFileDTO(BoostyBaseDTO):
     type: Literal['file']
     url: str
     title: str
+    size: int | None = None
