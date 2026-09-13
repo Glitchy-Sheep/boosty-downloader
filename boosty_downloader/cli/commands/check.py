@@ -11,13 +11,13 @@ from boosty_downloader.application.di.initialized_app import initialized_app
 from boosty_downloader.application.use_cases.check_total_posts import (
     ReportTotalPostsCountUseCase,
 )
-from boosty_downloader.cli.blog_overview_rendering import render_blog_overview
 from boosty_downloader.cli.cli_options import (
     CacheDirectoryOption,  # noqa: TC001
     DestinationDirectoryOption,  # noqa: TC001
     RequestDelaySecondsOption,  # noqa: TC001
     UsernameOption,  # noqa: TC001
 )
+from boosty_downloader.cli.views.blog_overview import render_blog_overview
 from boosty_downloader.infrastructure.loggers import logger_instances
 
 if TYPE_CHECKING:
@@ -44,8 +44,8 @@ async def _check_handler(
             logger=logger_instances.downloader_logger,
             boosty_api=app_env.boosty_api_client,
         ).execute()
-        logger_instances.downloader_logger.success(
-            # Local time: "last post N days ago" must follow the user's calendar.
+        # Local time: "last post N days ago" must follow the user's calendar.
+        app_env.progress_reporter.console.print(
             render_blog_overview(
                 report.overview, now=datetime.now(timezone.utc).astimezone()
             )

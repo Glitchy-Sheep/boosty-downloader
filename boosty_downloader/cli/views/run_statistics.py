@@ -1,39 +1,50 @@
-"""Render the RunStatistics of a download run as terminal text with rich markup."""
+"""The closing block of a download run."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from rich.console import Group
+from rich.rule import Rule
+
 from boosty_downloader.application.blog_overview import MediaCounts
-from boosty_downloader.cli.blog_overview_rendering import media_lines
+from boosty_downloader.cli.views.media import media_table
+from boosty_downloader.cli.views.text import duration
 from boosty_downloader.infrastructure.human_readable_filesize import (
     human_readable_size,
 )
 
 if TYPE_CHECKING:
+    from rich.console import RenderableType
+
     from boosty_downloader.application.run_statistics import RunStatistics
 
 
-def render_run_statistics(stats: RunStatistics, *, elapsed_seconds: float) -> str:
+def render_run_statistics(
+    stats: RunStatistics, *, elapsed_seconds: float
+) -> RenderableType:
     """
-    Build the closing block of a download run.
+    Build the block printed when a download run ends.
 
     ``elapsed_seconds`` is injected so the block is testable.
     """
-    duration = _format_duration(elapsed_seconds)
+    title = Rule(title=f'Run finished in {duration(elapsed_seconds)}', style='dim')
     if stats.posts_downloaded == 0 and stats.media == MediaCounts():
-        return (
-            f'Run finished in [bold]{duration}[/bold]: nothing new to download\n'
-            f'Posts: {_posts_line(stats)}'
-        )
-    return '\n'.join(
-        [
-            f'Run finished in [bold]{duration}[/bold]',
+        return Group(
+            title,
+            'Nothing new to download',
             f'Posts: {_posts_line(stats)}',
-            'Media downloaded:',
-            *media_lines(stats.media),
-            f'Total downloaded: [bold]{human_readable_size(stats.downloaded_bytes)}[/bold]',
-        ]
+            Rule(style='dim'),
+        )
+    return Group(
+        title,
+        f'Posts: {_posts_line(stats)}',
+        '',
+        '[bold]Media downloaded[/bold]',
+        media_table(stats.media),
+        '',
+        f'Total downloaded: [bold]{human_readable_size(stats.downloaded_bytes)}[/bold]',
+        Rule(style='dim'),
     )
 
 
@@ -49,14 +60,3 @@ def _posts_line(stats: RunStatistics) -> str:
     if stats.posts_locked:
         parts.append(f'{stats.posts_locked} locked')
     return ', '.join(parts)
-
-
-def _format_duration(seconds: float) -> str:
-    total = int(seconds)
-    hours, rest = divmod(total, 3600)
-    minutes, secs = divmod(rest, 60)
-    if hours:
-        return f'{hours}h {minutes:02d}m'
-    if minutes:
-        return f'{minutes}m {secs:02d}s'
-    return f'{secs}s'

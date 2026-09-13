@@ -25,7 +25,6 @@ from boosty_downloader.application.use_cases.download_specific_post import (
 from boosty_downloader.application.use_cases.plan_download import (
     PlanDownloadUseCase,
 )
-from boosty_downloader.cli.blog_overview_rendering import render_blog_overview
 from boosty_downloader.cli.cli_options import (
     CacheDirectoryOption,  # noqa: TC001
     ContentTypeFilterOption,  # noqa: TC001
@@ -37,8 +36,9 @@ from boosty_downloader.cli.cli_options import (
     SkipAllFailuresOption,  # noqa: TC001
     UsernameOption,  # noqa: TC001
 )
-from boosty_downloader.cli.download_plan_rendering import render_download_plan
-from boosty_downloader.cli.run_statistics_rendering import render_run_statistics
+from boosty_downloader.cli.views.blog_overview import render_blog_overview
+from boosty_downloader.cli.views.download_plan import render_download_plan
+from boosty_downloader.cli.views.run_statistics import render_run_statistics
 from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
 )
@@ -98,15 +98,15 @@ async def _dry_run_handler(
         filters=content_type_filter,
         preferred_video_quality=preferred_video_quality.to_ok_video_type(),
     ).execute()
-    logger = logger_instances.downloader_logger
-    logger.success(
+    console = app_env.progress_reporter.console
+    console.print(
         render_blog_overview(
             report.overview, now=datetime.now(timezone.utc).astimezone()
         )
     )
-    logger.success(render_download_plan(report.plan, filters=content_type_filter))
+    console.print(render_download_plan(report.plan, filters=content_type_filter))
     if report.problems:
-        logger.warning(report.problems)
+        logger_instances.downloader_logger.warning(report.problems)
 
 
 async def _download_handler(  # noqa: PLR0913
@@ -178,7 +178,7 @@ async def _download_handler(  # noqa: PLR0913
         finally:
             # Also after a systemic stop or Ctrl+C: what got done is still news.
             stats = downloading_context.run_statistics
-            app_env.progress_reporter.success(
+            app_env.progress_reporter.console.print(
                 render_run_statistics(stats, elapsed_seconds=stats.elapsed_seconds())
             )
 

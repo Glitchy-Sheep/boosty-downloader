@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from boosty_downloader.application.blog_overview import (
     AccessGroup,
     MediaCounts,
+    TierStep,
     UnlockCost,
     summarize_posts,
 )
@@ -188,8 +189,8 @@ def test_prices_group_by_the_stable_rub_value():
     ]
 
 
-def test_full_access_costs_the_top_tier_plus_every_single_purchase():
-    """Tiers nest: one subscription to the top tier opens the lower ones too."""
+def test_full_access_is_a_tier_ladder_plus_every_single_purchase():
+    """Tiers nest: each rung counts the posts of the rungs below it too."""
     posts = [
         _post('follower', tier=('Follower', 0)),
         _post('tester', tier=('Tester', 10)),
@@ -204,11 +205,22 @@ def test_full_access_costs_the_top_tier_plus_every_single_purchase():
     overview = summarize_posts('author', posts)
 
     assert overview.full_access_cost == UnlockCost(
-        tier='Pro', tier_price=300, one_off_posts=3, one_off_total=500
+        tiers=(
+            TierStep(tier='Follower', price=0, posts=1),
+            TierStep(tier='Tester', price=10, posts=3),
+            TierStep(tier='Pro', price=300, posts=4),
+        ),
+        one_off_posts=3,
+        one_off_total=500,
     )
     # Only what this account cannot open yet.
     assert overview.remaining_cost == UnlockCost(
-        tier='Pro', tier_price=300, one_off_posts=2, one_off_total=400
+        tiers=(
+            TierStep(tier='Tester', price=10, posts=1),
+            TierStep(tier='Pro', price=300, posts=2),
+        ),
+        one_off_posts=2,
+        one_off_total=400,
     )
 
 
@@ -226,6 +238,8 @@ def test_locked_free_tier_is_still_a_subscription_to_get():
     )
 
     assert overview.remaining_cost == UnlockCost(
-        tier='Follower', tier_price=0, one_off_posts=0, one_off_total=0
+        tiers=(TierStep(tier='Follower', price=0, posts=1),),
+        one_off_posts=0,
+        one_off_total=0,
     )
     assert not overview.remaining_cost.is_free

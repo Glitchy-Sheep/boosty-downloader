@@ -77,18 +77,27 @@ class AccessGroup:
 
 
 @dataclass(frozen=True, slots=True)
+class TierStep:
+    """One rung of the subscription ladder."""
+
+    tier: str
+    # Rubles per month, 0 for a free tier.
+    price: float
+    # Posts this tier opens, the lower tiers' posts included.
+    posts: int
+
+
+@dataclass(frozen=True, slots=True)
 class UnlockCost:
     """
-    What opening a set of posts takes: one subscription tier plus one-off purchases.
+    What opening a set of posts takes: a subscription tier plus one-off purchases.
 
-    Boosty tiers are nested - a higher tier opens every lower one - so one
-    subscription to the most expensive tier covers all tier posts.
+    Boosty tiers are nested - a higher tier opens every lower one - so the
+    ladder counts posts cumulatively and its last rung opens every tier post.
     """
 
-    # The most expensive tier among the posts. None when no post needs one.
-    tier: str | None
-    # Rubles per month, 0 without a tier or for a free tier.
-    tier_price: float
+    # Ascending by price. Empty when no post needs a tier.
+    tiers: tuple[TierStep, ...]
     # Posts sold one by one that no tier covers.
     one_off_posts: int
     # Rubles for all of them.
@@ -96,7 +105,11 @@ class UnlockCost:
 
     @property
     def is_free(self) -> bool:
-        return self.tier is None and self.one_off_posts == 0
+        return not self.tiers and self.one_off_posts == 0
+
+    @property
+    def top_tier(self) -> TierStep | None:
+        return self.tiers[-1] if self.tiers else None
 
 
 @dataclass(frozen=True, slots=True)
@@ -198,9 +211,8 @@ def _display_order(group: AccessGroup) -> tuple[int, float, float, str]:
 
 
 def _unlock_cost(groups: Iterable[AccessGroup], *, locked_only: bool) -> UnlockCost:
-    """Pick the top tier among the groups and sum every post sold one by one."""
-    tier: str | None = None
-    tier_price = 0.0
+    """Build the tier ladder and sum every post sold one by one."""
+    posts_by_tier: Counter[tuple[str, float]] = Counter()
     one_off_posts = 0
     one_off_total = 0.0
     for group in groups:
@@ -208,14 +220,20 @@ def _unlock_cost(groups: Iterable[AccessGroup], *, locked_only: bool) -> UnlockC
         if count == 0:
             continue
         if group.tier is not None:
-            if tier is None or group.tier_price > tier_price:
-                tier, tier_price = group.tier, group.tier_price
+            posts_by_tier[group.tier, group.tier_price] += count
         elif group.post_price > 0:
             one_off_posts += count
             one_off_total += count * group.post_price
+
+    steps: list[TierStep] = []
+    opened = 0
+    for (tier, tier_price), count in sorted(
+        posts_by_tier.items(), key=lambda item: item[0][1]
+    ):
+        opened += count
+        steps.append(TierStep(tier=tier, price=tier_price, posts=opened))
     return UnlockCost(
-        tier=tier,
-        tier_price=tier_price,
+        tiers=tuple(steps),
         one_off_posts=one_off_posts,
         one_off_total=one_off_total,
     )
