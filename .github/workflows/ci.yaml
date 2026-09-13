@@ -31,6 +31,8 @@ jobs:
         run: task check:format
       - name: Pyright
         run: task check:types
+      - name: Import layers
+        run: task check:imports
 
   test:
     name: 🧪 Tests
