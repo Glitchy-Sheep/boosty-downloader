@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from boosty_downloader.application.di.download_context import DownloadContext
+from boosty_downloader.application.download_context import DownloadContext
 from boosty_downloader.application.exceptions.application_errors import (
     ApplicationFailedDownloadError,
 )

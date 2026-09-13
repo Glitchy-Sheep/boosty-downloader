@@ -21,7 +21,7 @@ from pathlib import Path
 from yarl import URL
 
 from boosty_downloader.application.blog_overview import MediaCounts
-from boosty_downloader.application.di.download_context import DownloadContext
+from boosty_downloader.application.download_context import DownloadContext
 from boosty_downloader.application.exceptions.application_errors import (
     ApplicationCancelledError,
     ApplicationFailedDownloadError,

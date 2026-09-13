@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from boosty_downloader.application.filtering import DownloadContentTypeFilter
+    from boosty_downloader.application.ports import PostCache
     from boosty_downloader.infrastructure.boosty_api.core.client import (
         BoostyAPIClient,
     )
@@ -23,9 +24,6 @@ if TYPE_CHECKING:
         BoostyOkVideoType,
     )
     from boosty_downloader.infrastructure.loggers.base import RichLogger
-    from boosty_downloader.infrastructure.post_caching.post_cache import (
-        SQLitePostCache,
-    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,7 +50,7 @@ class PlanDownloadUseCase:
         author_name: str,
         boosty_api: BoostyAPIClient,
         logger: RichLogger,
-        post_cache: SQLitePostCache,
+        post_cache: PostCache,
         filters: Sequence[DownloadContentTypeFilter],
         preferred_video_quality: BoostyOkVideoType,
     ) -> None:

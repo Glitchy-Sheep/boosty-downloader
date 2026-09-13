@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
-from boosty_downloader.application.di.download_context import DownloadContext
+from boosty_downloader.application.download_context import DownloadContext
 from boosty_downloader.application.exceptions.application_errors import (
     ApplicationCancelledError,
     ApplicationFailedDownloadError,
@@ -31,18 +31,12 @@ from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
 if TYPE_CHECKING:
     from aiohttp_retry import RetryClient
 
-    from boosty_downloader.cli.console_progress_reporter import ProgressReporter
+    from boosty_downloader.application.ports import FailureLog, PostCache
     from boosty_downloader.infrastructure.boosty_api.core.client import (
         BoostyAPIClient,
     )
     from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
         ExternalVideosDownloader,
-    )
-    from boosty_downloader.infrastructure.loggers.failed_downloads_logger import (
-        FailedDownloadsLogger,
-    )
-    from boosty_downloader.infrastructure.post_caching.post_cache import (
-        SQLitePostCache,
     )
 
 POST_UUID = 'a2dd6942-7297-4340-a19f-d637fa8ef4de'
@@ -117,11 +111,11 @@ def _use_case(api: _FakeApi, reporter: _FakeReporter) -> DownloadPostByUrlUseCas
         author_name='author',
         downloader_session=cast('RetryClient', None),
         external_videos_downloader=cast('ExternalVideosDownloader', None),
-        post_cache=cast('SQLitePostCache', None),
+        post_cache=cast('PostCache', None),
         filters=[],
         preferred_video_quality=BoostyOkVideoType.medium,
-        progress_reporter=cast('ProgressReporter', reporter),
-        failed_logger=cast('FailedDownloadsLogger', None),
+        progress_reporter=reporter,
+        failed_logger=cast('FailureLog', None),
     )
     return DownloadPostByUrlUseCase(
         post_url=POST_URL,

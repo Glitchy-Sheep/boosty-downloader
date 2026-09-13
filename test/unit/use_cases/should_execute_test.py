@@ -28,7 +28,7 @@ from boosty_downloader.domain.post_data_chunks import (
 )
 
 if TYPE_CHECKING:
-    from boosty_downloader.application.di.download_context import DownloadContext
+    from boosty_downloader.application.download_context import DownloadContext
     from boosty_downloader.domain.post import (
         PostDataAllChunks,
         PostDataAllChunksList,

@@ -30,7 +30,7 @@ from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from boosty_downloader.application.di.download_context import DownloadContext
+    from boosty_downloader.application.download_context import DownloadContext
     from boosty_downloader.domain.post import PostDataAllChunks
     from boosty_downloader.domain.post_data_chunks import PostDataChunkFile
     from boosty_downloader.infrastructure.html_generator.models import HtmlGenChunk

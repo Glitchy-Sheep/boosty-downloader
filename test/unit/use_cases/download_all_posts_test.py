@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, cast
 import pytest
 
 from boosty_downloader.application import post_retry as post_retry_module
-from boosty_downloader.application.di.download_context import DownloadContext
+from boosty_downloader.application.download_context import DownloadContext
 from boosty_downloader.application.exceptions.application_errors import (
     ApplicationCancelledError,
     ApplicationFailedDownloadError,
@@ -41,18 +41,12 @@ if TYPE_CHECKING:
 
     from aiohttp_retry import RetryClient
 
-    from boosty_downloader.cli.console_progress_reporter import ProgressReporter
+    from boosty_downloader.application.ports import PostCache
     from boosty_downloader.infrastructure.boosty_api.core.client import (
         BoostyAPIClient,
     )
     from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
         ExternalVideosDownloader,
-    )
-    from boosty_downloader.infrastructure.loggers.failed_downloads_logger import (
-        FailedDownloadsLogger,
-    )
-    from boosty_downloader.infrastructure.post_caching.post_cache import (
-        SQLitePostCache,
     )
 
 
@@ -72,6 +66,9 @@ class _FakeReporter:
 
     def complete_task(self, *args: object, **kwargs: object) -> None:
         del args, kwargs
+
+    def info(self, message: str) -> None:
+        del message
 
     def success(self, message: str) -> None:
         del message
@@ -151,11 +148,11 @@ def _use_case(
         author_name='author',
         downloader_session=cast('RetryClient', None),
         external_videos_downloader=cast('ExternalVideosDownloader', None),
-        post_cache=cast('SQLitePostCache', None),
+        post_cache=cast('PostCache', None),
         filters=[],
         preferred_video_quality=BoostyOkVideoType.medium,
-        progress_reporter=cast('ProgressReporter', reporter),
-        failed_logger=cast('FailedDownloadsLogger', failed_logger),
+        progress_reporter=reporter,
+        failed_logger=failed_logger,
     )
     return DownloadAllPostUseCase(
         author_name='author',

@@ -25,7 +25,7 @@ from boosty_downloader.infrastructure.external_videos_downloader.external_videos
 )
 
 if TYPE_CHECKING:
-    from boosty_downloader.application.di.download_context import DownloadContext
+    from boosty_downloader.application.download_context import DownloadContext
     from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
 
 

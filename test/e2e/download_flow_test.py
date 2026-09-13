@@ -20,7 +20,7 @@ from aiohttp.test_utils import TestServer
 from aiohttp_retry import ExponentialRetry, RetryClient
 
 from boosty_downloader.application.blog_overview import MediaCounts
-from boosty_downloader.application.di.download_context import DownloadContext
+from boosty_downloader.application.download_context import DownloadContext
 from boosty_downloader.application.filtering import (
     BoostyOkVideoType,
     DownloadContentTypeFilter,
@@ -46,7 +46,6 @@ if TYPE_CHECKING:
     from yarl import URL
 
     from boosty_downloader.application.run_statistics import RunStatistics
-    from boosty_downloader.cli.console_progress_reporter import ProgressReporter
     from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
         ExternalVideosDownloader,
     )
@@ -77,6 +76,9 @@ class _QuietReporter:
 
     def complete_task(self, *args: object, **kwargs: object) -> None:
         del args, kwargs
+
+    def info(self, message: str) -> None:
+        del message
 
     def success(self, message: str) -> None:
         del message
@@ -151,7 +153,7 @@ async def _run_download(
                 post_cache=cache,
                 filters=list(DownloadContentTypeFilter),
                 preferred_video_quality=BoostyOkVideoType.medium,
-                progress_reporter=cast('ProgressReporter', reporter),
+                progress_reporter=reporter,
                 failed_logger=FailedDownloadsLogger(
                     destination / 'failed_downloads.log'
                 ),

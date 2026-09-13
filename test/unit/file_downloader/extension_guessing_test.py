@@ -25,7 +25,7 @@ from boosty_downloader.infrastructure.file_downloader import _extension_to_appen
 if TYPE_CHECKING:
     import pytest
 
-    from boosty_downloader.application.di.download_context import DownloadContext
+    from boosty_downloader.application.download_context import DownloadContext
     from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
 
 

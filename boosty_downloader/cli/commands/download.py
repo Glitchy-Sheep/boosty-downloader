@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING
 
 import typer
 
-from boosty_downloader.application.di.download_context import DownloadContext
 from boosty_downloader.application.di.initialized_app import initialized_app
+from boosty_downloader.application.download_context import DownloadContext
 from boosty_downloader.application.filtering import (
     DownloadContentTypeFilter,
     VideoQualityOption,
@@ -51,9 +51,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from boosty_downloader.application.di.app_environment import AppEnvironment
-    from boosty_downloader.cli.console_progress_reporter import (
-        ProgressReporter,
-    )
+    from boosty_downloader.application.ports import ProgressReporter
 
 
 def _show_start_summary(

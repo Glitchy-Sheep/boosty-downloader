@@ -10,7 +10,7 @@ from aiohttp.typedefs import LooseHeaders
 from aiohttp_retry import RetryClient, RetryOptionsBase
 
 from boosty_downloader.cli.console_progress_reporter import (
-    ProgressReporter,
+    ConsoleProgressReporter,
     use_reporter,
 )
 from boosty_downloader.infrastructure.boosty_api.core.client import BoostyAPIClient
@@ -30,7 +30,7 @@ class AppEnvironment:
 
         boosty_api_client: BoostyAPIClient
         downloading_retry_client: RetryClient
-        progress_reporter: ProgressReporter
+        progress_reporter: ConsoleProgressReporter
         destination_directory: Path
         post_cache: SQLitePostCache
 
@@ -105,7 +105,7 @@ class AppEnvironment:
 
         progress_reporter = await self._exit_stack.enter_async_context(
             use_reporter(
-                reporter=ProgressReporter(
+                reporter=ConsoleProgressReporter(
                     logger=self.logger.logging_logger_obj,
                     console=self.logger.console,
                 )
