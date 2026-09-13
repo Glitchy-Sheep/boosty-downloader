@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from boosty_downloader.application import mappers
-from boosty_downloader.application.filtering import DownloadContentTypeFilter
+from boosty_downloader.domain.content_types import DownloadContentTypeFilter
 from boosty_downloader.domain.post import Post
 from boosty_downloader.domain.post_data_chunks import PostDataChunkText
 from boosty_downloader.infrastructure.boosty_api.models.post.base_post_data import (

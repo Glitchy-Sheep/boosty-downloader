@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from datetime import datetime
     from uuid import UUID
 
-    from boosty_downloader.application.filtering import DownloadContentTypeFilter
+    from boosty_downloader.domain.content_types import DownloadContentTypeFilter
 
 
 class ProgressReporter(Protocol):

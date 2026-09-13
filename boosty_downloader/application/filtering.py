@@ -5,6 +5,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import TYPE_CHECKING, Final
 
+from boosty_downloader.domain.content_types import DownloadContentTypeFilter
 from boosty_downloader.domain.post_data_chunks import (
     PostDataChunkAudio,
     PostDataChunkBoostyVideo,
@@ -22,29 +23,6 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from boosty_downloader.domain.post import Post
-
-
-class DownloadContentTypeFilter(Enum):
-    """
-    Class that holds content type filters for the download manager
-
-    They can be used to download only specific parts of content.
-    """
-
-    # -------------------------------------------------------------------
-    # --------------------------- WARNING !!! ---------------------------
-    # -------------------------------------------------------------------
-    #
-    # If you add any new content type filters here, please ensure that:
-    # 1. You updated cache logic accordingly
-    # 2. You updated all the use cases that use this filter
-    # 3. You checked all other places in which those filters were used before
-
-    boosty_videos = 'boosty_videos'
-    external_videos = 'external_videos'
-    post_content = 'post_content'
-    files = 'files'
-    audio = 'audio'
 
 
 class VideoQualityOption(str, Enum):

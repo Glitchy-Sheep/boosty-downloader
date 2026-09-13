@@ -3,11 +3,11 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
-from boosty_downloader.application.filtering import DownloadContentTypeFilter
 from boosty_downloader.application.mappers.post_mapper import (
     PostMappingResult,
     map_post_dto_to_domain,
 )
+from boosty_downloader.domain.content_types import DownloadContentTypeFilter
 from boosty_downloader.infrastructure.boosty_api.models.post.base_post_data import (
     BoostyPostDataImageDTO,
 )

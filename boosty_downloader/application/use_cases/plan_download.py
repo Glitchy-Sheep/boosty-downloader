@@ -15,8 +15,8 @@ from boosty_downloader.application.use_cases.listing_walk import walk_full_listi
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from boosty_downloader.application.filtering import DownloadContentTypeFilter
     from boosty_downloader.application.ports import PostCache
+    from boosty_downloader.domain.content_types import DownloadContentTypeFilter
     from boosty_downloader.infrastructure.boosty_api.core.client import (
         BoostyAPIClient,
     )

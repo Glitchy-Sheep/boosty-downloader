@@ -17,7 +17,7 @@ from boosty_downloader.application.download_plan import (
     DownloadPlan,
     build_download_plan,
 )
-from boosty_downloader.application.filtering import DownloadContentTypeFilter
+from boosty_downloader.domain.content_types import DownloadContentTypeFilter
 from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
 from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types.post_data_ok_video import (
     BoostyOkVideoType,

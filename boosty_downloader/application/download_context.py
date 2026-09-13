@@ -12,13 +12,13 @@ if TYPE_CHECKING:
 
     from boosty_downloader.application.filtering import (
         BoostyOkVideoType,
-        DownloadContentTypeFilter,
     )
     from boosty_downloader.application.ports import (
         FailureLog,
         PostCache,
         ProgressReporter,
     )
+    from boosty_downloader.domain.content_types import DownloadContentTypeFilter
     from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
         ExternalVideosDownloader,
     )

@@ -27,6 +27,10 @@ Python itself comes from uv: `.python-version` pins the dev version, and uv down
 
 The codebase uses `from __future__ import annotations` and `TYPE_CHECKING` blocks for type imports.
 
+## Import Linter (layer boundaries)
+
+[Import Linter](https://import-linter.readthedocs.io/) checks that imports follow the layers `cli -> application -> infrastructure -> domain`: a layer may import the layers below it, never the ones above. Contract: `[tool.importlinter]` in `pyproject.toml`. Imports under `TYPE_CHECKING` count too.
+
 ## Command Reference
 
 Tasks are grouped by the dev cycle: `setup` → `fix` → `check` → `test` → `build`. Run bare `task` for the grouped list.
@@ -39,10 +43,11 @@ Tasks are grouped by the dev cycle: `setup` → `fix` → `check` → `test` →
 | `task fix` | Auto-fix lint and formatting, then type-check |
 | `task lint` | Lint with auto-fix (alias of `fix:lint`) |
 | `task format` | Apply formatting (alias of `fix:format`) |
-| `task check` | Run all CI checks: lint + format + types |
+| `task check` | Run all CI checks: lint + format + types + imports |
 | `task check:lint` | Lint only, no fixes |
 | `task check:format` | Check formatting without changes |
 | `task check:types` | Type check |
+| `task check:imports` | Check layer boundaries |
 | `task test` | Unit tests |
 | `task test -- -v` | Unit tests (verbose) |
 | `task test:api` | Integration tests (with a credentials preflight) |

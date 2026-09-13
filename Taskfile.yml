@@ -65,11 +65,12 @@ tasks:
       - uv run ruff format .
 
   check:
-    desc: Run all CI checks (lint + format + types)
+    desc: Run all CI checks (lint + format + types + imports)
     cmds:
       - task: check:lint
       - task: check:format
       - task: check:types
+      - task: check:imports
 
   check:lint:
     desc: Lint only, no fixes (ruff)
@@ -85,6 +86,11 @@ tasks:
     desc: Type check (pyright)
     cmds:
       - uv run pyright
+
+  check:imports:
+    desc: Check layer boundaries (import-linter)
+    cmds:
+      - uv run lint-imports
 
   test:
     desc: "Run unit tests (extra pytest args after --: task test -- -v)"

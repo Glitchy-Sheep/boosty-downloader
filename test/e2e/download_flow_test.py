@@ -23,7 +23,6 @@ from boosty_downloader.application.blog_overview import MediaCounts
 from boosty_downloader.application.download_context import DownloadContext
 from boosty_downloader.application.filtering import (
     BoostyOkVideoType,
-    DownloadContentTypeFilter,
 )
 from boosty_downloader.application.run_statistics import RunStatistics
 from boosty_downloader.application.use_cases.download_all_posts import (
@@ -33,6 +32,7 @@ from boosty_downloader.application.use_cases.plan_download import (
     DryRunReport,
     PlanDownloadUseCase,
 )
+from boosty_downloader.domain.content_types import DownloadContentTypeFilter
 from boosty_downloader.infrastructure.boosty_api.core.client import BoostyAPIClient
 from boosty_downloader.infrastructure.loggers.base import RichLogger
 from boosty_downloader.infrastructure.loggers.failed_downloads_logger import (

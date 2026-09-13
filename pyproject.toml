@@ -61,10 +61,30 @@ dev = [
     "pytest>=9.0.0,<10",
     "pytest-asyncio>=1.1.0,<2",
     "pytest-cov>=7.0.0,<8",
+    "import-linter>=2.15,<3",
 ]
 
 [tool.uv]
 default-groups = "all"
+
+# Layer boundaries, checked by `lint-imports` (task check:imports).
+# A layer may import the layers below it, never the ones above:
+# - application sees infrastructure directly (no full hexagon, by decision)
+# - infrastructure implements the application ports structurally, so it
+#   needs nothing from application; the port vocabulary lives in domain
+# - domain imports only the standard library
+[tool.importlinter]
+root_package = "boosty_downloader"
+
+[[tool.importlinter.contracts]]
+name = "Layers: cli -> application -> infrastructure -> domain"
+type = "layers"
+layers = [
+    "boosty_downloader.cli",
+    "boosty_downloader.application",
+    "boosty_downloader.infrastructure",
+    "boosty_downloader.domain",
+]
 
 [tool.pytest.ini_options]
 # auto mode: every async test runs under asyncio without a manual mark.
