@@ -15,6 +15,7 @@ from boosty_downloader.cli.cli_options import (
     CacheDirectoryOption,  # noqa: TC001
     DestinationDirectoryOption,  # noqa: TC001
     RequestDelaySecondsOption,  # noqa: TC001
+    ShowLockedOption,  # noqa: TC001
     UsernameOption,  # noqa: TC001
 )
 from boosty_downloader.cli.views.blog_overview import render_blog_overview
@@ -32,6 +33,7 @@ async def _check_handler(
     request_delay_seconds: float,
     destination_directory: Path | None,
     cache_directory: Path | None,
+    show_locked: bool,
 ) -> None:
     async with initialized_app(
         username=username,
@@ -47,7 +49,9 @@ async def _check_handler(
         # Local time: "last post N days ago" must follow the user's calendar.
         app_env.progress_reporter.console.print(
             render_blog_overview(
-                report.overview, now=datetime.now(timezone.utc).astimezone()
+                report.overview,
+                now=datetime.now(timezone.utc).astimezone(),
+                show_locked=show_locked,
             )
         )
         if report.problems:
@@ -59,7 +63,7 @@ def register(app: typer.Typer) -> None:
 
     @app.command(
         'check',
-        short_help='Show the blog overview: tiers with prices, media counts, dates, what full access costs.',
+        short_help='Show what each subscription tier gives, where you stand and what the rest costs.',
     )
     def check_entrypoint(
         *,
@@ -67,13 +71,15 @@ def register(app: typer.Typer) -> None:
         request_delay_seconds: RequestDelaySecondsOption = 2.5,
         destination_directory: DestinationDirectoryOption = None,
         cache_directory: CacheDirectoryOption = None,
+        locked: ShowLockedOption = False,
     ) -> None:
-        """Show how many posts you can access, what unlocks the rest and what it costs, what media they carry - without downloading."""
+        """Show what each subscription tier gives, where you stand and what the rest costs - without downloading."""
         asyncio.run(
             _check_handler(
                 username=username,
                 request_delay_seconds=request_delay_seconds,
                 destination_directory=destination_directory,
                 cache_directory=cache_directory,
+                show_locked=locked,
             ),
         )

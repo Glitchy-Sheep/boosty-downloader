@@ -1,25 +1,18 @@
 ──────────────────────────── boosty.to/other_author ────────────────────────────
-9 posts, 3 accessible to you
+233 posts, 75 accessible to you, 158 locked
 2026-01-04 to 2026-08-21, last post 23 days ago
 
-Access            Price                        Posts   Locked for you
-Free              -                                2                -
-Follower          free tier                        1                -
-Regular           199 RUB/mo                       4                4
-Regular           199 RUB/mo or 100 RUB each       1                1
-Single purchase   100 RUB each                     1                1
+What each tier gives (a higher tier includes the lower ones)
+   Tier         Price            Adds  Posts  Of blog  Per post
+✔  No tier      free                -     75      32%
+   First steps  397 RUB/mo         18     93      40%  200-1000 RUB (14/18)
+   Walking      997 RUB/mo        125    218      94%  300-1000 RUB
+   Far going    1499 RUB/mo        12    230      99%  1000 RUB
+   Everything   + 4000 RUB once     3    233     100%  500-2000 RUB
 
-Media in accessible posts
-📷 images           2
-📄 files            0
-🎬 boosty videos    0
-🔗 external videos  0
-🎵 audio            0
+For you: 75 of 233 posts open (32%). Everything needs 1499 RUB/mo (Far going) +
+4000 RUB one-off (3 posts).
 
-To unlock the rest: 199 RUB/mo (Regular) + 100 RUB one-off (1 post)
-
-Locked posts (3)
-  Стрим [запись]
-  evil [/]
-  plain one
+Media in your posts: 📷 5 images · 📄 17 files · 🎬 69 videos · 🔗 0 external ·
+🎵 11 audio
 ────────────────────────────────────────────────────────────────────────────────

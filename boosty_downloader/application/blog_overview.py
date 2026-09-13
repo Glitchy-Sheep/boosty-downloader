@@ -77,8 +77,35 @@ class AccessGroup:
 
 
 @dataclass(frozen=True, slots=True)
+class TierSummary:
+    """One rung of the subscription ladder: what subscribing to this tier gives."""
+
+    tier: str
+    # Rubles per month, 0 for a free tier.
+    price: float
+    # Posts that live at this tier.
+    adds: int
+    # Posts a subscriber gets in total: the free posts plus every tier up to this one.
+    posts: int
+    # Of `adds`, how many are also sold one by one, and the price range.
+    purchasable: int
+    min_post_price: float
+    max_post_price: float
+
+
+@dataclass(frozen=True, slots=True)
+class SinglePurchases:
+    """Posts sold one by one only: no tier opens them."""
+
+    posts: int
+    total: float
+    min_price: float
+    max_price: float
+
+
+@dataclass(frozen=True, slots=True)
 class TierStep:
-    """One rung of the subscription ladder."""
+    """One rung of the ladder of locked tiers."""
 
     tier: str
     # Rubles per month, 0 for a free tier.
@@ -119,10 +146,15 @@ class BlogOverview:
     author_name: str
     total_posts: int
     accessible_posts: int
-    # Free posts first, then tiers by price, then posts sold one by one.
-    access_groups: list[AccessGroup]
-    # What every post of the blog costs to open, and what this account still lacks.
-    full_access_cost: UnlockCost
+    # Posts open to everyone.
+    free_posts: int
+    # Ascending by price. Boosty tiers nest: a higher tier opens the lower ones.
+    tiers: tuple[TierSummary, ...]
+    single_purchases: SinglePurchases
+    # The highest tier every post of which is open to this account.
+    # None when the account stands below the first tier.
+    your_tier: str | None
+    # What this account still lacks: the locked tiers and single purchases.
     remaining_cost: UnlockCost
     # Media of accessible posts only: a locked post carries a teaser, not its content.
     media: MediaCounts
@@ -139,12 +171,17 @@ def summarize_posts(author_name: str, posts: Iterable[PostDTO]) -> BlogOverview:
     media = sum((count_media(post.data) for post in accessible), MediaCounts())
     created_at = [post.created_at for post in posts]
     groups = _group_by_access(posts)
+    free_posts = sum(
+        group.posts for group in groups if group.tier is None and group.post_price == 0
+    )
     return BlogOverview(
         author_name=author_name,
         total_posts=len(posts),
         accessible_posts=len(accessible),
-        access_groups=groups,
-        full_access_cost=_unlock_cost(groups, locked_only=False),
+        free_posts=free_posts,
+        tiers=_tier_ladder(groups, free_posts),
+        single_purchases=_single_purchases(groups),
+        your_tier=_your_tier(groups),
         remaining_cost=_unlock_cost(groups, locked_only=True),
         media=media,
         first_post_at=min(created_at) if created_at else None,
@@ -208,6 +245,60 @@ def _display_order(group: AccessGroup) -> tuple[int, float, float, str]:
         return (1, group.tier_price, group.post_price, group.tier)
     is_free = group.post_price == 0
     return (0 if is_free else 2, 0, group.post_price, '')
+
+
+def _groups_by_tier(
+    groups: Iterable[AccessGroup],
+) -> list[tuple[tuple[str, float], list[AccessGroup]]]:
+    """Tier groups bundled per tier, ascending by tier price."""
+    by_tier: dict[tuple[str, float], list[AccessGroup]] = {}
+    for group in groups:
+        if group.tier is not None:
+            by_tier.setdefault((group.tier, group.tier_price), []).append(group)
+    return sorted(by_tier.items(), key=lambda item: item[0][1])
+
+
+def _tier_ladder(
+    groups: Iterable[AccessGroup], free_posts: int
+) -> tuple[TierSummary, ...]:
+    ladder: list[TierSummary] = []
+    opened = free_posts
+    for (tier, tier_price), tier_groups in _groups_by_tier(groups):
+        adds = sum(group.posts for group in tier_groups)
+        opened += adds
+        sold = [group for group in tier_groups if group.post_price > 0]
+        ladder.append(
+            TierSummary(
+                tier=tier,
+                price=tier_price,
+                adds=adds,
+                posts=opened,
+                purchasable=sum(group.posts for group in sold),
+                min_post_price=min((group.post_price for group in sold), default=0),
+                max_post_price=max((group.post_price for group in sold), default=0),
+            )
+        )
+    return tuple(ladder)
+
+
+def _single_purchases(groups: Iterable[AccessGroup]) -> SinglePurchases:
+    sold = [group for group in groups if group.tier is None and group.post_price > 0]
+    return SinglePurchases(
+        posts=sum(group.posts for group in sold),
+        total=sum(group.posts * group.post_price for group in sold),
+        min_price=min((group.post_price for group in sold), default=0),
+        max_price=max((group.post_price for group in sold), default=0),
+    )
+
+
+def _your_tier(groups: Iterable[AccessGroup]) -> str | None:
+    """Name the most expensive tier every post of which is open to this account."""
+    fully_open = [
+        tier
+        for (tier, _price), tier_groups in _groups_by_tier(groups)
+        if all(group.accessible == group.posts for group in tier_groups)
+    ]
+    return fully_open[-1] if fully_open else None
 
 
 def _unlock_cost(groups: Iterable[AccessGroup], *, locked_only: bool) -> UnlockCost:

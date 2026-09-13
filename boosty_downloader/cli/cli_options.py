@@ -100,6 +100,15 @@ CacheDirectoryOption = Annotated[
 ]
 
 
+ShowLockedOption = Annotated[
+    bool,
+    typer.Option(
+        '--locked',
+        help='List the titles of the posts you cannot open',
+        rich_help_panel=HelpPanels.actions,
+    ),
+]
+
 DryRunOption = Annotated[
     bool,
     typer.Option(

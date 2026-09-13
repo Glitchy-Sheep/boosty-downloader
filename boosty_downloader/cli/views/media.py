@@ -21,18 +21,35 @@ _KINDS = (
 )
 
 
-def media_table(counts: MediaCounts) -> Table:
-    """One row per media kind, counts right-aligned."""
-    table = Table.grid(padding=(0, 2))
-    table.add_column()
-    table.add_column(justify='right', style='bold')
-    values = (
+def _values(counts: MediaCounts) -> tuple[int, int, int, int, int]:
+    return (
         counts.images,
         counts.files,
         counts.boosty_videos,
         counts.external_videos,
         counts.audio,
     )
-    for (emoji, name), count in zip(_KINDS, values, strict=True):
+
+
+def media_table(counts: MediaCounts) -> Table:
+    """One row per media kind, counts right-aligned."""
+    table = Table.grid(padding=(0, 2))
+    table.add_column()
+    table.add_column(justify='right', style='bold')
+    for (emoji, name), count in zip(_KINDS, _values(counts), strict=True):
         table.add_row(f'{emoji} {name}', str(count))
     return table
+
+
+# Short labels for the one-line form: the column has room for full names.
+_SHORT_NAMES = ('images', 'files', 'videos', 'external', 'audio')
+
+
+def media_line(counts: MediaCounts) -> str:
+    """Join the counts on one line: '📷 5 images · 📄 17 files · ...'."""
+    return ' · '.join(
+        f'{emoji} [bold]{count}[/bold] {name}'
+        for (emoji, _full), name, count in zip(
+            _KINDS, _SHORT_NAMES, _values(counts), strict=True
+        )
+    )

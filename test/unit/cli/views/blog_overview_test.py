@@ -8,10 +8,11 @@ from typing import TYPE_CHECKING
 import pytest
 
 from boosty_downloader.application.blog_overview import (
-    AccessGroup,
     BlogOverview,
     MediaCounts,
+    SinglePurchases,
     TierStep,
+    TierSummary,
     UnlockCost,
 )
 from boosty_downloader.cli.views.blog_overview import render_blog_overview
@@ -22,35 +23,74 @@ if TYPE_CHECKING:
     from rich.console import RenderableType
 
 _NOW = datetime(2026, 9, 13, 12, 0, tzinfo=timezone.utc)
-_FREE = UnlockCost(tiers=(), one_off_posts=0, one_off_total=0)
+_NOTHING = UnlockCost(tiers=(), one_off_posts=0, one_off_total=0)
+_NO_SINGLES = SinglePurchases(posts=0, total=0, min_price=0, max_price=0)
 
 
 def _overview(**overrides: object) -> BlogOverview:
-    """An author's own blog: everything accessible, four ways to unlock."""
+    """An author's own blog: everything open, one tier, eight posts sold one by one."""
     defaults: dict[str, object] = {
         'author_name': 'example_author',
         'total_posts': 11,
         'accessible_posts': 11,
-        'access_groups': [
-            AccessGroup(tier=None, tier_price=0, post_price=0, posts=1, accessible=1),
-            AccessGroup(
-                tier='Tester', tier_price=10, post_price=0, posts=2, accessible=2
+        'free_posts': 1,
+        'tiers': (
+            TierSummary(
+                tier='Tester',
+                price=10,
+                adds=2,
+                posts=3,
+                purchasable=0,
+                min_post_price=0,
+                max_post_price=0,
             ),
-            AccessGroup(tier=None, tier_price=0, post_price=100, posts=6, accessible=6),
-            AccessGroup(tier=None, tier_price=0, post_price=300, posts=2, accessible=2),
-        ],
-        'full_access_cost': UnlockCost(
-            tiers=(TierStep(tier='Tester', price=10, posts=2),),
-            one_off_posts=8,
-            one_off_total=1200,
         ),
-        'remaining_cost': _FREE,
+        'single_purchases': SinglePurchases(
+            posts=8, total=1200, min_price=100, max_price=300
+        ),
+        'your_tier': 'Tester',
+        'remaining_cost': _NOTHING,
         'media': MediaCounts(images=11, files=21, boosty_videos=8, audio=2),
         'first_post_at': datetime(2026, 1, 4, tzinfo=timezone.utc),
         'last_post_at': datetime(2026, 8, 21, tzinfo=timezone.utc),
         'locked_post_titles': (),
     }
     return BlogOverview(**{**defaults, **overrides})  # pyright: ignore[reportArgumentType]
+
+
+def _foreign_blog(**overrides: object) -> BlogOverview:
+    """A big blog with three tiers, seen by an account without a subscription."""
+    defaults: dict[str, object] = {
+        'author_name': 'other_author',
+        'total_posts': 233,
+        'accessible_posts': 75,
+        'free_posts': 75,
+        'tiers': (
+            TierSummary('First steps', 397, 18, 93, 14, 200, 1000),
+            TierSummary('Walking', 997, 125, 218, 125, 300, 1000),
+            TierSummary('Far going', 1499, 12, 230, 12, 1000, 1000),
+        ),
+        'single_purchases': SinglePurchases(
+            posts=3, total=4000, min_price=500, max_price=2000
+        ),
+        'your_tier': None,
+        'remaining_cost': UnlockCost(
+            tiers=(
+                TierStep('First steps', 397, 18),
+                TierStep('Walking', 997, 143),
+                TierStep('Far going', 1499, 155),
+            ),
+            one_off_posts=3,
+            one_off_total=4000,
+        ),
+        'media': MediaCounts(images=5, files=17, boosty_videos=69, audio=11),
+        'locked_post_titles': ('Стрим [запись]', 'evil [/]', '   '),
+    }
+    return _overview(**{**defaults, **overrides})
+
+
+def _line_with(text: str, marker: str) -> str:
+    return next(line for line in text.splitlines() if marker in line)
 
 
 def test_own_blog_overview(
@@ -60,50 +100,52 @@ def test_own_blog_overview(
     golden('blog_overview_own', plain(render_blog_overview(_overview(), now=_NOW)))
 
 
-def test_foreign_blog_with_locked_posts(
+def test_foreign_blog_overview(
     plain: Callable[[RenderableType], str], golden: Callable[[str, str], None]
 ):
-    """Locked counts, the price to unlock the rest and the locked titles."""
-    overview = _overview(
-        author_name='other_author',
-        total_posts=9,
-        accessible_posts=3,
-        access_groups=[
-            AccessGroup(tier=None, tier_price=0, post_price=0, posts=2, accessible=2),
-            AccessGroup(
-                tier='Follower', tier_price=0, post_price=0, posts=1, accessible=1
-            ),
-            AccessGroup(
-                tier='Regular', tier_price=199, post_price=0, posts=4, accessible=0
-            ),
-            AccessGroup(
-                tier='Regular', tier_price=199, post_price=100, posts=1, accessible=0
-            ),
-            AccessGroup(tier=None, tier_price=0, post_price=100, posts=1, accessible=0),
-        ],
-        full_access_cost=UnlockCost(
-            tiers=(
-                TierStep(tier='Follower', price=0, posts=1),
-                TierStep(tier='Regular', price=199, posts=6),
-            ),
-            one_off_posts=1,
-            one_off_total=100,
-        ),
-        remaining_cost=UnlockCost(
-            tiers=(TierStep(tier='Regular', price=199, posts=5),),
-            one_off_posts=1,
-            one_off_total=100,
-        ),
-        media=MediaCounts(images=2),
-        locked_post_titles=('Стрим [запись]', 'evil [/]', 'plain one'),
-    )
-
-    text = plain(render_blog_overview(overview, now=_NOW))
+    """The ladder, the share of the blog and the price of the rest."""
+    text = plain(render_blog_overview(_foreign_blog(), now=_NOW))
 
     golden('blog_overview_locked', text)
-    # Author text goes through rich markup untouched: no crash, nothing eaten.
-    assert 'Стрим [запись]' in text
-    assert 'evil [/]' in text
+    assert '158 locked' in text
+    assert 'Locked posts' not in text, 'titles are opt-in: they bury the ladder'
+
+
+def test_for_you_line_names_what_everything_needs(
+    plain: Callable[[RenderableType], str],
+):
+    text = ' '.join(plain(render_blog_overview(_foreign_blog(), now=_NOW)).split())
+
+    assert (
+        'For you: 75 of 233 posts open (32%). '
+        'Everything needs 1499 RUB/mo (Far going) + 4000 RUB one-off (3 posts).'
+    ) in text
+
+
+def test_the_checkmark_marks_where_you_stand(
+    plain: Callable[[RenderableType], str],
+):
+    """The highest rung fully open to you carries the mark, nothing else does."""
+    own = plain(render_blog_overview(_overview(), now=_NOW))
+    assert 'Everything' in _line_with(own, '✔')
+
+    foreign = plain(render_blog_overview(_foreign_blog(), now=_NOW))
+    assert 'No tier' in _line_with(foreign, '✔')
+
+    subscriber = _foreign_blog(accessible_posts=218, your_tier='Walking')
+    assert 'Walking' in _line_with(
+        plain(render_blog_overview(subscriber, now=_NOW)), '✔'
+    )
+
+
+def test_locked_flag_lists_every_title(plain: Callable[[RenderableType], str]):
+    """Author text goes through rich markup untouched; blank titles get a name."""
+    text = plain(render_blog_overview(_foreign_blog(), now=_NOW, show_locked=True))
+
+    assert 'Locked posts (3)' in text
+    assert '  Стрим [запись]' in text
+    assert '  evil [/]' in text
+    assert '  (no title)' in text
 
 
 def test_empty_blog(
@@ -112,8 +154,10 @@ def test_empty_blog(
     overview = _overview(
         total_posts=0,
         accessible_posts=0,
-        access_groups=[],
-        full_access_cost=_FREE,
+        free_posts=0,
+        tiers=(),
+        single_purchases=_NO_SINGLES,
+        your_tier=None,
         media=MediaCounts(),
         first_post_at=None,
         last_post_at=None,
@@ -153,60 +197,15 @@ def test_last_post_age_follows_the_users_calendar(
 def test_single_post_blog_says_post_not_posts(
     plain: Callable[[RenderableType], str],
 ):
-    overview = _overview(total_posts=1, accessible_posts=1)
+    overview = _overview(
+        total_posts=1,
+        accessible_posts=1,
+        free_posts=1,
+        tiers=(),
+        single_purchases=_NO_SINGLES,
+        your_tier=None,
+    )
 
     assert '1 post, 1 accessible to you' in plain(
         render_blog_overview(overview, now=_NOW)
     )
-
-
-def test_locked_list_is_capped_and_untitled_posts_are_named(
-    plain: Callable[[RenderableType], str],
-):
-    """A big blog locks hundreds of posts; blank titles must not print as blank lines."""
-    titles = (*(f'post {n}' for n in range(22)), '', '   ')
-    overview = _overview(accessible_posts=0, locked_post_titles=titles)
-
-    text = plain(render_blog_overview(overview, now=_NOW))
-
-    assert 'Locked posts (24)' in text
-    assert '  post 19' in text
-    assert '  post 20' not in text
-    assert '  and 4 more' in text
-    assert '(no title)' not in text, 'the untitled ones sit past the cap here'
-
-    text = plain(
-        render_blog_overview(
-            _overview(accessible_posts=0, locked_post_titles=('', 'named')), now=_NOW
-        )
-    )
-
-    assert '  (no title)' in text
-    assert '  named' in text
-
-
-def test_tier_ladder_shows_what_each_rung_opens(
-    plain: Callable[[RenderableType], str],
-):
-    """A gimmick top tier must not hide that the cheap one opens most posts."""
-    overview = _overview(
-        accessible_posts=12,
-        total_posts=91,
-        remaining_cost=UnlockCost(
-            tiers=(
-                TierStep(tier='Regular', price=199, posts=78),
-                TierStep(tier='Billionaire', price=99999, posts=79),
-            ),
-            one_off_posts=0,
-            one_off_total=0,
-        ),
-    )
-
-    # The line is longer than the 80-column render: compare it unwrapped.
-    text = ' '.join(plain(render_blog_overview(overview, now=_NOW)).split())
-
-    assert (
-        'To unlock the rest: 199 RUB/mo (Regular) opens 78 posts, '
-        '99999 RUB/mo (Billionaire) opens all 79'
-    ) in text
-    assert 'Full access costs' not in text

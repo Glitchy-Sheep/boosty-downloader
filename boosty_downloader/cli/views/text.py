@@ -3,12 +3,24 @@
 from __future__ import annotations
 
 
-def price(value: float) -> str:
-    """Rubles without trailing zeros: 10 RUB, 9.50 RUB."""
+def amount(value: float) -> str:
+    """Format a number of rubles without trailing zeros: 10, 9.50."""
     # float() first: int.is_integer needs 3.12, and inf/nan must not crash.
     if float(value).is_integer():
-        return f'{int(value)} RUB'
-    return f'{value:.2f} RUB'
+        return str(int(value))
+    return f'{value:.2f}'
+
+
+def price(value: float) -> str:
+    """Format rubles with the currency: 10 RUB, 9.50 RUB."""
+    return f'{amount(value)} RUB'
+
+
+def price_range(low: float, high: float) -> str:
+    """Format a price range: '200-1000 RUB', or '1000 RUB' when both ends match."""
+    if low == high:
+        return price(high)
+    return f'{amount(low)}-{amount(high)} RUB'
 
 
 def plural(count: int, noun: str) -> str:

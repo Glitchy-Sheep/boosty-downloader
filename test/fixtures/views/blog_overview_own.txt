@@ -2,19 +2,14 @@
 11 posts, 11 accessible to you
 2026-01-04 to 2026-08-21, last post 23 days ago
 
-Access            Price          Posts   Locked for you
-Free              -                  1                -
-Tester            10 RUB/mo          2                -
-Single purchase   100 RUB each       6                -
-Single purchase   300 RUB each       2                -
+What each tier gives (a higher tier includes the lower ones)
+   Tier        Price            Adds  Posts  Of blog  Per post
+   No tier     free                -      1       9%
+   Tester      10 RUB/mo           2      3      27%
+✔  Everything  + 1200 RUB once     8     11     100%  100-300 RUB
 
-Media in accessible posts
-📷 images           11
-📄 files            21
-🎬 boosty videos     8
-🔗 external videos   0
-🎵 audio             2
+For you: all 11 posts open.
 
-Full access costs 10 RUB/mo (Tester) + 1200 RUB one-off (8 posts)
-You already have access to everything
+Media in your posts: 📷 11 images · 📄 21 files · 🎬 8 videos · 🔗 0 external ·
+🎵 2 audio
 ────────────────────────────────────────────────────────────────────────────────
