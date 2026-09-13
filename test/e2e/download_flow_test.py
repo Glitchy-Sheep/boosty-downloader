@@ -311,8 +311,12 @@ async def test_dry_run_promises_the_post_but_touches_no_media(tmp_path: Path) ->
         await server.close()
 
 
-async def test_retried_post_is_counted_once(tmp_path: Path) -> None:
-    """A retry downloads the post again; the statistics must not add it twice."""
+async def test_retried_post_fetches_only_the_failed_part_and_is_counted_once(
+    tmp_path: Path,
+) -> None:
+    """A dead link must not cost the rest of the post: the retry fetches the failed
+    file only, and the statistics describe each media piece once.
+    """
     served_media: list[str] = []
     server = TestServer(_build_app(served_media, fail_first_file=True))
     await server.start_server()
@@ -323,6 +327,11 @@ async def test_retried_post_is_counted_once(tmp_path: Path) -> None:
         assert any('Attempt 1 failed' in warning for warning in reporter.warnings)
         assert reporter.errors == []
         _assert_post_tree(tmp_path)
+        # First attempt: image, file (404), video, audio. Second attempt: the file.
+        assert len(served_media) == 5, served_media
+        assert '/file/' in served_media[-1], (
+            'the retry must ask for the failed file only'
+        )
         assert stats.posts_downloaded == 1
         assert stats.posts_failed == 0
         assert stats.media == MediaCounts(images=1, files=1, boosty_videos=1, audio=1)
