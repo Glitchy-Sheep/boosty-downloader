@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from boosty_downloader.cli.cli_options import (
     CacheDirectoryOption,  # noqa: TC001
-    UsernameOption,  # noqa: TC001
+    UsernameArgument,  # noqa: TC001
 )
 from boosty_downloader.infrastructure.loggers import logger_instances
 from boosty_downloader.infrastructure.post_caching.post_cache import SQLitePostCache
@@ -72,7 +72,7 @@ def register(app: typer.Typer) -> None:
     )
     def clean_cache_entrypoint(
         *,
-        username: UsernameOption,
+        username: UsernameArgument,
         cache_directory: CacheDirectoryOption = None,
     ) -> None:
         """Remove the posts cache for the selected username completely."""

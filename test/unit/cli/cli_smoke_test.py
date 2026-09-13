@@ -33,9 +33,18 @@ def test_help_screens_exit_cleanly(args: list[str]) -> None:
     assert result.exit_code == 0, result.output
 
 
-def test_download_without_username_is_a_usage_error() -> None:
-    """Regression for 5.1: a missing --username used to crash instead of a hint."""
-    result = runner.invoke(typer_app, ['download'])
+@pytest.mark.parametrize('command', ['download', 'check', 'clean-cache'])
+def test_command_without_username_is_a_usage_error(command: str) -> None:
+    """Regression for 5.1: a missing creator name used to crash instead of a hint."""
+    result = runner.invoke(typer_app, [command])
 
     assert result.exit_code == 2
-    assert 'username' in result.output
+    assert 'USERNAME' in result.output
+
+
+def test_the_old_username_flag_is_gone() -> None:
+    """The flag was replaced by the positional argument; typer must reject it."""
+    result = runner.invoke(typer_app, ['check', '-u', 'someone'])
+
+    assert result.exit_code == 2
+    assert 'No such option' in result.output
