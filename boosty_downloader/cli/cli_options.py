@@ -100,6 +100,15 @@ CacheDirectoryOption = Annotated[
 ]
 
 
+ShowPostsOption = Annotated[
+    bool,
+    typer.Option(
+        '--posts',
+        help='List every post under its tier, newest first',
+        rich_help_panel=HelpPanels.actions,
+    ),
+]
+
 DryRunOption = Annotated[
     bool,
     typer.Option(

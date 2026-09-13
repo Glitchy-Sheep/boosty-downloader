@@ -66,7 +66,7 @@ class PlanDownloadUseCase:
     async def execute(self) -> DryRunReport:
         walk = await walk_full_listing(self.boosty_api, self.author_name, self.logger)
         return DryRunReport(
-            overview=summarize_posts(walk.posts),
+            overview=summarize_posts(self.author_name, walk.posts),
             plan=build_download_plan(
                 walk.posts,
                 post_cache=self.post_cache,

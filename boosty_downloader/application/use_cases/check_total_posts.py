@@ -39,6 +39,6 @@ class ReportTotalPostsCountUseCase:
     async def execute(self) -> CheckReport:
         walk = await walk_full_listing(self.boosty_api, self.author_name, self.logger)
         return CheckReport(
-            overview=summarize_posts(walk.posts),
+            overview=summarize_posts(self.author_name, walk.posts),
             problems=walk.problems,
         )
