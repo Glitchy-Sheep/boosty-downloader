@@ -15,7 +15,7 @@ from boosty_downloader.cli.cli_options import (
     CacheDirectoryOption,  # noqa: TC001
     DestinationDirectoryOption,  # noqa: TC001
     RequestDelaySecondsOption,  # noqa: TC001
-    ShowLockedOption,  # noqa: TC001
+    ShowPostsOption,  # noqa: TC001
     UsernameOption,  # noqa: TC001
 )
 from boosty_downloader.cli.views.blog_overview import render_blog_overview
@@ -33,7 +33,7 @@ async def _check_handler(
     request_delay_seconds: float,
     destination_directory: Path | None,
     cache_directory: Path | None,
-    show_locked: bool,
+    show_posts: bool,
 ) -> None:
     async with initialized_app(
         username=username,
@@ -51,7 +51,7 @@ async def _check_handler(
             render_blog_overview(
                 report.overview,
                 now=datetime.now(timezone.utc).astimezone(),
-                show_locked=show_locked,
+                show_posts=show_posts,
             )
         )
         if report.problems:
@@ -71,7 +71,7 @@ def register(app: typer.Typer) -> None:
         request_delay_seconds: RequestDelaySecondsOption = 2.5,
         destination_directory: DestinationDirectoryOption = None,
         cache_directory: CacheDirectoryOption = None,
-        locked: ShowLockedOption = False,
+        posts: ShowPostsOption = False,
     ) -> None:
         """Show what each subscription tier gives, where you stand and what the rest costs - without downloading."""
         asyncio.run(
@@ -80,6 +80,6 @@ def register(app: typer.Typer) -> None:
                 request_delay_seconds=request_delay_seconds,
                 destination_directory=destination_directory,
                 cache_directory=cache_directory,
-                show_locked=locked,
+                show_posts=posts,
             ),
         )

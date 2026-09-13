@@ -10,6 +10,7 @@ import pytest
 from boosty_downloader.application.blog_overview import (
     BlogOverview,
     MediaCounts,
+    PostBrief,
     SinglePurchases,
     TierStep,
     TierSummary,
@@ -24,7 +25,18 @@ if TYPE_CHECKING:
 
 _NOW = datetime(2026, 9, 13, 12, 0, tzinfo=timezone.utc)
 _NOTHING = UnlockCost(tiers=(), one_off_posts=0, one_off_total=0)
-_NO_SINGLES = SinglePurchases(posts=0, total=0, min_price=0, max_price=0)
+_NO_SINGLES = SinglePurchases(posts=0, total=0, min_price=0, max_price=0, entries=())
+
+
+def _brief(
+    title: str, day: int, *, accessible: bool = True, price: float = 0
+) -> PostBrief:
+    return PostBrief(
+        title=title,
+        created_at=datetime(2026, 8, day, tzinfo=timezone.utc),
+        accessible=accessible,
+        price=price,
+    )
 
 
 def _overview(**overrides: object) -> BlogOverview:
@@ -34,6 +46,7 @@ def _overview(**overrides: object) -> BlogOverview:
         'total_posts': 11,
         'accessible_posts': 11,
         'free_posts': 1,
+        'free_entries': (_brief('Hello world', 1),),
         'tiers': (
             TierSummary(
                 tier='Tester',
@@ -43,17 +56,21 @@ def _overview(**overrides: object) -> BlogOverview:
                 purchasable=0,
                 min_post_price=0,
                 max_post_price=0,
+                entries=(_brief('Second tester post', 9), _brief('Tester post', 2)),
             ),
         ),
         'single_purchases': SinglePurchases(
-            posts=8, total=1200, min_price=100, max_price=300
+            posts=8,
+            total=1200,
+            min_price=100,
+            max_price=300,
+            entries=(_brief('Paid post', 21, price=300),),
         ),
         'your_tier': 'Tester',
         'remaining_cost': _NOTHING,
         'media': MediaCounts(images=11, files=21, boosty_videos=8, audio=2),
         'first_post_at': datetime(2026, 1, 4, tzinfo=timezone.utc),
         'last_post_at': datetime(2026, 8, 21, tzinfo=timezone.utc),
-        'locked_post_titles': (),
     }
     return BlogOverview(**{**defaults, **overrides})  # pyright: ignore[reportArgumentType]
 
@@ -65,13 +82,30 @@ def _foreign_blog(**overrides: object) -> BlogOverview:
         'total_posts': 233,
         'accessible_posts': 75,
         'free_posts': 75,
+        'free_entries': (_brief('Open lesson', 20), _brief('Intro', 3)),
         'tiers': (
-            TierSummary('First steps', 397, 18, 93, 14, 200, 1000),
-            TierSummary('Walking', 997, 125, 218, 125, 300, 1000),
-            TierSummary('Far going', 1499, 12, 230, 12, 1000, 1000),
+            TierSummary(
+                'First steps',
+                397,
+                18,
+                93,
+                14,
+                200,
+                1000,
+                entries=(
+                    _brief('Стрим [запись]', 19, accessible=False, price=200),
+                    _brief('   ', 4, accessible=False),
+                ),
+            ),
+            TierSummary('Walking', 997, 125, 218, 125, 300, 1000, entries=()),
+            TierSummary('Far going', 1499, 12, 230, 12, 1000, 1000, entries=()),
         ),
         'single_purchases': SinglePurchases(
-            posts=3, total=4000, min_price=500, max_price=2000
+            posts=3,
+            total=4000,
+            min_price=500,
+            max_price=2000,
+            entries=(_brief('evil [/]', 5, accessible=False, price=2000),),
         ),
         'your_tier': None,
         'remaining_cost': UnlockCost(
@@ -84,7 +118,6 @@ def _foreign_blog(**overrides: object) -> BlogOverview:
             one_off_total=4000,
         ),
         'media': MediaCounts(images=5, files=17, boosty_videos=69, audio=11),
-        'locked_post_titles': ('Стрим [запись]', 'evil [/]', '   '),
     }
     return _overview(**{**defaults, **overrides})
 
@@ -108,7 +141,7 @@ def test_foreign_blog_overview(
 
     golden('blog_overview_locked', text)
     assert '158 locked' in text
-    assert 'Locked posts' not in text, 'titles are opt-in: they bury the ladder'
+    assert 'Open lesson' not in text, 'post lists are opt-in: they bury the ladder'
 
 
 def test_for_you_line_names_what_everything_needs(
@@ -138,14 +171,20 @@ def test_the_checkmark_marks_where_you_stand(
     )
 
 
-def test_locked_flag_lists_every_title(plain: Callable[[RenderableType], str]):
-    """Author text goes through rich markup untouched; blank titles get a name."""
-    text = plain(render_blog_overview(_foreign_blog(), now=_NOW, show_locked=True))
+def test_posts_flag_lists_every_rung_newest_first(
+    plain: Callable[[RenderableType], str], golden: Callable[[str, str], None]
+):
+    """Each rung with its posts: date, a lock on what you cannot open, the price."""
+    text = plain(render_blog_overview(_foreign_blog(), now=_NOW, show_posts=True))
 
-    assert 'Locked posts (3)' in text
-    assert '  Стрим [запись]' in text
-    assert '  evil [/]' in text
-    assert '  (no title)' in text
+    golden('blog_overview_posts', text)
+    assert text.index('Open lesson') < text.index('Intro'), 'newest first'
+    # Author text goes through rich markup untouched; blank titles get a name.
+    assert '🔒 Стрим [запись]  200 RUB' in text
+    assert '🔒 evil [/]  2000 RUB' in text
+    assert '🔒 (no title)' in text
+    assert 'Walking' in text
+    assert 'Walking (' not in text, 'empty rungs are skipped'
 
 
 def test_empty_blog(
@@ -155,6 +194,7 @@ def test_empty_blog(
         total_posts=0,
         accessible_posts=0,
         free_posts=0,
+        free_entries=(),
         tiers=(),
         single_purchases=_NO_SINGLES,
         your_tier=None,
@@ -201,6 +241,7 @@ def test_single_post_blog_says_post_not_posts(
         total_posts=1,
         accessible_posts=1,
         free_posts=1,
+        free_entries=(_brief('Only one', 1),),
         tiers=(),
         single_purchases=_NO_SINGLES,
         your_tier=None,

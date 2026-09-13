@@ -77,6 +77,17 @@ class AccessGroup:
 
 
 @dataclass(frozen=True, slots=True)
+class PostBrief:
+    """One post as it sits on a rung of the ladder."""
+
+    title: str
+    created_at: datetime
+    accessible: bool
+    # Rubles to buy this one post, 0 when it is not sold separately.
+    price: float
+
+
+@dataclass(frozen=True, slots=True)
 class TierSummary:
     """One rung of the subscription ladder: what subscribing to this tier gives."""
 
@@ -91,6 +102,8 @@ class TierSummary:
     purchasable: int
     min_post_price: float
     max_post_price: float
+    # The posts of this tier, newest first.
+    entries: tuple[PostBrief, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +114,8 @@ class SinglePurchases:
     total: float
     min_price: float
     max_price: float
+    # Newest first.
+    entries: tuple[PostBrief, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,8 +161,9 @@ class BlogOverview:
     author_name: str
     total_posts: int
     accessible_posts: int
-    # Posts open to everyone.
+    # Posts open to everyone, and the posts themselves, newest first.
     free_posts: int
+    free_entries: tuple[PostBrief, ...]
     # Ascending by price. Boosty tiers nest: a higher tier opens the lower ones.
     tiers: tuple[TierSummary, ...]
     single_purchases: SinglePurchases
@@ -160,8 +176,6 @@ class BlogOverview:
     media: MediaCounts
     first_post_at: datetime | None
     last_post_at: datetime | None
-    # Titles of the posts this account cannot open, in listing order.
-    locked_post_titles: tuple[str, ...]
 
 
 def summarize_posts(author_name: str, posts: Iterable[PostDTO]) -> BlogOverview:
@@ -179,14 +193,14 @@ def summarize_posts(author_name: str, posts: Iterable[PostDTO]) -> BlogOverview:
         total_posts=len(posts),
         accessible_posts=len(accessible),
         free_posts=free_posts,
-        tiers=_tier_ladder(groups, free_posts),
-        single_purchases=_single_purchases(groups),
+        free_entries=_briefs(posts, rung=(None, False)),
+        tiers=_tier_ladder(groups, free_posts, posts),
+        single_purchases=_single_purchases(groups, posts),
         your_tier=_your_tier(groups),
         remaining_cost=_unlock_cost(groups, locked_only=True),
         media=media,
         first_post_at=min(created_at) if created_at else None,
         last_post_at=max(created_at) if created_at else None,
-        locked_post_titles=tuple(post.title for post in posts if not post.has_access),
     )
 
 
@@ -258,8 +272,34 @@ def _groups_by_tier(
     return sorted(by_tier.items(), key=lambda item: item[0][1])
 
 
+# (tier name, sold one by one): the rung a post sits on.
+_Rung = tuple[str | None, bool]
+
+
+def _rung_of(post: PostDTO) -> _Rung:
+    tier, _tier_price, post_price = _access_key(post)
+    if tier is not None:
+        return (tier, False)
+    return (None, post_price > 0)
+
+
+def _briefs(posts: Iterable[PostDTO], *, rung: _Rung) -> tuple[PostBrief, ...]:
+    """Collect the posts of one rung, newest first."""
+    chosen = [post for post in posts if _rung_of(post) == rung]
+    chosen.sort(key=lambda post: post.created_at, reverse=True)
+    return tuple(
+        PostBrief(
+            title=post.title,
+            created_at=post.created_at,
+            accessible=post.has_access,
+            price=_price_in_rub(post.currency_prices, fallback=post.price),
+        )
+        for post in chosen
+    )
+
+
 def _tier_ladder(
-    groups: Iterable[AccessGroup], free_posts: int
+    groups: Iterable[AccessGroup], free_posts: int, posts: list[PostDTO]
 ) -> tuple[TierSummary, ...]:
     ladder: list[TierSummary] = []
     opened = free_posts
@@ -276,18 +316,22 @@ def _tier_ladder(
                 purchasable=sum(group.posts for group in sold),
                 min_post_price=min((group.post_price for group in sold), default=0),
                 max_post_price=max((group.post_price for group in sold), default=0),
+                entries=_briefs(posts, rung=(tier, False)),
             )
         )
     return tuple(ladder)
 
 
-def _single_purchases(groups: Iterable[AccessGroup]) -> SinglePurchases:
+def _single_purchases(
+    groups: Iterable[AccessGroup], posts: list[PostDTO]
+) -> SinglePurchases:
     sold = [group for group in groups if group.tier is None and group.post_price > 0]
     return SinglePurchases(
         posts=sum(group.posts for group in sold),
         total=sum(group.posts * group.post_price for group in sold),
         min_price=min((group.post_price for group in sold), default=0),
         max_price=max((group.post_price for group in sold), default=0),
+        entries=_briefs(posts, rung=(None, True)),
     )
 
 

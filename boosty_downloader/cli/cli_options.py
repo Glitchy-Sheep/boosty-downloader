@@ -100,11 +100,11 @@ CacheDirectoryOption = Annotated[
 ]
 
 
-ShowLockedOption = Annotated[
+ShowPostsOption = Annotated[
     bool,
     typer.Option(
-        '--locked',
-        help='List the titles of the posts you cannot open',
+        '--posts',
+        help='List every post under its tier, newest first',
         rich_help_panel=HelpPanels.actions,
     ),
 ]

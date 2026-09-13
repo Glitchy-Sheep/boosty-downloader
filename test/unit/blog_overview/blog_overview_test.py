@@ -6,9 +6,9 @@ from datetime import datetime, timezone
 
 from boosty_downloader.application.blog_overview import (
     MediaCounts,
+    PostBrief,
     SinglePurchases,
     TierStep,
-    TierSummary,
     UnlockCost,
     summarize_posts,
 )
@@ -69,31 +69,43 @@ def test_tiers_form_a_ladder_with_cumulative_posts_and_per_post_prices():
     overview = summarize_posts('author', posts)
 
     assert overview.free_posts == 2
-    assert overview.tiers == (
-        TierSummary(
-            tier='Tester',
-            price=10,
-            adds=2,
-            posts=4,
-            purchasable=1,
-            min_post_price=50,
-            max_post_price=50,
-        ),
-        TierSummary(
-            tier='Pro',
-            price=300,
-            adds=1,
-            posts=5,
-            purchasable=1,
-            min_post_price=100,
-            max_post_price=100,
-        ),
-    )
-    assert overview.single_purchases == SinglePurchases(
-        posts=2, total=400, min_price=100, max_price=300
+    assert [
+        (t.tier, t.price, t.adds, t.posts, t.purchasable, t.min_post_price)
+        for t in overview.tiers
+    ] == [('Tester', 10, 2, 4, 1, 50), ('Pro', 300, 1, 5, 1, 100)]
+    singles = overview.single_purchases
+    assert (singles.posts, singles.total, singles.min_price, singles.max_price) == (
+        2,
+        400,
+        100,
+        300,
     )
     assert overview.your_tier == 'Tester'
-    assert overview.locked_post_titles == ('post pro', 'post single-300')
+
+
+def test_every_rung_lists_its_posts_newest_first():
+    """The --posts listing: each post sits on exactly one rung, newest on top."""
+    day = datetime(2026, 3, 1, tzinfo=timezone.utc)
+    later = datetime(2026, 3, 5, tzinfo=timezone.utc)
+    posts = [
+        _post('free-old', created_at=day),
+        _post('free-new', created_at=later),
+        _post('tester', tier=('Tester', 10), price=50, created_at=day),
+        _post('single', has_access=False, price=300, created_at=day),
+    ]
+
+    overview = summarize_posts('author', posts)
+
+    assert overview.free_entries == (
+        PostBrief(title='post free-new', created_at=later, accessible=True, price=0),
+        PostBrief(title='post free-old', created_at=day, accessible=True, price=0),
+    )
+    assert overview.tiers[0].entries == (
+        PostBrief(title='post tester', created_at=day, accessible=True, price=50),
+    )
+    assert overview.single_purchases.entries == (
+        PostBrief(title='post single', created_at=day, accessible=False, price=300),
+    )
 
 
 def test_your_tier_is_the_highest_fully_open_one():
@@ -222,12 +234,11 @@ def test_empty_listing_gives_an_empty_overview():
     assert overview.total_posts == 0
     assert overview.tiers == ()
     assert overview.single_purchases == SinglePurchases(
-        posts=0, total=0, min_price=0, max_price=0
+        posts=0, total=0, min_price=0, max_price=0, entries=()
     )
     assert overview.your_tier is None
     assert overview.media == MediaCounts()
     assert (overview.first_post_at, overview.last_post_at) == (None, None)
-    assert overview.locked_post_titles == ()
 
 
 def test_prices_group_by_the_stable_rub_value():
@@ -253,14 +264,11 @@ def test_prices_group_by_the_stable_rub_value():
 
     overview = summarize_posts('author', [post])
 
-    assert overview.tiers == (
-        TierSummary(
-            tier='Regular',
-            price=199,
-            adds=1,
-            posts=1,
-            purchasable=1,
-            min_post_price=100,
-            max_post_price=100,
-        ),
+    (tier,) = overview.tiers
+    assert (tier.tier, tier.price, tier.purchasable, tier.min_post_price) == (
+        'Regular',
+        199,
+        1,
+        100,
     )
+    assert tier.entries[0].price == 100

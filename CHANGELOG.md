@@ -3,7 +3,7 @@
 ### Added
 
 - `check` now shows the blog as a ladder of subscription tiers: what each tier adds, how many posts you get with it and what share of the blog that is, plus posts sold one by one, media counts and the posting date range
-- `check` marks where you stand on that ladder and tells what everything else costs; `check --locked` lists the titles you cannot open
+- `check` marks where you stand on that ladder and tells what everything else costs; `check --posts` lists every post under its tier, newest first, with a lock on the ones you cannot open
 - `download --dry-run` previews a run without downloading anything: new, updated and already complete posts, media to fetch by type and the known size - so an overnight run holds no surprises
 - Every download run ends with statistics: posts downloaded, cached and failed, media by type, total size and time
 

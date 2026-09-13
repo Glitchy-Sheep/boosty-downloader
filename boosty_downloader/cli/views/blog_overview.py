@@ -26,19 +26,20 @@ if TYPE_CHECKING:
 
     from boosty_downloader.application.blog_overview import (
         BlogOverview,
+        PostBrief,
         TierStep,
         UnlockCost,
     )
 
 
 def render_blog_overview(
-    overview: BlogOverview, *, now: datetime, show_locked: bool = False
+    overview: BlogOverview, *, now: datetime, show_posts: bool = False
 ) -> RenderableType:
     """
     Build the overview block shown after a blog listing.
 
     ``now`` is injected so "last post N days ago" is testable.
-    ``show_locked`` lists every title this account cannot open.
+    ``show_posts`` lists every post under its rung, newest first.
     """
     title = Rule(title=f'boosty.to/{escape(overview.author_name)}', style='dim')
     if overview.total_posts == 0:
@@ -56,8 +57,8 @@ def render_blog_overview(
         '',
         f'Media in your posts: {media_line(overview.media)}',
     ]
-    if show_locked and overview.locked_post_titles:
-        parts += ['', *_locked_lines(overview.locked_post_titles)]
+    if show_posts:
+        parts += _post_lists(overview)
     parts.append(Rule(style='dim'))
     return Group(*parts)
 
@@ -215,9 +216,24 @@ def _tier_cost(step: TierStep) -> str:
     return f'[yellow]{price(step.price)}/mo[/yellow] ({tier})'
 
 
-def _locked_lines(titles: tuple[str, ...]) -> list[str]:
-    lines = [f'[bold]Locked posts ({len(titles)})[/bold]']
-    lines += [
-        f'[dim]  {escape(title.strip()) or "(no title)"}[/dim]' for title in titles
+def _post_lists(overview: BlogOverview) -> list[str]:
+    """Every rung with its posts, newest first; a lock marks what you cannot open."""
+    rungs: list[tuple[str, tuple[PostBrief, ...]]] = [
+        ('No tier', overview.free_entries),
+        *((escape(tier.tier), tier.entries) for tier in overview.tiers),
+        ('Sold one by one', overview.single_purchases.entries),
     ]
+    lines: list[str] = []
+    for name, entries in rungs:
+        if not entries:
+            continue
+        lines += ['', f'[bold]{name}[/bold] ({plural(len(entries), "post")})']
+        lines += [_post_line(entry) for entry in entries]
     return lines
+
+
+def _post_line(entry: PostBrief) -> str:
+    lock = '' if entry.accessible else '[red]🔒[/red] '
+    title = escape(entry.title.strip()) or '(no title)'
+    suffix = f'  [yellow]{price(entry.price)}[/yellow]' if entry.price else ''
+    return f'  [dim]{entry.created_at:%Y-%m-%d}[/dim]  {lock}{title}{suffix}'
