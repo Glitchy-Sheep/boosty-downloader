@@ -1,32 +1,25 @@
 """
 Use case for downloading a single post from Boosty.
 
-It encapsulates the logic required to download a post from a specific author.
+Orchestrates one post: map the API answer, ask the cache what is missing,
+download the media in parallel, render post.html and remember what landed.
 """
 
-import threading
-import uuid
-from asyncio import (
-    CancelledError,
-    Semaphore,
-    Task,
-    create_task,
-    gather,
-    get_running_loop,
-    to_thread,
-)
-from datetime import datetime
-from pathlib import Path
+from __future__ import annotations
+
+from asyncio import CancelledError, Semaphore, Task, create_task, gather
+from functools import cached_property, partial
+from typing import TYPE_CHECKING
 
 from yarl import URL
 
 from boosty_downloader.application.blog_overview import MediaCounts
-from boosty_downloader.application.download_context import DownloadContext
 from boosty_downloader.application.exceptions.application_errors import (
     ApplicationCancelledError,
     ApplicationFailedDownloadError,
 )
 from boosty_downloader.application.filtering import (
+    CHUNK_TO_FILTER,
     post_has_content_for,
 )
 from boosty_downloader.application.mappers.html_converter import (
@@ -40,7 +33,6 @@ from boosty_downloader.application.mappers.post_mapper import (
     map_post_dto_to_domain,
 )
 from boosty_downloader.domain.content_types import DownloadContentTypeFilter
-from boosty_downloader.domain.post import Post, PostDataAllChunks
 from boosty_downloader.domain.post_data_chunks import (
     PostDataChunkAudio,
     PostDataChunkBoostyVideo,
@@ -49,20 +41,6 @@ from boosty_downloader.domain.post_data_chunks import (
     PostDataChunkImage,
     PostDataChunkText,
     PostDataChunkTextualList,
-)
-from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
-from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
-    ExternalVideoDownloadStatus,
-    ExtVideoError,
-    ExtVideoInfoError,
-    ExtVideoInterruptedByUserError,
-)
-from boosty_downloader.infrastructure.file_downloader import (
-    DownloadCancelledError,
-    DownloadError,
-    DownloadFileConfig,
-    DownloadingStatus,
-    download_file,
 )
 from boosty_downloader.infrastructure.html_generator import (
     HtmlGenChunk,
@@ -79,8 +57,23 @@ from boosty_downloader.infrastructure.path_sanitizer import (
     sanitize_filename,
 )
 from boosty_downloader.infrastructure.post_media_downloader import (
-    boosty_video_filename,
+    MediaDownloadError,
+    PostMediaDownloader,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+    from datetime import datetime
+    from pathlib import Path
+    from uuid import UUID
+
+    from boosty_downloader.application.download_context import DownloadContext
+    from boosty_downloader.domain.post import Post, PostDataAllChunks
+    from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
+    from boosty_downloader.infrastructure.post_media_downloader import (
+        MediaProgress,
+        ProgressCallback,
+    )
 
 
 def _form_post_url(username: str, post_id: str) -> str:
@@ -100,6 +93,31 @@ async def _stop_tasks(tasks: list[Task[HtmlGenChunk | None]]) -> None:
     await gather(*tasks, return_exceptions=True)
 
 
+# Chunks that are saved as files; text and lists go straight to the page.
+MediaChunk = (
+    PostDataChunkImage
+    | PostDataChunkBoostyVideo
+    | PostDataChunkExternalVideo
+    | PostDataChunkFile
+    | PostDataChunkAudio
+)
+
+
+def _page_element(chunk: MediaChunk, saved_as: Path) -> HtmlGenChunk | None:
+    """Build the element post.html shows for a saved media file; attachments have none."""
+    match chunk:
+        case PostDataChunkImage():
+            return HtmlGenImage(url=str(saved_as), alt=saved_as.name)
+        case PostDataChunkBoostyVideo():
+            return convert_video_to_html(src=str(saved_as), title=chunk.title)
+        case PostDataChunkExternalVideo():
+            return convert_video_to_html(src=str(saved_as), title=saved_as.name)
+        case PostDataChunkAudio():
+            return convert_audio_to_html(src=str(saved_as), title=chunk.title)
+        case PostDataChunkFile():
+            return None
+
+
 def compose_post_directory_name(title: str, created_at: datetime, post_id: str) -> str:
     """
     One folder per post: 'YYYY-MM-DD - Title (id8)'.
@@ -116,12 +134,11 @@ def compose_post_directory_name(title: str, created_at: datetime, post_id: str) 
 
 class DownloadSinglePostUseCase:
     """
-    Use case for downloading all user's posts.
+    Download one post into its folder.
 
-    This class encapsulates the logic required to download all posts from a source.
-    Initialize the use case and call its methods to perform the download operation.
-
-    All the downloaded content parts will be saved under the specified destination path.
+    Media chunks download in parallel through PostMediaDownloader; the page
+    is rendered from the chunks of this run and the cache remembers which
+    content types finished.
     """
 
     def __init__(
@@ -133,18 +150,20 @@ class DownloadSinglePostUseCase:
         self.destination = destination
         self.post_dto = post_dto
         self.context = download_context
+        self.post_file_path = destination / 'post.html'
 
         # Media of the current attempt. A retry downloads the post again;
         # only the attempt that finishes lands in the run statistics.
         self._attempt_media = MediaCounts()
         self._attempt_bytes = 0
 
-        self.post_file_path = destination / Path('post.html')
-        self.images_destination = destination / Path('images')
-        self.files_destination = destination / Path('files')
-        self.external_videos_destination = destination / Path('external_videos')
-        self.boosty_videos_destination = destination / Path('boosty_videos')
-        self.audio_destination = destination / Path('audio')
+    @cached_property
+    def _media(self) -> PostMediaDownloader:
+        return PostMediaDownloader(
+            http=self.context.downloader_session,
+            external_videos=self.context.external_videos_downloader,
+            post_dir=self.destination,
+        )
 
     def _should_execute(
         self, post: Post, missing_parts: list[DownloadContentTypeFilter]
@@ -253,7 +272,7 @@ class DownloadSinglePostUseCase:
         self,
         post: Post,
         missing_parts: list[DownloadContentTypeFilter],
-        post_task_id: uuid.UUID,
+        post_task_id: UUID,
     ) -> list[HtmlGenChunk | None]:
         """
         Download every chunk, MEDIA_CONCURRENCY at a time.
@@ -284,14 +303,14 @@ class DownloadSinglePostUseCase:
             await _stop_tasks(tasks)
             raise
 
-    def _start_post_task(self, post: Post) -> uuid.UUID:
+    def _start_post_task(self, post: Post) -> UUID:
         return self.context.progress_reporter.create_task(
             f'[bold]POST: {post.title}[/bold]',
             total=len(post.post_data_chunks),
             indent_level=1,
         )
 
-    def _update_post_task(self, post_task_id: uuid.UUID) -> None:
+    def _update_post_task(self, post_task_id: UUID) -> None:
         self.context.progress_reporter.update_task(
             post_task_id,
             advance=1,
@@ -303,255 +322,103 @@ class DownloadSinglePostUseCase:
         missing_parts: list[DownloadContentTypeFilter],
         post: Post,
     ) -> HtmlGenChunk | None:
-        """
-        Safely process a chunk of post data and return the HTML representation if applicable.
-
-        Handles exceptions and ensures that the post task is updated correctly.
-        """
-        # Centralized error handling to transform low level exceptions to application level
+        """Process one chunk; infrastructure failures become application errors."""
         try:
             return await self._process_chunk(chunk, missing_parts)
-        # KeyboardInterrupt while downloading file
-        except DownloadCancelledError as e:
-            if e.file:
-                e.file.unlink(missing_ok=True)
-            raise ApplicationCancelledError(post_uuid=post.uuid) from e
-        # KeyboardInterrupt while downloading external video
-        except ExtVideoInterruptedByUserError as e:
-            raise ApplicationCancelledError(post_uuid=post.uuid) from e
-        # KeyboardInterrupt during asyncio tasks (general case)
         except CancelledError as e:
             raise ApplicationCancelledError(post_uuid=post.uuid) from e
-        # Error while downloading file (e.g. boosty video / files / images)
-        except DownloadError as e:
-            if e.file:
-                e.file.unlink(missing_ok=True)
+        except MediaDownloadError as e:
+            resource = e.file.name if e.file else e.resource_url
             await self.context.failed_logger.add_error(
                 f'{_form_post_url(username=self.context.author_name, post_id=post.uuid)} - {e.resource_url}',
-                f'Failed to download file ({e.file}): {e.message}',
+                f'Failed to download {resource}: {e.message}',
             )
             raise ApplicationFailedDownloadError(
                 post_uuid=post.uuid,
                 message=f"Couldn't download resource: {e.message}",
-                resource=e.file.name if e.file else 'Unknown name',
-            ) from e
-        # Error while downloading external video
-        except ExtVideoInfoError as e:
-            await self.context.failed_logger.add_error(
-                f'{_form_post_url(username=self.context.author_name, post_id=post.uuid)} - {e.video_url}',
-                "External video unavailable or access restricted (can't get info)",
-            )
-            raise ApplicationFailedDownloadError(
-                post_uuid=post.uuid,
-                message='External video unavailable or access restricted.',
-                resource='UNAVAILABLE',
-            ) from e
-        # The base class catches every present and future family member:
-        # a raw yt-dlp failure must never escape as a traceback.
-        except ExtVideoError as e:
-            resource = e.video_url or 'unknown video url'
-            await self.context.failed_logger.add_error(
-                f'{_form_post_url(username=self.context.author_name, post_id=post.uuid)} - {resource}',
-                'External video download failed',
-            )
-            raise ApplicationFailedDownloadError(
-                post_uuid=post.uuid,
-                message="Couldn't download external video",
                 resource=resource,
             ) from e
 
-    async def _process_chunk(  # noqa: C901, PLR0911
+    async def _process_chunk(
         self,
         chunk: PostDataAllChunks,
         missing_parts: list[DownloadContentTypeFilter],
     ) -> HtmlGenChunk | None:
-        should_generate_post = DownloadContentTypeFilter.post_content in missing_parts
-        should_download_files = DownloadContentTypeFilter.files in missing_parts
-        should_download_videos = (
-            DownloadContentTypeFilter.boosty_videos in missing_parts
-        )
-        should_download_ext_videos = (
-            DownloadContentTypeFilter.external_videos in missing_parts
-        )
-        should_download_audio = DownloadContentTypeFilter.audio in missing_parts
-
-        # ----------------------------------------------------------------------
-        # Post Content (Text / List / Image) processing
-        if isinstance(chunk, PostDataChunkText) and should_generate_post:
+        """Download the chunk when its content type is wanted; return its page element."""
+        if CHUNK_TO_FILTER.get(type(chunk)) not in missing_parts:
+            return None
+        if isinstance(chunk, PostDataChunkText):
             return convert_text_to_html(chunk)
-        if isinstance(chunk, PostDataChunkTextualList) and should_generate_post:
+        if isinstance(chunk, PostDataChunkTextualList):
             return convert_list_to_html(chunk)
-        if isinstance(chunk, PostDataChunkImage) and should_generate_post:
-            saved_as = await self.download_image(image=chunk)
-            return HtmlGenImage(url=str(saved_as), alt=saved_as.name)
-        # ----------------------------------------------------------------------
-        # Boosty Video
-        if isinstance(chunk, PostDataChunkBoostyVideo) and should_download_videos:
-            saved_as = await self.download_boosty_video(chunk)
-            if DownloadContentTypeFilter.post_content in missing_parts:
-                return convert_video_to_html(src=str(saved_as), title=chunk.title)
-        # ----------------------------------------------------------------------
-        # External Video
-        elif (
-            isinstance(chunk, PostDataChunkExternalVideo) and should_download_ext_videos
-        ):
-            saved_as = await self.download_external_videos(external_video=chunk)
-            if DownloadContentTypeFilter.post_content in missing_parts:
-                return convert_video_to_html(src=str(saved_as), title=saved_as.name)
-        # ----------------------------------------------------------------------
-        # Files
-        elif isinstance(chunk, PostDataChunkFile) and should_download_files:
-            await self.download_files(file=chunk)
-        # ----------------------------------------------------------------------
-        # Audio
-        elif isinstance(chunk, PostDataChunkAudio) and should_download_audio:
-            saved_as = await self.download_audio(audio=chunk)
-            if DownloadContentTypeFilter.post_content in missing_parts:
-                return convert_audio_to_html(src=str(saved_as), title=chunk.title)
-        return None
+        saved_as = await self._download_media(chunk)
+        # Media that is not part of the page this run still downloads;
+        # it just gets no element in post.html.
+        if DownloadContentTypeFilter.post_content not in missing_parts:
+            return None
+        return _page_element(chunk, saved_as)
 
-    # --------------------------------------------------------------------------
-    # Helper downloading methods
+    async def _download_media(self, chunk: MediaChunk) -> Path:
+        """Save one media chunk under its own progress bar."""
+        match chunk:
+            case PostDataChunkImage():
+                return await self._download(
+                    f'Image: {URL(chunk.url).name}',
+                    partial(self._media.download_image, chunk),
+                    MediaCounts(images=1),
+                )
+            case PostDataChunkBoostyVideo():
+                return await self._download(
+                    f'[bold orange]Boosty Video[/bold orange]: {chunk.title}',
+                    partial(self._media.download_boosty_video, chunk),
+                    MediaCounts(boosty_videos=1),
+                )
+            case PostDataChunkExternalVideo():
+                return await self._download(
+                    f'External video: {chunk.url}',
+                    partial(self._media.download_external_video, chunk),
+                    MediaCounts(external_videos=1),
+                )
+            case PostDataChunkFile():
+                return await self._download(
+                    f'File: {chunk.filename}',
+                    partial(self._media.download_file, chunk),
+                    MediaCounts(files=1),
+                )
+            case PostDataChunkAudio():
+                return await self._download(
+                    f'Audio: {chunk.title}',
+                    partial(self._media.download_audio, chunk),
+                    MediaCounts(audio=1),
+                )
 
-    async def _download_with_progress(  # noqa: PLR0913 - one knob per download aspect
+    async def _download(
         self,
-        url: str,
-        filename: str,
-        destination: Path,
-        task_label: str,
-        *,
+        label: str,
+        download: Callable[[ProgressCallback], Awaitable[Path]],
         media: MediaCounts,
-        guess_extension: bool = True,
     ) -> Path:
-        """Download a file with progress tracking and return path relative to post directory."""
-        await to_thread(destination.mkdir, parents=True, exist_ok=True)
-        task_id = self.context.progress_reporter.create_task(task_label, indent_level=2)
+        """Run one media download under its own progress bar; count it for the statistics."""
+        task_id = self.context.progress_reporter.create_task(label, indent_level=2)
         downloaded_bytes = 0
 
-        def update_progress(status: DownloadingStatus) -> None:
+        def on_progress(progress: MediaProgress) -> None:
             nonlocal downloaded_bytes
-            downloaded_bytes = status.total_downloaded_bytes
-            downloaded = human_readable_size(status.total_downloaded_bytes)
-            total = human_readable_size(status.total_bytes)
+            downloaded_bytes = progress.downloaded_bytes
+            done = human_readable_size(progress.downloaded_bytes)
+            total = human_readable_size(progress.total_bytes)
             self.context.progress_reporter.update_task(
                 task_id,
-                advance=status.downloaded_bytes,
-                total=status.total_bytes,
-                description=f'{task_label} [{downloaded} / {total}]',
+                advance=progress.delta_bytes,
+                total=progress.total_bytes,
+                description=f'{label} [{done} / {total}]',
             )
 
         try:
-            path = await download_file(
-                DownloadFileConfig(
-                    session=self.context.downloader_session,
-                    url=url,
-                    filename=filename,
-                    destination=destination,
-                    guess_extension=guess_extension,
-                    on_status_update=update_progress,
-                )
-            )
+            path = await download(on_progress)
         finally:
             self.context.progress_reporter.complete_task(task_id)
 
         self._attempt_media += media
         self._attempt_bytes += downloaded_bytes
-        return path.relative_to(self.post_file_path.parent)
-
-    async def download_boosty_video(self, video: PostDataChunkBoostyVideo) -> Path:
-        """Download a Boosty video and return the path to the saved file."""
-        return await self._download_with_progress(
-            url=video.url,
-            filename=boosty_video_filename(video),
-            destination=self.boosty_videos_destination,
-            task_label=f'[bold orange]Boosty Video[/bold orange]: {video.title}',
-            media=MediaCounts(boosty_videos=1),
-        )
-
-    async def download_external_videos(
-        self, external_video: PostDataChunkExternalVideo
-    ) -> Path:
-        """Download an external video using yt-dlp."""
-        self.external_videos_destination.mkdir(parents=True, exist_ok=True)
-        task_id = self.context.progress_reporter.create_task(
-            f'External video: {external_video.url}', indent_level=2
-        )
-
-        loop = get_running_loop()
-        cancel_requested = threading.Event()
-        downloaded_bytes = 0
-
-        def update_progress(status: ExternalVideoDownloadStatus) -> None:
-            nonlocal downloaded_bytes
-            downloaded_bytes = status.downloaded_bytes or 0
-            downloaded = human_readable_size(status.downloaded_bytes)
-            total = human_readable_size(status.total_bytes)
-            self.context.progress_reporter.update_task(
-                task_id,
-                advance=status.delta_bytes,
-                total=status.total_bytes,
-                description=f'External video [{downloaded} / {total}]: {external_video.url}',
-            )
-
-        def thread_safe_progress(status: ExternalVideoDownloadStatus) -> None:
-            # KeyboardInterrupt is yt-dlp's own abort path: raising it inside
-            # the worker thread stops the download shortly after Ctrl+C.
-            if cancel_requested.is_set():
-                raise KeyboardInterrupt
-            # yt-dlp calls the hook from its worker thread; the progress
-            # display must be touched only from the event loop.
-            loop.call_soon_threadsafe(update_progress, status)
-
-        try:
-            # yt-dlp is fully blocking: run it off the loop, or it freezes
-            # every parallel download and the progress display.
-            path = await to_thread(
-                self.context.external_videos_downloader.download_video,
-                url=external_video.url,
-                destination_directory=self.external_videos_destination,
-                progress_hook=thread_safe_progress,
-            )
-        except CancelledError:
-            cancel_requested.set()
-            raise
-        finally:
-            self.context.progress_reporter.complete_task(task_id)
-
-        self._attempt_media += MediaCounts(external_videos=1)
-        self._attempt_bytes += downloaded_bytes
-        return path.relative_to(self.external_videos_destination.parent)
-
-    async def download_files(self, file: PostDataChunkFile) -> Path:
-        """Download a file attachment."""
-        return await self._download_with_progress(
-            url=file.url,
-            filename=file.filename,
-            destination=self.files_destination,
-            task_label=f'File: {file.filename}',
-            media=MediaCounts(files=1),
-            # The author's original filename already carries its extension.
-            guess_extension=False,
-        )
-
-    async def download_image(self, image: PostDataChunkImage) -> Path:
-        """Download an image."""
-        return await self._download_with_progress(
-            url=image.url,
-            filename=URL(image.url).name,
-            destination=self.images_destination,
-            task_label=f'Image: {URL(image.url).name}',
-            media=MediaCounts(images=1),
-            # The name is a bare uuid - Content-Type is the only source
-            # of an extension in existence.
-            guess_extension=True,
-        )
-
-    async def download_audio(self, audio: PostDataChunkAudio) -> Path:
-        return await self._download_with_progress(
-            url=audio.url,
-            filename=audio.title,
-            destination=self.audio_destination,
-            task_label=f'Audio: {audio.title}',
-            media=MediaCounts(audio=1),
-            guess_extension=False,
-        )
+        return path
