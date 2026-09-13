@@ -59,7 +59,7 @@ def register(app: typer.Typer) -> None:
 
     @app.command(
         'check',
-        short_help='Show the blog overview: posts by tier with prices, media counts, dates.',
+        short_help='Show the blog overview: tiers with prices, media counts, dates, what full access costs.',
     )
     def check_entrypoint(
         *,
@@ -68,7 +68,7 @@ def register(app: typer.Typer) -> None:
         destination_directory: DestinationDirectoryOption = None,
         cache_directory: CacheDirectoryOption = None,
     ) -> None:
-        """Show how many posts you can access, what unlocks the rest and what media they carry - without downloading."""
+        """Show how many posts you can access, what unlocks the rest and what it costs, what media they carry - without downloading."""
         asyncio.run(
             _check_handler(
                 username=username,
