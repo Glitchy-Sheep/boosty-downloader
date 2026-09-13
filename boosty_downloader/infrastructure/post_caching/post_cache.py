@@ -134,10 +134,6 @@ class SQLitePostCache:
 
         return [part for part in required if not post.is_downloaded(part)]
 
-    def remove_cache_completely(self) -> None:
-        """Reinitialize the cache completely in case if user wants to start fresh."""
-        self._reinitialize_db()
-
     # -------------------------------------------------------------------------
     # Private: Database health
     # -------------------------------------------------------------------------

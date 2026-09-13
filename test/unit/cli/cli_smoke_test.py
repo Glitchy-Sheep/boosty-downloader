@@ -6,10 +6,15 @@ command registration and argument parsing.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 from typer.testing import CliRunner
 
 from boosty_downloader.main import typer_app
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 runner = CliRunner()
 
@@ -48,3 +53,22 @@ def test_the_old_username_flag_is_gone() -> None:
 
     assert result.exit_code == 2
     assert 'No such option' in result.output
+
+
+def test_clean_cache_runs_without_an_event_loop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The only sync command: settings loading must not need asyncio to be running."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / 'config.yaml').write_text(
+        'auth:\n  cookie: "session=x"\n  auth_header: "Bearer x"\n',
+        encoding='utf-8',
+    )
+
+    result = runner.invoke(
+        typer_app, ['clean-cache', 'someone', '--cache-dir', str(tmp_path)]
+    )
+
+    assert result.exit_code == 0, result.output
+    # rich wraps log lines at the terminal width; compare without the wrapping.
+    assert 'nothing to clean' in ' '.join(result.output.split())

@@ -33,7 +33,6 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
     from pathlib import Path
 
-    from aiohttp.typedefs import LooseHeaders
     from aiohttp_retry import RetryOptionsBase
 
     from boosty_downloader.application.ports import PostCache
@@ -42,15 +41,20 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class AppSettings:
-    """Resolved once from config.yaml and the CLI overrides on top of it."""
+    """
+    Resolved once from config.yaml and the CLI overrides on top of it.
+
+    Plain values only: the aiohttp objects built from them need a running
+    event loop, and sync commands (clean-cache) load settings without one.
+    """
 
     author_name: str
     # <target>/<author>: where the posts of this creator land.
     destination_dir: Path
     # <cache or target>/<author>: where the post cache of this creator lives.
     cache_dir: Path
-    boosty_headers: LooseHeaders
-    boosty_cookies: aiohttp.CookieJar
+    auth_header: str
+    cookie: str
 
 
 def load_settings(
@@ -67,8 +71,8 @@ def load_settings(
         author_name=username,
         destination_dir=target.absolute() / username,
         cache_dir=(cache_root or target).absolute() / username,
-        boosty_headers=parse_auth_header(config.auth.auth_header),
-        boosty_cookies=parse_session_cookie(config.auth.cookie),
+        auth_header=config.auth.auth_header,
+        cookie=config.auth.cookie,
     )
 
 
@@ -115,8 +119,8 @@ async def open_app(
         api_session = await stack.enter_async_context(
             # Credentials live ONLY here: this session talks to the Boosty API.
             aiohttp.ClientSession(
-                headers=settings.boosty_headers,
-                cookie_jar=settings.boosty_cookies,
+                headers=parse_auth_header(settings.auth_header),
+                cookie_jar=parse_session_cookie(settings.cookie),
                 timeout=_NETWORK_TIMEOUT,
                 trust_env=True,
                 trace_configs=[

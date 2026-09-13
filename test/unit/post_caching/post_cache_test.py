@@ -16,6 +16,7 @@ from boosty_downloader.infrastructure.loggers.base import RichLogger
 from boosty_downloader.infrastructure.post_caching.post_cache import (
     SQLitePostCache,
 )
+from boosty_downloader.infrastructure.post_caching.storage import SQLiteCacheStorage
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -81,11 +82,9 @@ def test_clean_cache_forgets_everything(tmp_path: Path):
     """clean-cache promises a fresh start - a surviving row would block re-download."""
     with _open_cache(tmp_path) as cache:
         cache.cache_post('p1', UPDATED_AT, ALL_PARTS)
-        cache.remove_cache_completely()
+    SQLiteCacheStorage(tmp_path).remove()
+    with _open_cache(tmp_path) as cache:
         assert cache.get_post_missing_parts('p1', UPDATED_AT, ALL_PARTS) == ALL_PARTS
-        # The reinitialized database must stay writable.
-        cache.cache_post('p2', UPDATED_AT, ALL_PARTS)
-        assert cache.get_post_missing_parts('p2', UPDATED_AT, ALL_PARTS) == []
 
 
 def test_outdated_schema_triggers_clean_reinit(tmp_path: Path):

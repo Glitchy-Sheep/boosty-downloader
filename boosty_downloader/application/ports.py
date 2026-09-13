@@ -71,3 +71,11 @@ class FailureLog(Protocol):
     """Where failed downloads are recorded for the user to act on later."""
 
     async def add_error(self, error_id: str, message: str) -> None: ...
+
+
+class CacheStorage(Protocol):
+    """The cache of one creator as it sits on disk, without opening it."""
+
+    def exists(self) -> bool: ...
+
+    def remove(self) -> None: ...
