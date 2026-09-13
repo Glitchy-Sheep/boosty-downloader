@@ -2,6 +2,7 @@
 
 ### Fixed
 
+- A post with one dead link no longer re-downloads its other media on every retry and on the next run: the content types that finished are remembered right away, and only the failed type is fetched again. Before, a post with a 2 GB video and one broken attachment downloaded that video on each of the 5 attempts and was then dropped whole
 - A cache file that is not a database (truncated, overwritten, hand-edited) no longer crashes the run: the cache resets itself with a warning, as it already did for an outdated schema
 
 ## 4.0.0

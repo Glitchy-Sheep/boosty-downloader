@@ -8,6 +8,8 @@ download the media in parallel, render post.html and remember what landed.
 from __future__ import annotations
 
 from asyncio import CancelledError, Semaphore, Task, create_task, gather
+from collections import defaultdict
+from dataclasses import dataclass
 from functools import cached_property, partial
 from typing import TYPE_CHECKING
 
@@ -93,6 +95,23 @@ async def _stop_tasks(tasks: list[Task[HtmlGenChunk | None]]) -> None:
     await gather(*tasks, return_exceptions=True)
 
 
+@dataclass(frozen=True, slots=True)
+class _ChunkFailure:
+    """One chunk that could not be saved, with the content type it belongs to."""
+
+    kind: DownloadContentTypeFilter
+    error: ApplicationFailedDownloadError
+
+
+@dataclass(frozen=True, slots=True)
+class _ChunksOutcome:
+    """What one pass over the post's chunks produced."""
+
+    # Page elements of the chunks that made it, in the author's order.
+    page: list[HtmlGenChunk]
+    failures: list[_ChunkFailure]
+
+
 # Chunks that are saved as files; text and lists go straight to the page.
 MediaChunk = (
     PostDataChunkImage
@@ -152,10 +171,15 @@ class DownloadSinglePostUseCase:
         self.context = download_context
         self.post_file_path = destination / 'post.html'
 
-        # Media of the current attempt. A retry downloads the post again;
-        # only the attempt that finishes lands in the run statistics.
-        self._attempt_media = MediaCounts()
-        self._attempt_bytes = 0
+        # Media of the current attempt, per content type. A type reaches the
+        # run statistics once every chunk of it finished; a retry fetches
+        # only the types that failed, so nothing is counted twice.
+        self._attempt_media: defaultdict[DownloadContentTypeFilter, MediaCounts] = (
+            defaultdict(MediaCounts)
+        )
+        self._attempt_bytes: defaultdict[DownloadContentTypeFilter, int] = defaultdict(
+            int
+        )
 
     @cached_property
     def _media(self) -> PostMediaDownloader:
@@ -184,8 +208,8 @@ class DownloadSinglePostUseCase:
         ApplicationFailedDownloadError: If the download fails for any reason for a specific post.
 
         """
-        self._attempt_media = MediaCounts()
-        self._attempt_bytes = 0
+        self._attempt_media.clear()
+        self._attempt_bytes.clear()
         mapping_result: PostMappingResult = map_post_dto_to_domain(
             self.post_dto, preferred_video_quality=self.context.preferred_video_quality
         )
@@ -228,60 +252,78 @@ class DownloadSinglePostUseCase:
         post_task_id = self._start_post_task(post)
 
         try:
-            results = await self._process_chunks_concurrently(
+            outcome = await self._process_chunks_concurrently(
                 post, missing_parts, post_task_id
             )
-            post_html: list[HtmlGenChunk] = [
-                html_chunk for html_chunk in results if html_chunk
-            ]
-
+            failed_types = {failure.kind for failure in outcome.failures}
             if DownloadContentTypeFilter.post_content in missing_parts:
-                try:
-                    render_html_to_file(
-                        post_html,
-                        out_path=self.post_file_path,
-                        # Empty titles happen: the folder name always carries
-                        # the date, the title and the id.
-                        page_title=post.title.strip() or self.destination.name,
-                    )
-                except CancelledError:
-                    self.post_file_path.unlink(missing_ok=True)
-                    raise
+                # Attachments are not on the page; any other failed chunk
+                # would leave a hole in it, so the page waits for the retry.
+                if failed_types - {DownloadContentTypeFilter.files}:
+                    failed_types.add(DownloadContentTypeFilter.post_content)
+                else:
+                    self._render_page(post, outcome.page)
 
-            cacheable_parts = [
-                p
-                for p in missing_parts
-                if p not in mapping_result.incomplete_content_types
-            ]
-            if cacheable_parts:
-                self.context.post_cache.cache_post(
-                    post.uuid, post.updated_at, cacheable_parts
-                )
-                self.context.post_cache.commit()
+            finished_types = [p for p in missing_parts if p not in failed_types]
+            self._remember(post, finished_types, mapping_result)
+            if outcome.failures:
+                # The log already names every failed chunk; the retrier
+                # comes back for the failed types only.
+                raise outcome.failures[0].error
+
             self.context.progress_reporter.success(
                 f'Finished:  {self.destination.name}'
             )
             self.context.run_statistics.posts_downloaded += 1
-            self.context.run_statistics.add_media(
-                self._attempt_media, self._attempt_bytes
-            )
         finally:
             self.context.progress_reporter.complete_task(post_task_id)
+
+    def _render_page(self, post: Post, page: list[HtmlGenChunk]) -> None:
+        try:
+            render_html_to_file(
+                page,
+                out_path=self.post_file_path,
+                # Empty titles happen: the folder name always carries
+                # the date, the title and the id.
+                page_title=post.title.strip() or self.destination.name,
+            )
+        except CancelledError:
+            self.post_file_path.unlink(missing_ok=True)
+            raise
+
+    def _remember(
+        self,
+        post: Post,
+        finished_types: list[DownloadContentTypeFilter],
+        mapping_result: PostMappingResult,
+    ) -> None:
+        """Cache the finished content types and count their media for the run."""
+        cacheable = [
+            p
+            for p in finished_types
+            if p not in mapping_result.incomplete_content_types
+        ]
+        if cacheable:
+            self.context.post_cache.cache_post(post.uuid, post.updated_at, cacheable)
+            self.context.post_cache.commit()
+        for kind in finished_types:
+            self.context.run_statistics.add_media(
+                self._attempt_media[kind], self._attempt_bytes[kind]
+            )
 
     async def _process_chunks_concurrently(
         self,
         post: Post,
         missing_parts: list[DownloadContentTypeFilter],
         post_task_id: UUID,
-    ) -> list[HtmlGenChunk | None]:
+    ) -> _ChunksOutcome:
         """
         Download every chunk, MEDIA_CONCURRENCY at a time.
 
-        Results come back in the author's chunk order, whatever finishes
-        first. An outer cancel surfaces as ApplicationCancelledError; a
-        failed chunk surfaces as its own error. Either way the sibling
-        downloads are stopped first: left running, they would race the
-        retry of the same post and die noisily at interpreter exit.
+        One failed chunk does not stop the others: every chunk runs to its
+        end, and the failures come back next to the page elements of the
+        chunks that made it. An outer cancel stops all of them and surfaces
+        as ApplicationCancelledError.
         """
         semaphore = Semaphore(MEDIA_CONCURRENCY)
 
@@ -295,13 +337,26 @@ class DownloadSinglePostUseCase:
 
         tasks = [create_task(one_chunk(chunk)) for chunk in post.post_data_chunks]
         try:
-            return await gather(*tasks)
+            results = await gather(*tasks, return_exceptions=True)
         except CancelledError as e:
             await _stop_tasks(tasks)
             raise ApplicationCancelledError(post_uuid=post.uuid) from e
-        except Exception:
-            await _stop_tasks(tasks)
-            raise
+
+        page: list[HtmlGenChunk] = []
+        failures: list[_ChunkFailure] = []
+        for chunk, result in zip(post.post_data_chunks, results, strict=True):
+            match result:
+                case ApplicationFailedDownloadError():
+                    failures.append(_ChunkFailure(CHUNK_TO_FILTER[type(chunk)], result))
+                case BaseException():
+                    # Cancellation inside a chunk, or an unexpected error:
+                    # not a per-chunk failure, the post as a whole stops.
+                    raise result
+                case None:
+                    pass
+                case _:
+                    page.append(result)
+        return _ChunksOutcome(page=page, failures=failures)
 
     def _start_post_task(self, post: Post) -> UUID:
         return self.context.progress_reporter.create_task(
@@ -366,30 +421,35 @@ class DownloadSinglePostUseCase:
                     f'Image: {URL(chunk.url).name}',
                     partial(self._media.download_image, chunk),
                     MediaCounts(images=1),
+                    kind=DownloadContentTypeFilter.post_content,
                 )
             case PostDataChunkBoostyVideo():
                 return await self._download(
                     f'[bold orange]Boosty Video[/bold orange]: {chunk.title}',
                     partial(self._media.download_boosty_video, chunk),
                     MediaCounts(boosty_videos=1),
+                    kind=DownloadContentTypeFilter.boosty_videos,
                 )
             case PostDataChunkExternalVideo():
                 return await self._download(
                     f'External video: {chunk.url}',
                     partial(self._media.download_external_video, chunk),
                     MediaCounts(external_videos=1),
+                    kind=DownloadContentTypeFilter.external_videos,
                 )
             case PostDataChunkFile():
                 return await self._download(
                     f'File: {chunk.filename}',
                     partial(self._media.download_file, chunk),
                     MediaCounts(files=1),
+                    kind=DownloadContentTypeFilter.files,
                 )
             case PostDataChunkAudio():
                 return await self._download(
                     f'Audio: {chunk.title}',
                     partial(self._media.download_audio, chunk),
                     MediaCounts(audio=1),
+                    kind=DownloadContentTypeFilter.audio,
                 )
 
     async def _download(
@@ -397,8 +457,10 @@ class DownloadSinglePostUseCase:
         label: str,
         download: Callable[[ProgressCallback], Awaitable[Path]],
         media: MediaCounts,
+        *,
+        kind: DownloadContentTypeFilter,
     ) -> Path:
-        """Run one media download under its own progress bar; count it for the statistics."""
+        """Run one media download under its own progress bar; count it for its content type."""
         task_id = self.context.progress_reporter.create_task(label, indent_level=2)
         downloaded_bytes = 0
 
@@ -419,6 +481,6 @@ class DownloadSinglePostUseCase:
         finally:
             self.context.progress_reporter.complete_task(task_id)
 
-        self._attempt_media += media
-        self._attempt_bytes += downloaded_bytes
+        self._attempt_media[kind] += media
+        self._attempt_bytes[kind] += downloaded_bytes
         return path
