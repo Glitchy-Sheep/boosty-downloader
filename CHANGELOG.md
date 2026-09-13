@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Fixed
+
+- A cache file that is not a database (truncated, overwritten, hand-edited) no longer crashes the run: the cache resets itself with a warning, as it already did for an outdated schema
+
 ## 4.0.0
 
 ### Changed

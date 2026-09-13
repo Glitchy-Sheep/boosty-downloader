@@ -12,7 +12,7 @@ from boosty_downloader.application.filtering import DownloadContentTypeFilter
 from boosty_downloader.infrastructure.loggers.base import RichLogger
 
 from .migrations import apply_migrations
-from .models import Base, PostCacheEntryModel
+from .models import PostCacheEntryModel
 
 
 class SQLitePostCache:
@@ -41,15 +41,10 @@ class SQLitePostCache:
         self._destination = destination
         self._db_file: Path = self._destination / self.DEFAULT_CACHE_FILENAME
         self._db_file.parent.mkdir(parents=True, exist_ok=True)
-
-        self._engine = create_engine(f'sqlite:///{self._db_file}')
-        self._session_maker = sessionmaker(bind=self._engine, expire_on_commit=False)
-        self._session: Session = self._session_maker()
         self._dirty = False
 
-        apply_migrations(self._engine, self._session)
-
-        if not self._schema_matches_model():
+        self._connect()
+        if not self._prepare_schema():
             self._logger.error(
                 'Post cache database is corrupted or inaccessible. Reinitializing...'
             )
@@ -147,6 +142,20 @@ class SQLitePostCache:
     # Private: Database health
     # -------------------------------------------------------------------------
 
+    def _connect(self) -> None:
+        """Open the database file: engine, session factory and the working session."""
+        self._engine = create_engine(f'sqlite:///{self._db_file}')
+        self._session_maker = sessionmaker(bind=self._engine, expire_on_commit=False)
+        self._session: Session = self._session_maker()
+
+    def _prepare_schema(self) -> bool:
+        """Bring the schema up to date. False when the file is not a usable database."""
+        try:
+            apply_migrations(self._engine, self._session)
+        except (OperationalError, DatabaseError):
+            return False
+        return self._schema_matches_model()
+
     def _schema_matches_model(self) -> bool:
         """Check if the database schema has all columns defined in the model."""
         try:
@@ -158,15 +167,10 @@ class SQLitePostCache:
             return False
 
     def _reinitialize_db(self) -> None:
-        """Reinitialize the database (recreate it from scratch) and recreate session."""
+        """Recreate the database from scratch and reconnect to the new file."""
         self._session.close()
         self._engine.dispose()
+        self._db_file.unlink(missing_ok=True)
 
-        if self._db_file.exists():
-            self._db_file.unlink()
-
-        self._engine = create_engine(f'sqlite:///{self._db_file}')
-        Base.metadata.create_all(self._engine)
-        self._session = self._session_maker()
-
+        self._connect()
         apply_migrations(self._engine, self._session)

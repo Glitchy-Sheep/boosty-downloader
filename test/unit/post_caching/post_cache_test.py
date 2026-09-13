@@ -11,9 +11,6 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-import pytest
-from sqlalchemy.exc import DatabaseError
-
 from boosty_downloader.application.filtering import DownloadContentTypeFilter
 from boosty_downloader.infrastructure.loggers.base import RichLogger
 from boosty_downloader.infrastructure.post_caching.post_cache import (
@@ -103,19 +100,20 @@ def test_outdated_schema_triggers_clean_reinit(tmp_path: Path):
         assert cache.get_post_missing_parts('p1', UPDATED_AT, ALL_PARTS) == ALL_PARTS
         cache.cache_post('p1', UPDATED_AT, ALL_PARTS)
         assert cache.get_post_missing_parts('p1', UPDATED_AT, ALL_PARTS) == []
+        # After a reset the session must talk to the new engine, not the disposed one.
+        assert cache._session.get_bind() is cache._engine
 
 
-@pytest.mark.xfail(
-    reason='migrations run before the corruption check, so a non-SQLite cache '
-    'file crashes startup instead of reinitializing (audit 15.3)',
-    raises=DatabaseError,
-    strict=True,
-)
 def test_corrupted_file_triggers_clean_reinit(tmp_path: Path):
-    """Desired contract: any broken database resets instead of killing the run."""
+    """Any broken database resets instead of killing the run."""
     (tmp_path / SQLitePostCache.DEFAULT_CACHE_FILENAME).write_bytes(b'not a database')
     with _open_cache(tmp_path) as cache:
         assert cache.get_post_missing_parts('p1', UPDATED_AT, ALL_PARTS) == ALL_PARTS
+        cache.cache_post('p1', UPDATED_AT, ALL_PARTS)
+        assert cache.get_post_missing_parts('p1', UPDATED_AT, ALL_PARTS) == []
+    # The reset must survive a reopen: state lives in the recreated file.
+    with _open_cache(tmp_path) as cache:
+        assert cache.get_post_missing_parts('p1', UPDATED_AT, ALL_PARTS) == []
 
 
 def test_has_post_tells_a_cached_post_from_a_new_one(tmp_path: Path):
