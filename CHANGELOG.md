@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 3.8.0
+
 ### Added
 
 - `check` now shows the blog as a ladder of subscription tiers: what each tier adds, how many posts you get with it and what share of the blog that is, plus posts sold one by one, media counts and the posting date range
