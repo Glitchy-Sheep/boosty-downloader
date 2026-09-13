@@ -11,14 +11,12 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-import pytest
-from sqlalchemy.exc import DatabaseError
-
 from boosty_downloader.application.filtering import DownloadContentTypeFilter
 from boosty_downloader.infrastructure.loggers.base import RichLogger
 from boosty_downloader.infrastructure.post_caching.post_cache import (
     SQLitePostCache,
 )
+from boosty_downloader.infrastructure.post_caching.storage import SQLiteCacheStorage
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -84,11 +82,9 @@ def test_clean_cache_forgets_everything(tmp_path: Path):
     """clean-cache promises a fresh start - a surviving row would block re-download."""
     with _open_cache(tmp_path) as cache:
         cache.cache_post('p1', UPDATED_AT, ALL_PARTS)
-        cache.remove_cache_completely()
+    SQLiteCacheStorage(tmp_path).remove()
+    with _open_cache(tmp_path) as cache:
         assert cache.get_post_missing_parts('p1', UPDATED_AT, ALL_PARTS) == ALL_PARTS
-        # The reinitialized database must stay writable.
-        cache.cache_post('p2', UPDATED_AT, ALL_PARTS)
-        assert cache.get_post_missing_parts('p2', UPDATED_AT, ALL_PARTS) == []
 
 
 def test_outdated_schema_triggers_clean_reinit(tmp_path: Path):
@@ -103,19 +99,20 @@ def test_outdated_schema_triggers_clean_reinit(tmp_path: Path):
         assert cache.get_post_missing_parts('p1', UPDATED_AT, ALL_PARTS) == ALL_PARTS
         cache.cache_post('p1', UPDATED_AT, ALL_PARTS)
         assert cache.get_post_missing_parts('p1', UPDATED_AT, ALL_PARTS) == []
+        # After a reset the session must talk to the new engine, not the disposed one.
+        assert cache._session.get_bind() is cache._engine
 
 
-@pytest.mark.xfail(
-    reason='migrations run before the corruption check, so a non-SQLite cache '
-    'file crashes startup instead of reinitializing (audit 15.3)',
-    raises=DatabaseError,
-    strict=True,
-)
 def test_corrupted_file_triggers_clean_reinit(tmp_path: Path):
-    """Desired contract: any broken database resets instead of killing the run."""
+    """Any broken database resets instead of killing the run."""
     (tmp_path / SQLitePostCache.DEFAULT_CACHE_FILENAME).write_bytes(b'not a database')
     with _open_cache(tmp_path) as cache:
         assert cache.get_post_missing_parts('p1', UPDATED_AT, ALL_PARTS) == ALL_PARTS
+        cache.cache_post('p1', UPDATED_AT, ALL_PARTS)
+        assert cache.get_post_missing_parts('p1', UPDATED_AT, ALL_PARTS) == []
+    # The reset must survive a reopen: state lives in the recreated file.
+    with _open_cache(tmp_path) as cache:
+        assert cache.get_post_missing_parts('p1', UPDATED_AT, ALL_PARTS) == []
 
 
 def test_has_post_tells_a_cached_post_from_a_new_one(tmp_path: Path):

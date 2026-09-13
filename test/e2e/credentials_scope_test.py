@@ -8,11 +8,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import aiohttp
 from aiohttp import web
 from aiohttp.test_utils import TestServer
 from aiohttp_retry import ExponentialRetry
-from yarl import URL
 
 from boosty_downloader.cli.composition_root import AppSettings, open_app
 from boosty_downloader.infrastructure.loggers.base import RichLogger
@@ -39,17 +37,12 @@ async def test_only_the_api_session_carries_credentials(tmp_path: Path) -> None:
     server = TestServer(app)
     await server.start_server()
     try:
-        # unsafe=True: the test server lives on a bare IP, and the stdlib
-        # jar refuses to store cookies for IPs otherwise.
-        jar = aiohttp.CookieJar(unsafe=True)
-        jar.update_cookies({'session': 'secret'}, URL(str(server.make_url('/'))))
-
         settings = AppSettings(
             author_name='author',
             destination_dir=tmp_path / 'author',
             cache_dir=tmp_path / 'author',
-            boosty_headers={'Authorization': TOKEN},
-            boosty_cookies=jar,
+            auth_header=TOKEN,
+            cookie='session=secret',
         )
         async with open_app(
             settings,

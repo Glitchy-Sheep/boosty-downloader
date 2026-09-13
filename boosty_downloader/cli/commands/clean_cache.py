@@ -3,16 +3,19 @@
 # pyright: reportUnusedFunction=false
 from __future__ import annotations
 
-from contextlib import suppress
 from typing import TYPE_CHECKING
 
+from boosty_downloader.application.use_cases.clean_cache import (
+    CleanCacheOutcome,
+    CleanCacheUseCase,
+)
 from boosty_downloader.cli.cli_options import (
     CacheDirectoryOption,  # noqa: TC001
     UsernameArgument,  # noqa: TC001
 )
+from boosty_downloader.cli.composition_root import load_settings
 from boosty_downloader.infrastructure.loggers import logger_instances
-from boosty_downloader.infrastructure.post_caching.post_cache import SQLitePostCache
-from boosty_downloader.infrastructure.yaml_configuration.config import init_config
+from boosty_downloader.infrastructure.post_caching.storage import SQLiteCacheStorage
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -25,42 +28,15 @@ def _clean_cache(
     username: str,
     cache_directory: Path | None,
 ) -> None:
-    config = init_config()
+    settings = load_settings(username=username, cache_directory=cache_directory)
+    outcome = CleanCacheUseCase(SQLiteCacheStorage(settings.cache_dir)).execute()
 
-    if cache_directory is not None:
-        config.downloading_settings.cache_directory = cache_directory
-
-    cache_dir = (
-        config.downloading_settings.cache_directory
-        or config.downloading_settings.target_directory
-    )
-
-    # Opening SQLitePostCache creates the database, so a missing cache
-    # must be answered before that - otherwise the command fabricates
-    # an empty cache and reports a false success.
-    cache_db = cache_dir.absolute() / username / SQLitePostCache.DEFAULT_CACHE_FILENAME
-    if not cache_db.exists():
-        logger_instances.downloader_logger.info(
-            f'No cache found for {username} - nothing to clean'
-        )
-        return
-
-    with SQLitePostCache(
-        destination=cache_dir.absolute() / username,
-        logger=logger_instances.downloader_logger,
-    ) as post_cache:
-        post_cache.remove_cache_completely()
-
-    # remove_cache_completely recreates an empty database right away;
-    # drop it so a repeated clean honestly says there is nothing to clean.
-    cache_db.unlink(missing_ok=True)
-    with suppress(OSError):
-        # Keep the folder when it still holds downloaded posts.
-        cache_db.parent.rmdir()
-
-    logger_instances.downloader_logger.success(
-        f'Cache for {username} has been cleaned successfully'
-    )
+    logger = logger_instances.downloader_logger
+    match outcome:
+        case CleanCacheOutcome.nothing_to_clean:
+            logger.info(f'No cache found for {username} - nothing to clean')
+        case CleanCacheOutcome.cleaned:
+            logger.success(f'Cache for {username} has been cleaned successfully')
 
 
 def register(app: typer.Typer) -> None:
