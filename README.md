@@ -37,7 +37,9 @@ The post content itself is saved in html with a little bit of styling.
 ## ✨ Features
 
 - 📦 **Bulk download**: Download all available content from your favorite creator.
-- 🔎 **Total checker**: See how many posts are available to you, and which are not.
+- 🔎 **Blog overview**: `check` shows how many posts you can access, which subscription tiers unlock the rest and what they cost, media counts by type and the posting date range.
+- 🧪 **Dry run**: `download --dry-run` previews a run before you start it: new and updated posts, media to fetch by type and the known download size.
+- 📈 **Run statistics**: every download ends with what it did: posts, media by type, total size and time.
 - 📂 **Content type filters**: Download only the content you need (videos, images, etc) with `--content-type-filter`.
 - 📄 **Download specific posts**: Download post by url and username.
 - 🔃 **Sync content seamlessly**: The utility keeps cache of already downloaded posts, so you can resume your download at any time or get new content after a while.

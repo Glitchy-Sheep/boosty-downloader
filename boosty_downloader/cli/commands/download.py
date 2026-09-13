@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 import typer
@@ -21,19 +22,27 @@ from boosty_downloader.application.use_cases.download_all_posts import (
 from boosty_downloader.application.use_cases.download_specific_post import (
     DownloadPostByUrlUseCase,
 )
+from boosty_downloader.application.use_cases.plan_download import (
+    PlanDownloadUseCase,
+)
+from boosty_downloader.cli.blog_overview_rendering import render_blog_overview
 from boosty_downloader.cli.cli_options import (
     CacheDirectoryOption,  # noqa: TC001
     ContentTypeFilterOption,  # noqa: TC001
     DestinationDirectoryOption,  # noqa: TC001
+    DryRunOption,  # noqa: TC001
     PostUrlOption,  # noqa: TC001
     PreferredVideoQualityOption,  # noqa: TC001
     RequestDelaySecondsOption,  # noqa: TC001
     SkipAllFailuresOption,  # noqa: TC001
     UsernameOption,  # noqa: TC001
 )
+from boosty_downloader.cli.download_plan_rendering import render_download_plan
+from boosty_downloader.cli.run_statistics_rendering import render_run_statistics
 from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
 )
+from boosty_downloader.infrastructure.loggers import logger_instances
 from boosty_downloader.infrastructure.loggers.failed_downloads_logger import (
     FailedDownloadsLogger,
 )
@@ -41,6 +50,7 @@ from boosty_downloader.infrastructure.loggers.failed_downloads_logger import (
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from boosty_downloader.application.di.app_environment import AppEnvironment
     from boosty_downloader.cli.console_progress_reporter import (
         ProgressReporter,
     )
@@ -72,6 +82,33 @@ def _show_start_summary(
         )
 
 
+async def _dry_run_handler(
+    app_env: AppEnvironment.Environment,
+    *,
+    username: str,
+    content_type_filter: list[DownloadContentTypeFilter],
+    preferred_video_quality: VideoQualityOption,
+) -> None:
+    """Print the overview and the plan of a would-be run; download nothing."""
+    report = await PlanDownloadUseCase(
+        author_name=username,
+        boosty_api=app_env.boosty_api_client,
+        logger=logger_instances.downloader_logger,
+        post_cache=app_env.post_cache,
+        filters=content_type_filter,
+        preferred_video_quality=preferred_video_quality.to_ok_video_type(),
+    ).execute()
+    logger = logger_instances.downloader_logger
+    logger.success(
+        render_blog_overview(
+            report.overview, now=datetime.now(timezone.utc).astimezone()
+        )
+    )
+    logger.success(render_download_plan(report.plan, filters=content_type_filter))
+    if report.problems:
+        logger.warning(report.problems)
+
+
 async def _download_handler(  # noqa: PLR0913
     *,
     username: str,
@@ -82,6 +119,7 @@ async def _download_handler(  # noqa: PLR0913
     destination_directory: Path | None,
     cache_directory: Path | None,
     skip_all_failures: bool,
+    dry_run: bool,
 ) -> None:
     async with initialized_app(
         username=username,
@@ -89,6 +127,15 @@ async def _download_handler(  # noqa: PLR0913
         destination_directory=destination_directory,
         cache_directory=cache_directory,
     ) as app_env:
+        if dry_run:
+            await _dry_run_handler(
+                app_env,
+                username=username,
+                content_type_filter=content_type_filter,
+                preferred_video_quality=preferred_video_quality,
+            )
+            return
+
         downloading_context = DownloadContext(
             author_name=username,
             downloader_session=app_env.downloading_retry_client,
@@ -120,13 +167,20 @@ async def _download_handler(  # noqa: PLR0913
             content_type_filter=content_type_filter,
         )
 
-        await DownloadAllPostUseCase(
-            author_name=username,
-            boosty_api=app_env.boosty_api_client,
-            destination=app_env.destination_directory,
-            download_context=downloading_context,
-            skip_all_failures=skip_all_failures,
-        ).execute()
+        try:
+            await DownloadAllPostUseCase(
+                author_name=username,
+                boosty_api=app_env.boosty_api_client,
+                destination=app_env.destination_directory,
+                download_context=downloading_context,
+                skip_all_failures=skip_all_failures,
+            ).execute()
+        finally:
+            # Also after a systemic stop or Ctrl+C: what got done is still news.
+            stats = downloading_context.run_statistics
+            app_env.progress_reporter.success(
+                render_run_statistics(stats, elapsed_seconds=stats.elapsed_seconds())
+            )
 
 
 def register(app: typer.Typer) -> None:
@@ -146,6 +200,7 @@ def register(app: typer.Typer) -> None:
         destination_directory: DestinationDirectoryOption = None,
         cache_directory: CacheDirectoryOption = None,
         skip_all_failures: SkipAllFailuresOption = False,
+        dry_run: DryRunOption = False,
     ) -> None:
         """
         Download posts from a Boosty creator.
@@ -153,8 +208,10 @@ def register(app: typer.Typer) -> None:
         [bold]DETAILS:[/bold]
 
             - Use `--post-url` to download a specific post.
+            - Use `--dry-run` to preview a run: new and updated posts, media to fetch and the known size - nothing is downloaded.
             - By default, downloads all posts from newest to oldest with all available contents.
             - Unavailable posts are skipped, and you will be notified about them.
+            - Every run ends with statistics: posts, media by type, total size and time.
 
 
         [bold]CONTENT FILTERING:[/bold]
@@ -180,6 +237,9 @@ def register(app: typer.Typer) -> None:
             - Cache doesn't check local files, you can delete them and they still won't re-download.
 
         """
+        if dry_run and post_url is not None:
+            msg = '--dry-run previews the full-blog run; combine it with --post-url is not supported'
+            raise typer.BadParameter(msg)
         asyncio.run(
             _download_handler(
                 username=username,
@@ -192,5 +252,6 @@ def register(app: typer.Typer) -> None:
                 destination_directory=destination_directory,
                 cache_directory=cache_directory,
                 skip_all_failures=skip_all_failures,
+                dry_run=dry_run,
             ),
         )

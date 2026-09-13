@@ -108,6 +108,11 @@ def _create_limiter(request_delay_seconds: float) -> AsyncLimiter | None:
     return None
 
 
+# The largest page the API serves. Metadata-only walks use it: they touch
+# no signed media links, so page freshness does not matter - speed does.
+MAX_POSTS_PER_PAGE = 100
+
+
 class BoostyAPIClient:
     """
     Main client class for the Boosty API.
@@ -264,7 +269,7 @@ class BoostyAPIClient:
         # Small default on purpose: signed media links live 24 hours from
         # the listing fetch, and the download walk is sequential - a small
         # page keeps links fresh by the time their post's turn comes.
-        # Metadata-only walks (check, post search) pass MAX_POSTS_PER_PAGE.
+        # Metadata-only walks (check, dry-run) pass MAX_POSTS_PER_PAGE.
         posts_per_page: int = 5,
     ) -> AsyncGenerator[PostsResponse, None]:
         """

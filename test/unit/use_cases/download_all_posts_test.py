@@ -365,3 +365,21 @@ async def test_failed_refresh_falls_back_to_the_normal_retry_path(
     assert api.refetched == ['p1']
     assert len(calls) == 5
     assert any('Skip post after' in message for message in reporter.errors)
+
+
+async def test_run_statistics_count_locked_and_failed_posts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The closing block relies on these counters; a miss would under-report."""
+    api = _FakeApi()
+    use_case = _use_case(
+        ['ok', 'broken', 'locked'], _FakeReporter(), _FakeFailedLogger(), api=api
+    )
+    api._page.posts[2] = api._page.posts[2].model_copy(update={'has_access': False})
+    _script_outcomes(monkeypatch, {'broken': RuntimeError('disk on fire')})
+
+    await use_case.execute()
+
+    stats = use_case.context.run_statistics
+    assert stats.posts_failed == 1
+    assert stats.posts_locked == 1

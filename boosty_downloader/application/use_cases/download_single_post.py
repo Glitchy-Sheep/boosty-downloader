@@ -6,12 +6,21 @@ It encapsulates the logic required to download a post from a specific author.
 
 import threading
 import uuid
-from asyncio import CancelledError, Semaphore, gather, get_running_loop, to_thread
+from asyncio import (
+    CancelledError,
+    Semaphore,
+    Task,
+    create_task,
+    gather,
+    get_running_loop,
+    to_thread,
+)
 from datetime import datetime
 from pathlib import Path
 
 from yarl import URL
 
+from boosty_downloader.application.blog_overview import MediaCounts
 from boosty_downloader.application.di.download_context import DownloadContext
 from boosty_downloader.application.exceptions.application_errors import (
     ApplicationCancelledError,
@@ -19,6 +28,7 @@ from boosty_downloader.application.exceptions.application_errors import (
 )
 from boosty_downloader.application.filtering import (
     DownloadContentTypeFilter,
+    post_has_content_for,
 )
 from boosty_downloader.application.mappers.html_converter import (
     convert_audio_to_html,
@@ -84,6 +94,13 @@ _GUESSED_EXTENSION_RESERVE_BYTES = 8
 MEDIA_CONCURRENCY = 4
 
 
+async def _stop_tasks(tasks: list[Task[HtmlGenChunk | None]]) -> None:
+    """Cancel the tasks and wait until every one of them has actually stopped."""
+    for task in tasks:
+        task.cancel()
+    await gather(*tasks, return_exceptions=True)
+
+
 def _boosty_video_filename(video: PostDataChunkBoostyVideo) -> str:
     """Filename unique per video: titles repeat inside a post, ids never do."""
     title = video.title.strip() or 'video'
@@ -128,6 +145,11 @@ class DownloadSinglePostUseCase:
         self.post_dto = post_dto
         self.context = download_context
 
+        # Media of the current attempt. A retry downloads the post again;
+        # only the attempt that finishes lands in the run statistics.
+        self._attempt_media = MediaCounts()
+        self._attempt_bytes = 0
+
         self.post_file_path = destination / Path('post.html')
         self.images_destination = destination / Path('images')
         self.files_destination = destination / Path('files')
@@ -139,21 +161,7 @@ class DownloadSinglePostUseCase:
         self, post: Post, missing_parts: list[DownloadContentTypeFilter]
     ) -> bool:
         """Check if the post has any content matching the requested filters."""
-        chunk_to_filter: dict[type, DownloadContentTypeFilter] = {
-            PostDataChunkAudio: DownloadContentTypeFilter.audio,
-            PostDataChunkBoostyVideo: DownloadContentTypeFilter.boosty_videos,
-            PostDataChunkExternalVideo: DownloadContentTypeFilter.external_videos,
-            PostDataChunkFile: DownloadContentTypeFilter.files,
-            PostDataChunkText: DownloadContentTypeFilter.post_content,
-            PostDataChunkTextualList: DownloadContentTypeFilter.post_content,
-            PostDataChunkImage: DownloadContentTypeFilter.post_content,
-        }
-
-        for chunk in post.post_data_chunks:
-            filter_type = chunk_to_filter.get(type(chunk))
-            if filter_type and filter_type in missing_parts:
-                return True
-        return False
+        return post_has_content_for(post, missing_parts)
 
     # --------------------------------------------------------------------------
     # Main method do start the action
@@ -168,6 +176,8 @@ class DownloadSinglePostUseCase:
         ApplicationFailedDownloadError: If the download fails for any reason for a specific post.
 
         """
+        self._attempt_media = MediaCounts()
+        self._attempt_bytes = 0
         mapping_result: PostMappingResult = map_post_dto_to_domain(
             self.post_dto, preferred_video_quality=self.context.preferred_video_quality
         )
@@ -195,6 +205,7 @@ class DownloadSinglePostUseCase:
             self.context.progress_reporter.notice(
                 'SKIP([bold]cached[/bold] and up-to-date): ' + self.destination.name
             )
+            self.context.run_statistics.posts_cached += 1
             return
 
         if not self._should_execute(post, missing_parts):
@@ -202,6 +213,7 @@ class DownloadSinglePostUseCase:
                 'SKIP ([bold]no content[/bold] matching selected filters): '
                 + self.destination.name
             )
+            self.context.run_statistics.posts_without_content += 1
             return
 
         self.destination.mkdir(parents=True, exist_ok=True)
@@ -241,6 +253,10 @@ class DownloadSinglePostUseCase:
             self.context.progress_reporter.success(
                 f'Finished:  {self.destination.name}'
             )
+            self.context.run_statistics.posts_downloaded += 1
+            self.context.run_statistics.add_media(
+                self._attempt_media, self._attempt_bytes
+            )
         finally:
             self.context.progress_reporter.complete_task(post_task_id)
 
@@ -255,7 +271,9 @@ class DownloadSinglePostUseCase:
 
         Results come back in the author's chunk order, whatever finishes
         first. An outer cancel surfaces as ApplicationCancelledError; a
-        failed chunk surfaces as its own error.
+        failed chunk surfaces as its own error. Either way the sibling
+        downloads are stopped first: left running, they would race the
+        retry of the same post and die noisily at interpreter exit.
         """
         semaphore = Semaphore(MEDIA_CONCURRENCY)
 
@@ -267,10 +285,15 @@ class DownloadSinglePostUseCase:
             self._update_post_task(post_task_id)
             return html_chunk
 
+        tasks = [create_task(one_chunk(chunk)) for chunk in post.post_data_chunks]
         try:
-            return await gather(*(one_chunk(chunk) for chunk in post.post_data_chunks))
+            return await gather(*tasks)
         except CancelledError as e:
+            await _stop_tasks(tasks)
             raise ApplicationCancelledError(post_uuid=post.uuid) from e
+        except Exception:
+            await _stop_tasks(tasks)
+            raise
 
     def _start_post_task(self, post: Post) -> uuid.UUID:
         return self.context.progress_reporter.create_task(
@@ -401,20 +424,24 @@ class DownloadSinglePostUseCase:
     # --------------------------------------------------------------------------
     # Helper downloading methods
 
-    async def _download_with_progress(
+    async def _download_with_progress(  # noqa: PLR0913 - one knob per download aspect
         self,
         url: str,
         filename: str,
         destination: Path,
         task_label: str,
         *,
+        media: MediaCounts,
         guess_extension: bool = True,
     ) -> Path:
         """Download a file with progress tracking and return path relative to post directory."""
         await to_thread(destination.mkdir, parents=True, exist_ok=True)
         task_id = self.context.progress_reporter.create_task(task_label, indent_level=2)
+        downloaded_bytes = 0
 
         def update_progress(status: DownloadingStatus) -> None:
+            nonlocal downloaded_bytes
+            downloaded_bytes = status.total_downloaded_bytes
             downloaded = human_readable_size(status.total_downloaded_bytes)
             total = human_readable_size(status.total_bytes)
             self.context.progress_reporter.update_task(
@@ -438,6 +465,8 @@ class DownloadSinglePostUseCase:
         finally:
             self.context.progress_reporter.complete_task(task_id)
 
+        self._attempt_media += media
+        self._attempt_bytes += downloaded_bytes
         return path.relative_to(self.post_file_path.parent)
 
     async def download_boosty_video(self, video: PostDataChunkBoostyVideo) -> Path:
@@ -447,6 +476,7 @@ class DownloadSinglePostUseCase:
             filename=_boosty_video_filename(video),
             destination=self.boosty_videos_destination,
             task_label=f'[bold orange]Boosty Video[/bold orange]: {video.title}',
+            media=MediaCounts(boosty_videos=1),
         )
 
     async def download_external_videos(
@@ -460,8 +490,11 @@ class DownloadSinglePostUseCase:
 
         loop = get_running_loop()
         cancel_requested = threading.Event()
+        downloaded_bytes = 0
 
         def update_progress(status: ExternalVideoDownloadStatus) -> None:
+            nonlocal downloaded_bytes
+            downloaded_bytes = status.downloaded_bytes or 0
             downloaded = human_readable_size(status.downloaded_bytes)
             total = human_readable_size(status.total_bytes)
             self.context.progress_reporter.update_task(
@@ -495,6 +528,8 @@ class DownloadSinglePostUseCase:
         finally:
             self.context.progress_reporter.complete_task(task_id)
 
+        self._attempt_media += MediaCounts(external_videos=1)
+        self._attempt_bytes += downloaded_bytes
         return path.relative_to(self.external_videos_destination.parent)
 
     async def download_files(self, file: PostDataChunkFile) -> Path:
@@ -504,6 +539,7 @@ class DownloadSinglePostUseCase:
             filename=file.filename,
             destination=self.files_destination,
             task_label=f'File: {file.filename}',
+            media=MediaCounts(files=1),
             # The author's original filename already carries its extension.
             guess_extension=False,
         )
@@ -515,6 +551,7 @@ class DownloadSinglePostUseCase:
             filename=URL(image.url).name,
             destination=self.images_destination,
             task_label=f'Image: {URL(image.url).name}',
+            media=MediaCounts(images=1),
             # The name is a bare uuid - Content-Type is the only source
             # of an extension in existence.
             guess_extension=True,
@@ -526,5 +563,6 @@ class DownloadSinglePostUseCase:
             filename=audio.title,
             destination=self.audio_destination,
             task_label=f'Audio: {audio.title}',
+            media=MediaCounts(audio=1),
             guess_extension=False,
         )

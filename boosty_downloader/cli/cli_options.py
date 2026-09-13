@@ -100,6 +100,16 @@ CacheDirectoryOption = Annotated[
 ]
 
 
+DryRunOption = Annotated[
+    bool,
+    typer.Option(
+        '--dry-run',
+        help='Show what a download run would fetch and exit without downloading',
+        rich_help_panel=HelpPanels.actions,
+    ),
+]
+
+
 SkipAllFailuresOption = Annotated[
     bool,
     typer.Option(

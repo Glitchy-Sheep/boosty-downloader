@@ -1,4 +1,4 @@
-"""Regression test: skipped posts must reach the user as warnings."""
+"""The check walk: warnings reach the user, the report accumulates every page."""
 
 from __future__ import annotations
 
@@ -51,16 +51,29 @@ class _FakeLogger:
 
 
 class _FakeApi:
-    """One page with one skipped post, then stop."""
+    """Serves prepared pages, then stops."""
 
-    def __init__(self, page: PostsResponse) -> None:
-        self._page = page
+    def __init__(self, pages: list[PostsResponse]) -> None:
+        self._pages = pages
 
     async def iterate_over_posts(
         self, *args: object, **kwargs: object
     ) -> AsyncGenerator[PostsResponse, None]:
         del args, kwargs
-        yield self._page
+        for page in self._pages:
+            yield page
+
+
+def _make_post(post_id: str) -> PostDTO:
+    return PostDTO(
+        id=post_id,
+        title=f'post {post_id}',
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        has_access=True,
+        signed_query='',
+        data=[],
+    )
 
 
 def _make_post_with_unknown_chunk() -> PostDTO:
@@ -91,14 +104,41 @@ async def test_skipped_post_warns_inline_and_run_summary_reports_everything():
     use_case = ReportTotalPostsCountUseCase(
         author_name='any_author',
         logger=cast('RichLogger', logger),
-        boosty_api=cast('BoostyAPIClient', _FakeApi(page)),
+        boosty_api=cast('BoostyAPIClient', _FakeApi([page])),
     )
 
-    await use_case.execute()
+    report = await use_case.execute()
 
-    inline, summary = logger.warnings
+    (inline,) = logger.warnings
     assert 'broken post' in inline
     assert 'b1' in inline
-    assert "data[0].type = 'novel_thing'" in summary
-    assert 'broken post' in summary
-    assert GITHUB_ISSUES_URL in summary
+    # The recap goes into the report: the caller prints it after the overview.
+    assert report.problems is not None
+    assert "data[0].type = 'novel_thing'" in report.problems
+    assert 'broken post' in report.problems
+    assert GITHUB_ISSUES_URL in report.problems
+
+
+async def test_report_accumulates_posts_across_pages():
+    """A reset-per-page bug would pass every one-page test and lie on real blogs."""
+    pages = [
+        PostsResponse(
+            posts=[_make_post('p1'), _make_post('p2')],
+            extra=Extra(offset='', is_last=False),
+        ),
+        PostsResponse(
+            posts=[_make_post('p3')],
+            extra=Extra(offset='', is_last=True),
+        ),
+    ]
+    use_case = ReportTotalPostsCountUseCase(
+        author_name='any_author',
+        logger=cast('RichLogger', _FakeLogger()),
+        boosty_api=cast('BoostyAPIClient', _FakeApi(pages)),
+    )
+
+    report = await use_case.execute()
+
+    assert report.overview.total_posts == 3
+    assert report.overview.accessible_posts == 3
+    assert report.problems is None

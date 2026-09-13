@@ -112,6 +112,10 @@ class SQLitePostCache:
 
         self._dirty = True
 
+    def has_post(self, post_uuid: str) -> bool:
+        """Whether any version of the post is already cached."""
+        return self._session.get(PostCacheEntryModel, post_uuid) is not None
+
     def get_post_missing_parts(
         self,
         post_uuid: str,

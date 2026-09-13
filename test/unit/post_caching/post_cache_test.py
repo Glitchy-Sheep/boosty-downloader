@@ -116,3 +116,11 @@ def test_corrupted_file_triggers_clean_reinit(tmp_path: Path):
     (tmp_path / SQLitePostCache.DEFAULT_CACHE_FILENAME).write_bytes(b'not a database')
     with _open_cache(tmp_path) as cache:
         assert cache.get_post_missing_parts('p1', UPDATED_AT, ALL_PARTS) == ALL_PARTS
+
+
+def test_has_post_tells_a_cached_post_from_a_new_one(tmp_path: Path):
+    """The dry-run relies on it to label posts "new" vs "updated"."""
+    with _open_cache(tmp_path) as cache:
+        assert not cache.has_post('p1')
+        cache.cache_post('p1', UPDATED_AT, ALL_PARTS)
+        assert cache.has_post('p1')

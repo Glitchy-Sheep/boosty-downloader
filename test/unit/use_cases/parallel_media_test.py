@@ -18,6 +18,7 @@ from boosty_downloader.application.filtering import (
     BoostyOkVideoType,
     DownloadContentTypeFilter,
 )
+from boosty_downloader.application.run_statistics import RunStatistics
 from boosty_downloader.application.use_cases import (
     download_single_post as usecase_module,
 )
@@ -81,6 +82,7 @@ class _Context:
             DownloadContentTypeFilter.post_content,
         ]
         self.preferred_video_quality = BoostyOkVideoType.medium
+        self.run_statistics = RunStatistics()
 
 
 def _post_dto(file_count: int) -> PostDTO:
@@ -204,3 +206,43 @@ async def test_outer_cancel_keeps_the_application_contract(
 
     with pytest.raises(ApplicationCancelledError):
         await task
+
+
+async def test_one_failed_chunk_stops_its_siblings_before_raising(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Left running, the siblings would race the retry of the same post and
+    die at interpreter exit with "Task exception was never retrieved".
+    """
+    cancelled = 0
+
+    async def scripted(
+        self: DownloadSinglePostUseCase,
+        chunk: PostDataAllChunks,
+        missing: object,
+        post: object,
+    ) -> object:
+        del self, missing, post
+        nonlocal cancelled
+        name = cast('PostDataChunkFile', chunk).filename
+        if name == 'file-0.bin':
+            await asyncio.sleep(0.01)
+            raise ApplicationFailedDownloadError(
+                post_uuid='p1', message='dead link', resource=name
+            )
+        try:
+            await asyncio.sleep(1)
+        except asyncio.CancelledError:
+            cancelled += 1
+            raise
+        return name
+
+    monkeypatch.setattr(DownloadSinglePostUseCase, '_safely_process_chunk', scripted)
+
+    started = time.monotonic()
+    with pytest.raises(ApplicationFailedDownloadError):
+        await _use_case(tmp_path, 4).execute()
+    duration = time.monotonic() - started
+
+    assert cancelled == 3, 'every sibling must be cancelled, not left running'
+    assert duration < 0.5, f'the failure must surface at once (took {duration:.2f}s)'
