@@ -78,15 +78,14 @@ from boosty_downloader.infrastructure.path_sanitizer import (
     MAX_NAME_BYTES,
     sanitize_filename,
 )
+from boosty_downloader.infrastructure.post_media_downloader import (
+    boosty_video_filename,
+)
 
 
 def _form_post_url(username: str, post_id: str) -> str:
     return f'https://boosty.to/{username}/posts/{post_id}'
 
-
-# download_file appends a guessed extension to video names later:
-# the byte budget here leaves room so that never re-truncates the name.
-_GUESSED_EXTENSION_RESERVE_BYTES = 8
 
 # One post's media download in parallel. The CDN caps every single
 # connection, and each cold small file pays seconds of request latency;
@@ -99,16 +98,6 @@ async def _stop_tasks(tasks: list[Task[HtmlGenChunk | None]]) -> None:
     for task in tasks:
         task.cancel()
     await gather(*tasks, return_exceptions=True)
-
-
-def _boosty_video_filename(video: PostDataChunkBoostyVideo) -> str:
-    """Filename unique per video: titles repeat inside a post, ids never do."""
-    title = video.title.strip() or 'video'
-    return sanitize_filename(
-        title,
-        suffix=f' ({video.id[:8]})',
-        max_bytes=MAX_NAME_BYTES - _GUESSED_EXTENSION_RESERVE_BYTES,
-    )
 
 
 def compose_post_directory_name(title: str, created_at: datetime, post_id: str) -> str:
@@ -473,7 +462,7 @@ class DownloadSinglePostUseCase:
         """Download a Boosty video and return the path to the saved file."""
         return await self._download_with_progress(
             url=video.url,
-            filename=_boosty_video_filename(video),
+            filename=boosty_video_filename(video),
             destination=self.boosty_videos_destination,
             task_label=f'[bold orange]Boosty Video[/bold orange]: {video.title}',
             media=MediaCounts(boosty_videos=1),
