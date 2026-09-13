@@ -9,8 +9,7 @@ from typing import TYPE_CHECKING
 
 import typer
 
-from boosty_downloader.application.di.download_context import DownloadContext
-from boosty_downloader.application.di.initialized_app import initialized_app
+from boosty_downloader.application.download_context import DownloadContext
 from boosty_downloader.application.filtering import (
     DownloadContentTypeFilter,
     VideoQualityOption,
@@ -36,6 +35,8 @@ from boosty_downloader.cli.cli_options import (
     SkipAllFailuresOption,  # noqa: TC001
     UsernameArgument,  # noqa: TC001
 )
+from boosty_downloader.cli.composition_root import load_settings, open_app
+from boosty_downloader.cli.update_check import notify_about_updates
 from boosty_downloader.cli.views.blog_overview import render_blog_overview
 from boosty_downloader.cli.views.download_plan import render_download_plan
 from boosty_downloader.cli.views.run_statistics import render_run_statistics
@@ -50,10 +51,8 @@ from boosty_downloader.infrastructure.loggers.failed_downloads_logger import (
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from boosty_downloader.application.di.app_environment import AppEnvironment
-    from boosty_downloader.cli.console_progress_reporter import (
-        ProgressReporter,
-    )
+    from boosty_downloader.application.ports import ProgressReporter
+    from boosty_downloader.cli.composition_root import App, AppSettings
 
 
 def _show_start_summary(
@@ -83,22 +82,22 @@ def _show_start_summary(
 
 
 async def _dry_run_handler(
-    app_env: AppEnvironment.Environment,
+    app: App,
     *,
-    username: str,
+    settings: AppSettings,
     content_type_filter: list[DownloadContentTypeFilter],
     preferred_video_quality: VideoQualityOption,
 ) -> None:
     """Print the overview and the plan of a would-be run; download nothing."""
     report = await PlanDownloadUseCase(
-        author_name=username,
-        boosty_api=app_env.boosty_api_client,
+        author_name=settings.author_name,
+        boosty_api=app.api,
         logger=logger_instances.downloader_logger,
-        post_cache=app_env.post_cache,
+        post_cache=app.cache,
         filters=content_type_filter,
         preferred_video_quality=preferred_video_quality.to_ok_video_type(),
     ).execute()
-    console = app_env.progress_reporter.console
+    console = app.reporter.console
     console.print(
         render_blog_overview(
             report.overview, now=datetime.now(timezone.utc).astimezone()
@@ -121,39 +120,44 @@ async def _download_handler(  # noqa: PLR0913
     skip_all_failures: bool,
     dry_run: bool,
 ) -> None:
-    async with initialized_app(
+    logger = logger_instances.downloader_logger
+    settings = load_settings(
         username=username,
-        request_delay_seconds=request_delay_seconds,
         destination_directory=destination_directory,
         cache_directory=cache_directory,
-    ) as app_env:
+    )
+    await notify_about_updates(logger)
+
+    async with open_app(
+        settings, request_delay_seconds=request_delay_seconds, logger=logger
+    ) as app:
         if dry_run:
             await _dry_run_handler(
-                app_env,
-                username=username,
+                app,
+                settings=settings,
                 content_type_filter=content_type_filter,
                 preferred_video_quality=preferred_video_quality,
             )
             return
 
         downloading_context = DownloadContext(
-            author_name=username,
-            downloader_session=app_env.downloading_retry_client,
+            author_name=settings.author_name,
+            downloader_session=app.media_http,
             external_videos_downloader=ExternalVideosDownloader(),
             filters=content_type_filter,
-            post_cache=app_env.post_cache,
+            post_cache=app.cache,
             preferred_video_quality=preferred_video_quality.to_ok_video_type(),
-            progress_reporter=app_env.progress_reporter,
+            progress_reporter=app.reporter,
             failed_logger=FailedDownloadsLogger(
-                log_file_path=app_env.destination_directory / 'failed_downloads.log',
+                log_file_path=settings.destination_dir / 'failed_downloads.log',
             ),
         )
 
         if post_url is not None:
             outcome = await DownloadPostByUrlUseCase(
                 post_url=post_url,
-                boosty_api=app_env.boosty_api_client,
-                destination=app_env.destination_directory,
+                boosty_api=app.api,
+                destination=settings.destination_dir,
                 download_context=downloading_context,
             ).execute()
             if outcome is PostOutcome.failed:
@@ -162,23 +166,23 @@ async def _download_handler(  # noqa: PLR0913
             return
 
         _show_start_summary(
-            pr=app_env.progress_reporter,
-            destination_directory=app_env.destination_directory,
+            pr=app.reporter,
+            destination_directory=settings.destination_dir,
             content_type_filter=content_type_filter,
         )
 
         try:
             await DownloadAllPostUseCase(
-                author_name=username,
-                boosty_api=app_env.boosty_api_client,
-                destination=app_env.destination_directory,
+                author_name=settings.author_name,
+                boosty_api=app.api,
+                destination=settings.destination_dir,
                 download_context=downloading_context,
                 skip_all_failures=skip_all_failures,
             ).execute()
         finally:
             # Also after a systemic stop or Ctrl+C: what got done is still news.
             stats = downloading_context.run_statistics
-            app_env.progress_reporter.console.print(
+            app.reporter.console.print(
                 render_run_statistics(stats, elapsed_seconds=stats.elapsed_seconds())
             )
 

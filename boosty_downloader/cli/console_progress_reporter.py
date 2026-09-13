@@ -1,7 +1,8 @@
 """
 Progress reporting and logging utilities for console-based Boosty downloader interface.
 
-Includes a ProgressReporter class for rich progress bars and logging.
+ConsoleProgressReporter implements the application's ProgressReporter port
+with rich progress bars and logging.
 """
 
 import logging
@@ -21,7 +22,7 @@ from rich.progress import (
 )
 
 
-class ProgressReporter:
+class ConsoleProgressReporter:
     """
     Provides progress bar management and rich logging for console-based interfaces using the Rich library.
 
@@ -135,9 +136,9 @@ class ProgressReporter:
 
 @asynccontextmanager
 async def use_reporter(
-    reporter: ProgressReporter,
-) -> AsyncGenerator[ProgressReporter, None]:
-    """Async context manager to start and stop a ProgressReporter instance."""
+    reporter: ConsoleProgressReporter,
+) -> AsyncGenerator[ConsoleProgressReporter, None]:
+    """Async context manager to start and stop a ConsoleProgressReporter instance."""
     try:
         reporter.start()
         yield reporter
