@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 4.0.0
+
 ### Changed
 
 - BREAKING: `download`, `check` and `clean-cache` take the creator name as their first argument: `boosty-downloader download <username>`. The `-u` / `--username` flag is gone
