@@ -38,6 +38,7 @@ from boosty_downloader.cli.cli_options import (
     UsernameOption,  # noqa: TC001
 )
 from boosty_downloader.cli.download_plan_rendering import render_download_plan
+from boosty_downloader.cli.run_statistics_rendering import render_run_statistics
 from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
 )
@@ -166,13 +167,20 @@ async def _download_handler(  # noqa: PLR0913
             content_type_filter=content_type_filter,
         )
 
-        await DownloadAllPostUseCase(
-            author_name=username,
-            boosty_api=app_env.boosty_api_client,
-            destination=app_env.destination_directory,
-            download_context=downloading_context,
-            skip_all_failures=skip_all_failures,
-        ).execute()
+        try:
+            await DownloadAllPostUseCase(
+                author_name=username,
+                boosty_api=app_env.boosty_api_client,
+                destination=app_env.destination_directory,
+                download_context=downloading_context,
+                skip_all_failures=skip_all_failures,
+            ).execute()
+        finally:
+            # Also after a systemic stop or Ctrl+C: what got done is still news.
+            stats = downloading_context.run_statistics
+            app_env.progress_reporter.success(
+                render_run_statistics(stats, elapsed_seconds=stats.elapsed_seconds())
+            )
 
 
 def register(app: typer.Typer) -> None:
@@ -200,8 +208,10 @@ def register(app: typer.Typer) -> None:
         [bold]DETAILS:[/bold]
 
             - Use `--post-url` to download a specific post.
+            - Use `--dry-run` to preview a run: new and updated posts, media to fetch and the known size - nothing is downloaded.
             - By default, downloads all posts from newest to oldest with all available contents.
             - Unavailable posts are skipped, and you will be notified about them.
+            - Every run ends with statistics: posts, media by type, total size and time.
 
 
         [bold]CONTENT FILTERING:[/bold]

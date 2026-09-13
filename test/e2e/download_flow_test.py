@@ -25,6 +25,7 @@ from boosty_downloader.application.filtering import (
     BoostyOkVideoType,
     DownloadContentTypeFilter,
 )
+from boosty_downloader.application.run_statistics import RunStatistics
 from boosty_downloader.application.use_cases.download_all_posts import (
     DownloadAllPostUseCase,
 )
@@ -44,6 +45,7 @@ from boosty_downloader.infrastructure.post_caching.post_cache import (
 if TYPE_CHECKING:
     from yarl import URL
 
+    from boosty_downloader.application.run_statistics import RunStatistics
     from boosty_downloader.cli.console_progress_reporter import ProgressReporter
     from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
         ExternalVideosDownloader,
@@ -89,8 +91,14 @@ class _QuietReporter:
         self.errors.append(message)
 
 
-def _build_app(served_media: list[str], media_delay: float = 0.0) -> web.Application:
+def _build_app(
+    served_media: list[str],
+    media_delay: float = 0.0,
+    *,
+    fail_first_file: bool = False,
+) -> web.Application:
     fixture_text = FIXTURE_FILE.read_text(encoding='utf-8')
+    file_failures_left = 1 if fail_first_file else 0
 
     async def listing(request: web.Request) -> web.Response:
         local_text = fixture_text
@@ -104,9 +112,13 @@ def _build_app(served_media: list[str], media_delay: float = 0.0) -> web.Applica
         )
 
     async def blob(request: web.Request) -> web.Response:
+        nonlocal file_failures_left
         served_media.append(request.path)
         if media_delay:
             await asyncio.sleep(media_delay)
+        if '/file/' in request.path and file_failures_left:
+            file_failures_left -= 1
+            return web.Response(status=404)
         if '/image/' in request.path:
             return web.Response(body=b'png bytes', content_type='image/png')
         if request.path.endswith('.mp4'):
@@ -123,7 +135,7 @@ def _build_app(served_media: list[str], media_delay: float = 0.0) -> web.Applica
 
 async def _run_download(
     destination: Path, api_base: URL, reporter: _QuietReporter
-) -> None:
+) -> RunStatistics:
     """One full download run wired exactly like the app, minus the console."""
     async with ClientSession() as session:
         retry_client = RetryClient(
@@ -150,6 +162,7 @@ async def _run_download(
                 destination=destination,
                 download_context=context,
             ).execute()
+            return context.run_statistics
 
 
 def _assert_post_tree(destination: Path) -> None:
@@ -179,10 +192,16 @@ async def test_full_run_builds_the_expected_post_tree(tmp_path: Path) -> None:
     await server.start_server()
     try:
         reporter = _QuietReporter()
-        await _run_download(tmp_path, server.make_url('/'), reporter)
+        stats = await _run_download(tmp_path, server.make_url('/'), reporter)
 
         assert reporter.errors == []
         _assert_post_tree(tmp_path)
+        # The closing statistics must describe exactly what landed on disk.
+        assert stats.posts_downloaded == 1
+        assert stats.media == MediaCounts(images=1, files=1, boosty_videos=1, audio=1)
+        assert stats.downloaded_bytes == len(
+            b'png bytes' + b'mp4 bytes' + b'file bytes' + b'mp3 bytes'
+        )
     finally:
         await server.close()
 
@@ -198,10 +217,13 @@ async def test_second_run_serves_from_cache(tmp_path: Path) -> None:
         assert media_after_first > 0
 
         reporter = _QuietReporter()
-        await _run_download(tmp_path, server.make_url('/'), reporter)
+        stats = await _run_download(tmp_path, server.make_url('/'), reporter)
 
         assert len(served_media) == media_after_first
         assert any('cached' in notice for notice in reporter.notices)
+        assert stats.posts_cached == 1
+        assert stats.posts_downloaded == 0
+        assert stats.media == MediaCounts()
     finally:
         await server.close()
 
@@ -283,5 +305,27 @@ async def test_dry_run_promises_the_post_but_touches_no_media(tmp_path: Path) ->
         assert report.plan.new_posts == 0
         assert report.plan.media == MediaCounts()
         assert len(served_media) == media_downloaded, 'second dry-run fetched media'
+    finally:
+        await server.close()
+
+
+async def test_retried_post_is_counted_once(tmp_path: Path) -> None:
+    """A retry downloads the post again; the statistics must not add it twice."""
+    served_media: list[str] = []
+    server = TestServer(_build_app(served_media, fail_first_file=True))
+    await server.start_server()
+    try:
+        reporter = _QuietReporter()
+        stats = await _run_download(tmp_path, server.make_url('/'), reporter)
+
+        assert any('Attempt 1 failed' in warning for warning in reporter.warnings)
+        assert reporter.errors == []
+        _assert_post_tree(tmp_path)
+        assert stats.posts_downloaded == 1
+        assert stats.posts_failed == 0
+        assert stats.media == MediaCounts(images=1, files=1, boosty_videos=1, audio=1)
+        assert stats.downloaded_bytes == len(
+            b'png bytes' + b'mp4 bytes' + b'file bytes' + b'mp3 bytes'
+        )
     finally:
         await server.close()

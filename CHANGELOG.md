@@ -1,5 +1,11 @@
 ## Unreleased
 
+### Added
+
+- `check` now shows the blog at a glance: posts by subscription tier with prices, posts sold one by one, media counts by type, the posting date range and the titles you cannot open
+- `download --dry-run` previews a run without downloading anything: new, updated and already complete posts, media to fetch by type and the known size - so an overnight run holds no surprises
+- Every download run ends with statistics: posts downloaded, cached and failed, media by type, total size and time
+
 ## 3.7.0
 
 ### Added

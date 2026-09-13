@@ -1,6 +1,6 @@
 """Define the DownloadContext dataclass and its dependencies for the download workflow."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from aiohttp_retry import RetryClient
 
@@ -8,6 +8,7 @@ from boosty_downloader.application.filtering import (
     BoostyOkVideoType,
     DownloadContentTypeFilter,
 )
+from boosty_downloader.application.run_statistics import RunStatistics
 from boosty_downloader.cli.console_progress_reporter import ProgressReporter
 from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
@@ -30,3 +31,5 @@ class DownloadContext:
     preferred_video_quality: BoostyOkVideoType
     progress_reporter: ProgressReporter
     failed_logger: FailedDownloadsLogger
+    # Counters of this run, filled by the use cases and shown at the end.
+    run_statistics: RunStatistics = field(default_factory=RunStatistics)

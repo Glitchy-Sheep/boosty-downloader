@@ -114,6 +114,7 @@ class DownloadAllPostUseCase:
                     self.context.progress_reporter.warn(
                         f'Skip post ([red]no access to content[/red]): {post_dto.title}'
                     )
+                    self.context.run_statistics.posts_locked += 1
                     continue
 
                 self.context.progress_reporter.update_task(
@@ -126,7 +127,9 @@ class DownloadAllPostUseCase:
                 if outcome is PostOutcome.downloaded:
                     processed_ok += 1
                     breaker.record_success()
-                elif breaker.record_failure():
+                    continue
+                self.context.run_statistics.posts_failed += 1
+                if breaker.record_failure():
                     self._report_systemic_stop(processed_ok)
                     self._print_run_summary(all_skipped, unknown_content, failed_posts)
                     raise ApplicationTooManyFailuresError(
