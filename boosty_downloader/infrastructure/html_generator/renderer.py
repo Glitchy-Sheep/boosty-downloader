@@ -53,7 +53,9 @@ def render_html_chunk(chunk: HtmlGenChunk) -> str:
         case HtmlGenText():
             return env.get_template('text.html').render(text=chunk)
         case HtmlGenImage():
-            return env.get_template('image.html').render(image=chunk)
+            return env.get_template('image.html').render(
+                image=chunk, src=_media_src(chunk.url)
+            )
         case HtmlGenVideo():
             return env.get_template('video.html').render(
                 video=chunk,

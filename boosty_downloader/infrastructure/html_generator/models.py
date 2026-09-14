@@ -38,8 +38,6 @@ class HtmlGenImage:
 
     url: str
     alt: str = 'Image'
-    width: int | None = None
-    height: int | None = None
 
 
 @dataclass
@@ -48,7 +46,6 @@ class HtmlGenVideo:
 
     url: str
     title: str | None = None
-    poster: str | None = None
 
 
 class HtmlListStyle(Enum):
@@ -80,7 +77,6 @@ class HtmlGenFile:
 
     url: str
     filename: str
-    title: str | None = None
 
 
 @dataclass

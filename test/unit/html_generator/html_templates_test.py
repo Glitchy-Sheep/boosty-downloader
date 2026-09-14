@@ -22,7 +22,7 @@ from boosty_downloader.infrastructure.html_generator.renderer import (
 
 
 def _showcase_chunks() -> list[HtmlGenChunk]:
-    """Fresh chunks per call: the renderer mutates video and audio urls in place."""
+    """Every chunk kind the page can show, with the edge cases the golden pins."""
     return [
         HtmlGenText(
             text_fragments=[

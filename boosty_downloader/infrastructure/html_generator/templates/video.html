@@ -1,4 +1,9 @@
-<video controls>
-    <source src="{{ src }}"{% if mime_type %} type="{{ mime_type }}"{% endif %}>
-    Your browser does not support the video tag.
-</video>
+<div class="video-player">
+    {% if video.title %}
+    <div class="media-title">{{ video.title }}</div>
+    {% endif %}
+    <video controls>
+        <source src="{{ src }}"{% if mime_type %} type="{{ mime_type }}"{% endif %}>
+        Your browser does not support the video tag.
+    </video>
+</div>

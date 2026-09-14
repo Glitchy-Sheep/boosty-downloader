@@ -65,11 +65,6 @@
             transition: background-color 0.3s ease, box-shadow 0.3s ease, color 0.3s ease;
         }
 
-        p {
-            font-size: 1.2rem;
-            margin-bottom: 1.5rem;
-        }
-
         h1,
         h2,
         h3,
@@ -97,9 +92,13 @@
             box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
         }
 
+        .video-player {
+            margin: 2rem auto;
+        }
+
         video {
             display: block;
-            margin: 2rem auto;
+            margin: 0 auto;
             max-width: 100%;
             border-radius: 6px;
             box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
@@ -115,7 +114,7 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
         }
 
-        .audio-title {
+        .media-title {
             font-weight: 600;
             font-size: 0.95rem;
             margin-bottom: 0.75rem;
@@ -129,8 +128,8 @@
             width: 100%;
         }
 
-        .new-paragraph {
-            margin-top: 2rem;
+        .attachment {
+            margin: 0.5rem 0;
         }
 
         #theme-toggle {
@@ -197,21 +196,26 @@ This paragraph contains a mix of <strong>bold</strong>, <em>italic</em>, and <u>
         Step two
     </li>
 </ol>
-<img src="https://example.com/banner.jpg" alt="Image" style="max-width: 100%;">
-<video controls>
-    <source src="https://example.com/video.mp4" type="video/mp4">
-    Your browser does not support the video tag.
-</video>
-<video controls>
-    <source src="https://www.youtube.com/watch?v=dQw4w9WgXcQ">
-    Your browser does not support the video tag.
-</video>
+<img src="https://example.com/banner.jpg" alt="Image">
+<div class="video-player">
+    <div class="media-title">Exclusive Behind the Scenes</div>
+    <video controls>
+        <source src="https://example.com/video.mp4" type="video/mp4">
+        Your browser does not support the video tag.
+    </video>
+</div>
+<div class="video-player">
+    <video controls>
+        <source src="https://www.youtube.com/watch?v=dQw4w9WgXcQ">
+        Your browser does not support the video tag.
+    </video>
+</div>
 <br>
 <h2>Thanks for <strong>reading</strong>!</h2>
 Feel free to leave a comment or suggestion below.
-<a href="files/release-notes.zip">release &lt;v2&gt; &amp; notes.zip</a>
+<div class="attachment"><a href="files/release-notes.zip">release &lt;v2&gt; &amp; notes.zip</a></div>
 <div class="audio-player">
-    <div class="audio-title">fixture-song.mp3</div>
+    <div class="media-title">fixture-song.mp3</div>
     <audio controls>
         <source src="audio/fixture-song.mp3">
         Your browser does not support the audio tag.
