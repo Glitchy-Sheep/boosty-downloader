@@ -41,62 +41,34 @@ if TYPE_CHECKING:
 
 class DownloadPostByUrlUseCase:
     """
-    Handles downloading a specific Boosty post given its URL.
+    Handles downloading one Boosty post of the creator by its id.
 
     The post is requested directly by id - one API call, fresh signed urls.
+    The caller has already read the id off the post url.
     """
 
     def __init__(
         self,
-        post_url: str,
+        post_id: str,
         boosty_api: BoostyAPIClient,
         destination: Path,
         download_context: DownloadContext,
     ) -> None:
-        self.post_url = post_url
+        self.post_id = post_id
         self.boosty_api = boosty_api
         self.destination = destination
         self.context = download_context
 
-    def extract_author_and_uuid_from_url(self) -> tuple[str | None, str | None]:
-        """
-        Parse Boosty post URL and returns (author_name, post_uuid) if possible.
-
-        Expects URLs like: https://boosty.to/author_name/posts/post_uuid
-        Returns None if parsing fails or URL is not Boosty.
-        """
-        url = self.post_url
-        if 'boosty.to' not in url:
-            self.context.progress_reporter.error(
-                "Provided URL doesn't match Boosty format (https://boosty.to/...)"
-            )
-            return None, None
-        try:
-            parts = url.split('/')
-            author = parts[3]
-            post_uuid = parts[5].split('?')[0]
-        except (IndexError, AttributeError):
-            self.context.progress_reporter.error(
-                'Failed to parse author or post UUID from the provided URL. '
-            )
-            return None, None
-        else:
-            return author, post_uuid
-
     async def execute(self) -> PostOutcome:
         """Find and download the post; the caller turns the outcome into an exit code."""
-        author_name, post_uuid = self.extract_author_and_uuid_from_url()
-        if not author_name or not post_uuid:
-            self.context.progress_reporter.error(
-                'Failed to extract author and UUID from the provided URL, aborting...'
-            )
-            return PostOutcome.failed
-
+        post_uuid = self.post_id
         self.context.progress_reporter.info(
             f'Requesting the post with UUID: {post_uuid}...'
         )
         try:
-            post = await self.boosty_api.get_single_post(author_name, post_uuid)
+            post = await self.boosty_api.get_single_post(
+                self.context.author_name, post_uuid
+            )
         except BoostyAPINoPostError:
             self.context.progress_reporter.error(
                 'Failed to find and download the specified post.'

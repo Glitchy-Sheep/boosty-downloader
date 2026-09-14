@@ -40,7 +40,6 @@ if TYPE_CHECKING:
     )
 
 POST_UUID = 'a2dd6942-7297-4340-a19f-d637fa8ef4de'
-POST_URL = f'https://boosty.to/author/posts/{POST_UUID}'
 
 
 class _FakeReporter:
@@ -118,7 +117,7 @@ def _use_case(api: _FakeApi, reporter: _FakeReporter) -> DownloadPostByUrlUseCas
         failed_logger=cast('FailureLog', None),
     )
     return DownloadPostByUrlUseCase(
-        post_url=POST_URL,
+        post_id=POST_UUID,
         boosty_api=cast('BoostyAPIClient', api),
         destination=Path('unused'),
         download_context=context,
