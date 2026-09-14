@@ -1,4 +1,4 @@
-"""The --post-url flow asks the API for one post instead of walking pages."""
+"""The --post-url flow asks the API for one post and downloads it like the full run does."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
+from boosty_downloader.application import post_retry as post_retry_module
 from boosty_downloader.application.download_context import DownloadContext
 from boosty_downloader.application.exceptions.application_errors import (
     ApplicationCancelledError,
@@ -16,17 +17,20 @@ from boosty_downloader.application.exceptions.application_errors import (
 )
 from boosty_downloader.application.filtering import BoostyOkVideoType
 from boosty_downloader.application.post_retry import PostOutcome
+from boosty_downloader.application.use_cases.download_post_by_id import (
+    DownloadPostByIdUseCase,
+)
 from boosty_downloader.application.use_cases.download_single_post import (
     DownloadSinglePostUseCase,
-)
-from boosty_downloader.application.use_cases.download_specific_post import (
-    DownloadPostByUrlUseCase,
 )
 from boosty_downloader.infrastructure.boosty_api.core.client import (
     BoostyAPINoPostError,
     BoostyAPIValidationError,
 )
 from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
+from boosty_downloader.infrastructure.file_downloader import (
+    DownloadUnexpectedStatusError,
+)
 
 if TYPE_CHECKING:
     from aiohttp_retry import RetryClient
@@ -47,6 +51,7 @@ class _FakeReporter:
 
     def __init__(self) -> None:
         self.errors: list[str] = []
+        self.warnings: list[str] = []
         self.infos: list[str] = []
 
     def create_task(self, *args: object, **kwargs: object) -> uuid_module.UUID:
@@ -69,7 +74,7 @@ class _FakeReporter:
         self.infos.append(message)
 
     def warn(self, message: str) -> None:
-        del message
+        self.warnings.append(message)
 
     def error(self, message: str) -> None:
         self.errors.append(message)
@@ -105,7 +110,7 @@ def _post(*, has_access: bool = True) -> PostDTO:
     )
 
 
-def _use_case(api: _FakeApi, reporter: _FakeReporter) -> DownloadPostByUrlUseCase:
+def _use_case(api: _FakeApi, reporter: _FakeReporter) -> DownloadPostByIdUseCase:
     context = DownloadContext(
         author_name='author',
         downloader_session=cast('RetryClient', None),
@@ -116,7 +121,7 @@ def _use_case(api: _FakeApi, reporter: _FakeReporter) -> DownloadPostByUrlUseCas
         progress_reporter=reporter,
         failed_logger=cast('FailureLog', None),
     )
-    return DownloadPostByUrlUseCase(
+    return DownloadPostByIdUseCase(
         post_id=POST_UUID,
         boosty_api=cast('BoostyAPIClient', api),
         destination=Path('unused'),
@@ -132,6 +137,33 @@ def _script_download(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
     monkeypatch.setattr(DownloadSinglePostUseCase, 'execute', scripted_execute)
     return calls
+
+
+def _script_download_error(
+    monkeypatch: pytest.MonkeyPatch, error: BaseException
+) -> None:
+    async def failing_execute(self: DownloadSinglePostUseCase) -> None:
+        del self
+        raise error
+
+    monkeypatch.setattr(DownloadSinglePostUseCase, 'execute', failing_execute)
+
+
+def _disable_retry_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _no_sleep(delay: float) -> None:
+        del delay
+
+    monkeypatch.setattr(post_retry_module.asyncio, 'sleep', _no_sleep)
+
+
+def _expired_error() -> ApplicationFailedDownloadError:
+    error = ApplicationFailedDownloadError(
+        post_uuid=POST_UUID, message='Unexpected status code: 400', resource='r'
+    )
+    error.__cause__ = DownloadUnexpectedStatusError(
+        status=400, response_message='Bad Request', resource_url='https://cdn/x'
+    )
+    return error
 
 
 async def test_post_downloads_via_one_direct_request(
@@ -186,28 +218,20 @@ async def test_no_access_post_is_not_downloaded(
     reporter = _FakeReporter()
     api = _FakeApi(post=_post(has_access=False))
     calls = _script_download(monkeypatch)
+    use_case = _use_case(api, reporter)
 
-    outcome = await _use_case(api, reporter).execute()
+    outcome = await use_case.execute()
 
     assert calls == []
     assert any('no access' in message for message in reporter.errors)
     assert outcome is PostOutcome.failed
+    assert use_case.context.run_statistics.posts_locked == 1
 
 
-def _script_download_error(
-    monkeypatch: pytest.MonkeyPatch, error: BaseException
-) -> None:
-    async def failing_execute(self: DownloadSinglePostUseCase) -> None:
-        del self
-        raise error
-
-    monkeypatch.setattr(DownloadSinglePostUseCase, 'execute', failing_execute)
-
-
-async def test_failed_download_is_a_failed_outcome(
+async def test_failed_download_is_retried_then_a_failed_outcome(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The bug: a dead link during --post-url still ended the process with exit 0."""
+    """A dead link used to end --post-url with exit 0 and no retry at all."""
     reporter = _FakeReporter()
     api = _FakeApi(post=_post())
     _script_download_error(
@@ -216,11 +240,40 @@ async def test_failed_download_is_a_failed_outcome(
             post_uuid=POST_UUID, message='dead link', resource='r'
         ),
     )
+    _disable_retry_sleep(monkeypatch)
+    use_case = _use_case(api, reporter)
+
+    outcome = await use_case.execute()
+
+    assert outcome is PostOutcome.failed
+    assert any('Skip post after 5 failed attempts' in m for m in reporter.errors)
+    assert use_case.context.run_statistics.posts_failed == 1
+
+
+async def test_expired_link_is_refreshed_like_in_the_full_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bug Б6: a huge video whose signed link died mid-way was lost for good."""
+    reporter = _FakeReporter()
+    api = _FakeApi(post=_post())
+    attempts = 0
+
+    async def failing_then_ok(self: DownloadSinglePostUseCase) -> None:
+        del self
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise _expired_error()
+
+    monkeypatch.setattr(DownloadSinglePostUseCase, 'execute', failing_then_ok)
+    _disable_retry_sleep(monkeypatch)
 
     outcome = await _use_case(api, reporter).execute()
 
-    assert outcome is PostOutcome.failed
-    assert any('Failed to download post' in message for message in reporter.errors)
+    assert outcome is PostOutcome.downloaded
+    assert api.requests == [('author', POST_UUID)] * 2, 'the post is fetched again'
+    assert any('refreshing the post' in w for w in reporter.warnings)
+    assert reporter.errors == []
 
 
 async def test_cancellation_propagates_for_the_130_exit_code(

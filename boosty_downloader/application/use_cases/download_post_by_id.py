@@ -1,16 +1,12 @@
-"""Use case for downloading a specific Boosty post by URL."""
+"""Use case for downloading one Boosty post of the creator by its id."""
 
-from pathlib import Path
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
-from boosty_downloader.application.download_context import DownloadContext
-from boosty_downloader.application.exceptions.application_errors import (
-    ApplicationFailedDownloadError,
-)
-from boosty_downloader.application.post_retry import PostOutcome
-from boosty_downloader.application.use_cases.download_single_post import (
-    DownloadSinglePostUseCase,
-    compose_post_directory_name,
+from boosty_downloader.application.post_retry import (
+    PostDownloadRetrier,
+    PostOutcome,
 )
 from boosty_downloader.infrastructure.boosty_api.core.client import (
     BoostyAPIClient,
@@ -28,23 +24,23 @@ from boosty_downloader.infrastructure.boosty_api.utils.validation_errors import 
     format_run_summary,
     format_skipped_post,
 )
-from boosty_downloader.infrastructure.path_sanitizer import (
-    PATH_TOO_LONG_HINT,
-    is_path_too_long_error,
-)
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
+    from boosty_downloader.application.download_context import DownloadContext
     from boosty_downloader.infrastructure.boosty_api.models.post.post import (
         PostDTO,
     )
 
 
-class DownloadPostByUrlUseCase:
+class DownloadPostByIdUseCase:
     """
-    Handles downloading one Boosty post of the creator by its id.
+    Download one post of the creator by its id.
 
-    The post is requested directly by id - one API call, fresh signed urls.
-    The caller has already read the id off the post url.
+    One direct API call brings the post with fresh signed urls. The download
+    itself goes through the same retrier as the full run: attempts with
+    backoff, one refresh of expired links, containment of unexpected errors.
     """
 
     def __init__(
@@ -56,18 +52,22 @@ class DownloadPostByUrlUseCase:
     ) -> None:
         self.post_id = post_id
         self.boosty_api = boosty_api
-        self.destination = destination
         self.context = download_context
+        self._post_retrier = PostDownloadRetrier(
+            author_name=download_context.author_name,
+            boosty_api=boosty_api,
+            destination=destination,
+            download_context=download_context,
+        )
 
     async def execute(self) -> PostOutcome:
         """Find and download the post; the caller turns the outcome into an exit code."""
-        post_uuid = self.post_id
         self.context.progress_reporter.info(
-            f'Requesting the post with UUID: {post_uuid}...'
+            f'Requesting the post with UUID: {self.post_id}...'
         )
         try:
             post = await self.boosty_api.get_single_post(
-                self.context.author_name, post_uuid
+                self.context.author_name, self.post_id
             )
         except BoostyAPINoPostError:
             self.context.progress_reporter.error(
@@ -79,7 +79,9 @@ class DownloadPostByUrlUseCase:
             # a misleading "not found" would hide the real problem.
             self.context.progress_reporter.error(
                 format_skipped_post(
-                    SkippedPost(post_id=post_uuid, title='<unparsed>', errors=e.errors)
+                    SkippedPost(
+                        post_id=self.post_id, title='<unparsed>', errors=e.errors
+                    )
                 )
             )
             self.context.progress_reporter.error(
@@ -92,32 +94,22 @@ class DownloadPostByUrlUseCase:
             self.context.progress_reporter.error(
                 f'Skip post (no access to content): {post.title}'
             )
+            self.context.run_statistics.posts_locked += 1
             return PostOutcome.failed
 
         return await self._download_post(post)
 
-    async def _download_post(self, post: 'PostDTO') -> PostOutcome:
+    async def _download_post(self, post: PostDTO) -> PostOutcome:
         """Download the found post and name how it went."""
         self.context.progress_reporter.success(
             f'Found post with UUID: {post.id}, starting download...'
         )
+        failed_posts: list[str] = []
+        outcome = await self._post_retrier.download(post, failed_posts)
+        if outcome is PostOutcome.failed:
+            self.context.run_statistics.posts_failed += 1
 
-        summary = format_run_summary([], collect_unknown_content(post))
+        summary = format_run_summary([], collect_unknown_content(post), failed_posts)
         if summary:
             self.context.progress_reporter.warn(summary)
-
-        post_name = compose_post_directory_name(post.title, post.created_at, post.id)
-
-        try:
-            await DownloadSinglePostUseCase(
-                post_dto=post,
-                destination=self.destination / post_name,
-                download_context=self.context,
-            ).execute()
-        except ApplicationFailedDownloadError as e:
-            hint = f' Hint: {PATH_TOO_LONG_HINT}.' if is_path_too_long_error(e) else ''
-            self.context.progress_reporter.error(
-                f'Failed to download post: {e.message}, RESOURCE: ({e.resource}){hint}'
-            )
-            return PostOutcome.failed
-        return PostOutcome.downloaded
+        return outcome

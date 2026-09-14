@@ -17,8 +17,8 @@ from boosty_downloader.application.post_retry import PostOutcome
 from boosty_downloader.application.use_cases.download_all_posts import (
     DownloadAllPostUseCase,
 )
-from boosty_downloader.application.use_cases.download_specific_post import (
-    DownloadPostByUrlUseCase,
+from boosty_downloader.application.use_cases.download_post_by_id import (
+    DownloadPostByIdUseCase,
 )
 from boosty_downloader.application.use_cases.plan_download import (
     PlanDownloadUseCase,
@@ -172,38 +172,38 @@ async def _download_handler(  # noqa: PLR0913
             ),
         )
 
-        if post_id is not None:
-            outcome = await DownloadPostByUrlUseCase(
-                post_id=post_id,
-                boosty_api=app.api,
-                destination=settings.destination_dir,
-                download_context=downloading_context,
-            ).execute()
-            if outcome is PostOutcome.failed:
-                # Scripts rely on the exit code: a failed download is not a success.
-                raise typer.Exit(1)
-            return
-
-        _show_start_summary(
-            pr=app.reporter,
-            destination_directory=settings.destination_dir,
-            content_type_filter=content_type_filter,
-        )
-
+        failed = False
         try:
-            await DownloadAllPostUseCase(
-                author_name=settings.author_name,
-                boosty_api=app.api,
-                destination=settings.destination_dir,
-                download_context=downloading_context,
-                skip_all_failures=skip_all_failures,
-            ).execute()
+            if post_id is not None:
+                outcome = await DownloadPostByIdUseCase(
+                    post_id=post_id,
+                    boosty_api=app.api,
+                    destination=settings.destination_dir,
+                    download_context=downloading_context,
+                ).execute()
+                failed = outcome is PostOutcome.failed
+            else:
+                _show_start_summary(
+                    pr=app.reporter,
+                    destination_directory=settings.destination_dir,
+                    content_type_filter=content_type_filter,
+                )
+                await DownloadAllPostUseCase(
+                    author_name=settings.author_name,
+                    boosty_api=app.api,
+                    destination=settings.destination_dir,
+                    download_context=downloading_context,
+                    skip_all_failures=skip_all_failures,
+                ).execute()
         finally:
             # Also after a systemic stop or Ctrl+C: what got done is still news.
             stats = downloading_context.run_statistics
             app.reporter.console.print(
                 render_run_statistics(stats, elapsed_seconds=stats.elapsed_seconds())
             )
+        if failed:
+            # Scripts rely on the exit code: a failed download is not a success.
+            raise typer.Exit(1)
 
 
 def register(app: typer.Typer) -> None:
