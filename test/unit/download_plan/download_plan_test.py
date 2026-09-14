@@ -45,12 +45,13 @@ def _image(size: int = 10) -> dict[str, object]:
     return {'type': 'image', 'url': 'https://images.example/i', 'size': size}
 
 
-def _file(size: int = 20) -> dict[str, object]:
+def _file(size: int = 20, *, complete: bool = True) -> dict[str, object]:
     return {
         'type': 'file',
         'url': 'https://cdn.example/f',
         'title': 'a.zip',
         'size': size,
+        'complete': complete,
     }
 
 
@@ -191,7 +192,9 @@ def test_filters_narrow_the_plan_like_the_real_run(cache: SQLitePostCache):
 
 def test_unfinished_uploads_are_not_promised(cache: SQLitePostCache):
     """The downloader skips complete=False media; the plan must not sell them."""
-    post = _post(data=[_ok_video(complete=False), _audio(complete=False)])
+    post = _post(
+        data=[_ok_video(complete=False), _audio(complete=False), _file(complete=False)]
+    )
 
     plan = _plan([post], cache)
 
@@ -199,6 +202,7 @@ def test_unfinished_uploads_are_not_promised(cache: SQLitePostCache):
     assert plan.filtered_out_posts == 1
     assert plan.new_posts == 0
     assert plan.media == MediaCounts()
+    assert plan.known_bytes == 0
     assert plan.unknown_size_videos == 0
 
 

@@ -24,6 +24,9 @@ if TYPE_CHECKING:
 from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types.post_data_audio import (
     BoostyPostDataAudioDTO,
 )
+from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types.post_data_file import (
+    BoostyPostDataFileDTO,
+)
 from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types.post_data_list import (
     BoostyPostDataListDTO,
 )
@@ -91,6 +94,12 @@ def _make_audio(
     )
 
 
+def _make_file(payload: dict[str, object]) -> BoostyPostDataFileDTO:
+    return BoostyPostDataFileDTO.model_validate(
+        {'type': 'file', 'url': 'https://cdn/f', 'title': 'a.zip', **payload}
+    )
+
+
 def test_complete_ok_video_is_mapped():
     post_dto = _make_post_dto([_make_ok_video(complete=True, upload_status='ok')])
     result = map_post_dto_to_domain(
@@ -140,6 +149,28 @@ def test_incomplete_audio_is_skipped():
 
     assert len(result.post.post_data_chunks) == 0
     assert DownloadContentTypeFilter.audio in result.incomplete_content_types
+
+
+def test_unfinished_file_upload_is_skipped_and_marked_for_the_next_run():
+    """The url of such a file answers 404: 5 attempts and a failed post for nothing."""
+    result = map_post_dto_to_domain(
+        _make_post_dto([_make_file({'complete': False, 'size': 0})]),
+        preferred_video_quality=BoostyOkVideoType.medium,
+    )
+
+    assert result.post.post_data_chunks == []
+    assert result.incomplete_content_types == {DownloadContentTypeFilter.files}
+
+
+def test_file_without_the_completeness_flag_is_treated_as_finished():
+    """An answer that drops the flag must not hide every attachment."""
+    result = map_post_dto_to_domain(
+        _make_post_dto([_make_file({'size': 5})]),
+        preferred_video_quality=BoostyOkVideoType.medium,
+    )
+
+    assert len(result.post.post_data_chunks) == 1
+    assert result.incomplete_content_types == set()
 
 
 def test_mixed_post_with_incomplete_video_and_complete_text():

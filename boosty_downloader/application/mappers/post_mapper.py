@@ -80,6 +80,9 @@ def map_post_dto_to_domain(  # noqa: C901, PLR0912 - one match-dispatcher over e
             case BoostyPostDataListDTO():
                 post.post_data_chunks.append(mappers.to_domain_list_chunk(data_chunk))
             case BoostyPostDataFileDTO():
+                if not data_chunk.complete:
+                    incomplete_content_types.add(DownloadContentTypeFilter.files)
+                    continue
                 post.post_data_chunks.append(
                     mappers.to_domain_file_chunk(data_chunk, post.signed_query)
                 )

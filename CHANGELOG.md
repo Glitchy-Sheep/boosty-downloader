@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Fixed
+
+- A post with an attachment the author has not finished uploading no longer fails after 5 attempts of 404: the unfinished file is skipped with a warning and picked up on a later run, the rest of the post downloads at once. `--dry-run` stops promising such files
+
 ## 4.1.0
 
 ### Changed
