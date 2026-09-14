@@ -69,7 +69,9 @@ def render_html_chunk(chunk: HtmlGenChunk) -> str:
                 lst=chunk, render_chunk=render_html_chunk
             )
         case HtmlGenFile():
-            return env.get_template('file.html').render(file=chunk)
+            return env.get_template('file.html').render(
+                file=chunk, src=_media_src(chunk.url)
+            )
 
 
 def render_html(chunks: list[HtmlGenChunk], page_title: str) -> str:

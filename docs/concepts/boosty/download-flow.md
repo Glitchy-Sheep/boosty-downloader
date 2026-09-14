@@ -28,7 +28,7 @@ CLI (typer)
 ## When a piece fails
 
 - Transport errors (connection lost, 5xx, 429) are retried by the HTTP client with growing pauses, 5 attempts.
-- One dead link does not stop the post: the other chunks finish, the content types without a failure are cached at once, and only the failed type is fetched again. `post.html` is written when every chunk that belongs on the page made it; a failed attachment does not hold it back.
+- One dead link does not stop the post: the other chunks finish, the content types without a failure are cached at once, and only the failed type is fetched again. `post.html` is written when every chunk that belongs on the page made it; a failed attachment does not hold it back, the page links only the attachments that landed.
 - `PostDownloadRetrier` gives a post 5 attempts with a growing pause. A 400 or 403 from the CDN means the signed links expired: the post is fetched again once, with fresh links.
 - Unexpected errors (a path too long for the OS, a broken JSON in a chunk) skip the post and let the run continue; 5 failed posts in a row stop the run, since a streak like that points at the disk, the permissions or the network.
 

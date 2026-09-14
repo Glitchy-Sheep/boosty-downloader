@@ -2,6 +2,7 @@
 
 ### Fixed
 
+- Attachments are now linked in `post.html`: every file that downloaded gets a link at its place in the post, in the author's order, and the link opens the file. Before, files landed in `files/` but the page never mentioned them
 - A post with an attachment the author has not finished uploading no longer fails after 5 attempts of 404: the unfinished file is skipped with a warning and picked up on a later run, the rest of the post downloads at once. `--dry-run` stops promising such files
 
 ## 4.1.0
