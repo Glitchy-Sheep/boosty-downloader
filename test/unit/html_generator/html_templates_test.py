@@ -16,6 +16,7 @@ from boosty_downloader.infrastructure.html_generator.models import (
 )
 from boosty_downloader.infrastructure.html_generator.renderer import (
     render_html,
+    render_html_chunk,
     render_html_to_file,
 )
 
@@ -161,7 +162,12 @@ def _showcase_chunks() -> list[HtmlGenChunk]:
         HtmlGenText(
             text_fragments=[
                 HtmlTextFragment(text='\n'),
-                HtmlTextFragment(text='Thanks for reading!', header_level=2),
+                # A styled word inside a heading: the heading must stay one.
+                HtmlTextFragment(text='Thanks for ', header_level=2),
+                HtmlTextFragment(
+                    text='reading', header_level=2, style=HtmlTextStyle(bold=True)
+                ),
+                HtmlTextFragment(text='!', header_level=2),
                 HtmlTextFragment(
                     text='Feel free to leave a comment or suggestion below.',
                 ),
@@ -189,6 +195,21 @@ def test_html_generator_templates(tmp_path: Path):
     assert test_output_file.exists()
     assert test_output_file.read_text(encoding='utf-8') == data
     assert len(data) > 0
+
+
+def test_a_styled_word_keeps_the_heading_in_one_piece() -> None:
+    """One heading tag per fragment stacked three headings and dropped the style."""
+    heading = HtmlGenText(
+        text_fragments=[
+            HtmlTextFragment(text='Hello ', header_level=2),
+            HtmlTextFragment(
+                text='bold', header_level=2, style=HtmlTextStyle(bold=True)
+            ),
+            HtmlTextFragment(text=' world', header_level=2),
+        ]
+    )
+
+    assert render_html_chunk(heading) == '<h2>Hello <strong>bold</strong> world</h2>\n'
 
 
 GOLDEN_FILE = Path(__file__).parents[2] / 'fixtures' / 'rendered_post.html'

@@ -1,12 +1,12 @@
+{# A heading spans every fragment of its level in a row: one <hN> around them all. #}
 {% for frag in text.text_fragments %}
-{% set lvl = frag.header_level | default(0) | int %}
-{% if lvl > 0 %}
-{% if lvl > 6 %}{% set lvl = 6 %}{% endif %}
-<h{{ lvl }}>{{ frag.text }}</h{{ lvl }}>
-{% elif frag.text in ['\n', '\r\n'] %}
-<br>
+{% set lvl = frag.header_level %}
+{% set opens = lvl > 0 and (loop.first or loop.previtem.header_level != lvl) %}
+{% set closes = lvl > 0 and (loop.last or loop.nextitem.header_level != lvl) %}
+{% if opens %}<h{{ lvl }}>{% endif %}
+{%- if frag.text in ['\n', '\r\n'] %}<br>
 {% else %}
-{%- if frag.link_url %}<a href="{{ frag.link_url|e }}">{% endif -%}
+{%- if frag.link_url %}<a href="{{ frag.link_url }}">{% endif -%}
 {%- if frag.style.bold %}<strong>{% endif -%}
 {%- if frag.style.italic %}<em>{% endif -%}
 {%- if frag.style.underline %}<u>{% endif -%}
@@ -14,6 +14,8 @@
 {%- if frag.style.underline %}</u>{% endif -%}
 {%- if frag.style.italic %}</em>{% endif -%}
 {%- if frag.style.bold %}</strong>{% endif -%}
-{%- if frag.link_url %}</a>{% endif %}
+{%- if frag.link_url %}</a>{% endif -%}
+{%- endif %}
+{%- if closes %}</h{{ lvl }}>
 {% endif %}
 {% endfor %}

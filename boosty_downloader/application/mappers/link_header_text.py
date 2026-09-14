@@ -5,6 +5,8 @@ If the API responses change, this mapper may need to be updated accordingly.
 """
 
 import json
+import re
+from dataclasses import replace
 
 from boosty_downloader.domain.post_data_chunks import PostDataChunkText
 from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types import (
@@ -101,6 +103,24 @@ def _convert_style_set_to_text_style(
     return text_style
 
 
+_LINE_BREAK = re.compile(r'(\r\n|\n)')
+
+
+def _split_line_breaks(
+    fragment: PostDataChunkText.TextFragment,
+) -> list[PostDataChunkText.TextFragment]:
+    """
+    Give every line break a fragment of its own, with the style of its neighbours.
+
+    The page renders a lone line-break fragment as <br>; a break glued to
+    the text collapses into a space in the browser.
+    """
+    pieces = [piece for piece in _LINE_BREAK.split(fragment.text) if piece]
+    if len(pieces) <= 1:
+        return [fragment]
+    return [replace(fragment, text=piece) for piece in pieces]
+
+
 def _parse_content_field(
     content: str, modificator: str = ''
 ) -> list[PostDataChunkText.TextFragment]:
@@ -131,7 +151,8 @@ def _parse_content_field(
 
     header_level = _parse_header(style_info)
     style_bitmap = _create_style_bitmap(len(text), styles_array)
-    return _create_text_fragments(text, style_bitmap, header_level)
+    fragments = _create_text_fragments(text, style_bitmap, header_level)
+    return [piece for fragment in fragments for piece in _split_line_breaks(fragment)]
 
 
 def to_domain_text_chunk(
