@@ -121,13 +121,16 @@ boosty-downloader download YOUR_CREATOR_NAME
 
 ## 🛡️ When downloads fail
 
-One bad post never costs you the whole run:
+One bad link never costs you the whole run:
 
-- A post that fails to download is skipped, and the run continues.
+- A failed download is retried up to 5 times with growing pauses; a link that expired mid-way is refreshed from the API once.
+- A post with one dead link keeps everything else: the parts that finished are remembered right away, and only the failed part is fetched again.
+- A post that still fails is skipped, and the run continues.
 - Every skipped post is written to `failed_downloads.log` next to your downloads.
 - At the end, a summary lists everything that was skipped and why.
 - If 5 posts in a row fail, the downloader stops early: a streak like this means the problem is not in the posts - check your disk, folder permissions, or network.
 - Prefer to finish the pass no matter what? Add `--skip-all-failures` - the run never stops on a failure streak.
+- `download --post-url` gets the same retries and the same refresh as the full run.
 
 Downloaded posts are cached. After you fix the cause, run the same command again - finished posts are skipped in seconds, and the download continues where it stopped.
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
+from http import HTTPStatus
 from typing import TYPE_CHECKING
 
 import aiohttp
@@ -87,8 +88,14 @@ class App:
     reporter: ConsoleProgressReporter
 
 
+# Transport retries: connection errors, 5xx (aiohttp-retry's default) and
+# 429 rate limiting. Waits 2, 4, 8, 16 seconds between the five attempts:
+# a rate limiter needs real pauses, the default 0.1s ladder just hammers it.
+# Failures of the response body and expired links are the post retrier's job.
 DEFAULT_RETRY_OPTIONS = ExponentialRetry(
     attempts=5,
+    start_timeout=1.0,
+    statuses={HTTPStatus.TOO_MANY_REQUESTS},
     exceptions={
         aiohttp.ClientConnectorError,
         aiohttp.ClientOSError,
