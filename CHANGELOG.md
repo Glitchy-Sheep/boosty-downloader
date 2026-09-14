@@ -1,7 +1,14 @@
 ## Unreleased
 
+### Changed
+
+- HTTP 429 (rate limited) answers are now retried like connection errors, and the pauses between transport retries grew from a fraction of a second to 2, 4, 8 and 16 seconds
+
 ### Fixed
 
+- `download --post-url` now gets the same protection as the full run: 5 attempts with growing pauses, a refresh of the post when its signed links expire mid-way, and a skip with a clear message on an unexpected error. It also ends with the run statistics block
+- `download --post-url` with a link to another creator's post is rejected up front with a hint to run the command with that creator's name. Before, the post was saved and cached under the wrong creator
+- A broken `--post-url` link (not a post page, another site) is a usage error with the expected shape, not a silent misparse
 - A post with one dead link no longer re-downloads its other media on every retry and on the next run: the content types that finished are remembered right away, and only the failed type is fetched again. Before, a post with a 2 GB video and one broken attachment downloaded that video on each of the 5 attempts and was then dropped whole
 - A cache file that is not a database (truncated, overwritten, hand-edited) no longer crashes the run: the cache resets itself with a warning, as it already did for an outdated schema
 

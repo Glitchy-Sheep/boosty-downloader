@@ -17,8 +17,8 @@ from boosty_downloader.application.post_retry import PostOutcome
 from boosty_downloader.application.use_cases.download_all_posts import (
     DownloadAllPostUseCase,
 )
-from boosty_downloader.application.use_cases.download_specific_post import (
-    DownloadPostByUrlUseCase,
+from boosty_downloader.application.use_cases.download_post_by_id import (
+    DownloadPostByIdUseCase,
 )
 from boosty_downloader.application.use_cases.plan_download import (
     PlanDownloadUseCase,
@@ -40,6 +40,10 @@ from boosty_downloader.cli.views.blog_overview import render_blog_overview
 from boosty_downloader.cli.views.download_plan import render_download_plan
 from boosty_downloader.cli.views.run_statistics import render_run_statistics
 from boosty_downloader.domain.content_types import DownloadContentTypeFilter
+from boosty_downloader.infrastructure.boosty_api.utils.post_url import (
+    InvalidPostUrlError,
+    parse_post_url,
+)
 from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
 )
@@ -108,10 +112,25 @@ async def _dry_run_handler(
         logger_instances.downloader_logger.warning(report.problems)
 
 
+def _post_id_of(post_url: str, username: str) -> str:
+    """Read the post id off the url; the post must belong to USERNAME."""
+    try:
+        post = parse_post_url(post_url)
+    except InvalidPostUrlError as e:
+        raise typer.BadParameter(str(e), param_hint='--post-url') from e
+    if post.author_name != username:
+        msg = (
+            f'the post belongs to {post.author_name!r}, not to {username!r}: '
+            f'run the command with {post.author_name!r} as USERNAME'
+        )
+        raise typer.BadParameter(msg, param_hint='--post-url')
+    return post.post_id
+
+
 async def _download_handler(  # noqa: PLR0913
     *,
     username: str,
-    post_url: str | None,
+    post_id: str | None,
     content_type_filter: list[DownloadContentTypeFilter],
     preferred_video_quality: VideoQualityOption,
     request_delay_seconds: float,
@@ -153,38 +172,38 @@ async def _download_handler(  # noqa: PLR0913
             ),
         )
 
-        if post_url is not None:
-            outcome = await DownloadPostByUrlUseCase(
-                post_url=post_url,
-                boosty_api=app.api,
-                destination=settings.destination_dir,
-                download_context=downloading_context,
-            ).execute()
-            if outcome is PostOutcome.failed:
-                # Scripts rely on the exit code: a failed download is not a success.
-                raise typer.Exit(1)
-            return
-
-        _show_start_summary(
-            pr=app.reporter,
-            destination_directory=settings.destination_dir,
-            content_type_filter=content_type_filter,
-        )
-
+        failed = False
         try:
-            await DownloadAllPostUseCase(
-                author_name=settings.author_name,
-                boosty_api=app.api,
-                destination=settings.destination_dir,
-                download_context=downloading_context,
-                skip_all_failures=skip_all_failures,
-            ).execute()
+            if post_id is not None:
+                outcome = await DownloadPostByIdUseCase(
+                    post_id=post_id,
+                    boosty_api=app.api,
+                    destination=settings.destination_dir,
+                    download_context=downloading_context,
+                ).execute()
+                failed = outcome is PostOutcome.failed
+            else:
+                _show_start_summary(
+                    pr=app.reporter,
+                    destination_directory=settings.destination_dir,
+                    content_type_filter=content_type_filter,
+                )
+                await DownloadAllPostUseCase(
+                    author_name=settings.author_name,
+                    boosty_api=app.api,
+                    destination=settings.destination_dir,
+                    download_context=downloading_context,
+                    skip_all_failures=skip_all_failures,
+                ).execute()
         finally:
             # Also after a systemic stop or Ctrl+C: what got done is still news.
             stats = downloading_context.run_statistics
             app.reporter.console.print(
                 render_run_statistics(stats, elapsed_seconds=stats.elapsed_seconds())
             )
+        if failed:
+            # Scripts rely on the exit code: a failed download is not a success.
+            raise typer.Exit(1)
 
 
 def register(app: typer.Typer) -> None:
@@ -244,10 +263,13 @@ def register(app: typer.Typer) -> None:
         if dry_run and post_url is not None:
             msg = '--dry-run previews the full-blog run; combine it with --post-url is not supported'
             raise typer.BadParameter(msg)
+        # A broken link or a post of another creator fails here, before any
+        # config is read or request is made.
+        post_id = _post_id_of(post_url, username) if post_url is not None else None
         asyncio.run(
             _download_handler(
                 username=username,
-                post_url=post_url,
+                post_id=post_id,
                 content_type_filter=(
                     content_type_filter or list(DownloadContentTypeFilter)
                 ),

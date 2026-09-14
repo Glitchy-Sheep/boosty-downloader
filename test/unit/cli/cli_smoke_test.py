@@ -6,6 +6,7 @@ command registration and argument parsing.
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 import pytest
@@ -17,6 +18,13 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 runner = CliRunner()
+
+_ANSI = re.compile(r'\x1b\[[0-9;]*[A-Za-z]')
+
+
+def _plain_text(output: str) -> str:
+    """The message as words: no colors, no panel frame, no line wrapping."""
+    return ' '.join(_ANSI.sub('', output).replace('│', ' ').split())
 
 
 @pytest.mark.parametrize(
@@ -55,6 +63,22 @@ def test_the_old_username_flag_is_gone() -> None:
     assert 'No such option' in result.output
 
 
+@pytest.mark.parametrize(
+    ('url', 'expected'),
+    [
+        ('https://boosty.to/someone', 'not a Boosty post link'),
+        ('https://boosty.to/other/posts/a2dd6942', "belongs to 'other'"),
+    ],
+    ids=['not-a-post-link', 'another-creator'],
+)
+def test_post_url_is_checked_before_anything_runs(url: str, expected: str) -> None:
+    """Bug: a post of creator B was saved and cached under creator A's name."""
+    result = runner.invoke(typer_app, ['download', 'someone', '--post-url', url])
+
+    assert result.exit_code == 2
+    assert expected in _plain_text(result.output)
+
+
 def test_clean_cache_runs_without_an_event_loop(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -70,5 +94,4 @@ def test_clean_cache_runs_without_an_event_loop(
     )
 
     assert result.exit_code == 0, result.output
-    # rich wraps log lines at the terminal width; compare without the wrapping.
-    assert 'nothing to clean' in ' '.join(result.output.split())
+    assert 'nothing to clean' in _plain_text(result.output)
