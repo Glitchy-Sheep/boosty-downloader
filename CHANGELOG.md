@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 4.1.0
+
 ### Changed
 
 - HTTP 429 (rate limited) answers are now retried like connection errors, and the pauses between transport retries grew from a fraction of a second to 2, 4, 8 and 16 seconds
