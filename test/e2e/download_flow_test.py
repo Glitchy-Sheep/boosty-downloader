@@ -198,6 +198,8 @@ async def test_full_run_builds_the_expected_post_tree(tmp_path: Path) -> None:
 
         assert reporter.errors == []
         _assert_post_tree(tmp_path)
+        html = (tmp_path / POST_DIR_NAME / 'post.html').read_text(encoding='utf-8')
+        assert '<a href="files/fixture-archive.zip">fixture-archive.zip</a>' in html
         # The closing statistics must describe exactly what landed on disk.
         assert stats.posts_downloaded == 1
         assert stats.media == MediaCounts(images=1, files=1, boosty_videos=1, audio=1)
@@ -327,6 +329,10 @@ async def test_retried_post_fetches_only_the_failed_part_and_is_counted_once(
         assert any('Attempt 1 failed' in warning for warning in reporter.warnings)
         assert reporter.errors == []
         _assert_post_tree(tmp_path)
+        html = (tmp_path / POST_DIR_NAME / 'post.html').read_text(encoding='utf-8')
+        # The page was written on the first attempt, before the file landed.
+        # A link to it appears once pages can be rebuilt from what is on disk.
+        assert 'files/fixture-archive.zip' not in html
         # First attempt: image, file (404), video, audio. Second attempt: the file.
         assert len(served_media) == 5, served_media
         assert '/file/' in served_media[-1], (

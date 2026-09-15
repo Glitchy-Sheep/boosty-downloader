@@ -26,6 +26,7 @@ from boosty_downloader.application.filtering import (
 )
 from boosty_downloader.application.mappers.html_converter import (
     convert_audio_to_html,
+    convert_file_to_html,
     convert_list_to_html,
     convert_text_to_html,
     convert_video_to_html,
@@ -122,8 +123,8 @@ MediaChunk = (
 )
 
 
-def _page_element(chunk: MediaChunk, saved_as: Path) -> HtmlGenChunk | None:
-    """Build the element post.html shows for a saved media file; attachments have none."""
+def _page_element(chunk: MediaChunk, saved_as: Path) -> HtmlGenChunk:
+    """Build the element post.html shows for a saved media file."""
     match chunk:
         case PostDataChunkImage():
             return HtmlGenImage(url=str(saved_as), alt=saved_as.name)
@@ -134,7 +135,7 @@ def _page_element(chunk: MediaChunk, saved_as: Path) -> HtmlGenChunk | None:
         case PostDataChunkAudio():
             return convert_audio_to_html(src=str(saved_as), title=chunk.title)
         case PostDataChunkFile():
-            return None
+            return convert_file_to_html(src=str(saved_as), filename=chunk.filename)
 
 
 def compose_post_directory_name(title: str, created_at: datetime, post_id: str) -> str:
@@ -257,8 +258,9 @@ class DownloadSinglePostUseCase:
             )
             failed_types = {failure.kind for failure in outcome.failures}
             if DownloadContentTypeFilter.post_content in missing_parts:
-                # Attachments are not on the page; any other failed chunk
-                # would leave a hole in it, so the page waits for the retry.
+                # A failed attachment is left off the page and does not hold
+                # it back. Any other failed chunk would leave a hole in the
+                # page, so the page waits for the retry.
                 if failed_types - {DownloadContentTypeFilter.files}:
                     failed_types.add(DownloadContentTypeFilter.post_content)
                 else:

@@ -1,5 +1,16 @@
 ## Unreleased
 
+### Changed
+
+- The title of a Boosty video is shown above its player in `post.html`, the way audio titles already were
+
+### Fixed
+
+- Attachments are now linked in `post.html`: every file that downloaded gets a link on its own line at its place in the post, in the author's order, and the link opens the file. Before, files landed in `files/` but the page never mentioned them
+- Line breaks inside a paragraph (Shift+Enter in the Boosty editor) now show on the page. Before, they collapsed into a space
+- A heading with a styled word (bold, italic, underlined or a link) is now one heading with the style inside. Before, it split into a heading per fragment and lost the style
+- A post with an attachment the author has not finished uploading no longer fails after 5 attempts of 404: the unfinished file is skipped with a warning and picked up on a later run, the rest of the post downloads at once. `--dry-run` stops promising such files
+
 ## 4.1.0
 
 ### Changed

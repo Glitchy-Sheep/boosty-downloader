@@ -197,8 +197,8 @@ async def test_one_failed_chunk_lets_the_others_finish_and_keeps_their_types(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A dead file must not throw away the rest of the post: the siblings run to
-    the end, the page renders (attachments are not on it), post_content is cached,
-    files is not - and the failure still reaches the retrier.
+    the end, the page renders without the failed attachment, post_content is
+    cached, files is not - and the failure still reaches the retrier.
     """
     cancelled = 0
 
@@ -230,7 +230,7 @@ async def test_one_failed_chunk_lets_the_others_finish_and_keeps_their_types(
 
     assert info.value.resource == 'file-0.bin'
     assert cancelled == 0, 'the siblings must finish, not get cancelled'
-    assert rendered == [[]], 'the page renders: a failed attachment is not on it'
+    assert rendered == [[]], 'the page renders; the failed attachment is not on it'
     assert context.post_cache.cached == [[POST_CONTENT]]
     assert context.run_statistics.posts_downloaded == 0
 

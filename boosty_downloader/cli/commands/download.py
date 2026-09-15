@@ -241,8 +241,8 @@ def register(app: typer.Typer) -> None:
 
             - Use multiple `-f` flags to select content types (all included by default).
             - Example: [italic]boosty-downloader download <USERNAME> -f files -f post_content[/italic]
-            - [bold red]NOTE:[/bold red] If you specify [italic]post_content[/italic] without [italic]boosty_videos[/italic] or [italic]external_videos[/italic],
-                    videos won't attach to post previews due to cache limitations.
+            - [bold red]NOTE:[/bold red] If you specify [italic]post_content[/italic] without [italic]boosty_videos[/italic], [italic]external_videos[/italic] or [italic]files[/italic],
+                    those videos and attachments won't appear on the post page due to cache limitations.
             - For best results, just leave all filters by default.
 
 

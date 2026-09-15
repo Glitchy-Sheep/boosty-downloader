@@ -12,3 +12,6 @@ class BoostyPostDataFileDTO(BoostyBaseDTO):
     url: str
     title: str
     size: int | None = None
+    # False while the author's upload is still running: the url answers
+    # 404 until it finishes. A missing flag means the file is there.
+    complete: bool = True
