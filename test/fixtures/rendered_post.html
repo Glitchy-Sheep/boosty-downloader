@@ -177,6 +177,42 @@
             margin-top: 0.1rem;
         }
 
+        /* A media piece that did not download: its place on the page and the reason */
+        .unavailable {
+            display: flex;
+            align-items: center;
+            gap: 0.9rem;
+            margin: 0.75rem 0;
+            padding: 0.7rem 1rem;
+            border: 1px dashed var(--border-color);
+            border-radius: 10px;
+            color: var(--muted-color);
+        }
+
+        .unavailable-icon {
+            font-size: 1.6rem;
+            line-height: 1;
+            flex: none;
+        }
+
+        .unavailable-title {
+            display: block;
+            font-weight: bold;
+            color: var(--text-color);
+            word-break: break-word;
+        }
+
+        .unavailable-reason {
+            display: block;
+            font-size: 0.85rem;
+        }
+
+        .unavailable-link {
+            display: inline-block;
+            font-size: 0.85rem;
+            margin-top: 0.2rem;
+        }
+
         #theme-toggle {
             position: fixed;
             top: 0.5rem;
@@ -254,6 +290,21 @@ This paragraph contains a mix of <strong>bold</strong>, <em>italic</em>, and <u>
         <source src="https://www.youtube.com/watch?v=dQw4w9WgXcQ">
         Your browser does not support the video tag.
     </video>
+</div>
+<div class="unavailable">
+    <span class="unavailable-icon">⚠️</span>
+    <span class="unavailable-text">
+        <span class="unavailable-title">Video not downloaded: https://www.youtube.com/watch?v=gone</span>
+        <span class="unavailable-reason">Couldn&#39;t download resource: External video unavailable or access restricted (can&#39;t get info)</span>
+        <a class="unavailable-link" href="https://www.youtube.com/watch?v=gone">Open the original</a>
+    </span>
+</div>
+<div class="unavailable">
+    <span class="unavailable-icon">⚠️</span>
+    <span class="unavailable-text">
+        <span class="unavailable-title">Image not downloaded</span>
+        <span class="unavailable-reason">Couldn&#39;t download resource: Unexpected status code: 404</span>
+    </span>
 </div>
 <br>
 <h2>Thanks for <strong>reading</strong>!</h2>

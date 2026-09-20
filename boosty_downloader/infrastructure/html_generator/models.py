@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Literal
 
 
 @dataclass
@@ -89,7 +90,28 @@ class HtmlGenAudio:
     title: str | None = None
 
 
+UnavailableKind = Literal['image', 'video', 'audio']
+
+
+@dataclass
+class HtmlGenUnavailable:
+    """A media piece that did not download: the page marks its place and says why."""
+
+    kind: UnavailableKind
+    reason: str
+    # The name the author gave the piece; empty for images, which have none.
+    label: str = ''
+    # Where the piece lives outside Boosty (external videos): the reader can try it there.
+    source_url: str | None = None
+
+
 # Union type for all HTML chunk types
 HtmlGenChunk = (
-    HtmlGenText | HtmlGenImage | HtmlGenVideo | HtmlGenList | HtmlGenFile | HtmlGenAudio
+    HtmlGenText
+    | HtmlGenImage
+    | HtmlGenVideo
+    | HtmlGenList
+    | HtmlGenFile
+    | HtmlGenAudio
+    | HtmlGenUnavailable
 )

@@ -1,0 +1,10 @@
+<div class="unavailable">
+    <span class="unavailable-icon">⚠️</span>
+    <span class="unavailable-text">
+        <span class="unavailable-title">{{ title }}</span>
+        <span class="unavailable-reason">{{ item.reason }}</span>
+{% if item.source_url %}
+        <a class="unavailable-link" href="{{ item.source_url }}">Open the original</a>
+{% endif %}
+    </span>
+</div>
