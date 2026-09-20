@@ -1,0 +1,11 @@
+<div class="attachments">
+{% for file in files %}
+    <a class="attachment" href="{{ file.src }}">
+        <span class="attachment-icon">{{ file.icon }}</span>
+        <span class="attachment-text">
+            <span class="attachment-name">{{ file.name }}</span>
+            <span class="attachment-meta">{{ file.meta }}</span>
+        </span>
+    </a>
+{% endfor %}
+</div>

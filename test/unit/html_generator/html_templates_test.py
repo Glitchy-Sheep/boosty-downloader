@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 
+import pytest
+
 from boosty_downloader.infrastructure.html_generator.models import (
     HtmlGenAudio,
     HtmlGenChunk,
@@ -178,7 +180,10 @@ def _showcase_chunks() -> list[HtmlGenChunk]:
             # as text, never as tags.
             url='files/release-notes.zip',
             filename='release <v2> & notes.zip',
+            size=5_660_000,
         ),
+        # Two files in a row share one block; this one has no size to show.
+        HtmlGenFile(url='files/lesson.mp4', filename='lesson.mp4'),
         HtmlGenAudio(title='fixture-song.mp3', url='audio/fixture-song.mp3'),
     ]
 
@@ -195,6 +200,60 @@ def test_html_generator_templates(tmp_path: Path):
     assert test_output_file.exists()
     assert test_output_file.read_text(encoding='utf-8') == data
     assert len(data) > 0
+
+
+@pytest.mark.parametrize(
+    ('filename', 'icon'),
+    [
+        ('clip.mp4', '🎬'),
+        ('song.mp3', '🎵'),
+        ('PHOTO.JPG', '🖼'),
+        ('notes.txt', '📄'),
+        ('slides.pdf', '📄'),
+        ('archive.tar.gz', '📦'),
+        ('README', '📎'),
+    ],
+)
+def test_attachment_icon_follows_the_file_type(filename: str, icon: str) -> None:
+    """A video file next to a video player must read as a file, not as a second player."""
+    html = render_html_chunk(HtmlGenFile(url=f'files/{filename}', filename=filename))
+
+    assert f'<span class="attachment-icon">{icon}</span>' in html
+
+
+@pytest.mark.parametrize(
+    ('filename', 'size', 'meta'),
+    [
+        ('стрим-1.mp4', 30383, 'File · MP4 · 29.7 KB'),
+        ('notes.txt', 901, 'File · TXT · 901 B'),
+        ('dataset.7z', None, 'File · 7Z'),
+        ('README', 87, 'File · 87 B'),
+        ('v1.2 (final)', 10, 'File · 10 B'),
+    ],
+    ids=['type-and-size', 'bytes', 'no-size', 'no-type', 'suffix-is-not-a-type'],
+)
+def test_attachment_meta_names_what_is_known(
+    filename: str, size: int | None, meta: str
+) -> None:
+    html = render_html_chunk(HtmlGenFile(url='files/x', filename=filename, size=size))
+
+    assert f'<span class="attachment-meta">{meta}</span>' in html
+
+
+def test_neighbouring_attachments_share_one_block() -> None:
+    """Nine files in a row must not become nine boxes with gaps."""
+    chunks: list[HtmlGenChunk] = [
+        HtmlGenFile(url='files/a.txt', filename='a.txt'),
+        HtmlGenFile(url='files/b.txt', filename='b.txt'),
+        HtmlGenImage(url='images/i.png'),
+        HtmlGenFile(url='files/c.txt', filename='c.txt'),
+    ]
+
+    html = render_html(chunks, page_title='files')
+
+    assert html.count('<div class="attachments">') == 2
+    assert html.count('class="attachment"') == 3
+    assert html.index('b.txt') < html.index('images/i.png') < html.index('c.txt')
 
 
 def test_a_styled_word_keeps_the_heading_in_one_piece() -> None:

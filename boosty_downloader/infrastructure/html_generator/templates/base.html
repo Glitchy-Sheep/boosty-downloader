@@ -20,6 +20,8 @@
             --content-bg-color: #fff;
             --content-shadow: rgba(0, 0, 0, 0.1);
             --border-color: #ccc;
+            --muted-color: #666;
+            --hover-bg-color: #f3f3f3;
         }
 
         html.dark {
@@ -29,6 +31,8 @@
             --content-bg-color: #1e1e1e;
             --content-shadow: rgba(0, 0, 0, 0.7);
             --border-color: #444;
+            --muted-color: #9a9a9a;
+            --hover-bg-color: #2a2a2a;
         }
 
         /* Общие стили */
@@ -128,8 +132,49 @@
             width: 100%;
         }
 
+        /* Attached files: one block per run of files, a card per file */
+        .attachments {
+            margin: 0.75rem 0;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
         .attachment {
-            margin: 0.5rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.9rem;
+            padding: 0.7rem 1rem;
+            font-weight: normal;
+            color: var(--text-color);
+        }
+
+        .attachment + .attachment {
+            border-top: 1px solid var(--border-color);
+        }
+
+        .attachment:hover {
+            background-color: var(--hover-bg-color);
+            text-decoration: none;
+        }
+
+        .attachment-icon {
+            font-size: 1.6rem;
+            line-height: 1;
+            flex: none;
+        }
+
+        .attachment-name {
+            font-weight: bold;
+            color: var(--link-color);
+            word-break: break-word;
+        }
+
+        .attachment-meta {
+            display: block;
+            color: var(--muted-color);
+            font-size: 0.85rem;
+            margin-top: 0.1rem;
         }
 
         #theme-toggle {

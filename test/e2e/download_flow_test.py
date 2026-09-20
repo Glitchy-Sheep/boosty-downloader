@@ -199,7 +199,10 @@ async def test_full_run_builds_the_expected_post_tree(tmp_path: Path) -> None:
         assert reporter.errors == []
         _assert_post_tree(tmp_path)
         html = (tmp_path / POST_DIR_NAME / 'post.html').read_text(encoding='utf-8')
-        assert '<a href="files/fixture-archive.zip">fixture-archive.zip</a>' in html
+        assert 'href="files/fixture-archive.zip"' in html
+        # The card names the file and shows the size the API reported.
+        assert 'fixture-archive.zip' in html
+        assert 'File · ZIP · 4.2 MB' in html
         # The closing statistics must describe exactly what landed on disk.
         assert stats.posts_downloaded == 1
         assert stats.media == MediaCounts(images=1, files=1, boosty_videos=1, audio=1)
