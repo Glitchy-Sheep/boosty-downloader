@@ -10,11 +10,13 @@ from boosty_downloader.infrastructure.html_generator.models import (
     HtmlGenImage,
     HtmlGenList,
     HtmlGenText,
+    HtmlGenUnavailable,
     HtmlGenVideo,
     HtmlListItem,
     HtmlListStyle,
     HtmlTextFragment,
     HtmlTextStyle,
+    UnavailableKind,
 )
 from boosty_downloader.infrastructure.html_generator.renderer import (
     render_html,
@@ -161,6 +163,18 @@ def _showcase_chunks() -> list[HtmlGenChunk]:
             url='https://example.com/video.mp4',
         ),
         HtmlGenVideo(url='https://www.youtube.com/watch?v=dQw4w9WgXcQ'),
+        # Pieces that did not download keep their place on the page.
+        HtmlGenUnavailable(
+            kind=UnavailableKind.VIDEO,
+            label='https://www.youtube.com/watch?v=gone',
+            reason="Couldn't download resource: External video unavailable "
+            "or access restricted (can't get info)",
+            source_url='https://www.youtube.com/watch?v=gone',
+        ),
+        HtmlGenUnavailable(
+            kind=UnavailableKind.IMAGE,
+            reason="Couldn't download resource: Unexpected status code: 404",
+        ),
         HtmlGenText(
             text_fragments=[
                 HtmlTextFragment(text='\n'),
@@ -254,6 +268,31 @@ def test_neighbouring_attachments_share_one_block() -> None:
     assert html.count('<div class="attachments">') == 2
     assert html.count('class="attachment"') == 3
     assert html.index('b.txt') < html.index('images/i.png') < html.index('c.txt')
+
+
+def test_a_missing_video_names_itself_and_links_to_the_original() -> None:
+    """The reader must see what is missing, why, and where to try it themselves."""
+    html = render_html_chunk(
+        HtmlGenUnavailable(
+            kind=UnavailableKind.VIDEO,
+            label='Stream <part 2>',
+            reason='Unexpected status code: 403',
+            source_url='https://www.youtube.com/watch?v=gone',
+        )
+    )
+
+    assert 'Video not downloaded: Stream &lt;part 2&gt;' in html
+    assert 'Unexpected status code: 403' in html
+    assert 'href="https://www.youtube.com/watch?v=gone">Open the original</a>' in html
+
+
+def test_a_missing_image_has_no_name_and_no_link() -> None:
+    html = render_html_chunk(
+        HtmlGenUnavailable(kind=UnavailableKind.IMAGE, reason='connection lost')
+    )
+
+    assert '<span class="unavailable-title">Image not downloaded</span>' in html
+    assert 'Open the original' not in html
 
 
 def test_a_styled_word_keeps_the_heading_in_one_piece() -> None:

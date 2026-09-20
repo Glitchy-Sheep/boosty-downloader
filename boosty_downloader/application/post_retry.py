@@ -137,6 +137,7 @@ class PostDownloadRetrier:
             return None
         fresh_attempt = self._build_attempt(fresh_dto)
         fresh_attempt.refreshed = True
+        fresh_attempt.use_case.take_page_from(attempt_state.use_case)
         return fresh_attempt
 
     def _skip_after_retries(

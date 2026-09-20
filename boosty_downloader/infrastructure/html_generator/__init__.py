@@ -7,11 +7,13 @@ from .models import (
     HtmlGenImage,
     HtmlGenList,
     HtmlGenText,
+    HtmlGenUnavailable,
     HtmlGenVideo,
     HtmlListItem,
     HtmlListStyle,
     HtmlTextFragment,
     HtmlTextStyle,
+    UnavailableKind,
 )
 from .renderer import render_html_to_file
 
@@ -22,10 +24,12 @@ __all__ = [
     'HtmlGenImage',
     'HtmlGenList',
     'HtmlGenText',
+    'HtmlGenUnavailable',
     'HtmlGenVideo',
     'HtmlListItem',
     'HtmlListStyle',
     'HtmlTextFragment',
     'HtmlTextStyle',
+    'UnavailableKind',
     'render_html_to_file',
 ]

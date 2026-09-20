@@ -48,6 +48,8 @@ from boosty_downloader.domain.post_data_chunks import (
 from boosty_downloader.infrastructure.html_generator import (
     HtmlGenChunk,
     HtmlGenImage,
+    HtmlGenUnavailable,
+    UnavailableKind,
 )
 from boosty_downloader.infrastructure.html_generator.renderer import (
     render_html_to_file,
@@ -108,7 +110,8 @@ class _ChunkFailure:
 class _ChunksOutcome:
     """What one pass over the post's chunks produced."""
 
-    # Page elements of the chunks that made it, in the author's order.
+    # Page elements in the author's order: the chunks that made it and a
+    # placeholder for every media piece that failed.
     page: list[HtmlGenChunk]
     failures: list[_ChunkFailure]
 
@@ -140,6 +143,33 @@ def _page_element(chunk: MediaChunk, saved_as: Path) -> HtmlGenChunk:
             )
 
 
+def _page_placeholder(
+    chunk: PostDataAllChunks, reason: str
+) -> HtmlGenUnavailable | None:
+    """Build the element post.html shows in place of a media piece that failed."""
+    match chunk:
+        case PostDataChunkImage():
+            return HtmlGenUnavailable(kind=UnavailableKind.IMAGE, reason=reason)
+        case PostDataChunkBoostyVideo():
+            return HtmlGenUnavailable(
+                kind=UnavailableKind.VIDEO, reason=reason, label=chunk.title
+            )
+        case PostDataChunkExternalVideo():
+            return HtmlGenUnavailable(
+                kind=UnavailableKind.VIDEO,
+                reason=reason,
+                label=chunk.url,
+                source_url=chunk.url,
+            )
+        case PostDataChunkAudio():
+            return HtmlGenUnavailable(
+                kind=UnavailableKind.AUDIO, reason=reason, label=chunk.title
+            )
+        case _:
+            # Only downloaded attachments get a card; text never fails.
+            return None
+
+
 def compose_post_directory_name(title: str, created_at: datetime, post_id: str) -> str:
     """
     One folder per post: 'YYYY-MM-DD - Title (id8)'.
@@ -160,7 +190,9 @@ class DownloadSinglePostUseCase:
 
     Media chunks download in parallel through PostMediaDownloader; the page
     is rendered from the chunks of this run and the cache remembers which
-    content types finished.
+    content types finished. A retry processes the failed types only, so the
+    page elements of every attempt are kept and the page is rewritten from
+    all of them.
     """
 
     def __init__(
@@ -182,6 +214,24 @@ class DownloadSinglePostUseCase:
         )
         self._attempt_bytes: defaultdict[DownloadContentTypeFilter, int] = defaultdict(
             int
+        )
+        # Page elements of the chunks processed in this run, by chunk index:
+        # a placeholder for a failed piece until a retry replaces it.
+        self._page_elements: dict[int, HtmlGenChunk] = {}
+        self._page_written = False
+
+    def take_page_from(self, previous: DownloadSinglePostUseCase) -> None:
+        """Keep the page of an earlier attempt when the post is rebuilt with fresh links."""
+        if len(previous.post_dto.data) != len(self.post_dto.data):
+            return
+        self._page_elements = dict(previous._page_elements)
+        self._page_written = previous._page_written
+
+    def _renders_page(self, missing_parts: list[DownloadContentTypeFilter]) -> bool:
+        """Whether this attempt writes post.html: first time, or a rewrite after a retry."""
+        return (
+            DownloadContentTypeFilter.post_content in missing_parts
+            or self._page_written
         )
 
     @cached_property
@@ -259,14 +309,15 @@ class DownloadSinglePostUseCase:
                 post, missing_parts, post_task_id
             )
             failed_types = {failure.kind for failure in outcome.failures}
-            if DownloadContentTypeFilter.post_content in missing_parts:
-                # A failed attachment is left off the page and does not hold
-                # it back. Any other failed chunk would leave a hole in the
-                # page, so the page waits for the retry.
+            if self._renders_page(missing_parts):
+                # The page is written from what landed, a failed piece shows
+                # a placeholder at its place. A hole other than an attachment
+                # keeps post_content out of the cache: the retry and the next
+                # run process the post again and rewrite the page.
+                self._render_page(post, outcome.page)
+                self._page_written = True
                 if failed_types - {DownloadContentTypeFilter.files}:
                     failed_types.add(DownloadContentTypeFilter.post_content)
-                else:
-                    self._render_page(post, outcome.page)
 
             finished_types = [p for p in missing_parts if p not in failed_types]
             self._remember(post, finished_types, mapping_result)
@@ -346,12 +397,17 @@ class DownloadSinglePostUseCase:
             await _stop_tasks(tasks)
             raise ApplicationCancelledError(post_uuid=post.uuid) from e
 
-        page: list[HtmlGenChunk] = []
         failures: list[_ChunkFailure] = []
-        for chunk, result in zip(post.post_data_chunks, results, strict=True):
+        renders_page = self._renders_page(missing_parts)
+        for index, (chunk, result) in enumerate(
+            zip(post.post_data_chunks, results, strict=True)
+        ):
             match result:
                 case ApplicationFailedDownloadError():
                     failures.append(_ChunkFailure(CHUNK_TO_FILTER[type(chunk)], result))
+                    placeholder = _page_placeholder(chunk, result.message)
+                    if renders_page and placeholder is not None:
+                        self._page_elements[index] = placeholder
                 case BaseException():
                     # Cancellation inside a chunk, or an unexpected error:
                     # not a per-chunk failure, the post as a whole stops.
@@ -359,7 +415,8 @@ class DownloadSinglePostUseCase:
                 case None:
                     pass
                 case _:
-                    page.append(result)
+                    self._page_elements[index] = result
+        page = [self._page_elements[index] for index in sorted(self._page_elements)]
         return _ChunksOutcome(page=page, failures=failures)
 
     def _start_post_task(self, post: Post) -> UUID:
@@ -413,7 +470,7 @@ class DownloadSinglePostUseCase:
         saved_as = await self._download_media(chunk)
         # Media that is not part of the page this run still downloads;
         # it just gets no element in post.html.
-        if DownloadContentTypeFilter.post_content not in missing_parts:
+        if not self._renders_page(missing_parts):
             return None
         return _page_element(chunk, saved_as)
 

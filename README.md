@@ -125,6 +125,7 @@ One bad link never costs you the whole run:
 
 - A failed download is retried up to 5 times with growing pauses; a link that expired mid-way is refreshed from the API once.
 - A post with one dead link keeps everything else: the parts that finished are remembered right away, and only the failed part is fetched again.
+- `post.html` is written anyway: a picture, video or audio track that did not download leaves a note at its place with the reason, so the post stays readable. The note goes away once a retry or a later run brings the piece.
 - A post that still fails is skipped, and the run continues.
 - Every skipped post is written to `failed_downloads.log` next to your downloads.
 - At the end, a summary lists everything that was skipped and why.

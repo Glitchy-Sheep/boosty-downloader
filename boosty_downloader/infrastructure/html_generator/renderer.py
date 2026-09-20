@@ -21,6 +21,7 @@ from boosty_downloader.infrastructure.html_generator.models import (
     HtmlGenImage,
     HtmlGenList,
     HtmlGenText,
+    HtmlGenUnavailable,
     HtmlGenVideo,
 )
 from boosty_downloader.infrastructure.human_readable_filesize import (
@@ -156,7 +157,13 @@ def _group_attachments(
         yield run
 
 
-def render_html_chunk(chunk: HtmlGenChunk) -> str:
+def _unavailable_title(item: HtmlGenUnavailable) -> str:
+    """'Video not downloaded: <title>' or, without a name, 'Image not downloaded'."""
+    title = f'{item.kind.value.capitalize()} not downloaded'
+    return f'{title}: {item.label}' if item.label else title
+
+
+def render_html_chunk(chunk: HtmlGenChunk) -> str:  # noqa: PLR0911 - one template per chunk kind
     """Render a single HtmlGenChunk to its HTML representation."""
     match chunk:
         case HtmlGenText():
@@ -181,6 +188,10 @@ def render_html_chunk(chunk: HtmlGenChunk) -> str:
             )
         case HtmlGenFile():
             return _render_attachments([chunk])
+        case HtmlGenUnavailable():
+            return env.get_template('unavailable.html').render(
+                item=chunk, title=_unavailable_title(chunk)
+            )
 
 
 def render_html(chunks: list[HtmlGenChunk], page_title: str) -> str:

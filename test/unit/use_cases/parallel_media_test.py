@@ -32,6 +32,12 @@ from boosty_downloader.domain.post_data_chunks import (
     PostDataChunkImage,
 )
 from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
+from boosty_downloader.infrastructure.html_generator.models import (
+    HtmlGenFile,
+    HtmlGenImage,
+    HtmlGenUnavailable,
+    UnavailableKind,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -235,12 +241,14 @@ async def test_one_failed_chunk_lets_the_others_finish_and_keeps_their_types(
     assert context.run_statistics.posts_downloaded == 0
 
 
-async def test_a_failed_page_element_blocks_the_page_but_not_the_other_types(
+async def test_a_failed_page_element_becomes_a_placeholder_and_keeps_the_page_uncached(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """A missing image would leave a hole in post.html: the page waits for the
-    retry, while the files that finished are cached now.
+    """The page is written with a note at the image's place, so the post stays
+    readable. post_content is not cached: a cached page with a hole could never
+    be rewritten, an uncached one is rewritten by the retry or the next run.
     """
+    image_ok = False
 
     async def scripted(
         self: DownloadSinglePostUseCase,
@@ -249,10 +257,12 @@ async def test_a_failed_page_element_blocks_the_page_but_not_the_other_types(
         post: object,
     ) -> object:
         del self, missing, post
-        if isinstance(chunk, PostDataChunkImage):
-            image_failure = _fail('i1')
-            raise image_failure
-        return None
+        if not isinstance(chunk, PostDataChunkImage):
+            return None
+        if image_ok:
+            return HtmlGenImage(url='images/i1.png')
+        image_failure = _fail('i1')
+        raise image_failure
 
     monkeypatch.setattr(DownloadSinglePostUseCase, '_safely_process_chunk', scripted)
     rendered = _patch_render(monkeypatch)
@@ -261,8 +271,57 @@ async def test_a_failed_page_element_blocks_the_page_but_not_the_other_types(
     with pytest.raises(ApplicationFailedDownloadError):
         await use_case.execute()
 
-    assert rendered == [], 'no page without its image'
-    assert context.post_cache.cached == [[FILES]]
+    assert rendered == [
+        [HtmlGenUnavailable(kind=UnavailableKind.IMAGE, reason='dead link')]
+    ]
+    assert context.post_cache.cached == [[FILES]], 'a page with a hole is not cached'
+
+    # The retry brings the image: the page is rewritten without the note.
+    image_ok = True
+    await use_case.execute()
+
+    assert rendered[-1] == [HtmlGenImage(url='images/i1.png')]
+    assert context.post_cache.cached[-1] == [FILES, POST_CONTENT]
+
+
+async def test_a_retry_keeps_the_page_elements_of_the_earlier_attempt(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A retry fetches the failed type only; the page must still carry the pieces
+    that landed before, or a rewrite after a retry would drop the videos and files
+    of the first attempt.
+    """
+    file_card = HtmlGenFile(url='files/file-0.bin', filename='file-0.bin')
+    image_ok = False
+
+    async def scripted(
+        self: DownloadSinglePostUseCase,
+        chunk: PostDataAllChunks,
+        missing: object,
+        post: object,
+    ) -> object:
+        del self, missing, post
+        if isinstance(chunk, PostDataChunkFile):
+            # Cached after the first attempt: the retry does not touch it.
+            return None if image_ok else file_card
+        if image_ok:
+            return HtmlGenImage(url='images/i1.png')
+        image_failure = _fail('i1')
+        raise image_failure
+
+    monkeypatch.setattr(DownloadSinglePostUseCase, '_safely_process_chunk', scripted)
+    rendered = _patch_render(monkeypatch)
+    use_case, _ = _use_case(tmp_path, [_image(), _file(0)])
+
+    with pytest.raises(ApplicationFailedDownloadError):
+        await use_case.execute()
+    image_ok = True
+    # Fresh signed links rebuild the use case; the page travels with them.
+    fresh_use_case, _ = _use_case(tmp_path, [_image(), _file(0)])
+    fresh_use_case.take_page_from(use_case)
+    await fresh_use_case.execute()
+
+    assert rendered[-1] == [HtmlGenImage(url='images/i1.png'), file_card]
 
 
 async def test_outer_cancel_keeps_the_application_contract(
