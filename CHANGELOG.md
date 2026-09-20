@@ -4,6 +4,11 @@
 
 - Attachments in `post.html` are file cards now: an icon by file type (video, audio, image, document, archive), the name, the type and the size, and files that stand next to each other share one block. Before, an attachment was a bare link that looked like any other link on the page
 
+### Fixed
+
+- A post whose picture, video or audio track failed to download no longer ends up without `post.html`: the page is written with a note at the place of the missing piece and the reason, and an external video also links to the original. The post is retried as before and the page is rewritten once the piece arrives
+- A page rewritten after a retry keeps the videos, audio and files that landed on the first attempt. Before, they were dropped from the page because their content types were already cached
+
 ## 4.2.0
 
 ### Changed
