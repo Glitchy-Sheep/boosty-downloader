@@ -65,6 +65,6 @@ def convert_audio_to_html(src: str, title: str) -> HtmlGenAudio:
     return HtmlGenAudio(url=src, title=title)
 
 
-def convert_file_to_html(src: str, filename: str) -> HtmlGenFile:
-    """Convert a saved attachment to HTML file model: a link under the author's name."""
-    return HtmlGenFile(url=src, filename=filename)
+def convert_file_to_html(src: str, filename: str, size: int | None) -> HtmlGenFile:
+    """Convert a saved attachment to HTML file model: a card under the author's name."""
+    return HtmlGenFile(url=src, filename=filename, size=size)

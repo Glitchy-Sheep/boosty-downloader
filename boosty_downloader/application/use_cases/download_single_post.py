@@ -135,7 +135,9 @@ def _page_element(chunk: MediaChunk, saved_as: Path) -> HtmlGenChunk:
         case PostDataChunkAudio():
             return convert_audio_to_html(src=str(saved_as), title=chunk.title)
         case PostDataChunkFile():
-            return convert_file_to_html(src=str(saved_as), filename=chunk.filename)
+            return convert_file_to_html(
+                src=str(saved_as), filename=chunk.filename, size=chunk.size
+            )
 
 
 def compose_post_directory_name(title: str, created_at: datetime, post_id: str) -> str:

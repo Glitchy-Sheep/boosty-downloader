@@ -77,6 +77,8 @@ class HtmlGenFile:
 
     url: str
     filename: str
+    # Bytes as the API reports them; None when unknown.
+    size: int | None = None
 
 
 @dataclass

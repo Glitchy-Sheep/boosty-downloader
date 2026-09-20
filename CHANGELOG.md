@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Changed
+
+- Attachments in `post.html` are file cards now: an icon by file type (video, audio, image, document, archive), the name, the type and the size, and files that stand next to each other share one block. Before, an attachment was a bare link that looked like any other link on the page
+
 ## 4.2.0
 
 ### Changed

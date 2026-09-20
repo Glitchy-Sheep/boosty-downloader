@@ -28,7 +28,9 @@ if TYPE_CHECKING:
 
 FILES = DownloadContentTypeFilter.files
 POST_CONTENT = DownloadContentTypeFilter.post_content
-ATTACHMENT = PostDataChunkFile(url='https://cdn.example/f', filename='report.pdf')
+ATTACHMENT = PostDataChunkFile(
+    url='https://cdn.example/f', filename='report.pdf', size=4321
+)
 
 
 class _QuietReporter:
@@ -74,7 +76,7 @@ async def test_a_saved_attachment_becomes_a_link_on_the_page() -> None:
     element = await _use_case()._process_chunk(ATTACHMENT, [FILES, POST_CONTENT])
 
     assert element == HtmlGenFile(
-        url=str(Path('files') / 'report.pdf'), filename='report.pdf'
+        url=str(Path('files') / 'report.pdf'), filename='report.pdf', size=4321
     )
 
 
