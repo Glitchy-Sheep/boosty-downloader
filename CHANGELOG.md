@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 4.2.0
+
 ### Changed
 
 - The title of a Boosty video is shown above its player in `post.html`, the way audio titles already were
