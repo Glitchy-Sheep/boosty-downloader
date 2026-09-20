@@ -8,6 +8,7 @@
 
 - A post whose picture, video or audio track failed to download no longer ends up without `post.html`: the page is written with a note at the place of the missing piece and the reason, and an external video also links to the original. The post is retried as before and the page is rewritten once the piece arrives
 - A page rewritten after a retry keeps the videos, audio and files that landed on the first attempt. Before, they were dropped from the page because their content types were already cached
+- An external video that is gone for good (deleted, private, blocked, an unsupported link) no longer costs 5 attempts: the post is skipped after the first one with the site's reason, for example "This video is unavailable", the rest of the post is saved and the page marks the video's place. Such posts do not count toward the 5-failures-in-a-row stop
 
 ## 4.2.0
 
