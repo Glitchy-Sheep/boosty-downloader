@@ -106,7 +106,7 @@ class DownloadPostByIdUseCase:
         )
         failed_posts: list[str] = []
         outcome = await self._post_retrier.download(post, failed_posts)
-        if outcome is PostOutcome.failed:
+        if outcome is not PostOutcome.downloaded:
             self.context.run_statistics.posts_failed += 1
 
         summary = format_run_summary([], collect_unknown_content(post), failed_posts)

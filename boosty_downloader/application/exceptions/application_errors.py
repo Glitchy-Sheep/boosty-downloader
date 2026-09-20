@@ -37,13 +37,18 @@ class ApplicationFailedDownloadError(ApplicationBaseDownloadError):
         Identifier or description of the resource that failed to download.
     message : str
         Human-readable details about the failure.
+    retryable : bool
+        False when the resource is gone for good and another attempt cannot help.
 
     """
 
-    def __init__(self, post_uuid: str, resource: str, message: str) -> None:
+    def __init__(
+        self, post_uuid: str, resource: str, message: str, *, retryable: bool = True
+    ) -> None:
         super().__init__(post_uuid)
         self.resource = resource
         self.message = message
+        self.retryable = retryable
 
 
 class ApplicationCancelledError(ApplicationBaseDownloadError):

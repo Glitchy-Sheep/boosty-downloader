@@ -147,6 +147,21 @@ async def test_media_error_becomes_an_application_error_and_is_logged(
     ]
 
 
+@pytest.mark.parametrize('retryable', [True, False], ids=['retryable', 'gone'])
+async def test_the_retry_flag_reaches_the_application_error(retryable: bool) -> None:  # noqa: FBT001 - parametrized flag
+    """The retrier reads the flag from the application error, not from the cause chain."""
+    use_case, _ = _use_case(
+        _FailingMedia(
+            MediaDownloadError('gone', resource_url=RESOURCE, retryable=retryable)
+        )
+    )
+
+    with pytest.raises(ApplicationFailedDownloadError) as info:
+        await _process_file_chunk(use_case)
+
+    assert info.value.retryable is retryable
+
+
 async def test_expired_link_stays_detectable_through_the_cause_chain() -> None:
     """The retrier refreshes the post only if it can still see the 400 underneath."""
     expired = DownloadUnexpectedStatusError(

@@ -33,6 +33,9 @@ class PostOutcome(Enum):
 
     downloaded = auto()
     failed = auto()
+    # A piece of the post is gone for good (a deleted video): the post is
+    # not complete, but nothing points at the disk or the network.
+    unavailable = auto()
 
 
 @dataclass
@@ -81,6 +84,10 @@ class PostDownloadRetrier:
                 if fresh_attempt is not None:
                     attempt_state = fresh_attempt
                     continue
+                if not e.retryable:
+                    return self._skip_unavailable(
+                        attempt_state.folder_name, failed_posts, e
+                    )
                 if attempt == MAX_DOWNLOAD_ATTEMPTS:
                     return self._skip_after_retries(
                         attempt_state.folder_name, failed_posts, e, attempts=attempt
@@ -156,6 +163,19 @@ class PostDownloadRetrier:
             f'{folder_name} ({error.message}){hint}'
         )
         return PostOutcome.failed
+
+    def _skip_unavailable(
+        self,
+        folder_name: str,
+        failed_posts: list[str],
+        error: ApplicationFailedDownloadError,
+    ) -> PostOutcome:
+        """Give up on a post at once: a piece that is gone for good does not come back."""
+        failed_posts.append(f'{folder_name} ({error.message})')
+        self.context.progress_reporter.error(
+            f'Skip post, retrying will not help: {folder_name} ({error.message})'
+        )
+        return PostOutcome.unavailable
 
     async def _skip_unexpected(
         self,

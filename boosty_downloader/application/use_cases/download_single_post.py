@@ -453,6 +453,7 @@ class DownloadSinglePostUseCase:
                 post_uuid=post.uuid,
                 message=f"Couldn't download resource: {e.message}",
                 resource=resource,
+                retryable=e.retryable,
             ) from e
 
     async def _process_chunk(

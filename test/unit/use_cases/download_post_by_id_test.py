@@ -250,6 +250,35 @@ async def test_failed_download_is_retried_then_a_failed_outcome(
     assert use_case.context.run_statistics.posts_failed == 1
 
 
+async def test_a_gone_video_ends_the_post_after_one_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #76: five attempts on a deleted video, minutes of noise for nothing."""
+    reporter = _FakeReporter()
+    api = _FakeApi(post=_post())
+    _script_download_error(
+        monkeypatch,
+        ApplicationFailedDownloadError(
+            post_uuid=POST_UUID,
+            message='External video unavailable: This video is unavailable',
+            resource='https://www.youtube.com/watch?v=gone',
+            retryable=False,
+        ),
+    )
+    _disable_retry_sleep(monkeypatch)
+    use_case = _use_case(api, reporter)
+
+    outcome = await use_case.execute()
+
+    assert outcome is PostOutcome.unavailable
+    assert not any('Attempt 1 failed' in m for m in reporter.warnings)
+    assert any(
+        'Skip post, retrying will not help' in m and 'This video is unavailable' in m
+        for m in reporter.errors
+    )
+    assert use_case.context.run_statistics.posts_failed == 1
+
+
 async def test_expired_link_is_refreshed_like_in_the_full_run(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

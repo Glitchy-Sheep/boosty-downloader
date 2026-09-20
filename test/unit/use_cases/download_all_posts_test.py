@@ -262,6 +262,37 @@ async def test_success_resets_the_streak(monkeypatch: pytest.MonkeyPatch) -> Non
     assert len(calls) == 9, 'four failures, a success, four more - never a stop'
 
 
+async def test_gone_videos_are_not_a_failure_streak(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Six posts with deleted videos in a row are six per-post facts, not a
+    broken disk: the run must not stop, and no post gets a second attempt.
+    """
+    reporter = _FakeReporter()
+    failed_logger = _FakeFailedLogger()
+    post_ids = [f'p{n}' for n in range(1, 7)]
+    calls = _script_outcomes(
+        monkeypatch,
+        {
+            post_id: ApplicationFailedDownloadError(
+                post_uuid=post_id,
+                message='External video unavailable: This video is unavailable',
+                resource='https://www.youtube.com/watch?v=gone',
+                retryable=False,
+            )
+            for post_id in post_ids
+        },
+    )
+    _disable_retry_sleep(monkeypatch)
+    use_case = _use_case(post_ids, reporter, failed_logger)
+
+    await use_case.execute()
+
+    assert calls == post_ids, 'one attempt per post, the run reaches the end'
+    assert use_case.context.run_statistics.posts_failed == 6
+    assert 'failed to download (6)' in reporter.warnings[-1]
+
+
 async def test_skip_all_failures_never_stops(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

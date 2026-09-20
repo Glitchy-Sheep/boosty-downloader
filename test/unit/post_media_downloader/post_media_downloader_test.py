@@ -28,6 +28,7 @@ from boosty_downloader.infrastructure.external_videos_downloader.external_videos
     ExtVideoError,
     ExtVideoInfoError,
     ExtVideoInterruptedByUserError,
+    ExtVideoUnavailableError,
 )
 from boosty_downloader.infrastructure.file_downloader import (
     DownloadCancelledError,
@@ -316,6 +317,30 @@ async def test_every_ext_video_error_becomes_a_media_error(
         )
 
     assert info.value.__cause__ is error
+    assert info.value.resource_url == 'https://youtube/watch'
+    assert info.value.retryable is True
+
+
+async def test_a_gone_video_is_a_media_error_that_says_not_to_retry(
+    tmp_path: Path,
+) -> None:
+    """The retrier spent 5 attempts on a deleted video; the reason must travel with the flag."""
+    gone = ExtVideoUnavailableError(
+        'https://youtube/watch', 'This video is unavailable'
+    )
+
+    class _GoneDownloader:
+        def download_video(self, **kwargs: object) -> Path:
+            del kwargs
+            raise gone
+
+    with pytest.raises(MediaDownloadError) as info:
+        await _downloader(tmp_path, _GoneDownloader()).download_external_video(
+            PostDataChunkExternalVideo(url='https://youtube/watch'), _noop
+        )
+
+    assert info.value.retryable is False
+    assert info.value.message == 'External video unavailable: This video is unavailable'
     assert info.value.resource_url == 'https://youtube/watch'
 
 
