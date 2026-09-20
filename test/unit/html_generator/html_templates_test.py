@@ -16,6 +16,7 @@ from boosty_downloader.infrastructure.html_generator.models import (
     HtmlListStyle,
     HtmlTextFragment,
     HtmlTextStyle,
+    UnavailableKind,
 )
 from boosty_downloader.infrastructure.html_generator.renderer import (
     render_html,
@@ -164,14 +165,14 @@ def _showcase_chunks() -> list[HtmlGenChunk]:
         HtmlGenVideo(url='https://www.youtube.com/watch?v=dQw4w9WgXcQ'),
         # Pieces that did not download keep their place on the page.
         HtmlGenUnavailable(
-            kind='video',
+            kind=UnavailableKind.VIDEO,
             label='https://www.youtube.com/watch?v=gone',
             reason="Couldn't download resource: External video unavailable "
             "or access restricted (can't get info)",
             source_url='https://www.youtube.com/watch?v=gone',
         ),
         HtmlGenUnavailable(
-            kind='image',
+            kind=UnavailableKind.IMAGE,
             reason="Couldn't download resource: Unexpected status code: 404",
         ),
         HtmlGenText(
@@ -273,7 +274,7 @@ def test_a_missing_video_names_itself_and_links_to_the_original() -> None:
     """The reader must see what is missing, why, and where to try it themselves."""
     html = render_html_chunk(
         HtmlGenUnavailable(
-            kind='video',
+            kind=UnavailableKind.VIDEO,
             label='Stream <part 2>',
             reason='Unexpected status code: 403',
             source_url='https://www.youtube.com/watch?v=gone',
@@ -286,7 +287,9 @@ def test_a_missing_video_names_itself_and_links_to_the_original() -> None:
 
 
 def test_a_missing_image_has_no_name_and_no_link() -> None:
-    html = render_html_chunk(HtmlGenUnavailable(kind='image', reason='connection lost'))
+    html = render_html_chunk(
+        HtmlGenUnavailable(kind=UnavailableKind.IMAGE, reason='connection lost')
+    )
 
     assert '<span class="unavailable-title">Image not downloaded</span>' in html
     assert 'Open the original' not in html

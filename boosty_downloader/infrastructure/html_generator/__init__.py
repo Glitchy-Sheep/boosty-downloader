@@ -13,6 +13,7 @@ from .models import (
     HtmlListStyle,
     HtmlTextFragment,
     HtmlTextStyle,
+    UnavailableKind,
 )
 from .renderer import render_html_to_file
 
@@ -29,5 +30,6 @@ __all__ = [
     'HtmlListStyle',
     'HtmlTextFragment',
     'HtmlTextStyle',
+    'UnavailableKind',
     'render_html_to_file',
 ]

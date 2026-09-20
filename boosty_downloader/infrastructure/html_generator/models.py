@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Literal
 
 
 @dataclass
@@ -90,7 +89,12 @@ class HtmlGenAudio:
     title: str | None = None
 
 
-UnavailableKind = Literal['image', 'video', 'audio']
+class UnavailableKind(Enum):
+    """What kind of media piece is missing from the page."""
+
+    IMAGE = 'image'
+    VIDEO = 'video'
+    AUDIO = 'audio'
 
 
 @dataclass

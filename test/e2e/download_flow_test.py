@@ -19,6 +19,7 @@ from aiohttp import ClientSession, web
 from aiohttp.test_utils import TestServer
 from aiohttp_retry import ExponentialRetry, RetryClient
 
+from boosty_downloader.application import post_retry as post_retry_module
 from boosty_downloader.application.blog_overview import MediaCounts
 from boosty_downloader.application.download_context import DownloadContext
 from boosty_downloader.application.filtering import (
@@ -43,6 +44,7 @@ from boosty_downloader.infrastructure.post_caching.post_cache import (
 )
 
 if TYPE_CHECKING:
+    import pytest
     from yarl import URL
 
     from boosty_downloader.application.run_statistics import RunStatistics
@@ -98,6 +100,7 @@ def _build_app(
     media_delay: float = 0.0,
     *,
     fail_first_file: bool = False,
+    dead_images: bool = False,
 ) -> web.Application:
     fixture_text = FIXTURE_FILE.read_text(encoding='utf-8')
     file_failures_left = 1 if fail_first_file else 0
@@ -120,6 +123,8 @@ def _build_app(
             await asyncio.sleep(media_delay)
         if '/file/' in request.path and file_failures_left:
             file_failures_left -= 1
+            return web.Response(status=404)
+        if '/image/' in request.path and dead_images:
             return web.Response(status=404)
         if '/image/' in request.path:
             return web.Response(body=b'png bytes', content_type='image/png')
@@ -316,6 +321,46 @@ async def test_dry_run_promises_the_post_but_touches_no_media(tmp_path: Path) ->
         await server.close()
 
 
+async def test_a_post_with_a_dead_image_still_gets_a_readable_page(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A piece that never downloads must not hide the whole post: the page is
+    written with a note at its place, the other content types are cached, and
+    the next run asks for the missing piece only and rewrites the page.
+    """
+
+    async def _no_sleep(delay: float) -> None:
+        del delay
+
+    monkeypatch.setattr(post_retry_module.asyncio, 'sleep', _no_sleep)
+    served_media: list[str] = []
+    server = TestServer(_build_app(served_media, dead_images=True))
+    await server.start_server()
+    try:
+        stats = await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
+
+        assert stats.posts_failed == 1
+        post_dir = tmp_path / POST_DIR_NAME
+        html = (post_dir / 'post.html').read_text(encoding='utf-8')
+        assert 'Image not downloaded' in html
+        assert 'Unexpected status code: 404' in html
+        assert '<img' not in html
+        assert 'boosty_videos/Fixture video (10000000).mp4' in html
+        assert (post_dir / 'files' / 'fixture-archive.zip').exists()
+
+        served_media.clear()
+        await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
+
+        # 5 attempts, and every one of them asks for the image alone.
+        assert len(served_media) == 5, served_media
+        assert all('/image/' in path for path in served_media)
+        assert 'Image not downloaded' in (post_dir / 'post.html').read_text(
+            encoding='utf-8'
+        )
+    finally:
+        await server.close()
+
+
 async def test_retried_post_fetches_only_the_failed_part_and_is_counted_once(
     tmp_path: Path,
 ) -> None:
@@ -333,9 +378,9 @@ async def test_retried_post_fetches_only_the_failed_part_and_is_counted_once(
         assert reporter.errors == []
         _assert_post_tree(tmp_path)
         html = (tmp_path / POST_DIR_NAME / 'post.html').read_text(encoding='utf-8')
-        # The page was written on the first attempt, before the file landed.
-        # A link to it appears once pages can be rebuilt from what is on disk.
-        assert 'files/fixture-archive.zip' not in html
+        # The page was written on the first attempt without the file and
+        # rewritten with its card when the retry brought it.
+        assert 'href="files/fixture-archive.zip"' in html
         # First attempt: image, file (404), video, audio. Second attempt: the file.
         assert len(served_media) == 5, served_media
         assert '/file/' in served_media[-1], (

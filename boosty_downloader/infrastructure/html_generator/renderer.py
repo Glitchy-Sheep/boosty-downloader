@@ -159,7 +159,7 @@ def _group_attachments(
 
 def _unavailable_title(item: HtmlGenUnavailable) -> str:
     """'Video not downloaded: <title>' or, without a name, 'Image not downloaded'."""
-    title = f'{item.kind.capitalize()} not downloaded'
+    title = f'{item.kind.value.capitalize()} not downloaded'
     return f'{title}: {item.label}' if item.label else title
 
 
