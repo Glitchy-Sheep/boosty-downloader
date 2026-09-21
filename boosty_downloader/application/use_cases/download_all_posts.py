@@ -129,6 +129,10 @@ class DownloadAllPostUseCase:
                     breaker.record_success()
                     continue
                 self.context.run_statistics.posts_failed += 1
+                if outcome is PostOutcome.unavailable:
+                    # A piece gone for good is this post's problem, not a
+                    # sign of a broken disk or network: no streak signal.
+                    continue
                 if breaker.record_failure():
                     self._report_systemic_stop(processed_ok)
                     self._print_run_summary(all_skipped, unknown_content, failed_posts)

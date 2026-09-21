@@ -181,7 +181,7 @@ async def _download_handler(  # noqa: PLR0913
                     destination=settings.destination_dir,
                     download_context=downloading_context,
                 ).execute()
-                failed = outcome is PostOutcome.failed
+                failed = outcome is not PostOutcome.downloaded
             else:
                 _show_start_summary(
                     pr=app.reporter,

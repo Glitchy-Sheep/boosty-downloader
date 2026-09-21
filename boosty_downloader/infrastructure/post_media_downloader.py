@@ -21,6 +21,7 @@ from boosty_downloader.infrastructure.external_videos_downloader.external_videos
     ExtVideoError,
     ExtVideoInfoError,
     ExtVideoInterruptedByUserError,
+    ExtVideoUnavailableError,
 )
 from boosty_downloader.infrastructure.file_downloader import (
     DownloadCancelledError,
@@ -70,13 +71,20 @@ class MediaDownloadError(Exception):
     """A media piece could not be saved. The transport error is the cause."""
 
     def __init__(
-        self, message: str, resource_url: str, file: Path | None = None
+        self,
+        message: str,
+        resource_url: str,
+        file: Path | None = None,
+        *,
+        retryable: bool = True,
     ) -> None:
         super().__init__(message)
         self.message = message
         self.resource_url = resource_url
         # Where the file would have been; already removed when set.
         self.file = file
+        # False when the piece is gone for good: another attempt cannot help.
+        self.retryable = retryable
 
 
 # download_file appends a guessed extension to video names later:
@@ -87,6 +95,7 @@ _EXT_VIDEO_INFO_FAILED = (
     "External video unavailable or access restricted (can't get info)"
 )
 _EXT_VIDEO_DOWNLOAD_FAILED = 'External video download failed'
+_EXT_VIDEO_UNAVAILABLE = 'External video unavailable'
 
 
 def boosty_video_filename(video: PostDataChunkBoostyVideo) -> str:
@@ -203,6 +212,12 @@ class PostMediaDownloader:
             raise
         except ExtVideoInterruptedByUserError as e:
             raise CancelledError from e
+        except ExtVideoUnavailableError as e:
+            # Deleted, private, blocked: the site's answer, not a passing failure.
+            message = f'{_EXT_VIDEO_UNAVAILABLE}: {e.reason}'
+            raise MediaDownloadError(
+                message, resource_url=e.video_url or video.url, retryable=False
+            ) from e
         except ExtVideoInfoError as e:
             raise MediaDownloadError(
                 _EXT_VIDEO_INFO_FAILED, resource_url=video.url

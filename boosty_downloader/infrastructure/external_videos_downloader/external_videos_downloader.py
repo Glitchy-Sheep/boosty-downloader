@@ -6,11 +6,13 @@ from __future__ import annotations
 import contextlib
 from collections.abc import Callable
 from dataclasses import dataclass
+from http import HTTPStatus
 from pathlib import Path
 from typing import Any, ClassVar, cast
 
+from yt_dlp.networking.exceptions import HTTPError
 from yt_dlp.YoutubeDL import YoutubeDL
-from yt_dlp.utils import DownloadError
+from yt_dlp.utils import DownloadError, ExtractorError
 
 from boosty_downloader.infrastructure.path_sanitizer import (
     MAX_NAME_BYTES,
@@ -43,6 +45,48 @@ class ExtVideoDownloadError(ExtVideoError):
 
 class ExtVideoInterruptedByUserError(ExtVideoError):
     """Raised when the user interrupts the download (Ctrl+C)."""
+
+
+class ExtVideoUnavailableError(ExtVideoError):
+    """
+    The video is gone for good: deleted, private, blocked or an unsupported link.
+
+    Retrying will not bring it back; the reason is the site's own answer.
+    """
+
+    def __init__(self, url: str, reason: str) -> None:
+        super().__init__(url)
+        self.reason = reason
+
+
+# Answers of the video page that mean the video is gone, not the network.
+_GONE_STATUSES = frozenset({HTTPStatus.NOT_FOUND, HTTPStatus.GONE})
+
+
+def _gone_reason(error: DownloadError) -> str | None:
+    """
+    Tell a video that is gone from a failure that a retry may heal.
+
+    yt-dlp keeps the original exception in exc_info. An extractor error
+    marked expected is the site's normal answer (deleted, private, blocked,
+    unsupported url); a network failure never carries that mark.
+    """
+    original = error.exc_info[1] if error.exc_info else None
+    if isinstance(original, HTTPError) and original.status in _GONE_STATUSES:
+        return str(original)
+    if isinstance(original, ExtractorError) and original.expected:
+        return original.orig_msg
+    return None
+
+
+def _failure(
+    error: DownloadError, url: str, transient: type[ExtVideoError]
+) -> ExtVideoError:
+    """Pick the error for a yt-dlp failure: gone for good, or the transient kind."""
+    reason = _gone_reason(error)
+    if reason is not None:
+        return ExtVideoUnavailableError(url, reason)
+    return transient(url)
 
 
 @dataclass(slots=True)
@@ -138,7 +182,7 @@ class ExternalVideosDownloader:
                 raise ExtVideoDownloadError(url)
 
         except DownloadError as e:
-            raise ExtVideoDownloadError(url) from e
+            raise _failure(e, url, ExtVideoDownloadError) from e
 
         if state.final_filename is not None:
             return state.final_filename
@@ -154,7 +198,7 @@ class ExternalVideosDownloader:
             with YoutubeDL(cast('Any', opts)) as ydl:
                 raw = cast('Any', ydl).extract_info(url, download=False)
         except DownloadError as e:
-            raise ExtVideoInfoError(url) from e
+            raise _failure(e, url, ExtVideoInfoError) from e
 
         if not isinstance(raw, dict):
             raise ExtVideoInfoError(url)

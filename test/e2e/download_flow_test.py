@@ -35,6 +35,9 @@ from boosty_downloader.application.use_cases.plan_download import (
 )
 from boosty_downloader.domain.content_types import DownloadContentTypeFilter
 from boosty_downloader.infrastructure.boosty_api.core.client import BoostyAPIClient
+from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
+    ExtVideoUnavailableError,
+)
 from boosty_downloader.infrastructure.loggers.base import RichLogger
 from boosty_downloader.infrastructure.loggers.failed_downloads_logger import (
     FailedDownloadsLogger,
@@ -95,12 +98,24 @@ class _QuietReporter:
         self.errors.append(message)
 
 
+def _blob_body(path: str) -> web.Response:
+    """A few bytes of the right media type for every fixture link."""
+    if '/image/' in path:
+        return web.Response(body=b'png bytes', content_type='image/png')
+    if path.endswith('.mp4'):
+        return web.Response(body=b'mp4 bytes', content_type='video/mp4')
+    if '/audio/' in path:
+        return web.Response(body=b'mp3 bytes', content_type='audio/mpeg')
+    return web.Response(body=b'file bytes', content_type='application/octet-stream')
+
+
 def _build_app(
     served_media: list[str],
     media_delay: float = 0.0,
     *,
     fail_first_file: bool = False,
     dead_images: bool = False,
+    external_video_url: str | None = None,
 ) -> web.Application:
     fixture_text = FIXTURE_FILE.read_text(encoding='utf-8')
     file_failures_left = 1 if fail_first_file else 0
@@ -109,9 +124,12 @@ def _build_app(
         local_text = fixture_text
         for host in _FAKE_HOSTS:
             local_text = local_text.replace(host, f'http://{request.host}')
+        post = json.loads(local_text)
+        if external_video_url is not None:
+            post['data'].append({'type': 'video', 'url': external_video_url})
         return web.json_response(
             {
-                'data': [json.loads(local_text)],
+                'data': [post],
                 'extra': {'offset': '', 'isLast': True},
             }
         )
@@ -126,13 +144,7 @@ def _build_app(
             return web.Response(status=404)
         if '/image/' in request.path and dead_images:
             return web.Response(status=404)
-        if '/image/' in request.path:
-            return web.Response(body=b'png bytes', content_type='image/png')
-        if request.path.endswith('.mp4'):
-            return web.Response(body=b'mp4 bytes', content_type='video/mp4')
-        if '/audio/' in request.path:
-            return web.Response(body=b'mp3 bytes', content_type='audio/mpeg')
-        return web.Response(body=b'file bytes', content_type='application/octet-stream')
+        return _blob_body(request.path)
 
     app = web.Application()
     app.router.add_get(f'/v1/blog/{AUTHOR}/post/', listing)
@@ -140,8 +152,18 @@ def _build_app(
     return app
 
 
+class _GoneExternalVideos:
+    """yt-dlp stand-in: every external video is deleted."""
+
+    def download_video(self, **kwargs: object) -> Path:
+        raise ExtVideoUnavailableError(str(kwargs['url']), 'This video is unavailable')
+
+
 async def _run_download(
-    destination: Path, api_base: URL, reporter: _QuietReporter
+    destination: Path,
+    api_base: URL,
+    reporter: _QuietReporter,
+    external_videos: ExternalVideosDownloader | None = None,
 ) -> RunStatistics:
     """One full download run wired exactly like the app, minus the console."""
     async with ClientSession() as session:
@@ -154,7 +176,9 @@ async def _run_download(
                 author_name=AUTHOR,
                 downloader_session=retry_client,
                 # The fixture has no external videos: yt-dlp must stay out.
-                external_videos_downloader=cast('ExternalVideosDownloader', None),
+                external_videos_downloader=cast(
+                    'ExternalVideosDownloader', external_videos
+                ),
                 post_cache=cache,
                 filters=list(DownloadContentTypeFilter),
                 preferred_video_quality=BoostyOkVideoType.medium,
@@ -357,6 +381,41 @@ async def test_a_post_with_a_dead_image_still_gets_a_readable_page(
         assert 'Image not downloaded' in (post_dir / 'post.html').read_text(
             encoding='utf-8'
         )
+    finally:
+        await server.close()
+
+
+async def test_a_gone_external_video_costs_one_attempt_and_keeps_the_post_readable(
+    tmp_path: Path,
+) -> None:
+    """Issue #76 end to end: no retries on a deleted video, the rest of the post
+    lands and the page marks the video's place with the site's reason.
+    """
+    gone_url = 'https://www.youtube.com/watch?v=gone'
+    served_media: list[str] = []
+    server = TestServer(_build_app(served_media, external_video_url=gone_url))
+    await server.start_server()
+    try:
+        reporter = _QuietReporter()
+        stats = await _run_download(
+            tmp_path,
+            server.make_url('/'),
+            reporter,
+            external_videos=cast('ExternalVideosDownloader', _GoneExternalVideos()),
+        )
+
+        assert stats.posts_failed == 1
+        assert not any('Attempt 1 failed' in w for w in reporter.warnings)
+        assert any('retrying will not help' in e for e in reporter.errors)
+        # One attempt: image, file, video, audio - and never again.
+        assert len(served_media) == 4, served_media
+        _assert_post_tree(tmp_path)
+        html = (tmp_path / POST_DIR_NAME / 'post.html').read_text(encoding='utf-8')
+        assert f'Video not downloaded: {gone_url}' in html
+        assert 'This video is unavailable' in html
+        assert f'href="{gone_url}">Open the original</a>' in html
+        log = (tmp_path / 'failed_downloads.log').read_text(encoding='utf-8')
+        assert 'External video unavailable: This video is unavailable' in log
     finally:
         await server.close()
 
