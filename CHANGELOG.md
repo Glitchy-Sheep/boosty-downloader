@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Added
+
+- `--config PATH` before the command name, and the `BOOSTY_DOWNLOADER_CONFIG` variable, point the app at a config file anywhere: `boosty-downloader --config ~/boosty/config.yaml download <creator>`. Before, the config could only be `config.yaml` in the folder the app runs from, and that is still the default
+
 ### Changed
 
 - Attachments in `post.html` are file cards now: an icon by file type (video, audio, image, document, archive), the name, the type and the size, and files that stand next to each other share one block. Before, an attachment was a bare link that looked like any other link on the page

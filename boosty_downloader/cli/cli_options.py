@@ -1,6 +1,7 @@
 """CLI option definitions for Boosty Downloader."""
 
 import importlib.metadata
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
 
@@ -161,3 +162,30 @@ DebugOption = Annotated[
         is_eager=True,
     ),
 ]
+
+ConfigPathOption = Annotated[
+    Path,
+    typer.Option(
+        '--config',
+        help='Config file to use; by default config.yaml in the folder the app runs from',
+        envvar='BOOSTY_DOWNLOADER_CONFIG',
+        dir_okay=False,
+        file_okay=True,
+    ),
+]
+
+
+@dataclass(frozen=True, slots=True)
+class GlobalOptions:
+    """Options given before the command name; the app callback sets them."""
+
+    config_path: Path
+
+
+def global_options(ctx: typer.Context) -> GlobalOptions:
+    """Read the global options of this run from the typer context."""
+    options = ctx.obj
+    if not isinstance(options, GlobalOptions):
+        msg = 'global options are missing: the app callback did not run'
+        raise TypeError(msg)
+    return options

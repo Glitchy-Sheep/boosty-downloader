@@ -24,15 +24,16 @@ from boosty_downloader.application.use_cases.plan_download import (
     PlanDownloadUseCase,
 )
 from boosty_downloader.cli.cli_options import (
-    CacheDirectoryOption,  # noqa: TC001
-    ContentTypeFilterOption,  # noqa: TC001
-    DestinationDirectoryOption,  # noqa: TC001
-    DryRunOption,  # noqa: TC001
-    PostUrlOption,  # noqa: TC001
-    PreferredVideoQualityOption,  # noqa: TC001
-    RequestDelaySecondsOption,  # noqa: TC001
-    SkipAllFailuresOption,  # noqa: TC001
-    UsernameArgument,  # noqa: TC001
+    CacheDirectoryOption,
+    ContentTypeFilterOption,
+    DestinationDirectoryOption,
+    DryRunOption,
+    PostUrlOption,
+    PreferredVideoQualityOption,
+    RequestDelaySecondsOption,
+    SkipAllFailuresOption,
+    UsernameArgument,
+    global_options,
 )
 from boosty_downloader.cli.composition_root import load_settings, open_app
 from boosty_downloader.cli.update_check import notify_about_updates
@@ -130,6 +131,7 @@ def _post_id_of(post_url: str, username: str) -> str:
 async def _download_handler(  # noqa: PLR0913
     *,
     username: str,
+    config_path: Path,
     post_id: str | None,
     content_type_filter: list[DownloadContentTypeFilter],
     preferred_video_quality: VideoQualityOption,
@@ -142,6 +144,7 @@ async def _download_handler(  # noqa: PLR0913
     logger = logger_instances.downloader_logger
     settings = load_settings(
         username=username,
+        config_path=config_path,
         destination_directory=destination_directory,
         cache_directory=cache_directory,
     )
@@ -214,6 +217,7 @@ def register(app: typer.Typer) -> None:
         short_help='Download posts from a Boosty creator.',
     )
     def download_entrypoint(  # noqa: PLR0913
+        ctx: typer.Context,
         *,
         username: UsernameArgument,
         request_delay_seconds: RequestDelaySecondsOption = 2.5,
@@ -269,6 +273,7 @@ def register(app: typer.Typer) -> None:
         asyncio.run(
             _download_handler(
                 username=username,
+                config_path=global_options(ctx).config_path,
                 post_id=post_id,
                 content_type_filter=(
                     content_type_filter or list(DownloadContentTypeFilter)
