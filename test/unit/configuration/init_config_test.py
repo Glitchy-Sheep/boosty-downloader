@@ -1,4 +1,4 @@
-"""Regression tests: a broken config.yaml must be reported, never replaced."""
+"""Regression tests: a broken config file must be reported, never replaced."""
 
 from __future__ import annotations
 
@@ -18,51 +18,75 @@ if TYPE_CHECKING:
 
 BROKEN_YAML = 'auth:\n  cookie: "unclosed\n'
 BROKEN_STRUCTURE = 'auth: [1, 2, 3]\n'
+VALID = 'auth:\n  cookie: "session=x"\n  auth_header: "Bearer x"\n'
 
 
-def _write_config(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, content: str
-) -> Path:
-    monkeypatch.chdir(tmp_path)
-    config = tmp_path / 'config.yaml'
-    config.write_text(content, encoding='utf-8')
-    return config
-
-
-def test_broken_yaml_syntax_keeps_the_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_broken_yaml_syntax_keeps_the_file(tmp_path: Path) -> None:
     """The old code replaced the user's config (and the token in it) with a sample."""
-    config = _write_config(tmp_path, monkeypatch, BROKEN_YAML)
+    config = tmp_path / 'config.yaml'
+    config.write_text(BROKEN_YAML, encoding='utf-8')
 
     with pytest.raises(SystemExit):
-        init_config()
+        init_config(config)
 
     assert config.read_text(encoding='utf-8') == BROKEN_YAML
 
 
-def test_invalid_values_keep_the_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_invalid_values_keep_the_file(tmp_path: Path) -> None:
     """Structure errors exit with a report, the file stays byte-identical."""
-    config = _write_config(tmp_path, monkeypatch, BROKEN_STRUCTURE)
+    config = tmp_path / 'config.yaml'
+    config.write_text(BROKEN_STRUCTURE, encoding='utf-8')
 
     with pytest.raises(SystemExit):
-        init_config()
+        init_config(config)
 
     assert config.read_text(encoding='utf-8') == BROKEN_STRUCTURE
 
 
-def test_missing_config_creates_a_sample(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_missing_config_creates_a_sample(tmp_path: Path) -> None:
     """First run: a sample appears so the user has something to fill in."""
-    monkeypatch.chdir(tmp_path)
+    config = tmp_path / 'boosty' / 'main.yaml'
+    config.parent.mkdir()
 
     with pytest.raises(SystemExit):
-        init_config()
+        init_config(config)
 
-    assert (tmp_path / 'config.yaml').exists()
+    assert config.exists()
+
+
+def test_missing_folder_is_an_error_not_a_traceback(tmp_path: Path) -> None:
+    """A typo in --config must not end in a raw FileNotFoundError."""
+    with pytest.raises(SystemExit):
+        init_config(tmp_path / 'nope' / 'config.yaml')
+
+    assert not (tmp_path / 'nope').exists()
+
+
+def test_the_default_path_is_next_to_the_working_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without --config nothing changes: config.yaml is looked up where the app runs."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / 'config.yaml').write_text(VALID, encoding='utf-8')
+
+    config = init_config()
+
+    assert config.auth.cookie == 'session=x'
+
+
+def test_a_config_is_read_from_the_given_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The file named by the user wins over a config.yaml in the working directory."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / 'config.yaml').write_text(BROKEN_STRUCTURE, encoding='utf-8')
+    elsewhere = tmp_path / 'elsewhere' / 'alt.yaml'
+    elsewhere.parent.mkdir()
+    elsewhere.write_text(VALID, encoding='utf-8')
+
+    config = init_config(elsewhere)
+
+    assert config.auth.auth_header == 'Bearer x'
 
 
 def test_pydantic_jargon_never_reaches_the_user() -> None:
@@ -78,8 +102,9 @@ def test_yaml_parser_jargon_never_reaches_the_user() -> None:
     try:
         yaml.safe_load(BROKEN_YAML)
     except yaml.YAMLError as error:
-        message = _broken_yaml_message(error)
+        message = _broken_yaml_message(error, 'alt.yaml')
 
+    assert message.startswith('alt.yaml is not valid YAML')
     assert 'breaks at line 3, column 1' in message
     assert 'scalar' not in message
     assert 'block mapping' not in message

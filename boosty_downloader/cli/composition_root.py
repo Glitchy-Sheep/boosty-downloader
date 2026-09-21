@@ -28,7 +28,10 @@ from boosty_downloader.infrastructure.loggers.request_tracing import (
     create_request_trace_config,
 )
 from boosty_downloader.infrastructure.post_caching.post_cache import SQLitePostCache
-from boosty_downloader.infrastructure.yaml_configuration.config import init_config
+from boosty_downloader.infrastructure.yaml_configuration.config import (
+    DEFAULT_CONFIG_PATH,
+    init_config,
+)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -61,11 +64,12 @@ class AppSettings:
 def load_settings(
     *,
     username: str,
+    config_path: Path = DEFAULT_CONFIG_PATH,
     destination_directory: Path | None = None,
     cache_directory: Path | None = None,
 ) -> AppSettings:
-    """Load config.yaml; a CLI directory wins over the config value."""
-    config = init_config()
+    """Load the config file; a CLI directory wins over the config value."""
+    config = init_config(config_path)
     target = destination_directory or config.downloading_settings.target_directory
     cache_root = cache_directory or config.downloading_settings.cache_directory
     return AppSettings(

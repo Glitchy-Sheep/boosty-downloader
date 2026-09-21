@@ -34,14 +34,16 @@ class AuthSettings(BaseModel):
     auth_header: str = Field(default='', min_length=1)
 
 
-CONFIG_LOCATION: Path = Path('config.yaml')
+# Where the config lives unless the user points elsewhere: next to where
+# the app is run from.
+DEFAULT_CONFIG_PATH: Path = Path('config.yaml')
 
 
 class Config(BaseSettings):
     """General script configuration with subsections"""
 
     model_config = SettingsConfigDict(
-        yaml_file=CONFIG_LOCATION,
+        yaml_file=DEFAULT_CONFIG_PATH,
         yaml_file_encoding='utf-8',
     )
 
@@ -66,18 +68,29 @@ class Config(BaseSettings):
         )
 
 
-def create_sample_config_file() -> None:
-    """Create a sample config file if it doesn't exist."""
-    with CONFIG_LOCATION.open(mode='w') as f:
+def _read_config(config_path: Path) -> Config:
+    """Read the config from the given file."""
+
+    # pydantic-settings binds the yaml file to the class, so the file the
+    # user chose gets a class of its own.
+    class _ConfigAt(Config):
+        model_config = SettingsConfigDict(yaml_file=config_path)
+
+    return _ConfigAt()
+
+
+def create_sample_config_file(config_path: Path) -> None:
+    """Write the sample config for the user to fill in."""
+    with config_path.open(mode='w', encoding='utf-8') as f:
         f.write(DEFAULT_YAML_CONFIG_VALUE)
 
 
-def _hint_fix_or_recreate() -> None:
+def _hint_fix_or_recreate(config_path: Path) -> None:
     logger_instances.downloader_logger.info(
         'Fix the file by hand, or delete it - the next run creates a fresh sample.'
     )
     logger_instances.downloader_logger.info(
-        f'Config location: {CONFIG_LOCATION.absolute()}'
+        f'Config location: {config_path.absolute()}'
     )
 
 
@@ -97,48 +110,62 @@ def _human_message(error_type: str) -> str:
     return _HUMAN_MESSAGES.get(error_type, 'has an unexpected value')
 
 
-def _report_invalid_values(error: ValidationError) -> None:
+def _report_invalid_values(error: ValidationError, config_path: Path) -> None:
     """Name every broken field in plain words so the user can fix the file."""
-    logger_instances.downloader_logger.error('config.yaml has invalid values:')
+    logger_instances.downloader_logger.error(f'{config_path.name} has invalid values:')
     for detail in error.errors():
         path = '.'.join(str(part) for part in detail['loc'])
         logger_instances.downloader_logger.error(
             f'  - {path}: {_human_message(detail["type"])}'
         )
-    _hint_fix_or_recreate()
+    _hint_fix_or_recreate(config_path)
 
 
-def _broken_yaml_message(error: yaml.YAMLError) -> str:
+def _broken_yaml_message(error: yaml.YAMLError, file_name: str = 'config.yaml') -> str:
     """One plain sentence with the exact spot, no parser jargon."""
     if isinstance(error, yaml.MarkedYAMLError) and error.problem_mark is not None:
         mark = error.problem_mark
         return (
-            'config.yaml is not valid YAML - '
+            f'{file_name} is not valid YAML - '
             f'the file breaks at line {mark.line + 1}, column {mark.column + 1}'
         )
-    return 'config.yaml is not valid YAML'
+    return f'{file_name} is not valid YAML'
 
 
-def _report_broken_yaml(error: yaml.YAMLError) -> None:
-    logger_instances.downloader_logger.error(_broken_yaml_message(error))
-    _hint_fix_or_recreate()
+def _report_broken_yaml(error: yaml.YAMLError, config_path: Path) -> None:
+    logger_instances.downloader_logger.error(
+        _broken_yaml_message(error, config_path.name)
+    )
+    _hint_fix_or_recreate(config_path)
 
 
-def init_config() -> Config:
-    """Load config.yaml; a broken file is reported and never overwritten."""
-    if not CONFIG_LOCATION.exists():
-        create_sample_config_file()
-        logger_instances.downloader_logger.error("Config doesn't exist")
-        logger_instances.downloader_logger.success(
-            f'Created a sample config file at {CONFIG_LOCATION.absolute()}, please fill `auth_header` and `cookie` with yours before running the app',
+def _create_sample_and_exit(config_path: Path) -> None:
+    """First run: leave a sample for the user to fill in, never a silent default."""
+    logger_instances.downloader_logger.error("Config doesn't exist")
+    try:
+        create_sample_config_file(config_path)
+    except FileNotFoundError:
+        logger_instances.downloader_logger.error(
+            f'Cannot create the config at {config_path.absolute()}: '
+            'the folder does not exist'
         )
         sys.exit(1)
+    logger_instances.downloader_logger.success(
+        f'Created a sample config file at {config_path.absolute()}, please fill `auth_header` and `cookie` with yours before running the app',
+    )
+    sys.exit(1)
+
+
+def init_config(config_path: Path = DEFAULT_CONFIG_PATH) -> Config:
+    """Load the config file; a broken file is reported and never overwritten."""
+    if not config_path.exists():
+        _create_sample_and_exit(config_path)
 
     try:
-        return Config()
+        return _read_config(config_path)
     except ValidationError as error:
-        _report_invalid_values(error)
+        _report_invalid_values(error, config_path)
         sys.exit(1)
     except yaml.YAMLError as error:
-        _report_broken_yaml(error)
+        _report_broken_yaml(error, config_path)
         sys.exit(1)
