@@ -7,15 +7,18 @@ import asyncio
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
+import typer  # noqa: TC002 - typer resolves the Context annotation at runtime
+
 from boosty_downloader.application.use_cases.check_total_posts import (
     ReportTotalPostsCountUseCase,
 )
 from boosty_downloader.cli.cli_options import (
-    CacheDirectoryOption,  # noqa: TC001
-    DestinationDirectoryOption,  # noqa: TC001
-    RequestDelaySecondsOption,  # noqa: TC001
-    ShowPostsOption,  # noqa: TC001
-    UsernameArgument,  # noqa: TC001
+    CacheDirectoryOption,
+    DestinationDirectoryOption,
+    RequestDelaySecondsOption,
+    ShowPostsOption,
+    UsernameArgument,
+    global_options,
 )
 from boosty_downloader.cli.composition_root import load_settings, open_app
 from boosty_downloader.cli.update_check import notify_about_updates
@@ -25,12 +28,11 @@ from boosty_downloader.infrastructure.loggers import logger_instances
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import typer
 
-
-async def _check_handler(
+async def _check_handler(  # noqa: PLR0913
     *,
     username: str,
+    config_path: Path,
     request_delay_seconds: float,
     destination_directory: Path | None,
     cache_directory: Path | None,
@@ -39,6 +41,7 @@ async def _check_handler(
     logger = logger_instances.downloader_logger
     settings = load_settings(
         username=username,
+        config_path=config_path,
         destination_directory=destination_directory,
         cache_directory=cache_directory,
     )
@@ -71,7 +74,8 @@ def register(app: typer.Typer) -> None:
         'check',
         short_help='Show what each subscription tier gives, where you stand and what the rest costs.',
     )
-    def check_entrypoint(
+    def check_entrypoint(  # noqa: PLR0913
+        ctx: typer.Context,
         *,
         username: UsernameArgument,
         request_delay_seconds: RequestDelaySecondsOption = 2.5,
@@ -83,6 +87,7 @@ def register(app: typer.Typer) -> None:
         asyncio.run(
             _check_handler(
                 username=username,
+                config_path=global_options(ctx).config_path,
                 request_delay_seconds=request_delay_seconds,
                 destination_directory=destination_directory,
                 cache_directory=cache_directory,

@@ -5,13 +5,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import typer  # noqa: TC002 - typer resolves the Context annotation at runtime
+
 from boosty_downloader.application.use_cases.clean_cache import (
     CleanCacheOutcome,
     CleanCacheUseCase,
 )
 from boosty_downloader.cli.cli_options import (
-    CacheDirectoryOption,  # noqa: TC001
-    UsernameArgument,  # noqa: TC001
+    CacheDirectoryOption,
+    UsernameArgument,
+    global_options,
 )
 from boosty_downloader.cli.composition_root import load_settings
 from boosty_downloader.infrastructure.loggers import logger_instances
@@ -20,15 +23,16 @@ from boosty_downloader.infrastructure.post_caching.storage import SQLiteCacheSto
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import typer
-
 
 def _clean_cache(
     *,
     username: str,
+    config_path: Path,
     cache_directory: Path | None,
 ) -> None:
-    settings = load_settings(username=username, cache_directory=cache_directory)
+    settings = load_settings(
+        username=username, config_path=config_path, cache_directory=cache_directory
+    )
     outcome = CleanCacheUseCase(SQLiteCacheStorage(settings.cache_dir)).execute()
 
     logger = logger_instances.downloader_logger
@@ -47,6 +51,7 @@ def register(app: typer.Typer) -> None:
         short_help='Remove cached post data for a creator.',
     )
     def clean_cache_entrypoint(
+        ctx: typer.Context,
         *,
         username: UsernameArgument,
         cache_directory: CacheDirectoryOption = None,
@@ -54,5 +59,6 @@ def register(app: typer.Typer) -> None:
         """Remove the posts cache for the selected username completely."""
         _clean_cache(
             username=username,
+            config_path=global_options(ctx).config_path,
             cache_directory=cache_directory,
         )

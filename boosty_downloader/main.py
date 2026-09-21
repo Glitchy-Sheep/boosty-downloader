@@ -13,8 +13,10 @@ from boosty_downloader.application.exceptions.application_errors import (
     ApplicationTooManyFailuresError,
 )
 from boosty_downloader.cli.cli_options import (
-    DebugOption,  # noqa: TC001
-    VersionOption,  # noqa: TC001
+    ConfigPathOption,
+    DebugOption,
+    GlobalOptions,
+    VersionOption,
 )
 from boosty_downloader.cli.commands import (
     check,
@@ -35,6 +37,9 @@ from boosty_downloader.infrastructure.boosty_api.utils.validation_errors import 
     format_validation_errors,
 )
 from boosty_downloader.infrastructure.loggers import logger_instances
+from boosty_downloader.infrastructure.yaml_configuration.config import (
+    DEFAULT_CONFIG_PATH,
+)
 
 typer_app = typer.Typer(
     add_completion=False,
@@ -48,12 +53,14 @@ def _app_callback(  # pyright: ignore[reportUnusedFunction]
     ctx: typer.Context,
     _version: VersionOption = False,  # noqa: FBT002 - typer flag contract
     _debug: DebugOption = False,  # noqa: FBT002 - typer flag contract
+    config: ConfigPathOption = DEFAULT_CONFIG_PATH,
 ) -> None:
     """
     CLI tool to download Boosty posts by author username.
 
     Run [bold]boosty-downloader COMMAND --help[/bold] to see details about a specific command.
     """
+    ctx.obj = GlobalOptions(config_path=config)
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
         raise typer.Exit
