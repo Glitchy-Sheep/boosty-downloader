@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import pytest
 from typer.testing import CliRunner
 
+from boosty_downloader.infrastructure.post_caching.post_cache import SQLitePostCache
 from boosty_downloader.main import typer_app
 
 if TYPE_CHECKING:
@@ -80,13 +81,29 @@ def test_post_url_is_checked_before_anything_runs(url: str, expected: str) -> No
 
 
 VALID_CONFIG = 'auth:\n  cookie: "session=x"\n  auth_header: "Bearer x"\n'
-BROKEN_CONFIG = 'auth: [1, 2, 3]\n'
+# Broken for every reader of the file, the credentials-free one included.
+BROKEN_CONFIG = 'downloading_settings: [1, 2, 3]\n'
 
 
 def _write(path: Path, content: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding='utf-8')
     return path
+
+
+def _plant_cache(cache_root: Path, username: str) -> Path:
+    """A creator's cache database, as a download run leaves it."""
+    db = cache_root / username / SQLitePostCache.DEFAULT_CACHE_FILENAME
+    db.parent.mkdir(parents=True, exist_ok=True)
+    db.write_bytes(b'')
+    return db
+
+
+def _config_naming_the_cache(path: Path, cache_root: Path) -> Path:
+    """A config that only says where the cache is; no credentials in it."""
+    return _write(
+        path, f'downloading_settings:\n  cache_directory: "{cache_root.as_posix()}"\n'
+    )
 
 
 def test_clean_cache_runs_without_an_event_loop(
@@ -104,27 +121,86 @@ def test_clean_cache_runs_without_an_event_loop(
     assert 'nothing to clean' in _plain_text(result.output)
 
 
+def test_clean_cache_asks_first_and_a_no_keeps_the_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The cache is the only record of what was downloaded; it used to go without a question."""
+    monkeypatch.chdir(tmp_path)
+    db = _plant_cache(tmp_path / 'cache', 'someone')
+
+    result = runner.invoke(
+        typer_app,
+        ['clean-cache', 'someone', '--cache-dir', str(tmp_path / 'cache')],
+        input='n\n',
+    )
+
+    assert result.exit_code == 0, result.output
+    assert 'the next run downloads everything again' in _plain_text(result.output)
+    assert db.exists()
+    assert 'is kept' in _plain_text(result.output)
+
+
+def test_clean_cache_yes_skips_the_question(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    db = _plant_cache(tmp_path / 'cache', 'someone')
+
+    result = runner.invoke(
+        typer_app,
+        ['clean-cache', 'someone', '--cache-dir', str(tmp_path / 'cache'), '--yes'],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert 'Continue?' not in result.output
+    assert not db.exists()
+    assert 'cleaned successfully' in _plain_text(result.output)
+
+
+def test_clean_cache_needs_no_credentials(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Removing a local file must not require a valid token: the folders are enough."""
+    monkeypatch.chdir(tmp_path)
+    _config_naming_the_cache(tmp_path / 'config.yaml', tmp_path / 'cache')
+    db = _plant_cache(tmp_path / 'cache', 'someone')
+
+    result = runner.invoke(typer_app, ['clean-cache', 'someone', '--yes'])
+
+    assert result.exit_code == 0, result.output
+    assert not db.exists(), 'the cache folder named in the config must be found'
+
+
+def test_clean_cache_without_any_config_leaves_no_sample(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(
+        typer_app, ['clean-cache', 'someone', '--cache-dir', str(tmp_path)]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert 'nothing to clean' in _plain_text(result.output)
+    assert not (tmp_path / 'config.yaml').exists()
+
+
 def test_config_flag_points_at_a_file_anywhere(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Before, the config could only be config.yaml in the working directory."""
     monkeypatch.chdir(tmp_path)
-    config = _write(tmp_path / 'elsewhere' / 'main.yaml', VALID_CONFIG)
+    config = _config_naming_the_cache(
+        tmp_path / 'elsewhere' / 'main.yaml', tmp_path / 'cache'
+    )
+    db = _plant_cache(tmp_path / 'cache', 'someone')
 
     result = runner.invoke(
-        typer_app,
-        [
-            '--config',
-            str(config),
-            'clean-cache',
-            'someone',
-            '--cache-dir',
-            str(tmp_path),
-        ],
+        typer_app, ['--config', str(config), 'clean-cache', 'someone', '--yes']
     )
 
     assert result.exit_code == 0, result.output
-    assert 'nothing to clean' in _plain_text(result.output)
+    assert not db.exists(), 'the cache folder comes from the file named by --config'
     assert not (tmp_path / 'config.yaml').exists(), 'no sample next to the cwd'
 
 
@@ -132,15 +208,19 @@ def test_config_env_var_works_like_the_flag(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    config = _write(tmp_path / 'elsewhere' / 'main.yaml', VALID_CONFIG)
+    config = _config_naming_the_cache(
+        tmp_path / 'elsewhere' / 'main.yaml', tmp_path / 'cache'
+    )
+    db = _plant_cache(tmp_path / 'cache', 'someone')
 
     result = runner.invoke(
         typer_app,
-        ['clean-cache', 'someone', '--cache-dir', str(tmp_path)],
+        ['clean-cache', 'someone', '--yes'],
         env={'BOOSTY_DOWNLOADER_CONFIG': str(config)},
     )
 
     assert result.exit_code == 0, result.output
+    assert not db.exists()
 
 
 def test_config_flag_wins_over_the_env_var(
@@ -175,9 +255,7 @@ def test_missing_config_at_the_flag_path_gets_a_sample_there(
     config = tmp_path / 'boosty' / 'main.yaml'
     config.parent.mkdir()
 
-    result = runner.invoke(
-        typer_app, ['--config', str(config), 'clean-cache', 'someone']
-    )
+    result = runner.invoke(typer_app, ['--config', str(config), 'check', 'someone'])
 
     assert result.exit_code == 1
     assert config.exists()

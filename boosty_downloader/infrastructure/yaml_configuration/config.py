@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING, TypeVar
 
 import yaml
 from pydantic import BaseModel, Field, ValidationError
@@ -18,6 +19,9 @@ from boosty_downloader.infrastructure.loggers import logger_instances
 from boosty_downloader.infrastructure.yaml_configuration.sample_config import (
     DEFAULT_YAML_CONFIG_VALUE,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class DownloadSettings(BaseModel):
@@ -38,17 +42,16 @@ class AuthSettings(BaseModel):
 # the app is run from.
 DEFAULT_CONFIG_PATH: Path = Path('config.yaml')
 
+T = TypeVar('T')
 
-class Config(BaseSettings):
-    """General script configuration with subsections"""
+
+class _YamlSettings(BaseSettings):
+    """Settings read from the yaml config file."""
 
     model_config = SettingsConfigDict(
         yaml_file=DEFAULT_CONFIG_PATH,
         yaml_file_encoding='utf-8',
     )
-
-    auth: AuthSettings = AuthSettings()
-    downloading_settings: DownloadSettings = DownloadSettings()
 
     @classmethod
     def settings_customise_sources(
@@ -68,15 +71,40 @@ class Config(BaseSettings):
         )
 
 
-def _read_config(config_path: Path) -> Config:
-    """Read the config from the given file."""
+class Config(_YamlSettings):
+    """General script configuration with subsections"""
 
-    # pydantic-settings binds the yaml file to the class, so the file the
-    # user chose gets a class of its own.
+    auth: AuthSettings = AuthSettings()
+    downloading_settings: DownloadSettings = DownloadSettings()
+
+
+class DownloadPaths(_YamlSettings):
+    """
+    The folders section of the config alone.
+
+    Commands that never talk to the API read this: credentials are not
+    checked, so a config without them, or with stale ones, still works.
+    """
+
+    model_config = SettingsConfigDict(extra='ignore')
+
+    downloading_settings: DownloadSettings = DownloadSettings()
+
+
+# pydantic-settings binds the yaml file to the class, so the file the user
+# chose gets a class of its own.
+def _read_config(config_path: Path) -> Config:
     class _ConfigAt(Config):
         model_config = SettingsConfigDict(yaml_file=config_path)
 
     return _ConfigAt()
+
+
+def _read_paths(config_path: Path) -> DownloadPaths:
+    class _PathsAt(DownloadPaths):
+        model_config = SettingsConfigDict(yaml_file=config_path)
+
+    return _PathsAt()
 
 
 def create_sample_config_file(config_path: Path) -> None:
@@ -156,16 +184,32 @@ def _create_sample_and_exit(config_path: Path) -> None:
     sys.exit(1)
 
 
-def init_config(config_path: Path = DEFAULT_CONFIG_PATH) -> Config:
-    """Load the config file; a broken file is reported and never overwritten."""
-    if not config_path.exists():
-        _create_sample_and_exit(config_path)
-
+def _read_or_exit(read: Callable[[Path], T], config_path: Path) -> T:
+    """Read the file; a broken one is reported and never overwritten."""
     try:
-        return _read_config(config_path)
+        return read(config_path)
     except ValidationError as error:
         _report_invalid_values(error, config_path)
         sys.exit(1)
     except yaml.YAMLError as error:
         _report_broken_yaml(error, config_path)
         sys.exit(1)
+
+
+def init_config(config_path: Path = DEFAULT_CONFIG_PATH) -> Config:
+    """Load the whole config, credentials included; a missing file gets the sample."""
+    if not config_path.exists():
+        _create_sample_and_exit(config_path)
+    return _read_or_exit(_read_config, config_path)
+
+
+def read_download_settings(config_path: Path = DEFAULT_CONFIG_PATH) -> DownloadSettings:
+    """
+    Load the folders from the config, credentials not needed.
+
+    Without a config file the defaults apply: a command that only touches
+    local files must not leave a sample config behind.
+    """
+    if not config_path.exists():
+        return DownloadSettings()
+    return _read_or_exit(_read_paths, config_path).downloading_settings
