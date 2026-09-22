@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from boosty_downloader.infrastructure.html_generator import renderer
 from boosty_downloader.infrastructure.html_generator.models import (
     HtmlGenAudio,
     HtmlGenChunk,
@@ -233,6 +234,21 @@ def test_attachment_icon_follows_the_file_type(filename: str, icon: str) -> None
     html = render_html_chunk(HtmlGenFile(url=f'files/{filename}', filename=filename))
 
     assert f'<span class="attachment-icon">{icon}</span>' in html
+
+
+def test_zip_keeps_the_archive_icon_under_the_windows_mime_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """On Windows mimetypes reads the registry, which names .zip application/x-zip-compressed."""
+    monkeypatch.setattr(
+        renderer.mimetypes,
+        'guess_type',
+        lambda _name: ('application/x-zip-compressed', None),
+    )
+
+    html = render_html_chunk(HtmlGenFile(url='files/pack.zip', filename='pack.zip'))
+
+    assert '<span class="attachment-icon">📦</span>' in html
 
 
 @pytest.mark.parametrize(
