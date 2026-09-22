@@ -191,3 +191,18 @@ tasks:
           Get token and cookies via: boosty-downloader show-auth-script
     cmds:
       - uv run python scripts/posts_example.py
+
+  api:schema:
+    desc: "Write docs/api/boosty-api.yaml from live Boosty answers: task api:schema -- <blog>..."
+    summary: |
+      Reads one page of posts per blog plus the newest post through the
+      single-post endpoint and writes the observed shapes as OpenAPI 3.1.
+      The account token comes from BOOSTY_TOKEN in the environment, else
+      auth.auth_header of config.yaml, else ./.env (--anonymous sends none);
+      --pages N reads more pages.
+      Only shapes, counts and vocabularies land in the file: no blog names,
+      ids, texts or links. See docs/api/README.md.
+    env:
+      PYTHONPATH: scripts
+    cmds:
+      - uv run python -m api_schema build {{.CLI_ARGS}}

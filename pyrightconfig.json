@@ -17,6 +17,6 @@
     "pythonVersion": "3.10",
     "executionEnvironments": [
         { "root": "scripts", "extraPaths": ["test", "scripts"] },
-        { "root": "test", "extraPaths": ["test"] }
+        { "root": "test", "extraPaths": ["test", "scripts"] }
     ]
 }
