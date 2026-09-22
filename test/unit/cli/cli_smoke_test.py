@@ -264,7 +264,8 @@ def test_missing_config_at_the_flag_path_gets_a_sample_there(
 
 
 def test_root_help_names_the_env_var() -> None:
-    result = runner.invoke(typer_app, ['--help'])
+    """In CI rich colors the option name, so the raw output splits it with ANSI codes."""
+    help_text = _plain_text(runner.invoke(typer_app, ['--help']).output)
 
-    assert '--config' in result.output
-    assert 'BOOSTY_DOWNLOADER_CONFIG' in _plain_text(result.output)
+    assert '--config' in help_text
+    assert 'BOOSTY_DOWNLOADER_CONFIG' in help_text
