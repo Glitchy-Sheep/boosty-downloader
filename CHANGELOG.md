@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 4.3.0
+
 ### Added
 
 - `--config PATH` before the command name, and the `BOOSTY_DOWNLOADER_CONFIG` variable, point the app at a config file anywhere: `boosty-downloader --config ~/boosty/config.yaml download <creator>`. Before, the config could only be `config.yaml` in the folder the app runs from, and that is still the default
