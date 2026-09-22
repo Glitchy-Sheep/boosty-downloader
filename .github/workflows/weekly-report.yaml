@@ -5,7 +5,7 @@ name: Weekly report
 # Needs two repository secrets: TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.
 on:
   schedule:
-    - cron: '0 9 * * 1'  # Mondays, 09:00 UTC: three hours after the canary
+    - cron: '0 9 * * 6'  # Saturdays, 09:00 UTC
   workflow_dispatch:
 
 permissions:
