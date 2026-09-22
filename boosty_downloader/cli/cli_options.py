@@ -130,6 +130,16 @@ SkipAllFailuresOption = Annotated[
     ),
 ]
 
+YesOption = Annotated[
+    bool,
+    typer.Option(
+        '--yes',
+        '-y',
+        help='Do not ask for confirmation',
+        rich_help_panel=HelpPanels.actions,
+    ),
+]
+
 
 def _print_version(value: bool) -> None:  # noqa: FBT001 - typer callback contract
     if value:

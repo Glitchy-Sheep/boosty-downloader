@@ -30,7 +30,9 @@ from boosty_downloader.infrastructure.loggers.request_tracing import (
 from boosty_downloader.infrastructure.post_caching.post_cache import SQLitePostCache
 from boosty_downloader.infrastructure.yaml_configuration.config import (
     DEFAULT_CONFIG_PATH,
+    DownloadSettings,
     init_config,
+    read_download_settings,
 )
 
 if TYPE_CHECKING:
@@ -61,6 +63,19 @@ class AppSettings:
     cookie: str
 
 
+def _cache_dir(
+    paths: DownloadSettings,
+    *,
+    username: str,
+    destination_directory: Path | None,
+    cache_directory: Path | None,
+) -> Path:
+    """<cache or target>/<author>; a CLI directory wins over the config value."""
+    target = destination_directory or paths.target_directory
+    cache_root = cache_directory or paths.cache_directory
+    return (cache_root or target).absolute() / username
+
+
 def load_settings(
     *,
     username: str,
@@ -70,14 +85,34 @@ def load_settings(
 ) -> AppSettings:
     """Load the config file; a CLI directory wins over the config value."""
     config = init_config(config_path)
-    target = destination_directory or config.downloading_settings.target_directory
-    cache_root = cache_directory or config.downloading_settings.cache_directory
+    paths = config.downloading_settings
+    target = destination_directory or paths.target_directory
     return AppSettings(
         author_name=username,
         destination_dir=target.absolute() / username,
-        cache_dir=(cache_root or target).absolute() / username,
+        cache_dir=_cache_dir(
+            paths,
+            username=username,
+            destination_directory=destination_directory,
+            cache_directory=cache_directory,
+        ),
         auth_header=config.auth.auth_header,
         cookie=config.auth.cookie,
+    )
+
+
+def resolve_cache_dir(
+    *,
+    username: str,
+    config_path: Path = DEFAULT_CONFIG_PATH,
+    cache_directory: Path | None = None,
+) -> Path:
+    """Where the creator's cache lives; no credentials needed to find it."""
+    return _cache_dir(
+        read_download_settings(config_path),
+        username=username,
+        destination_directory=None,
+        cache_directory=cache_directory,
     )
 
 

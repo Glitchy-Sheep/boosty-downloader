@@ -6,6 +6,7 @@
 
 ### Changed
 
+- `clean-cache` asks before removing the cache, since the next run downloads everything again; `--yes` skips the question in scripts. The command no longer needs credentials: it reads only the folders from the config, and runs without any config when the cache folder is given with `--cache-dir`
 - Attachments in `post.html` are file cards now: an icon by file type (video, audio, image, document, archive), the name, the type and the size, and files that stand next to each other share one block. Before, an attachment was a bare link that looked like any other link on the page
 
 ### Fixed

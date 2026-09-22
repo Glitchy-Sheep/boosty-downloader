@@ -11,6 +11,10 @@ from boosty_downloader.infrastructure.yaml_configuration.config import (
     _broken_yaml_message,
     _human_message,
     init_config,
+    read_download_settings,
+)
+from boosty_downloader.infrastructure.yaml_configuration.sample_config import (
+    DEFAULT_YAML_CONFIG_VALUE,
 )
 
 if TYPE_CHECKING:
@@ -19,6 +23,46 @@ if TYPE_CHECKING:
 BROKEN_YAML = 'auth:\n  cookie: "unclosed\n'
 BROKEN_STRUCTURE = 'auth: [1, 2, 3]\n'
 VALID = 'auth:\n  cookie: "session=x"\n  auth_header: "Bearer x"\n'
+
+
+def test_the_folders_are_readable_without_credentials(tmp_path: Path) -> None:
+    """The fresh sample has empty credentials: whole-config loading rejects it,
+    a command that only needs the folders must still get them.
+    """
+    config = tmp_path / 'config.yaml'
+    config.write_text(
+        DEFAULT_YAML_CONFIG_VALUE + '  cache_directory: ./elsewhere\n',
+        encoding='utf-8',
+    )
+
+    with pytest.raises(SystemExit):
+        init_config(config)
+    paths = read_download_settings(config)
+
+    assert paths.cache_directory is not None
+    assert paths.cache_directory.name == 'elsewhere'
+
+
+def test_the_folders_default_without_a_config_and_leave_no_sample(
+    tmp_path: Path,
+) -> None:
+    """clean-cache in an empty folder must not create a config file as a side effect."""
+    config = tmp_path / 'config.yaml'
+
+    paths = read_download_settings(config)
+
+    assert paths.target_directory.name == 'boosty-downloads'
+    assert not config.exists()
+
+
+def test_a_broken_folders_section_is_reported_even_without_credentials(
+    tmp_path: Path,
+) -> None:
+    config = tmp_path / 'config.yaml'
+    config.write_text('downloading_settings: [1, 2, 3]\n', encoding='utf-8')
+
+    with pytest.raises(SystemExit):
+        read_download_settings(config)
 
 
 def test_broken_yaml_syntax_keeps_the_file(tmp_path: Path) -> None:
