@@ -16,6 +16,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Static checks on the pinned Python: ruff lint and format, pyright, import layers.
   quality:
     name: 🩺 Lint & Types
     runs-on: ubuntu-latest
@@ -23,7 +24,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-      - name: Setup environment
+      - name: Install Task, uv, Python and the dependencies
         uses: ./.github/actions/setup
       - name: Ruff check
         run: task check:lint
@@ -34,21 +35,37 @@ jobs:
       - name: Import layers
         run: task check:imports
 
+  # Unit and e2e tests on every supported Python and on Windows, one job per cell.
   test:
-    name: 🧪 Tests
-    runs-on: ubuntu-latest
+    name: 🧪 py${{ matrix.python }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}-latest
     timeout-minutes: 15
+    # Cells: the oldest and the newest supported Python plus the pin on
+    # Ubuntu, and the pin on Windows (paths, line endings and the console
+    # differ there). fail-fast off: one red cell must not cancel the others.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu]
+        python: ['3.10', '3.12', '3.14']
+        include:
+          - os: windows
+            python: '3.12'
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-      - name: Setup environment
+      - name: Install Task, uv, Python and the dependencies
         uses: ./.github/actions/setup
+        with:
+          python-version: ${{ matrix.python }}
       # Integration tests need Boosty API credentials stored in ./.env
       # (repo root - that's where pydantic-settings loads it from).
       # The file is gitignored, so CI and fork PRs run unit tests only.
       # Coverage is reported, not enforced: watch the number in the log
       # (78% on 2026-08-17).
       - name: Run tests
+        # The default shell on Windows is pwsh; the step is written for bash.
+        shell: bash
         run: |
           task test:cov -- -v
           if [ -f .env ]; then
@@ -58,6 +75,7 @@ jobs:
           fi
         timeout-minutes: 5
 
+  # Builds the wheel and the sdist and checks that the Jinja templates are inside the wheel.
   build:
     name: 📦 Build
     runs-on: ubuntu-latest
@@ -65,7 +83,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-      - name: Setup environment
+      - name: Install Task, uv, Python and the dependencies
         uses: ./.github/actions/setup
       - name: Build & verify
         run: |
@@ -80,6 +98,7 @@ jobs:
           echo "Templates found in wheel: $TEMPLATES"
           [ "$TEMPLATES" -ge 7 ] || { echo "❌ Jinja templates missing from the wheel"; exit 1; }
 
+  # PR gate: the Unreleased section of CHANGELOG.md must gain lines, unless the PR opts out.
   changelog:
     name: 📝 Changelog
     if: github.event_name == 'pull_request'
