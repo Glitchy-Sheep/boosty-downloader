@@ -61,13 +61,17 @@ The project uses:
 
 ## 📝 Commit Messages
 
-Follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/):
+PRs are squash-merged, so the PR title becomes the commit on `main`. Write it as `[area] Imperative sentence`:
 
 ```
-feat: add audio downloading support
-fix: handle posts with missing titles
-chore: update dependencies
+[cli] Add --config to point at a config file
+[downloader] Skip a post with a gone external video without retries
+[ci] Test matrix for Python 3.10-3.14 and Windows, weekly API canary
 ```
+
+The area is the part of the project the change is about: `cli`, `downloader`, `html`, `cache`, `application`, `ci`, `tests`, `build`, `docs`, `scripts`. Release PRs keep the `chore: release vX.Y.Z` title that `task release` gives them.
+
+The PR description follows the [PR template](.github/pull_request_template.md).
 
 Describe not only **what** changed, but **why**.
 
