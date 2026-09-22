@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import cast
 
 import yaml
-from api_schema.openapi import Observation, build_document, to_yaml
-from api_schema.shapes import ObjectShape, observe
+from api_schema.observed_shapes import ObservedObject, observe
+from api_schema.openapi_document import ObservedAnswers, build_openapi_document, to_yaml
 
 JsonDict = dict[str, object]
 
@@ -37,13 +37,13 @@ def _post(**overrides: object) -> JsonDict:
     return post
 
 
-def _observe(posts: list[JsonDict]) -> Observation:
-    page = ObjectShape()
+def _observe(posts: list[JsonDict]) -> ObservedAnswers:
+    page = ObservedObject()
     observe(page, {'data': [], 'extra': {'offset': '', 'isLast': True}})
-    post_shape = ObjectShape()
+    post_shape = ObservedObject()
     for post in posts:
         observe(post_shape, post)
-    return Observation(
+    return ObservedAnswers(
         page=page,
         post=post_shape,
         captured_at='2026-09-22',
@@ -59,7 +59,7 @@ def _schemas(document: JsonDict) -> dict[str, JsonDict]:
 
 def test_required_and_presence_follow_the_samples():
     """`subscriptionLevel` on locked posts only must be optional with its share."""
-    document = build_document(
+    document = build_openapi_document(
         _observe([_post(subscriptionLevel={'name': 'x'}), _post(), _post(), _post()])
     )
 
@@ -71,7 +71,7 @@ def test_required_and_presence_follow_the_samples():
 
 
 def test_null_widens_the_type_and_formats_follow_the_strings():
-    document = build_document(_observe([_post(), _post(title=None)]))
+    document = build_openapi_document(_observe([_post(), _post(title=None)]))
 
     properties = cast('dict[str, JsonDict]', _schemas(document)['Post']['properties'])
     assert properties['title']['type'] == ['string', 'null']
@@ -79,7 +79,7 @@ def test_null_widens_the_type_and_formats_follow_the_strings():
 
 
 def test_chunks_become_components_told_apart_by_type():
-    document = build_document(_observe([_post()]))
+    document = build_openapi_document(_observe([_post()]))
 
     schemas = _schemas(document)
     data = cast('dict[str, JsonDict]', schemas['Post']['properties'])['data']
@@ -95,7 +95,7 @@ def test_chunks_become_components_told_apart_by_type():
 
 def test_strict_enum_for_player_urls_and_seen_values_elsewhere():
     """A new video quality name is drift; a new upload status is information."""
-    document = build_document(_observe([_post()]))
+    document = build_openapi_document(_observe([_post()]))
 
     video = cast(
         'dict[str, JsonDict]', _schemas(document)['ChunkOkVideo']['properties']
@@ -109,14 +109,14 @@ def test_strict_enum_for_player_urls_and_seen_values_elsewhere():
 
 def test_empty_arrays_render_without_items():
     """`type: []` under items is invalid OpenAPI; an empty array is just an array."""
-    document = build_document(_observe([_post(tags=[])]))
+    document = build_openapi_document(_observe([_post(tags=[])]))
 
     properties = cast('dict[str, JsonDict]', _schemas(document)['Post']['properties'])
     assert properties['tags'] == {'type': 'array'}
 
 
 def test_page_refers_to_post_and_extracts_extra():
-    document = build_document(_observe([_post()]))
+    document = build_openapi_document(_observe([_post()]))
 
     schemas = _schemas(document)
     page = cast('dict[str, JsonDict]', schemas['PostsPage']['properties'])
@@ -129,7 +129,7 @@ def test_page_refers_to_post_and_extracts_extra():
 
 
 def test_unread_keys_and_sample_counts_are_recorded():
-    document = build_document(_observe([_post()]))
+    document = build_openapi_document(_observe([_post()]))
 
     assert _schemas(document)['Post']['x-unread-by-client'] == ['hasAccess']
     assert document['x-observed'] == {
@@ -140,8 +140,8 @@ def test_unread_keys_and_sample_counts_are_recorded():
 
 def test_yaml_is_deterministic_and_carries_no_values():
     """The file goes into the repo: the same answers give the same bytes and no content."""
-    first = to_yaml(build_document(_observe([_post()])))
-    second = to_yaml(build_document(_observe([_post()])))
+    first = to_yaml(build_openapi_document(_observe([_post()])))
+    second = to_yaml(build_openapi_document(_observe([_post()])))
 
     assert first == second
     assert PRIVATE_TITLE not in first

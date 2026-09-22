@@ -19,16 +19,16 @@ from typing import Annotated, cast
 import rich
 import typer
 
-from api_schema.fetch import (
-    FetchError,
-    fetch_pages,
-    fetch_post,
-    load_token,
-    open_session,
+from api_schema.live_api import (
+    LiveApiError,
+    fetch_listing_pages,
+    fetch_single_post,
+    find_account_token,
+    open_api_session,
 )
-from api_schema.models import unread_by_client
-from api_schema.openapi import Observation, build_document, to_yaml
-from api_schema.shapes import ObjectShape, observe
+from api_schema.observed_shapes import ObservedObject, observe
+from api_schema.openapi_document import ObservedAnswers, build_openapi_document, to_yaml
+from api_schema.unread_keys import keys_unread_by_client
 
 DEFAULT_OUTPUT = Path('docs/api/boosty-api.yaml')
 DEFAULT_CONFIG = Path('config.yaml')
@@ -57,47 +57,47 @@ def build(
     ] = False,
 ) -> None:
     """Fetch the answers of the blogs and write the OpenAPI document."""
-    token = None if anonymous else load_token(config)
+    token = None if anonymous else find_account_token(config)
     try:
-        observation = asyncio.run(_observe_blogs(blogs, token, pages))
-    except FetchError as error:
+        observation = asyncio.run(_observe_blog_answers(blogs, token, pages))
+    except LiveApiError as error:
         rich.print(f'[red]{error}[/red]')
         raise typer.Exit(1) from error
-    document = build_document(observation)
+    document = build_openapi_document(observation)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(to_yaml(document), encoding='utf-8')
-    _report(document, observation, output, with_token=token is not None)
+    _print_summary(document, observation, output, with_token=token is not None)
 
 
-async def _observe_blogs(
+async def _observe_blog_answers(
     blogs: list[str], token: str | None, pages: int
-) -> Observation:
+) -> ObservedAnswers:
     """Read the blogs and keep only their shapes and counts."""
-    page_shape = ObjectShape()
-    post_shape = ObjectShape()
+    page_shape = ObservedObject()
+    post_shape = ObservedObject()
     posts = 0
     page_count = 0
-    async with open_session(token) as session:
+    async with open_api_session(token) as session:
         for blog in blogs:
-            answers = await fetch_pages(session, blog, pages=pages)
+            answers = await fetch_listing_pages(session, blog, pages=pages)
             for page in answers:
                 page_count += 1
-                posts += _observe_page(page, page_shape, post_shape)
+                posts += _observe_listing_page(page, page_shape, post_shape)
             newest = _newest_post_id(answers[0]) if answers else None
             if newest is not None:
-                observe(post_shape, await fetch_post(session, blog, newest))
+                observe(post_shape, await fetch_single_post(session, blog, newest))
                 posts += 1
-    return Observation(
+    return ObservedAnswers(
         page=page_shape,
         post=post_shape,
         captured_at=datetime.now(tz=timezone.utc).date().isoformat(),
         samples={'blogs': len(blogs), 'pages': page_count, 'posts': posts},
-        unread_by_client=unread_by_client(post_shape, page_shape),
+        unread_by_client=keys_unread_by_client(post_shape, page_shape),
     )
 
 
-def _observe_page(
-    page: JsonDict, page_shape: ObjectShape, post_shape: ObjectShape
+def _observe_listing_page(
+    page: JsonDict, page_shape: ObservedObject, post_shape: ObservedObject
 ) -> int:
     """Count the page without its posts, then every post on its own."""
     data = cast('list[object]', page.get('data', []))
@@ -115,8 +115,8 @@ def _newest_post_id(page: JsonDict) -> str | None:
     return post_id if isinstance(post_id, str) else None
 
 
-def _report(
-    document: JsonDict, observation: Observation, output: Path, *, with_token: bool
+def _print_summary(
+    document: JsonDict, observation: ObservedAnswers, output: Path, *, with_token: bool
 ) -> None:
     components = cast('JsonDict', document['components'])
     schemas = cast('dict[str, JsonDict]', components['schemas'])

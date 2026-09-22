@@ -29,7 +29,7 @@ from boosty_downloader.infrastructure.boosty_api.core.endpoints import (
 JsonDict = dict[str, object]
 
 
-class _EnvToken(BaseSettings):
+class _DotenvToken(BaseSettings):
     """`BOOSTY_TOKEN` from the environment or ./.env; other keys are ignored."""
 
     boosty_auth_token: SecretStr | None = Field(None, alias='BOOSTY_TOKEN')
@@ -37,11 +37,11 @@ class _EnvToken(BaseSettings):
     model_config = SettingsConfigDict(env_file='.env', extra='ignore')
 
 
-class FetchError(Exception):
+class LiveApiError(Exception):
     """The API answered, but not with a page: the message says what to fix."""
 
 
-def load_token(config_path: Path) -> str | None:
+def find_account_token(config_path: Path) -> str | None:
     """
     Find the Authorization value, or None for an anonymous run.
 
@@ -56,7 +56,7 @@ def load_token(config_path: Path) -> str | None:
     config_header = _config_header(config_path)
     if config_header:
         return config_header
-    dotenv_token = _EnvToken().boosty_auth_token  # pyright: ignore[reportCallIssue] : loaded from ./.env
+    dotenv_token = _DotenvToken().boosty_auth_token  # pyright: ignore[reportCallIssue] : loaded from ./.env
     return dotenv_token.get_secret_value() if dotenv_token is not None else None
 
 
@@ -73,7 +73,7 @@ def _config_header(config_path: Path) -> str | None:
     return header if isinstance(header, str) and header else None
 
 
-def open_session(token: str | None) -> aiohttp.ClientSession:
+def open_api_session(token: str | None) -> aiohttp.ClientSession:
     """Open a session with the token as the only header; no cookies are kept."""
     headers = {'Authorization': token} if token else {}
     return aiohttp.ClientSession(
@@ -83,7 +83,7 @@ def open_session(token: str | None) -> aiohttp.ClientSession:
     )
 
 
-async def fetch_pages(
+async def fetch_listing_pages(
     session: aiohttp.ClientSession, blog: str, *, pages: int
 ) -> list[JsonDict]:
     """Up to `pages` listing answers of a blog, newest first, as decoded JSON."""
@@ -102,7 +102,7 @@ async def fetch_pages(
     return answers
 
 
-async def fetch_post(
+async def fetch_single_post(
     session: aiohttp.ClientSession, blog: str, post_id: str
 ) -> JsonDict:
     """One post through the single-post endpoint."""
@@ -117,11 +117,11 @@ async def _get(
     ) as response:
         if response.status == HTTPStatus.NOT_FOUND:
             message = f'{what}: not found (404)'
-            raise FetchError(message)
+            raise LiveApiError(message)
         if response.status == HTTPStatus.UNAUTHORIZED:
             message = 'Credentials rejected (401): refresh BOOSTY_TOKEN in ./.env'
-            raise FetchError(message)
+            raise LiveApiError(message)
         if response.status != HTTPStatus.OK:
             message = f'{what}: unexpected status {response.status}'
-            raise FetchError(message)
+            raise LiveApiError(message)
         return cast('JsonDict', await response.json())

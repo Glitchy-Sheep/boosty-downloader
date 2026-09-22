@@ -16,30 +16,30 @@ from typing import TYPE_CHECKING, cast
 import yaml
 
 if TYPE_CHECKING:
-    from api_schema.shapes import FieldShape, ObjectShape
+    from api_schema.observed_shapes import ObservedKey, ObservedObject
 
 # A value outside these lists is drift: the client switches on them.
-STRICT_ENUMS: frozenset[str] = frozenset({'data[].playerUrls[].type'})
+PATHS_WITH_STRICT_ENUM: frozenset[str] = frozenset({'data[].playerUrls[].type'})
 
-_SCHEMAS = '#/components/schemas/'
+_COMPONENT_REF_PREFIX = '#/components/schemas/'
 JsonDict = dict[str, object]
 
 
 @dataclass(frozen=True)
-class Observation:
+class ObservedAnswers:
     """What the answers looked like, ready to be rendered."""
 
     # Listing answers with `data` emptied: posts are observed on their own.
-    page: ObjectShape
+    page: ObservedObject
     # Every post, from listings and single-post answers alike.
-    post: ObjectShape
+    post: ObservedObject
     captured_at: str
     samples: dict[str, int]
     # Schema name -> keys the client's models do not read.
     unread_by_client: dict[str, list[str]] = field(default_factory=dict[str, list[str]])
 
 
-def build_document(observation: Observation) -> JsonDict:
+def build_openapi_document(observation: ObservedAnswers) -> JsonDict:
     """Build the whole OpenAPI document, keys in a stable order."""
     components: dict[str, JsonDict] = {}
     post = object_schema(observation.post, '', components)
@@ -83,18 +83,18 @@ def to_yaml(document: JsonDict) -> str:
 
 
 def object_schema(
-    shape: ObjectShape, path: str, components: dict[str, JsonDict]
+    shape: ObservedObject, path: str, components: dict[str, JsonDict]
 ) -> JsonDict:
     """Render an object schema: keys sorted, required when present in every sample."""
     required: list[str] = []
     properties: JsonDict = {}
-    for name, field_shape in sorted(shape.fields.items()):
+    for name, field_shape in sorted(shape.keys.items()):
         child = f'{path}.{name}' if path else name
-        schema = field_schema(field_shape, child, components)
-        if field_shape.present == shape.samples:
+        schema = key_schema(field_shape, child, components)
+        if field_shape.seen == shape.samples:
             required.append(name)
         else:
-            schema['x-presence'] = round(field_shape.present / shape.samples, 2)
+            schema['x-presence'] = round(field_shape.seen / shape.samples, 2)
         properties[name] = schema
     schema: JsonDict = {'type': 'object'}
     if required:
@@ -104,8 +104,8 @@ def object_schema(
     return schema
 
 
-def field_schema(
-    shape: FieldShape, path: str, components: dict[str, JsonDict]
+def key_schema(
+    shape: ObservedKey, path: str, components: dict[str, JsonDict]
 ) -> JsonDict:
     """Render the schema of one key from everything seen there."""
     types = _types(shape)
@@ -116,19 +116,19 @@ def field_schema(
         elif shape.uri_like:
             schema['format'] = 'uri'
         if shape.vocabulary:
-            key = 'enum' if path in STRICT_ENUMS else 'x-seen-values'
+            key = 'enum' if path in PATHS_WITH_STRICT_ENUM else 'x-seen-values'
             schema[key] = sorted(shape.vocabulary)
-    if shape.object is not None:
-        nested = object_schema(shape.object, path, components)
+    if shape.nested is not None:
+        nested = object_schema(shape.nested, path, components)
         schema.update({k: v for k, v in nested.items() if k != 'type'})
     if shape.variants is not None:
-        schema['items'] = _variants_schema(shape.variants, path, components)
+        schema['items'] = _chunk_variants_schema(shape.variants, path, components)
     elif shape.items is not None:
-        schema['items'] = field_schema(shape.items, f'{path}[]', components)
+        schema['items'] = key_schema(shape.items, f'{path}[]', components)
     return schema
 
 
-def _types(shape: FieldShape) -> list[str]:
+def _types(shape: ObservedKey) -> list[str]:
     """Non-null types sorted, `null` last."""
     seen = sorted(name for name in shape.types if name != 'null')
     if shape.types['null']:
@@ -136,8 +136,8 @@ def _types(shape: FieldShape) -> list[str]:
     return seen
 
 
-def _variants_schema(
-    variants: dict[str, ObjectShape], path: str, components: dict[str, JsonDict]
+def _chunk_variants_schema(
+    variants: dict[str, ObservedObject], path: str, components: dict[str, JsonDict]
 ) -> JsonDict:
     """One component per item kind, told apart by the `type` key."""
     refs: list[JsonDict] = []
@@ -157,7 +157,7 @@ def chunk_component_name(kind: str) -> str:
 
 
 def _ref(name: str) -> JsonDict:
-    return {'$ref': f'{_SCHEMAS}{name}'}
+    return {'$ref': f'{_COMPONENT_REF_PREFIX}{name}'}
 
 
 def _paths() -> JsonDict:
