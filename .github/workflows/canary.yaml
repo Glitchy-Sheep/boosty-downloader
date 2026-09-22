@@ -1,0 +1,67 @@
+name: Canary
+
+# Asks the live Boosty API once a week whether the client still understands
+# it. No credentials: the probe reads a public blog. A red probe opens an
+# issue, one at a time.
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Mondays, 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      author:
+        description: Blog to probe instead of the CANARY_AUTHOR repository variable
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  # Runs test/canary against the live API and files an api-drift issue when it fails.
+  probe:
+    name: 🐤 Live API probe
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CANARY_AUTHOR: ${{ inputs.author || vars.CANARY_AUTHOR }}
+    steps:
+      - name: Check the blog name is set
+        run: |
+          if [ -z "$CANARY_AUTHOR" ]; then
+            echo "::error::CANARY_AUTHOR is empty: set the repository variable or pass the author input"
+            exit 1
+          fi
+          echo "Probing the blog from ${{ inputs.author && 'the author input' || 'the CANARY_AUTHOR variable' }}"
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Install Task, uv, Python and the dependencies
+        uses: ./.github/actions/setup
+      - name: Probe the live Boosty API
+        id: probe
+        run: task test:canary -- -v
+      # Only a failed probe means drift. A failed setup step is a CI problem
+      # and gets no issue. One open api-drift issue at a time: a weekly run
+      # must not stack duplicates.
+      - name: Open an issue on drift
+        if: failure() && steps.probe.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          OPEN=$(gh issue list --label api-drift --state open --limit 1 --json number --jq '.[0].number')
+          if [ -n "$OPEN" ]; then
+            echo "Issue #$OPEN is already open, not creating another"
+            exit 0
+          fi
+          {
+            echo "The weekly probe of the live Boosty API failed: the client no longer understands an answer."
+            echo
+            echo "Run: $RUN_URL"
+            echo
+            echo "The failed test names what changed: a post that does not parse, an unknown chunk type or value, or open posts without content."
+          } > issue-body.md
+          gh issue create \
+            --label api-drift \
+            --title "Boosty API drift: the canary failed on $(date -u +%F)" \
+            --body-file issue-body.md
