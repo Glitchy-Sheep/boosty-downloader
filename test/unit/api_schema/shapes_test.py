@@ -85,6 +85,16 @@ def test_nested_objects_and_plain_arrays_recurse():
     assert tags.present == 2
 
 
+def test_an_always_empty_array_has_no_item_shape():
+    """Anonymous answers carry `playerUrls: []`: no items means no item schema."""
+    shape = ObjectShape()
+    observe(shape, {'playerUrls': []})
+    observe(shape, {'playerUrls': []})
+
+    assert shape.fields['playerUrls'].types == {'array': 2}
+    assert shape.fields['playerUrls'].items is None
+
+
 def test_only_vocabulary_keys_keep_token_values():
     """A post title must never land in the schema, even when it is one word."""
     shape = ObjectShape()

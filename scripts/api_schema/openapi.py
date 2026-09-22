@@ -142,13 +142,18 @@ def _variants_schema(
     """One component per item kind, told apart by the `type` key."""
     refs: list[JsonDict] = []
     for kind, shape in sorted(variants.items()):
-        name = 'Chunk' + ''.join(part.capitalize() for part in kind.split('_'))
+        name = chunk_component_name(kind)
         schema = object_schema(shape, f'{path}[]', components)
         properties = cast('JsonDict', schema['properties'])
         properties['type'] = {'type': 'string', 'const': kind}
         components[name] = schema
         refs.append(_ref(name))
     return {'oneOf': refs, 'discriminator': {'propertyName': 'type'}}
+
+
+def chunk_component_name(kind: str) -> str:
+    """Name the component of one chunk kind: `ok_video` -> `ChunkOkVideo`."""
+    return 'Chunk' + ''.join(part.capitalize() for part in kind.split('_'))
 
 
 def _ref(name: str) -> JsonDict:

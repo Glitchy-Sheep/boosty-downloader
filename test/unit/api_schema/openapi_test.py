@@ -107,6 +107,14 @@ def test_strict_enum_for_player_urls_and_seen_values_elsewhere():
     assert 'enum' not in video['uploadStatus']
 
 
+def test_empty_arrays_render_without_items():
+    """`type: []` under items is invalid OpenAPI; an empty array is just an array."""
+    document = build_document(_observe([_post(tags=[])]))
+
+    properties = cast('dict[str, JsonDict]', _schemas(document)['Post']['properties'])
+    assert properties['tags'] == {'type': 'array'}
+
+
 def test_page_refers_to_post_and_extracts_extra():
     document = build_document(_observe([_post()]))
 

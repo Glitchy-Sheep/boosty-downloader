@@ -133,9 +133,10 @@ def _observe_list(shape: FieldShape, items: list[object], path: str) -> None:
             variant = shape.variants.setdefault(kind, ObjectShape())
             observe(variant, cast('dict[str, object]', item), f'{path}[]')
         return
-    if shape.items is None:
-        shape.items = FieldShape()
+    # An always-empty array has no item shape: `items` stays None.
     for item in items:
+        if shape.items is None:
+            shape.items = FieldShape()
         _observe_value(shape.items, item, f'{path}[]')
 
 

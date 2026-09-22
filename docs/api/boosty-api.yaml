@@ -1,0 +1,883 @@
+openapi: 3.1.0
+info:
+  title: Boosty API as seen by boosty-downloader
+  version: '2026-09-22'
+  description: 'Observed, not official: built from live answers by `task api:schema`. Only shapes and
+    counts are recorded.'
+x-observed:
+  captured_at: '2026-09-22'
+  samples:
+    blogs: 1
+    pages: 1
+    posts: 12
+paths:
+  /blog/{blog}/post/:
+    get:
+      summary: A page of the blog posts, newest first
+      parameters:
+      - &id001
+        name: blog
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          maximum: 100
+      - name: offset
+        in: query
+        description: The `extra.offset` of the previous page
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostsPage'
+        '400':
+          description: Malformed blog name
+        '401':
+          description: Credentials rejected
+        '404':
+          description: No such blog
+  /blog/{blog}/post/{id}:
+    get:
+      summary: One post with fresh signed links
+      parameters:
+      - *id001
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Post'
+        '401':
+          description: Credentials rejected
+        '404':
+          description: No such post
+components:
+  schemas:
+    ChunkAudioFile:
+      type: object
+      required:
+      - album
+      - artist
+      - complete
+      - duration
+      - fileType
+      - id
+      - isInvalid
+      - showViewsCounter
+      - size
+      - timeCode
+      - title
+      - track
+      - type
+      - uploadStatus
+      - url
+      - viewsCounter
+      properties:
+        album:
+          type: string
+        artist:
+          type: string
+        complete:
+          type: boolean
+        duration:
+          type: integer
+        fileType:
+          type: string
+          x-seen-values:
+          - MP3
+        id:
+          type: string
+          format: uuid
+        isInvalid:
+          type: 'null'
+        showViewsCounter:
+          type: boolean
+        size:
+          type: integer
+        timeCode:
+          type: integer
+        title:
+          type: string
+        track:
+          type: string
+        type:
+          type: string
+          const: audio_file
+        uploadStatus:
+          type: 'null'
+        url:
+          type: string
+          format: uri
+        viewsCounter:
+          type: integer
+      x-unread-by-client:
+      - album
+      - artist
+      - duration
+      - fileType
+      - isInvalid
+      - track
+    ChunkFile:
+      type: object
+      required:
+      - complete
+      - id
+      - isInvalid
+      - size
+      - title
+      - type
+      - url
+      properties:
+        complete:
+          type: boolean
+        id:
+          type: string
+          format: uuid
+        isInvalid:
+          type: 'null'
+        size:
+          type: integer
+        title:
+          type: string
+        type:
+          type: string
+          const: file
+        url:
+          type: string
+          format: uri
+      x-unread-by-client:
+      - id
+      - isInvalid
+    ChunkHeader:
+      type: object
+      required:
+      - content
+      - modificator
+      - type
+      properties:
+        content:
+          type: string
+        modificator:
+          type: string
+        type:
+          type: string
+          const: header
+    ChunkImage:
+      type: object
+      required:
+      - height
+      - id
+      - isInvalid
+      - rendition
+      - size
+      - type
+      - url
+      - width
+      properties:
+        height:
+          type: integer
+        id:
+          type: string
+          format: uuid
+        isInvalid:
+          type: 'null'
+        rendition:
+          type: string
+        size:
+          type: integer
+        title:
+          type: string
+          x-presence: 0.84
+        type:
+          type: string
+          const: image
+        url:
+          type: string
+          format: uri
+        width:
+          type: integer
+      x-unread-by-client:
+      - id
+      - isInvalid
+      - rendition
+      - title
+    ChunkList:
+      type: object
+      required:
+      - items
+      - style
+      - type
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required:
+            - data
+            - items
+            properties:
+              data:
+                type: array
+                items:
+                  type: object
+                  required:
+                  - content
+                  - modificator
+                  - type
+                  properties:
+                    content:
+                      type: string
+                    modificator:
+                      type: string
+                    type:
+                      type: string
+                      x-seen-values:
+                      - text
+              items:
+                type: array
+        style:
+          type: string
+          x-seen-values:
+          - ordered
+          - unordered
+        type:
+          type: string
+          const: list
+    ChunkOkVideo:
+      type: object
+      required:
+      - complete
+      - defaultPreview
+      - duration
+      - failoverHost
+      - height
+      - id
+      - isInvalid
+      - playerUrls
+      - preview
+      - showViewsCounter
+      - status
+      - timeCode
+      - title
+      - type
+      - uploadStatus
+      - url
+      - vid
+      - viewsCounter
+      - width
+      properties:
+        complete:
+          type: boolean
+        defaultPreview:
+          type: string
+          format: uri
+        duration:
+          type: integer
+        failoverHost:
+          type: string
+        height:
+          type: integer
+        id:
+          type: string
+          format: uuid
+        isInvalid:
+          type: 'null'
+        playerUrls:
+          type: array
+          items:
+            type: object
+            required:
+            - type
+            - url
+            properties:
+              type:
+                type: string
+                enum:
+                - dash
+                - dash_uni
+                - full_hd
+                - high
+                - hls
+                - live_cmaf
+                - live_dash
+                - live_hls
+                - live_ondemand_hls
+                - live_playback_dash
+                - live_playback_hls
+                - low
+                - lowest
+                - medium
+                - ondemand_dash
+                - ondemand_hls
+                - quad_hd
+                - tiny
+                - ultra_hd
+              url:
+                type: string
+        preview:
+          type: string
+          format: uri
+        showViewsCounter:
+          type: boolean
+        status:
+          type: string
+          x-seen-values:
+          - ok
+        timeCode:
+          type: integer
+        title:
+          type: string
+        type:
+          type: string
+          const: ok_video
+        uploadStatus:
+          type: string
+          x-seen-values:
+          - ok
+        url:
+          type: string
+        vid:
+          type: string
+        viewsCounter:
+          type: integer
+        width:
+          type: integer
+      x-unread-by-client:
+      - defaultPreview
+      - height
+      - isInvalid
+      - preview
+      - showViewsCounter
+      - status
+      - timeCode
+      - url
+      - vid
+      - viewsCounter
+      - width
+    ChunkText:
+      type: object
+      required:
+      - content
+      - modificator
+      - type
+      properties:
+        content:
+          type: string
+        modificator:
+          type: string
+        type:
+          type: string
+          const: text
+    PageExtra:
+      type: object
+      required:
+      - isLast
+      - offset
+      properties:
+        isLast:
+          type: boolean
+        offset:
+          type: string
+    Post:
+      type: object
+      required:
+      - advertiserInfo
+      - bundleIds
+      - comments
+      - contentCounters
+      - count
+      - createdAt
+      - currencyDonations
+      - currencyPrices
+      - data
+      - donations
+      - donators
+      - hasAccess
+      - hasAdultContent
+      - id
+      - intId
+      - int_id
+      - isBlocked
+      - isCommentsDenied
+      - isDeleted
+      - isLiked
+      - isMarketing
+      - isPinned
+      - isPublished
+      - isRecord
+      - isShowcaseVisible
+      - isWaitingVideo
+      - price
+      - promo
+      - publishTime
+      - reactionCounters
+      - reactionsDisabled
+      - showViewsCounter
+      - signedQuery
+      - sortOrder
+      - tags
+      - teaser
+      - title
+      - updatedAt
+      - user
+      properties:
+        advertiserInfo:
+          type: 'null'
+        bundleIds:
+          type: array
+        comments:
+          type: object
+          required:
+          - data
+          - extra
+          properties:
+            data:
+              type: array
+            extra:
+              type: object
+              required:
+              - isLast
+              properties:
+                isFirst:
+                  type: boolean
+                  x-presence: 0.08
+                isLast:
+                  type: boolean
+        contentCounters:
+          type: array
+          items:
+            type: object
+            required:
+            - count
+            - size
+            - type
+            properties:
+              count:
+                type: integer
+              size:
+                type: integer
+              type:
+                type: string
+                x-seen-values:
+                - audio
+                - file
+                - image
+                - ok_video
+                - text
+        count:
+          type: object
+          required:
+          - comments
+          - likes
+          - reactions
+          - views
+          properties:
+            comments:
+              type: integer
+            likes:
+              type: integer
+            reactions:
+              type: object
+              required:
+              - angry
+              - dislike
+              - fire
+              - heart
+              - laught
+              - like
+              - sad
+              - wonder
+              properties:
+                angry:
+                  type: integer
+                dislike:
+                  type: integer
+                fire:
+                  type: integer
+                heart:
+                  type: integer
+                laught:
+                  type: integer
+                like:
+                  type: integer
+                sad:
+                  type: integer
+                wonder:
+                  type: integer
+            views:
+              type: integer
+        createdAt:
+          type: integer
+        currencyDonations:
+          type: object
+          required:
+          - EUR
+          - RUB
+          - USD
+          properties:
+            EUR:
+              type: integer
+            RUB:
+              type: integer
+            USD:
+              type: integer
+        currencyPrices:
+          type: object
+          required:
+          - EUR
+          - RUB
+          - USD
+          properties:
+            EUR:
+              type:
+              - integer
+              - number
+            RUB:
+              type: integer
+            USD:
+              type:
+              - integer
+              - number
+        data:
+          type: array
+          items:
+            oneOf:
+            - $ref: '#/components/schemas/ChunkAudioFile'
+            - $ref: '#/components/schemas/ChunkFile'
+            - $ref: '#/components/schemas/ChunkHeader'
+            - $ref: '#/components/schemas/ChunkImage'
+            - $ref: '#/components/schemas/ChunkList'
+            - $ref: '#/components/schemas/ChunkOkVideo'
+            - $ref: '#/components/schemas/ChunkText'
+            discriminator:
+              propertyName: type
+        donations:
+          type: integer
+        donators:
+          type: object
+          required:
+          - data
+          - extra
+          properties:
+            data:
+              type: array
+            extra:
+              type: object
+              required:
+              - isLast
+              properties:
+                isLast:
+                  type: boolean
+        frame:
+          type: object
+          required:
+          - next
+          - previous
+          properties:
+            next:
+              type: 'null'
+            previous:
+              type: object
+              required:
+              - id
+              - publishTime
+              - title
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                publishTime:
+                  type: integer
+                title:
+                  type: string
+          x-presence: 0.08
+        hasAccess:
+          type: boolean
+        hasAdultContent:
+          type: boolean
+        id:
+          type: string
+          format: uuid
+        intId:
+          type: integer
+        int_id:
+          type: integer
+        isBlocked:
+          type: boolean
+        isCommentsDenied:
+          type: boolean
+        isDeleted:
+          type: boolean
+        isLiked:
+          type: boolean
+        isMarketing:
+          type: boolean
+        isPinned:
+          type: boolean
+        isPublished:
+          type: boolean
+        isRecord:
+          type: boolean
+        isShowcaseVisible:
+          type: boolean
+        isWaitingVideo:
+          type: boolean
+        price:
+          type: integer
+        promo:
+          type: 'null'
+        publishTime:
+          type: integer
+        reactionCounters:
+          type: array
+          items:
+            type: object
+            required:
+            - count
+            - type
+            properties:
+              count:
+                type: integer
+              type:
+                type: string
+        reactionsDisabled:
+          type: boolean
+        showViewsCounter:
+          type: boolean
+        signedQuery:
+          type: string
+        sortOrder:
+          type: integer
+        subscriptionLevel:
+          type: object
+          required:
+          - createdAt
+          - currencyPrices
+          - data
+          - deleted
+          - flags
+          - hasActivePromo
+          - id
+          - isArchived
+          - isHidden
+          - isLimited
+          - name
+          - ownerId
+          - price
+          - promos
+          properties:
+            createdAt:
+              type: integer
+            currencyPrices:
+              type: object
+              required:
+              - EUR
+              - RUB
+              - USD
+              properties:
+                EUR:
+                  type: number
+                RUB:
+                  type: integer
+                USD:
+                  type: number
+            data:
+              type: array
+              items:
+                type: object
+                required:
+                - content
+                - modificator
+                - type
+                properties:
+                  content:
+                    type: string
+                  modificator:
+                    type: string
+                  type:
+                    type: string
+                    x-seen-values:
+                    - text
+            deleted:
+              type: boolean
+            flags:
+              type: object
+              required:
+              - isArchived
+              - isHidden
+              - isLimited
+              properties:
+                isArchived:
+                  type: boolean
+                isHidden:
+                  type: boolean
+                isLimited:
+                  type: boolean
+            hasActivePromo:
+              type: boolean
+            id:
+              type: integer
+            isArchived:
+              type: boolean
+            isHidden:
+              type: boolean
+            isLimited:
+              type: boolean
+            name:
+              type: string
+            ownerId:
+              type: integer
+            price:
+              type: integer
+            promos:
+              type: array
+          x-presence: 0.25
+        tags:
+          type: array
+          items:
+            type: object
+            required:
+            - id
+            - title
+            properties:
+              id:
+                type: integer
+              title:
+                type: string
+        teaser:
+          type: array
+          items:
+            type: object
+            required:
+            - height
+            - id
+            - isInvalid
+            - rendition
+            - size
+            - type
+            - url
+            - width
+            properties:
+              height:
+                type: integer
+              id:
+                type: string
+                format: uuid
+              isInvalid:
+                type: 'null'
+              rendition:
+                type: string
+                x-seen-values:
+                - teaser_auto_background
+              size:
+                type: integer
+              type:
+                type: string
+                x-seen-values:
+                - image
+              url:
+                type: string
+                format: uri
+              width:
+                type: integer
+        title:
+          type:
+          - string
+          - 'null'
+        updatedAt:
+          type: integer
+        user:
+          type: object
+          required:
+          - avatarUrl
+          - blogUrl
+          - currency
+          - flags
+          - hasAvatar
+          - id
+          - isOfficial
+          - name
+          properties:
+            avatarUrl:
+              type: string
+              format: uri
+            blogUrl:
+              type: string
+            currency:
+              type: string
+              x-seen-values:
+              - RUB
+            flags:
+              type: object
+              required:
+              - showPostDonations
+              properties:
+                showPostDonations:
+                  type: boolean
+            hasAvatar:
+              type: boolean
+            id:
+              type: integer
+            isOfficial:
+              type: boolean
+            name:
+              type: string
+      x-unread-by-client:
+      - advertiserInfo
+      - bundleIds
+      - comments
+      - contentCounters
+      - count
+      - currencyDonations
+      - donations
+      - donators
+      - frame
+      - hasAdultContent
+      - intId
+      - int_id
+      - isBlocked
+      - isCommentsDenied
+      - isDeleted
+      - isLiked
+      - isMarketing
+      - isPinned
+      - isPublished
+      - isRecord
+      - isShowcaseVisible
+      - isWaitingVideo
+      - promo
+      - publishTime
+      - reactionCounters
+      - reactionsDisabled
+      - showViewsCounter
+      - sortOrder
+      - tags
+      - teaser
+      - user
+    PostsPage:
+      type: object
+      required:
+      - data
+      - extra
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Post'
+        extra:
+          $ref: '#/components/schemas/PageExtra'
