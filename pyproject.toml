@@ -94,6 +94,8 @@ asyncio_mode = "auto"
 testpaths = ["test/unit", "test/e2e"]
 # -ra: show the reason for every skip/xfail in the summary.
 addopts = "-ra --strict-markers"
+# The dev tools in scripts/ have unit tests too (scripts/api_schema).
+pythonpath = ["scripts"]
 
 [tool.coverage.run]
 source = ["boosty_downloader"]
