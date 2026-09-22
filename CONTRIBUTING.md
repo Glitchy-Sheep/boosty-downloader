@@ -61,15 +61,17 @@ The project uses:
 
 ## 📝 Commit Messages
 
-PRs are squash-merged, so the PR title becomes the commit on `main`. Write it as `[area] Imperative sentence`:
+PRs are squash-merged, so the PR title becomes the commit on `main`. Follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) with the area of the project in parentheses:
 
 ```
-[cli] Add --config to point at a config file
-[downloader] Skip a post with a gone external video without retries
-[ci] Test matrix for Python 3.10-3.14 and Windows, weekly API canary
+feat(cli): add --config to point at a config file
+fix(downloader): skip a post with a gone external video without retries
+refactor(application): declare ports and build the app in a composition root
 ```
 
-The area is the part of the project the change is about: `cli`, `downloader`, `html`, `cache`, `application`, `ci`, `tests`, `build`, `docs`, `scripts`. Release PRs keep the `chore: release vX.Y.Z` title that `task release` gives them.
+- Types: `feat`, `fix`, `refactor`, `perf`, `docs`, `test`, `ci`, `build`, `chore`.
+- Areas: `cli`, `downloader`, `html`, `cache`, `application`, `api`, `config`, `scripts`, `deps`. Skip the area when the change has none, e.g. `ci: test on Windows`.
+- Release PRs keep the `chore: release vX.Y.Z` title that `task release` gives them.
 
 The PR description follows the [PR template](.github/pull_request_template.md).
 

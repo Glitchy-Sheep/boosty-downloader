@@ -1,4 +1,4 @@
-<!-- Title: [area] Imperative sentence, e.g. [cli] Add --config to point at a config file -->
+<!-- Title: type(area): description, e.g. feat(cli): add --config to point at a config file -->
 
 ## 📝 Summary
 <!-- What changes for the user, in 1-2 sentences. Closes #123 or Part of #123. Say it if the change is breaking -->
