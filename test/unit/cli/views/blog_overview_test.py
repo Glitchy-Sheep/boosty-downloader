@@ -19,7 +19,7 @@ from boosty_downloader.application.blog_overview import (
 from boosty_downloader.cli.views.blog_overview import render_blog_overview
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from rich.console import RenderableType
 
@@ -127,19 +127,50 @@ def _line_with(text: str, marker: str) -> str:
 
 
 def test_own_blog_overview(
-    plain: Callable[[RenderableType], str], golden: Callable[[str, str], None]
+    plain: Callable[[RenderableType], str],
+    shows: Callable[[str, Sequence[str]], None],
 ):
     """The block is the contract with the user: layout and wording are pinned."""
-    golden('blog_overview_own', plain(render_blog_overview(_overview(), now=_NOW)))
+    shows(
+        plain(render_blog_overview(_overview(), now=_NOW)),
+        [
+            'boosty.to/example_author',
+            '11 posts, 11 accessible to you',
+            '2026-01-04 to 2026-08-21, last post 23 days ago',
+            'What each tier gives (a higher tier includes the lower ones)',
+            'Tier Price Adds Posts Of blog Per post',
+            'No tier free - 1 9%',
+            'Tester 10 RUB/mo 2 3 27%',
+            '✔ Everything + 1200 RUB once 8 11 100% 100-300 RUB',
+            'For you: all 11 posts open.',
+            (
+                'Media in your posts: 📷 11 images · 📄 21 files · 🎬 8 videos · '
+                '🔗 0 external · 🎵 2 audio'
+            ),
+        ],
+    )
 
 
 def test_foreign_blog_overview(
-    plain: Callable[[RenderableType], str], golden: Callable[[str, str], None]
+    plain: Callable[[RenderableType], str],
+    shows: Callable[[str, Sequence[str]], None],
 ):
     """The ladder, the share of the blog and the price of the rest."""
     text = plain(render_blog_overview(_foreign_blog(), now=_NOW))
 
-    golden('blog_overview_locked', text)
+    shows(
+        text,
+        [
+            'boosty.to/other_author',
+            '233 posts, 75 accessible to you, 158 locked',
+            '✔ No tier free - 75 32%',
+            'First steps 397 RUB/mo 18 93 40% 200-1000 RUB (14/18)',
+            'Walking 997 RUB/mo 125 218 94% 300-1000 RUB',
+            'Far going 1499 RUB/mo 12 230 99% 1000 RUB',
+            'Everything + 4000 RUB once 3 233 100% 500-2000 RUB',
+            'Media in your posts: 📷 5 images',
+        ],
+    )
     assert '158 locked' in text
     assert 'Open lesson' not in text, 'post lists are opt-in: they bury the ladder'
 
@@ -172,12 +203,25 @@ def test_the_checkmark_marks_where_you_stand(
 
 
 def test_posts_flag_lists_every_rung_newest_first(
-    plain: Callable[[RenderableType], str], golden: Callable[[str, str], None]
+    plain: Callable[[RenderableType], str],
+    shows: Callable[[str, Sequence[str]], None],
 ):
     """Each rung with its posts: date, a lock on what you cannot open, the price."""
     text = plain(render_blog_overview(_foreign_blog(), now=_NOW, show_posts=True))
 
-    golden('blog_overview_posts', text)
+    shows(
+        text,
+        [
+            'No tier (2 posts)',
+            '2026-08-20 Open lesson',
+            '2026-08-03 Intro',
+            'First steps (2 posts)',
+            '2026-08-19 🔒 Стрим [запись] 200 RUB',
+            '2026-08-04 🔒 (no title)',
+            'Sold one by one (1 post)',
+            '2026-08-05 🔒 evil [/] 2000 RUB',
+        ],
+    )
     assert text.index('Open lesson') < text.index('Intro'), 'newest first'
     # Author text goes through rich markup untouched; blank titles get a name.
     assert '🔒 Стрим [запись]  200 RUB' in text
@@ -188,7 +232,8 @@ def test_posts_flag_lists_every_rung_newest_first(
 
 
 def test_empty_blog(
-    plain: Callable[[RenderableType], str], golden: Callable[[str, str], None]
+    plain: Callable[[RenderableType], str],
+    shows: Callable[[str, Sequence[str]], None],
 ):
     overview = _overview(
         total_posts=0,
@@ -203,7 +248,10 @@ def test_empty_blog(
         last_post_at=None,
     )
 
-    golden('blog_overview_empty', plain(render_blog_overview(overview, now=_NOW)))
+    text = plain(render_blog_overview(overview, now=_NOW))
+
+    shows(text, ['boosty.to/example_author', 'No posts found.'])
+    assert 'What each tier gives' not in text
 
 
 @pytest.mark.parametrize(

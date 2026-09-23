@@ -9,7 +9,7 @@ test/
 ├── integration  - Tests against the live Boosty API with credentials from ./.env
 │   └── flows    - End-to-end paths: credentials + author name -> domain-ready posts
 ├── canary       - The live Boosty API without credentials: does the client still understand it
-└── fixtures     - A sanitized real post and the golden files the tests compare against
+└── support      - Shared helpers: the synthetic Boosty post, checked against docs/api/boosty-api.yaml
 ```
 
 `task test` runs unit and e2e tests. Integration and canary tests need the network: `task test:api` and `CANARY_AUTHOR=<blog> task test:canary`. Details: [Testing](../docs/development/02-testing.md).

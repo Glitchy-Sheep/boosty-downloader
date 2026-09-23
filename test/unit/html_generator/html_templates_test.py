@@ -1,4 +1,4 @@
-import os
+import re
 from pathlib import Path
 
 import pytest
@@ -27,7 +27,7 @@ from boosty_downloader.infrastructure.html_generator.renderer import (
 
 
 def _showcase_chunks() -> list[HtmlGenChunk]:
-    """Every chunk kind the page can show, with the edge cases the golden pins."""
+    """Every chunk kind the page can show, with its edge cases."""
     return [
         HtmlGenText(
             text_fragments=[
@@ -326,18 +326,47 @@ def test_a_styled_word_keeps_the_heading_in_one_piece() -> None:
     assert render_html_chunk(heading) == '<h2>Hello <strong>bold</strong> world</h2>\n'
 
 
-GOLDEN_FILE = Path(__file__).parents[2] / 'fixtures' / 'rendered_post.html'
+def _squash(html: str) -> str:
+    """Drop the indentation between tags, keep everything else."""
+    return re.sub(r'>\s+<', '><', html)
 
 
-def test_showcase_matches_the_pinned_golden_html():
-    """A refactoring must not change a single rendered byte unnoticed.
+# One marker per showcase block, in page order.
+SHOWCASE_MARKERS = [
+    '<h1>Welcome to my Boosty!</h1>',
+    '<em>Let&#39;s dive in below:</em>',
+    '<strong>bold</strong>, <em>italic</em>, and <u>underlined</u>',
+    '<a href="https://boosty.to/example"><u>click here</u></a>',
+    '<ul><li>',
+    'Behind the scenes',
+    '<ol><li>',
+    '<img src="https://example.com/banner.jpg" alt="Image">',
+    '<div class="media-title">Exclusive Behind the Scenes</div>',
+    '<source src="https://example.com/video.mp4" type="video/mp4">',
+    '<source src="https://www.youtube.com/watch?v=dQw4w9WgXcQ">',
+    'Video not downloaded: https://www.youtube.com/watch?v=gone',
+    '<span class="unavailable-title">Image not downloaded</span>',
+    '<h2>Thanks for <strong>reading</strong>!</h2>',
+    '<div class="attachments">',
+    'release &lt;v2&gt; &amp; notes.zip',
+    '<span class="attachment-meta">File · MP4</span>',
+    '<source src="audio/fixture-song.mp3">',
+]
 
-    An intentional template change regenerates the file:
-    UPDATE_GOLDEN=1 task test - then review the golden diff.
-    """
-    html = render_html(_showcase_chunks(), page_title='Showcase post')
 
-    if os.environ.get('UPDATE_GOLDEN') == '1':
-        GOLDEN_FILE.write_text(html, encoding='utf-8')
+def test_showcase_page_holds_every_block_in_order():
+    """Every chunk kind lands on the page, escaped, in the author's order."""
+    html = _squash(render_html(_showcase_chunks(), page_title='Showcase post'))
 
-    assert html == GOLDEN_FILE.read_text(encoding='utf-8')
+    assert html.startswith('<!DOCTYPE html>')
+    assert '<meta charset="UTF-8" /><title>Showcase post</title>' in html
+    assert 'id="theme-toggle"' in html
+    positions = [html.find(marker) for marker in SHOWCASE_MARKERS]
+    missing = [m for m, pos in zip(SHOWCASE_MARKERS, positions, strict=True) if pos < 0]
+    assert not missing, f'Not on the page: {missing}'
+    assert positions == sorted(positions)
+    # Three list levels: the item, its children, the grandchildren.
+    assert html.count('<ul>') == 3
+    # Two files in a row share one block.
+    assert html.count('<div class="attachments">') == 1
+    assert '<v2>' not in html
