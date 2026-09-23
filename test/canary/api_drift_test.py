@@ -3,9 +3,10 @@ Canary: does the client still understand the live Boosty API?
 
 CI runs this once a week without credentials against the public blog named
 by CANARY_AUTHOR (see .github/workflows/canary.yaml). A red run means the
-API changed under us: a post no longer parses, a chunk type or a value is
-new to the client, or the open posts stopped carrying content. The workflow
-turns the red run into an issue.
+API changed under us: a post no longer parses, or the open posts stopped
+carrying content. The workflow turns the red run into an issue. Additions
+that break nothing, like a new key or chunk kind, are not failures here:
+`task api:changes` lists them for the weekly report.
 
 The suite sits outside pytest's testpaths on purpose: it needs the network.
 Run it by hand with `CANARY_AUTHOR=<blog> task test:canary`.
@@ -25,9 +26,6 @@ from boosty_downloader.cli.composition_root import DEFAULT_RETRY_OPTIONS
 from boosty_downloader.infrastructure.boosty_api.core.client import (
     MAX_POSTS_PER_PAGE,
     BoostyAPIClient,
-)
-from boosty_downloader.infrastructure.boosty_api.models.unknown_content import (
-    collect_unknown_content,
 )
 
 if TYPE_CHECKING:
@@ -75,16 +73,6 @@ def test_every_post_parses(first_page: PostsResponse) -> None:
         for post in first_page.skipped_posts
     ]
     assert not broken, 'Posts the client could not parse:\n' + '\n'.join(broken)
-
-
-def test_no_unknown_content(first_page: PostsResponse) -> None:
-    """An unknown chunk type or value means the API added something the client does not handle."""
-    unknown = {
-        post.title: sorted(f'{item.path} = {item.raw}' for item in found)
-        for post in first_page.posts
-        if (found := collect_unknown_content(post))
-    }
-    assert not unknown, f'Unknown content in posts: {unknown}'
 
 
 def test_open_posts_carry_content(first_page: PostsResponse) -> None:

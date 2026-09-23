@@ -2,7 +2,8 @@ name: Canary
 
 # Asks the live Boosty API once a week whether the client still understands
 # it. No credentials: the probe reads a public blog. A red probe opens an
-# issue, one at a time.
+# issue, one at a time. Additions that break nothing (new keys, chunk kinds,
+# values) go to the api-changes artifact for the weekly report.
 on:
   schedule:
     - cron: '0 6 * * 6'  # Saturdays, 06:00 UTC: three hours before the weekly report
@@ -40,6 +41,19 @@ jobs:
       - name: Probe the live Boosty API
         id: probe
         run: task test:canary -- -v
+      # A warning, never a failure: the weekly report reads the artifact.
+      - name: List what the API added since the committed schema
+        id: changes
+        if: ${{ !cancelled() && steps.probe.outcome != 'skipped' }}
+        continue-on-error: true
+        run: task api:changes -- "$CANARY_AUTHOR" --anonymous --output api-changes.json
+      - name: Keep the list for the weekly report
+        if: ${{ !cancelled() && steps.changes.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-changes
+          path: api-changes.json
+          retention-days: 30
       # Only a failed probe means drift. A failed setup step is a CI problem
       # and gets no issue. One open api-drift issue at a time: a weekly run
       # must not stack duplicates.
@@ -59,7 +73,7 @@ jobs:
             echo
             echo "Run: $RUN_URL"
             echo
-            echo "The failed test names what changed: a post that does not parse, an unknown chunk type or value, or open posts without content."
+            echo "The failed test names what changed: a post that does not parse, or open posts without content."
           } > issue-body.md
           gh issue create \
             --label api-drift \
