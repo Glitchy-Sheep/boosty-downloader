@@ -22,6 +22,14 @@ The file records counts only. Blog names, post ids, titles, texts and links neve
 - `x-seen-values`: the values a vocabulary field took, for reading. A new one is information, not an error.
 - `x-unread-by-client`: keys the client's pydantic models do not read. The list of what Boosty sends and the app ignores.
 
+## What changed since
+
+```bash
+task api:changes -- <blog> [<blog> ...]
+```
+
+Reads the blogs the same way and writes to `api-changes.json` what the answers have and this file lacks: new chunk kinds, keys, types and vocabulary values. Keys missing from the answers are not listed: one page rarely holds every key. The weekly canary runs it anonymously and the weekly report shows the result. Regenerating the file accepts the changes.
+
 ## Limits
 
 The schema is statistics over a sample. A key absent from the sampled posts is absent from the file; a key present in every sampled post is `required` even if Boosty treats it as optional. More blogs and more pages make it closer to the truth; a diff against the previous file shows what the new sample added.

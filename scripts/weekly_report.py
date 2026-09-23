@@ -1,8 +1,9 @@
 """
 Weekly repository report for Telegram, as HTML.
 
-Collects the last 7 days through the gh CLI: canary and CI state, pull
-requests, issues, releases, PyPI downloads and stars. Prints the message to
+Collects the last 7 days through the gh CLI: canary and CI state, what the
+Boosty API added since the committed schema, pull requests, issues,
+releases, PyPI downloads and stars. Prints the message to
 stdout. .github/workflows/weekly-report.yaml sends it through a Telegram bot.
 
 Run locally: uv run python scripts/weekly_report.py
@@ -12,9 +13,11 @@ from __future__ import annotations
 
 import json
 import subprocess
+import tempfile
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from html import escape
+from pathlib import Path
 from typing import Any
 
 REPO = 'Glitchy-Sheep/boosty-downloader'
@@ -25,6 +28,14 @@ MAX_ITEMS = 8
 Item = dict[str, Any]
 
 CONCLUSION_ICONS = {'success': '✅', 'failure': '❌', 'cancelled': '⚪'}
+# The canary uploads what the API added since docs/api/boosty-api.yaml.
+CHANGES_ARTIFACT = 'api-changes'
+CHANGE_LINES = {
+    'new_chunk': '🧩 new content type <code>{detail}</code>: posts lose it',
+    'new_key': '🆕 <code>{where}</code> ({detail})',
+    'new_type': '🔀 <code>{where}</code>: {detail}',
+    'new_value': '🔤 <code>{where}</code> = {detail}',
+}
 
 
 def _gh(*args: str) -> Any:  # noqa: ANN401 - gh returns arbitrary JSON
@@ -60,13 +71,16 @@ def _bullets(items: list[Item]) -> list[str]:
     return lines
 
 
-def _last_run(workflow: str, since: datetime) -> str:
-    fields = 'conclusion,status,url,createdAt'
+def _latest_run(workflow: str) -> Item | None:
+    fields = 'databaseId,conclusion,status,url,createdAt'
     runs = _gh('run', 'list', '--repo', REPO, '--workflow', workflow,
                '--branch', 'main', '--limit', '1', '--json', fields)  # fmt: skip
-    if not runs:
+    return runs[0] if runs else None
+
+
+def _run_text(run: Item | None, since: datetime) -> str:
+    if run is None:
         return '⚪ no runs yet'
-    run = runs[0]
     when = _parse_time(run['createdAt'])
     stale = '' if when >= since else ', older than a week'
     icon = CONCLUSION_ICONS.get(run['conclusion'], '⏳')
@@ -74,14 +88,48 @@ def _last_run(workflow: str, since: datetime) -> str:
     return f'{icon} <a href="{run["url"]}">{state}</a> ({when:%d.%m}{stale})'
 
 
-def _health(since: datetime) -> list[str]:
+def _health(since: datetime, canary: Item | None) -> list[str]:
     drift = _list('issue', 'open', 'label:api-drift', 'number,title,url')
     lines = [
         '🩺 <b>Health</b>',
-        f'Canary: {_last_run("canary.yaml", since)}',
-        f'CI on main: {_last_run("ci.yaml", since)}',
+        f'Canary: {_run_text(canary, since)}',
+        f'CI on main: {_run_text(_latest_run("ci.yaml"), since)}',
     ]
     return lines + [f'⚠️ API drift: {_link(issue)}' for issue in drift]
+
+
+def _download_changes(run: Item) -> list[Item] | None:
+    """Return the change list the canary run uploaded, or None without one."""
+    with tempfile.TemporaryDirectory() as folder:
+        result = subprocess.run(
+            ['gh', 'run', 'download', str(run['databaseId']), '--repo', REPO,
+             '--name', CHANGES_ARTIFACT, '--dir', folder],
+            capture_output=True, text=True, check=False,
+        )  # fmt: skip
+        if result.returncode != 0:
+            return None
+        return json.loads((Path(folder) / f'{CHANGES_ARTIFACT}.json').read_text())
+
+
+def _api_changes(canary: Item | None) -> list[str]:
+    """Additions that break nothing yet; the canary opens an issue for the rest."""
+    title = '🔭 <b>API changes</b>'
+    changes = _download_changes(canary) if canary else None
+    if changes is None:
+        return [f'{title}: no list in the last canary run']
+    if not changes:
+        return [f'{title}: nothing new']
+    changes.sort(key=lambda change: change['kind'] != 'new_chunk')
+    lines = [
+        CHANGE_LINES[c['kind']].format(
+            where=escape(c['where']), detail=escape(c['detail'])
+        )
+        for c in changes[:MAX_ITEMS]
+    ]
+    if len(changes) > MAX_ITEMS:
+        lines.append(f'… and {len(changes) - MAX_ITEMS} more')
+    accept = 'Accept: <code>task api:schema -- &lt;blog&gt;</code>, commit the schema'
+    return [f'{title}: {len(changes)} new', *lines, accept]
 
 
 def _pull_requests(day: str) -> list[str]:
@@ -144,9 +192,11 @@ def build_report(now: datetime) -> str:
         f'📊 <b><a href="https://github.com/{REPO}">{PACKAGE}</a></b> · '
         f'week {since:%d.%m} - {now:%d.%m}'
     )
+    canary = _latest_run('canary.yaml')
     blocks = [
         [title],
-        _health(since),
+        _health(since, canary),
+        _api_changes(canary),
         _pull_requests(day),
         _issues(day),
         _releases(since),

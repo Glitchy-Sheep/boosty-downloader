@@ -195,3 +195,6 @@ poetry.toml
 
 # macOS folder metadata
 .DS_Store
+
+# task api:changes output
+api-changes.json

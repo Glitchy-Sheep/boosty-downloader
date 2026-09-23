@@ -58,7 +58,7 @@ The `.env` file is gitignored. CI skips integration tests automatically when it'
 
 ## Canary
 
-`test/canary/` reads one page of a public blog without credentials and checks that every post parses, nothing in the answer is unknown to the client, and an open post carries content. CI runs it weekly and opens an issue when it fails (see [CI](03-ci.md)). Locally:
+`test/canary/` reads one page of a public blog without credentials and checks that every post parses and an open post carries content. CI runs it weekly and opens an issue when it fails; additions that break nothing go to the weekly report instead (see [CI](03-ci.md)). Locally:
 
 ```bash
 CANARY_AUTHOR=<blog> task test:canary
