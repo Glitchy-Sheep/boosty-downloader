@@ -1,6 +1,6 @@
 """End-to-end: a full download run against a local Boosty-shaped server.
 
-The server serves the sanitized fixture post and small media blobs. The run
+The server serves the synthetic post and small media blobs. The run
 uses the real API client, file downloader, cache and renderer - only the
 console reporter and yt-dlp are absent. This is the safety net for the DI
 and use-case refactoring stages: the on-disk tree must not change.
@@ -12,12 +12,18 @@ import asyncio
 import json
 import time
 import uuid
-from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from aiohttp import ClientSession, web
 from aiohttp.test_utils import TestServer
 from aiohttp_retry import ExponentialRetry, RetryClient
+from support.synthetic_post import (
+    AUDIO_SIZE,
+    FAKE_HOSTS,
+    FILE_SIZE,
+    IMAGE_SIZE,
+    synthetic_post,
+)
 
 from boosty_downloader.application import post_retry as post_retry_module
 from boosty_downloader.application.blog_overview import MediaCounts
@@ -47,6 +53,8 @@ from boosty_downloader.infrastructure.post_caching.post_cache import (
 )
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     import pytest
     from yarl import URL
 
@@ -55,13 +63,8 @@ if TYPE_CHECKING:
         ExternalVideosDownloader,
     )
 
-FIXTURE_FILE = Path(__file__).parents[1] / 'fixtures' / 'single_post.json'
 AUTHOR = 'example_author'
 POST_DIR_NAME = '2025-06-15 - Fixture post with every content type (00000000)'
-
-# The committed fixture points at these fake hosts; the server rewrites them
-# to itself so every media request stays local.
-_FAKE_HOSTS = ('https://cdn.example', 'https://images.example', 'https://video.example')
 
 
 class _QuietReporter:
@@ -117,12 +120,14 @@ def _build_app(
     dead_images: bool = False,
     external_video_url: str | None = None,
 ) -> web.Application:
-    fixture_text = FIXTURE_FILE.read_text(encoding='utf-8')
+    fixture_text = json.dumps(synthetic_post())
     file_failures_left = 1 if fail_first_file else 0
 
     async def listing(request: web.Request) -> web.Response:
+        # The synthetic post links to fake hosts; the server rewrites them
+        # to itself so every media request stays local.
         local_text = fixture_text
-        for host in _FAKE_HOSTS:
+        for host in FAKE_HOSTS:
             local_text = local_text.replace(host, f'http://{request.host}')
         post = json.loads(local_text)
         if external_video_url is not None:
@@ -231,7 +236,7 @@ async def test_full_run_builds_the_expected_post_tree(tmp_path: Path) -> None:
         assert 'href="files/fixture-archive.zip"' in html
         # The card names the file and shows the size the API reported.
         assert 'fixture-archive.zip' in html
-        assert 'File · ZIP · 4.2 MB' in html
+        assert 'File · ZIP · 4.0 MB' in html
         # The closing statistics must describe exactly what landed on disk.
         assert stats.posts_downloaded == 1
         assert stats.media == MediaCounts(images=1, files=1, boosty_videos=1, audio=1)
@@ -325,8 +330,8 @@ async def test_dry_run_promises_the_post_but_touches_no_media(tmp_path: Path) ->
         assert report.plan.media == MediaCounts(
             images=1, files=1, boosty_videos=1, audio=1
         )
-        # Image, file and audio sizes straight from the fixture.
-        assert report.plan.known_bytes == 10941 + 4444053 + 24494
+        # Image, file and audio sizes straight from the synthetic post.
+        assert report.plan.known_bytes == IMAGE_SIZE + FILE_SIZE + AUDIO_SIZE
         assert report.plan.unknown_size_videos == 1
         assert report.overview.total_posts == 1
 
