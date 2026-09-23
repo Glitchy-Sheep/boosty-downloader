@@ -35,14 +35,6 @@ UPDATE_GOLDEN=1 task test
 git diff test/fixtures/
 ```
 
-## CLI Tests in CI
-
-CI renders rich output with colours at 80 columns, so ANSI codes and line breaks land inside the strings a test reads. The smoke tests in `test/unit/cli/cli_smoke_test.py` strip them through `_plain_text` before asserting. A failure that shows up only in CI reproduces locally with:
-
-```bash
-COLUMNS=80 FORCE_COLOR=1 task test
-```
-
 ## Integration Tests
 
 Located in `test/integration/`. These hit the real Boosty API.
