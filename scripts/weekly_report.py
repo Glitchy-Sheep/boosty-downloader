@@ -11,12 +11,12 @@ Run locally: uv run python scripts/weekly_report.py
 
 from __future__ import annotations
 
+import html
 import json
 import subprocess
 import tempfile
 import urllib.request
 from datetime import datetime, timedelta, timezone
-from html import escape
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +36,12 @@ CHANGE_LINES = {
     'new_type': '🔀 <code>{where}</code>: {detail}',
     'new_value': '🔤 <code>{where}</code> = {detail}',
 }
+
+
+def _escape(text: str) -> str:
+    # The Telegram action decodes HTML entities once before sending:
+    # one escape would turn back into raw `<` and break the message.
+    return html.escape(html.escape(text))
 
 
 def _gh(*args: str) -> Any:  # noqa: ANN401 - gh returns arbitrary JSON
@@ -61,7 +67,7 @@ def _parse_time(value: str) -> datetime:
 
 
 def _link(item: Item) -> str:
-    return f'<a href="{item["url"]}">{escape(item["title"])}</a> #{item["number"]}'
+    return f'<a href="{item["url"]}">{_escape(item["title"])}</a> #{item["number"]}'
 
 
 def _bullets(items: list[Item]) -> list[str]:
@@ -122,13 +128,13 @@ def _api_changes(canary: Item | None) -> list[str]:
     changes.sort(key=lambda change: change['kind'] != 'new_chunk')
     lines = [
         CHANGE_LINES[c['kind']].format(
-            where=escape(c['where']), detail=escape(c['detail'])
+            where=_escape(c['where']), detail=_escape(c['detail'])
         )
         for c in changes[:MAX_ITEMS]
     ]
     if len(changes) > MAX_ITEMS:
         lines.append(f'… and {len(changes) - MAX_ITEMS} more')
-    accept = 'Accept: <code>task api:schema -- &lt;blog&gt;</code>, commit the schema'
+    accept = f'Accept: <code>{_escape("task api:schema -- <blog>")}</code>, commit the schema'
     return [f'{title}: {len(changes)} new', *lines, accept]
 
 
