@@ -23,4 +23,4 @@ paste here
 - OS:
 
 ## 🪵 Debug log
-<!-- ⚪ Optional: run the command again with --debug before its name, e.g. `boosty-downloader --debug download <creator>`. Drag the boosty-downloader-debug.log it writes into this box. Signed links are masked, the token and the cookie are never written to it -->
+<!-- ⚪ Optional: rerun with `boosty-downloader --debug ...` and attach boosty-downloader-debug.log. No secrets in it -->
