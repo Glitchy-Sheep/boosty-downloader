@@ -34,5 +34,4 @@ How:
 When:
 - the app hangs with no error or traceback
 - a download fails or skips posts and files for no clear reason
-- the error above doesn't explain the cause
 -->
