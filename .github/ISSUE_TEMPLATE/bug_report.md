@@ -24,13 +24,15 @@ paste here
 
 ## 🪵 Debug log
 <!--
-⚪ Optional. Attach it when:
-- a download fails, hangs or skips posts and files
-- the error above has no traceback or doesn't explain the cause
-Skip it for typos, wrong texts or feature ideas.
+⚪ Optional
 
 How:
-- rerun the same command with --debug: boosty-downloader --debug download <creator>
-- drag boosty-downloader-debug.log from the current folder into this box
+- rerun the problem command with the --debug flag, e.g. boosty-downloader --debug download <creator>
+- attach the resulting boosty-downloader-debug.log to the issue
 - the log contains no tokens or other secrets and is safe to attach
+
+When:
+- the app hangs with no error or traceback
+- a download fails or skips posts and files for no clear reason
+- the error above doesn't explain the cause
 -->
