@@ -62,6 +62,8 @@ _OTHER_FILE_ICON = '📎'
 _ARCHIVE_MIME_TYPES = frozenset(
     {
         'application/zip',
+        # The Windows registry names .zip this way, and mimetypes reads it there.
+        'application/x-zip-compressed',
         'application/gzip',
         'application/x-gzip',
         'application/x-tar',

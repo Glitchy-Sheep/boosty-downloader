@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Fixed
+
+- On Windows, a `.zip` attachment in `post.html` gets the archive icon like on Linux and macOS. Before, it got the generic file icon because Windows names the zip type differently
+
 ## 4.3.0
 
 ### Added

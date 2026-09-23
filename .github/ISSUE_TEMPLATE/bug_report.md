@@ -19,4 +19,19 @@ paste here
 
 ## 🖥️ Environment
 - boosty-downloader version: <!-- boosty-downloader --version -->
+- Python version: <!-- python --version -->
 - OS:
+
+## 🪵 Debug log
+<!--
+⚪ Optional
+
+How:
+- rerun the problem command with the --debug flag, e.g. boosty-downloader --debug download <creator>
+- attach the resulting boosty-downloader-debug.log to the issue
+- the log contains no tokens or other secrets and is safe to attach
+
+When:
+- the app hangs with no error or traceback
+- a download fails or skips posts and files for no clear reason
+-->

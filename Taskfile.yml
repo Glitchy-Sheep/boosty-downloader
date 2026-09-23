@@ -124,6 +124,22 @@ tasks:
       - uv run python scripts/api_preflight.py
       - uv run pytest {{.CLI_ARGS}} test/integration/
 
+  test:canary:
+    desc: Probe the live Boosty API without credentials (needs CANARY_AUTHOR)
+    summary: |
+      Reads one page of a public blog and checks that the client still
+      understands every post: nothing skipped, no unknown chunk types or
+      values, and at least one open post with content. CI runs it weekly
+      and opens an issue when it fails. Extra pytest args go after --.
+    preconditions:
+      - sh: test -n "$CANARY_AUTHOR"
+        msg: |-
+          CANARY_AUTHOR is not set. Name a public blog with at least one
+          free post that has content:
+            CANARY_AUTHOR=<blog> task test:canary
+    cmds:
+      - uv run pytest {{.CLI_ARGS}} test/canary/
+
   build:
     desc: Build wheel and source distribution
     cmds:

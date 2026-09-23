@@ -1,5 +1,16 @@
-name: Setup Python & uv
-description: Task, uv with a managed Python and cached dependencies
+# The first steps of every job in ci.yaml and release.yaml, shared in one place:
+# after this action `task ...` commands work and .venv holds the project.
+name: Install Task, uv, Python and the dependencies
+description: >-
+  Installs the Task runner and uv, lets uv install the requested Python
+  (or the pin from .python-version) and runs `uv sync` into .venv.
+  The uv package cache is restored between runs.
+
+inputs:
+  python-version:
+    description: Python version for uv to install and use, e.g. "3.10". Empty means the pin in .python-version.
+    required: false
+    default: ''
 
 runs:
   using: composite
@@ -7,13 +18,15 @@ runs:
     - name: Install Task
       uses: go-task/setup-task@v2
 
-    # uv installs the Python from .python-version itself and caches its
-    # package cache keyed by uv.lock - no separate setup-python/cache steps.
+    # uv installs the Python itself and caches its package cache keyed by
+    # uv.lock - no separate setup-python/cache steps. The Python version
+    # comes from the input (the test matrix) or from .python-version.
     # Exact tag: setup-uv publishes no floating major tags (v9 does not resolve).
     - name: Install uv
       uses: astral-sh/setup-uv@v9.0.0
       with:
         enable-cache: true
+        python-version: ${{ inputs.python-version }}
 
     - name: Install dependencies
       run: uv sync
