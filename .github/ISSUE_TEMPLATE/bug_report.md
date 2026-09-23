@@ -23,4 +23,4 @@ paste here
 - OS:
 
 ## 🪵 Debug log
-<!-- ⚪ Optional: rerun with `boosty-downloader --debug ...` and attach boosty-downloader-debug.log. No secrets in it -->
+<!-- ⚪ Optional: rerun with `boosty-downloader --debug ...` and attach boosty-downloader-debug.log. The log contains no tokens or other secrets and is safe to attach -->
