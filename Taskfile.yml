@@ -128,9 +128,10 @@ tasks:
     desc: Probe the live Boosty API without credentials (needs CANARY_AUTHOR)
     summary: |
       Reads one page of a public blog and checks that the client still
-      understands every post: nothing skipped, no unknown chunk types or
-      values, and at least one open post with content. CI runs it weekly
-      and opens an issue when it fails. Extra pytest args go after --.
+      understands every post: nothing skipped and at least one open post
+      with content. CI runs it weekly and opens an issue when it fails.
+      Additions that break nothing are listed by api:changes instead.
+      Extra pytest args go after --.
     preconditions:
       - sh: test -n "$CANARY_AUTHOR"
         msg: |-
@@ -222,3 +223,16 @@ tasks:
       PYTHONPATH: scripts
     cmds:
       - uv run python -m api_schema build {{.CLI_ARGS}}
+
+  api:changes:
+    desc: "List what the live API added since docs/api/boosty-api.yaml: task api:changes -- <blog>..."
+    summary: |
+      Reads the blogs like api:schema, builds a schema from the answers and
+      writes to api-changes.json what the committed schema lacks: new chunk
+      kinds, keys, types and vocabulary values. Nothing fails on a change:
+      the canary runs it weekly and the weekly report lists the result.
+      Accept the changes by regenerating the schema with api:schema.
+    env:
+      PYTHONPATH: scripts
+    cmds:
+      - uv run python -m api_schema changes {{.CLI_ARGS}}
