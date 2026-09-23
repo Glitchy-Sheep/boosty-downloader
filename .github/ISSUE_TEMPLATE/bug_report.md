@@ -23,4 +23,14 @@ paste here
 - OS:
 
 ## 🪵 Debug log
-<!-- ⚪ Optional: rerun with `boosty-downloader --debug ...` and attach boosty-downloader-debug.log. The log contains no tokens or other secrets and is safe to attach -->
+<!--
+⚪ Optional. Attach it when:
+- a download fails, hangs or skips posts and files
+- the error above has no traceback or doesn't explain the cause
+Skip it for typos, wrong texts or feature ideas.
+
+How:
+- rerun the same command with --debug: boosty-downloader --debug download <creator>
+- drag boosty-downloader-debug.log from the current folder into this box
+- the log contains no tokens or other secrets and is safe to attach
+-->
