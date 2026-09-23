@@ -10,7 +10,7 @@ from boosty_downloader.cli.views.download_plan import render_download_plan
 from boosty_downloader.domain.content_types import DownloadContentTypeFilter
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from rich.console import RenderableType
 
@@ -29,7 +29,8 @@ def _plan(**overrides: object) -> DownloadPlan:
 
 
 def test_plan_with_work(
-    plain: Callable[[RenderableType], str], golden: Callable[[str, str], None]
+    plain: Callable[[RenderableType], str],
+    shows: Callable[[str, Sequence[str]], None],
 ):
     plan = _plan(
         new_posts=5,
@@ -42,19 +43,44 @@ def test_plan_with_work(
 
     text = plain(render_download_plan(plan, filters=list(DownloadContentTypeFilter)))
 
-    golden('download_plan_full', text)
+    shows(
+        text,
+        [
+            'Download plan',
+            'Filters: boosty_videos, external_videos, post_content, files, audio',
+            'New 5',
+            'Updated or partially downloaded 2',
+            'Already complete 4',
+            'Media to download',
+            '📷 images 11',
+            '📄 files 21',
+            '🎬 boosty videos 8',
+            '🔗 external videos 0',
+            '🎵 audio 2',
+            'Known download size: 2.00 KB (+ 8 videos of unknown size)',
+        ],
+    )
     assert 'Nothing under these filters' not in text
 
 
 def test_nothing_to_do_hides_the_media_block(
-    plain: Callable[[RenderableType], str], golden: Callable[[str, str], None]
+    plain: Callable[[RenderableType], str],
+    shows: Callable[[str, Sequence[str]], None],
 ):
     """A rerun over a cached blog must not print a wall of zeros."""
     plan = _plan(complete_posts=7)
 
     text = plain(render_download_plan(plan, filters=[DownloadContentTypeFilter.files]))
 
-    golden('download_plan_nothing', text)
+    shows(
+        text,
+        [
+            'Filters: files',
+            'New 0',
+            'Already complete 7',
+            'Nothing to download - everything is up to date.',
+        ],
+    )
     assert 'Media to download' not in text
 
 

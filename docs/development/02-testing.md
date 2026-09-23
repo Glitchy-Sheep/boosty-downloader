@@ -10,7 +10,7 @@ The project uses [pytest](https://docs.pytest.org/) with [pytest-asyncio](https:
 | `test/e2e/` | Whole download runs against a local Boosty-shaped server: the real client, downloader, cache and renderer | nothing | `task test` |
 | `test/integration/` | The live Boosty API with your credentials | `./.env` | `task test:api` |
 | `test/canary/` | The live Boosty API without credentials: does the client still understand the answer | `CANARY_AUTHOR` | `task test:canary` |
-| `test/fixtures/` | A sanitized real post, its rendered page and domain snapshot, the console goldens | - | - |
+| `test/support/` | Shared helpers: the synthetic Boosty post | - | - |
 
 `task test` runs unit and e2e tests (pytest's `testpaths`); `task test:cov` adds a coverage report. Integration and canary tests need the network and run only when their path is given.
 
@@ -26,14 +26,14 @@ uv run pytest test/unit/path_sanitizer/path_sanitizer_test.py::test_long_cyrilli
 
 Test files use the `_test.py` suffix (not the `test_` prefix), one folder per domain under `test/unit/`.
 
-## Golden Files
+## Test Data
 
-Some tests compare their output byte by byte with a file in `test/fixtures/`: the rendered showcase page (`rendered_post.html`), the domain snapshot of the fixture post (`single_post_domain.json`) and the console views (`views/*.txt`). When a change to a template or a view is intended, regenerate the goldens and review the diff:
+The test tree holds no data captured from the live API and no golden files.
 
-```bash
-UPDATE_GOLDEN=1 task test
-git diff test/fixtures/
-```
+- `test/support/synthetic_post.py` builds a post with every chunk kind in code. Unit and e2e tests use it.
+- `test/unit/synthetic_data/` checks it against `docs/api/boosty-api.yaml`, the observed shape of the API: every key must exist there with the observed type and values. When Boosty changes, regenerate the schema (see [docs/api](../api/README.md)) and the check shows what the synthetic post must follow.
+- The same folder fails on real post ids and real Boosty links anywhere in the tests.
+- Rendered pages and console views are checked by the lines that matter, not byte by byte.
 
 ## Integration Tests
 

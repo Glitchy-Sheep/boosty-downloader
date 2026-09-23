@@ -10,7 +10,7 @@ from boosty_downloader.infrastructure.boosty_api.utils.post_url import (
     parse_post_url,
 )
 
-POST_ID = 'a2dd6942-7297-4340-a19f-d637fa8ef4de'
+POST_ID = '20000000-0000-4000-8000-000000000042'
 
 
 @pytest.mark.parametrize(

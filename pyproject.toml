@@ -62,6 +62,7 @@ dev = [
     "pytest-asyncio>=1.1.0,<2",
     "pytest-cov>=7.0.0,<8",
     "import-linter>=2.15,<3",
+    "jsonschema>=4.23,<5",
 ]
 
 [tool.uv]
@@ -96,7 +97,8 @@ testpaths = ["test/unit", "test/e2e"]
 # -ra: show the reason for every skip/xfail in the summary.
 addopts = "-ra --strict-markers"
 # The dev tools in scripts/ have unit tests too (scripts/api_schema).
-pythonpath = ["scripts"]
+# test/ holds the shared test helpers (support/).
+pythonpath = ["scripts", "test"]
 
 [tool.coverage.run]
 source = ["boosty_downloader"]

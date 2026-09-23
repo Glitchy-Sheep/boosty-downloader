@@ -43,7 +43,7 @@ if TYPE_CHECKING:
         ExternalVideosDownloader,
     )
 
-POST_UUID = 'a2dd6942-7297-4340-a19f-d637fa8ef4de'
+POST_UUID = '20000000-0000-4000-8000-000000000042'
 
 
 class _FakeReporter:
