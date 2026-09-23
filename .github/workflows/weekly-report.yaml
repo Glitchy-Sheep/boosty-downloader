@@ -1,7 +1,8 @@
 name: Weekly report
 
-# Sends a summary of the past week to Telegram: canary and CI state, pull
-# requests, issues, releases, PyPI downloads and stars.
+# Sends a summary of the past week to Telegram: canary and CI state, what the
+# Boosty API added since the committed schema, pull requests, issues,
+# releases, PyPI downloads and stars.
 # Needs two repository secrets: TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.
 on:
   schedule:
