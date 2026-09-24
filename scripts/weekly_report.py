@@ -42,10 +42,12 @@ CHANGE_LINES = {
 }
 REPO_URL = f'https://github.com/{REPO}'
 PYPI_URL = f'https://pypi.org/project/{PACKAGE}/'
-PYPISTATS_URL = f'https://pypistats.org/packages/{PACKAGE}'
 PEPY_URL = f'https://pepy.tech/projects/{PACKAGE}'
+# The stargazers page answers 404 without a GitHub login; this chart does not.
+STARS_URL = f'https://www.star-history.com/#{REPO}'
 SCHEMA_URL = f'{REPO_URL}/blob/main/docs/api/boosty-api.yaml'
-# Total downloads need an API key at pepy.tech; its badge does not.
+# Download counts come from pepy.tech badges: its API needs a key, and
+# pypistats answers 429 to the shared GitHub runner addresses.
 PEPY_BADGE = f'https://static.pepy.tech/badge/{PACKAGE}'
 
 
@@ -219,23 +221,14 @@ def _fetch(url: str) -> bytes | None:
         return None
 
 
-def _number(value: int) -> str:
-    return f'{value:,}'.replace(',', ' ')
+def _pypi_downloads(period: str = '') -> str:
+    """
+    Return downloads as the pepy.tech badge rounds them, e.g. `21k`.
 
-
-def _pypi_recent() -> tuple[str, str]:
-    """Return downloads of the last month and the last week, from pypistats."""
-    body = _fetch(f'https://pypistats.org/api/packages/{PACKAGE}/recent')
-    try:
-        data = json.loads(body or b'')['data']
-        return _number(data['last_month']), _number(data['last_week'])
-    except (ValueError, KeyError):
-        return 'n/a', 'n/a'
-
-
-def _pypi_total() -> str:
-    """Return all-time downloads as the pepy.tech badge rounds them, e.g. `21k`."""
-    badge = (_fetch(PEPY_BADGE) or b'').decode(errors='replace')
+    An empty period means all time; `month` and `week` are the other two.
+    """
+    url = f'{PEPY_BADGE}/{period}' if period else PEPY_BADGE
+    badge = (_fetch(url) or b'').decode(errors='replace')
     values = re.findall(r'>([0-9][0-9.,]*[kKmM]?)<', badge)
     return values[-1] if values else 'n/a'
 
@@ -243,14 +236,19 @@ def _pypi_total() -> str:
 def _audience() -> list[str]:
     counts = _gh('api', f'repos/{REPO}', '--jq', '[.stargazers_count, .forks_count]')
     stars, forks = counts or ('n/a', 'n/a')
-    month, week = _pypi_recent()
     return [
         '📈 <b>Audience</b>',
-        f'- 🐍 {_a(PEPY_URL, "PyPI downloads total")}: <b>{_pypi_total()}</b>',
-        f'- 🐍 {_a(PYPISTATS_URL, "PyPI downloads last month")}: <b>{month}</b>',
-        f'- 🐍 {_a(PYPISTATS_URL, "PyPI downloads last week")}: <b>{week}</b>',
+        f'- 🐍 {_a(PEPY_URL, "PyPI downloads total")}: <b>{_pypi_downloads()}</b>',
+        (
+            f'- 🐍 {_a(PEPY_URL, "PyPI downloads last month")}: '
+            f'<b>{_pypi_downloads("month")}</b>'
+        ),
+        (
+            f'- 🐍 {_a(PEPY_URL, "PyPI downloads last week")}: '
+            f'<b>{_pypi_downloads("week")}</b>'
+        ),
         '',
-        f'- ⭐ {_a(f"{REPO_URL}/stargazers", "Stars")}: <b>{stars}</b>',
+        f'- ⭐ {_a(STARS_URL, "Stars")}: <b>{stars}</b>',
         f'- 🍴 {_a(f"{REPO_URL}/forks", "Forks")}: <b>{forks}</b>',
     ]
 
