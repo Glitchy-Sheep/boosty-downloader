@@ -37,7 +37,7 @@ jobs:
 
   # Unit and e2e tests on every supported Python and on Windows, one job per cell.
   test:
-    name: 🧪 py${{ matrix.python }} / ${{ matrix.os }}
+    name: 🧪 Test matrix / py${{ matrix.python }} / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}-latest
     timeout-minutes: 15
     # Cells: the oldest and the newest supported Python plus the pin on
