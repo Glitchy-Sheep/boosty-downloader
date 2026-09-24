@@ -43,8 +43,6 @@ CHANGE_LINES = {
 REPO_URL = f'https://github.com/{REPO}'
 PYPI_URL = f'https://pypi.org/project/{PACKAGE}/'
 PEPY_URL = f'https://pepy.tech/projects/{PACKAGE}'
-# The stargazers page answers 404 without a GitHub login; this chart does not.
-STARS_URL = f'https://www.star-history.com/#{REPO}'
 SCHEMA_URL = f'{REPO_URL}/blob/main/docs/api/boosty-api.yaml'
 # Download counts come from pepy.tech badges: its API needs a key, and
 # pypistats answers 429 to the shared GitHub runner addresses.
@@ -248,7 +246,7 @@ def _audience() -> list[str]:
             f'<b>{_pypi_downloads("week")}</b>'
         ),
         '',
-        f'- ⭐ {_a(STARS_URL, "Stars")}: <b>{stars}</b>',
+        f'- ⭐ {_a(f"{REPO_URL}/stargazers", "Stars")}: <b>{stars}</b>',
         f'- 🍴 {_a(f"{REPO_URL}/forks", "Forks")}: <b>{forks}</b>',
     ]
 
