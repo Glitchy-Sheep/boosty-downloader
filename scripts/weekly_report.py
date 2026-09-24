@@ -16,6 +16,7 @@ import json
 import re
 import subprocess
 import tempfile
+import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -39,6 +40,11 @@ CHANGE_LINES = {
     'new_type': '- <code>{where}</code>: {detail}',
     'new_value': '- <code>{where}</code>: new value <code>{detail}</code>',
 }
+REPO_URL = f'https://github.com/{REPO}'
+PYPI_URL = f'https://pypi.org/project/{PACKAGE}/'
+PYPISTATS_URL = f'https://pypistats.org/packages/{PACKAGE}'
+PEPY_URL = f'https://pepy.tech/projects/{PACKAGE}'
+SCHEMA_URL = f'{REPO_URL}/blob/main/docs/api/boosty-api.yaml'
 # Total downloads need an API key at pepy.tech; its badge does not.
 PEPY_BADGE = f'https://static.pepy.tech/badge/{PACKAGE}'
 
@@ -71,6 +77,20 @@ def _parse_time(value: str) -> datetime:
     return datetime.fromisoformat(value.replace('Z', '+00:00'))
 
 
+def _a(url: str, text: str) -> str:
+    """Link text that is already HTML."""
+    return f'<a href="{url}">{text}</a>'
+
+
+def _search(page: str, query: str) -> str:
+    """Build a GitHub search url of this repo, e.g. merged PRs since a day."""
+    return f'{REPO_URL}/{page}?q={urllib.parse.quote(query)}'
+
+
+def _workflow(file: str) -> str:
+    return f'{REPO_URL}/actions/workflows/{file}'
+
+
 def _link(item: Item) -> str:
     return f'<a href="{item["url"]}">{_escape(item["title"])}</a> #{item["number"]}'
 
@@ -101,10 +121,11 @@ def _run_text(run: Item | None, since: datetime) -> str:
 
 def _health(since: datetime, canary: Item | None) -> list[str]:
     drift = _list('issue', 'open', 'label:api-drift', 'number,title,url')
+    ci = _latest_run('ci.yaml')
     lines = [
         '🩺 <b>Health</b>',
-        f'Canary: {_run_text(canary, since)}',
-        f'CI on main: {_run_text(_latest_run("ci.yaml"), since)}',
+        f'{_a(_workflow("canary.yaml"), "Canary")}: {_run_text(canary, since)}',
+        f'{_a(_workflow("ci.yaml"), "CI on main")}: {_run_text(ci, since)}',
     ]
     return lines + [f'⚠️ API drift: {_link(issue)}' for issue in drift]
 
@@ -133,8 +154,9 @@ def _change_lines(changes: list[Item]) -> list[str]:
 
 def _api_changes(canary: Item | None) -> list[str]:
     """Additions that break nothing yet; the canary opens an issue for the rest."""
-    title = '🔭 <b>API changes</b>'
     changes = _download_changes(canary) if canary else None
+    # The title opens the canary run that found the changes.
+    title = f'🔭 <b>{_a(canary["url"], "API changes") if canary else "API changes"}</b>'
     if changes is None:
         return [f'{title}: no list in the last canary run']
     if not changes:
@@ -147,7 +169,8 @@ def _api_changes(canary: Item | None) -> list[str]:
     if changed:
         lines += ['', '<b>Changes:</b>', *_change_lines(changed)]
     accept = f'<code>{_escape("task api:schema -- <blog>")}</code>'
-    return [*lines, '', f'Accept: {accept}, commit the schema']
+    schema = _a(SCHEMA_URL, 'the schema')
+    return [*lines, '', f'Accept: {accept}, commit {schema}']
 
 
 def _github_stats(day: str) -> list[str]:
@@ -155,12 +178,16 @@ def _github_stats(day: str) -> list[str]:
     opened = _list('pr', 'all', f'created:>={day}')
     still_open = _list('pr', 'open', fields='number,author')
     bots = sum(pr['author']['login'] == RENOVATE for pr in still_open)
+    merged_url = _search('pulls', f'is:pr is:merged merged:>={day}')
+    opened_url = _search('pulls', f'is:pr created:>={day}')
+    renovate_url = _search('pulls', f'is:pr is:open author:{RENOVATE}')
     return [
         '🔀 <b>GitHub Stats</b>',
-        f'- Merged PRs: <b>{len(merged)}</b>',
+        f'- {_a(merged_url, "Merged PRs")}: <b>{len(merged)}</b>',
         (
-            f'- Opened PRs: <b>{len(opened)}</b> · '
-            f'open now: <b>{len(still_open)}</b> (Renovate: {bots})'
+            f'- {_a(opened_url, "Opened PRs")}: <b>{len(opened)}</b> · '
+            f'{_a(f"{REPO_URL}/pulls", "open now")}: <b>{len(still_open)}</b> '
+            f'({_a(renovate_url, "Renovate")}: {bots})'
         ),
     ]
 
@@ -170,8 +197,11 @@ def _issues(day: str) -> list[str]:
     still_open = _list('issue', 'open')
     lines = [
         '🐛 <b>New Issues</b>',
-        f'- Currently opened: <b>{len(still_open)}</b>',
-        f'- Opened this week: <b>{len(new)}</b>',
+        f'- {_a(f"{REPO_URL}/issues", "Currently opened")}: <b>{len(still_open)}</b>',
+        (
+            f'- {_a(_search("issues", f"is:issue created:>={day}"), "Opened this week")}: '
+            f'<b>{len(new)}</b>'
+        ),
     ]
     if new:
         lines += ['', 'Issues of the week:', *_bullets(new)]
@@ -216,12 +246,12 @@ def _audience() -> list[str]:
     month, week = _pypi_recent()
     return [
         '📈 <b>Audience</b>',
-        f'- 🐍 PyPI downloads total: <b>{_pypi_total()}</b>',
-        f'- 🐍 PyPI downloads last month: <b>{month}</b>',
-        f'- 🐍 PyPI downloads last week: <b>{week}</b>',
+        f'- 🐍 {_a(PEPY_URL, "PyPI downloads total")}: <b>{_pypi_total()}</b>',
+        f'- 🐍 {_a(PYPISTATS_URL, "PyPI downloads last month")}: <b>{month}</b>',
+        f'- 🐍 {_a(PYPISTATS_URL, "PyPI downloads last week")}: <b>{week}</b>',
         '',
-        f'- ⭐ Stars: <b>{stars}</b>',
-        f'- 🍴 Forks: <b>{forks}</b>',
+        f'- ⭐ {_a(f"{REPO_URL}/stargazers", "Stars")}: <b>{stars}</b>',
+        f'- 🍴 {_a(f"{REPO_URL}/forks", "Forks")}: <b>{forks}</b>',
     ]
 
 
@@ -230,7 +260,7 @@ def build_report(now: datetime) -> str:
     since = now - timedelta(days=7)
     day = f'{since:%Y-%m-%d}'
     title = [
-        f'📊 <b><a href="https://github.com/{REPO}">{PACKAGE}</a></b>',
+        f'📊 <b>{_a(REPO_URL, PACKAGE)}</b> · {_a(PYPI_URL, "PyPI")}',
         '',
         f'<blockquote>week {since:%d.%m} - {now:%d.%m}</blockquote>',
     ]
