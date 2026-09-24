@@ -7,7 +7,9 @@ Observed schema of the Boosty API: `build` writes it, `changes` diffs against it
 Both read one page of posts per blog plus the newest post through the
 single-post endpoint and turn the answers into shapes. The account token
 comes from `BOOSTY_TOKEN` in the environment, else `auth.auth_header` of
-config.yaml, else ./.env; `--anonymous` sends none. Blog names stay in the
+config.yaml, else ./.env; `--anonymous` sends none. With a token the blogs
+are read twice, with it and without it: the answers differ (a stranger gets
+`price` in USD, the account in RUB), and the canary reads without one. Blog names stay in the
 terminal: the files record shapes and counts only.
 """
 
@@ -18,7 +20,7 @@ import json
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Annotated, cast
+from typing import TYPE_CHECKING, Annotated, cast
 
 import rich
 import typer
@@ -35,6 +37,9 @@ from api_schema.observed_shapes import ObservedObject, observe
 from api_schema.openapi_document import ObservedAnswers, build_openapi_document, to_yaml
 from api_schema.schema_changes import SchemaChange, find_changes
 from api_schema.unread_keys import keys_unread_by_client
+
+if TYPE_CHECKING:
+    import aiohttp
 
 DEFAULT_OUTPUT = Path('docs/api/boosty-api.yaml')
 DEFAULT_CONFIG = Path('config.yaml')
@@ -66,7 +71,7 @@ def build(
     """Fetch the answers of the blogs and write the OpenAPI document."""
     token = None if anonymous else find_account_token(config)
     try:
-        observation = asyncio.run(_observe_blog_answers(blogs, token, pages))
+        observation = asyncio.run(_observe_blog_answers(blogs, _views(token), pages))
     except LiveApiError as error:
         rich.print(f'[red]{error}[/red]')
         raise typer.Exit(1) from error
@@ -93,7 +98,7 @@ def changes(
     """Write what the live answers have and the committed schema lacks, as JSON."""
     token = None if anonymous else find_account_token(config)
     try:
-        observation = asyncio.run(_observe_blog_answers(blogs, token, pages))
+        observation = asyncio.run(_observe_blog_answers(blogs, _views(token), pages))
     except LiveApiError as error:
         rich.print(f'[red]{error}[/red]')
         raise typer.Exit(1) from error
@@ -106,31 +111,50 @@ def changes(
     _print_changes(found, output)
 
 
+def _views(token: str | None) -> list[str | None]:
+    """Read as the account and as a stranger, or only as a stranger."""
+    return [token, None] if token else [None]
+
+
 async def _observe_blog_answers(
-    blogs: list[str], token: str | None, pages: int
+    blogs: list[str], views: list[str | None], pages: int
 ) -> ObservedAnswers:
-    """Read the blogs and keep only their shapes and counts."""
+    """Read the blogs in every view and keep only their shapes and counts."""
     page_shape = ObservedObject()
     post_shape = ObservedObject()
-    posts = 0
-    page_count = 0
-    async with open_api_session(token) as session:
-        for blog in blogs:
-            answers = await fetch_listing_pages(session, blog, pages=pages)
-            for page in answers:
-                page_count += 1
-                posts += _observe_listing_page(page, page_shape, post_shape)
-            newest = _newest_post_id(answers[0]) if answers else None
-            if newest is not None:
-                observe(post_shape, await fetch_single_post(session, blog, newest))
-                posts += 1
+    counts = {'pages': 0, 'posts': 0}
+    for token in views:
+        async with open_api_session(token) as session:
+            for blog in blogs:
+                await _observe_blog(
+                    session, blog, pages, (page_shape, post_shape), counts
+                )
     return ObservedAnswers(
         page=page_shape,
         post=post_shape,
         captured_at=datetime.now(tz=timezone.utc).date().isoformat(),
-        samples={'blogs': len(blogs), 'pages': page_count, 'posts': posts},
+        samples={'blogs': len(blogs), 'views': len(views), **counts},
         unread_by_client=keys_unread_by_client(post_shape, page_shape),
     )
+
+
+async def _observe_blog(
+    session: aiohttp.ClientSession,
+    blog: str,
+    pages: int,
+    shapes: tuple[ObservedObject, ObservedObject],
+    counts: dict[str, int],
+) -> None:
+    """Observe the listing pages of one blog and its newest post."""
+    page_shape, post_shape = shapes
+    answers = await fetch_listing_pages(session, blog, pages=pages)
+    for page in answers:
+        counts['pages'] += 1
+        counts['posts'] += _observe_listing_page(page, page_shape, post_shape)
+    newest = _newest_post_id(answers[0]) if answers else None
+    if newest is not None:
+        observe(post_shape, await fetch_single_post(session, blog, newest))
+        counts['posts'] += 1
 
 
 def _observe_listing_page(

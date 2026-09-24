@@ -8,7 +8,7 @@
 task api:schema -- <blog> [<blog> ...]
 ```
 
-One listing page (100 posts) per blog plus the newest post through the single-post endpoint. The account token is sent when one is found, in this order: `BOOSTY_TOKEN` in the environment, `auth.auth_header` of `config.yaml` (`--config PATH` points elsewhere), `BOOSTY_TOKEN` in `./.env`. With it, locked posts of the blogs the account can read show their shape. `--anonymous` after `--` sends no token; `--pages N` reads more pages per blog.
+One listing page (100 posts) per blog plus the newest post through the single-post endpoint. The account token is sent when one is found, in this order: `BOOSTY_TOKEN` in the environment, `auth.auth_header` of `config.yaml` (`--config PATH` points elsewhere), `BOOSTY_TOKEN` in `./.env`. With it, locked posts of the blogs the account can read show their shape, and the blogs are read a second time without it: a stranger gets different answers (`price` in USD instead of RUB, no `views`), and the canary reads as a stranger. `--anonymous` after `--` sends no token; `--pages N` reads more pages per blog.
 
 The file records counts only. Blog names, post ids, titles, texts and links never land in it: strings are dropped, except short token-like values of vocabulary keys. The test tree has the same rule for its own data (`test/unit/synthetic_data`).
 
