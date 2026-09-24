@@ -1,15 +1,16 @@
 openapi: 3.1.0
 info:
   title: Boosty API as seen by boosty-downloader
-  version: '2026-09-22'
+  version: '2026-09-24'
   description: 'Observed, not official: built from live answers by `task api:schema`. Only shapes and
     counts are recorded.'
 x-observed:
-  captured_at: '2026-09-22'
+  captured_at: '2026-09-24'
   samples:
     blogs: 1
-    pages: 1
-    posts: 12
+    pages: 2
+    posts: 24
+    views: 2
 paths:
   /blog/{blog}/post/:
     get:
@@ -202,7 +203,7 @@ components:
           type: integer
         title:
           type: string
-          x-presence: 0.84
+          x-presence: 0.89
         type:
           type: string
           const: image
@@ -407,6 +408,8 @@ components:
       - data
       - donations
       - donators
+      - forbiddenChangeHasAIContent
+      - hasAIContent
       - hasAccess
       - hasAdultContent
       - id
@@ -455,7 +458,7 @@ components:
               properties:
                 isFirst:
                   type: boolean
-                  x-presence: 0.08
+                  x-presence: 0.46
                 isLast:
                   type: boolean
         contentCounters:
@@ -485,7 +488,6 @@ components:
           - comments
           - likes
           - reactions
-          - views
           properties:
             comments:
               type: integer
@@ -521,6 +523,7 @@ components:
                   type: integer
             views:
               type: integer
+              x-presence: 0.5
         createdAt:
           type: integer
         currencyDonations:
@@ -583,6 +586,8 @@ components:
               properties:
                 isLast:
                   type: boolean
+        forbiddenChangeHasAIContent:
+          type: boolean
         frame:
           type: object
           required:
@@ -606,6 +611,8 @@ components:
                 title:
                   type: string
           x-presence: 0.08
+        hasAIContent:
+          type: boolean
         hasAccess:
           type: boolean
         hasAdultContent:
@@ -638,7 +645,9 @@ components:
         isWaitingVideo:
           type: boolean
         price:
-          type: integer
+          type:
+          - integer
+          - number
         promo:
           type: 'null'
         publishTime:
@@ -671,7 +680,6 @@ components:
           - data
           - deleted
           - flags
-          - hasActivePromo
           - id
           - isArchived
           - isHidden
@@ -730,6 +738,7 @@ components:
                   type: boolean
             hasActivePromo:
               type: boolean
+              x-presence: 0.5
             id:
               type: integer
             isArchived:
@@ -743,10 +752,12 @@ components:
             ownerId:
               type: integer
             price:
-              type: integer
+              type:
+              - integer
+              - number
             promos:
               type: array
-          x-presence: 0.25
+          x-presence: 0.08
         tags:
           type: array
           items:
@@ -846,7 +857,9 @@ components:
       - currencyDonations
       - donations
       - donators
+      - forbiddenChangeHasAIContent
       - frame
+      - hasAIContent
       - hasAdultContent
       - intId
       - int_id
