@@ -36,4 +36,6 @@ def to_ok_boosty_video_content(
         url=best_video.url,
         title=api_video_dto.title,
         quality=choosed_quality.name,
+        preview_url=api_video_dto.preview or None,
+        duration=api_video_dto.duration,
     )

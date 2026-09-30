@@ -9,6 +9,7 @@ class BoostyPostDataFileDTO(BoostyBaseDTO):
     """File content piece in posts"""
 
     type: Literal['file']
+    id: str
     url: str
     title: str
     size: int | None = None

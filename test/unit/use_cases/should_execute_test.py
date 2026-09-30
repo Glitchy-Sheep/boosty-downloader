@@ -61,15 +61,21 @@ def _post_with(chunks: PostDataAllChunksList) -> Post:
 
 
 CHUNK_TO_FILTER = [
-    (PostDataChunkFile(url='u', filename='f.zip'), DownloadContentTypeFilter.files),
-    (PostDataChunkAudio(url='u', title='song'), DownloadContentTypeFilter.audio),
+    (
+        PostDataChunkFile(id='f1', url='u', filename='f.zip'),
+        DownloadContentTypeFilter.files,
+    ),
+    (
+        PostDataChunkAudio(id='a1', url='u', title='song'),
+        DownloadContentTypeFilter.audio,
+    ),
     (
         PostDataChunkBoostyVideo(id='v1', title='video', url='u', quality='high'),
         DownloadContentTypeFilter.boosty_videos,
     ),
     (PostDataChunkExternalVideo(url='u'), DownloadContentTypeFilter.external_videos),
     (PostDataChunkText(text_fragments=[]), DownloadContentTypeFilter.post_content),
-    (PostDataChunkImage(url='u'), DownloadContentTypeFilter.post_content),
+    (PostDataChunkImage(id='i1', url='u'), DownloadContentTypeFilter.post_content),
     (PostDataChunkTextualList(items=[]), DownloadContentTypeFilter.post_content),
 ]
 
@@ -102,8 +108,8 @@ def test_one_missing_part_is_enough_to_execute():
     use_case = _use_case()
     post = _post_with(
         [
-            PostDataChunkFile(url='u', filename='f.zip'),
-            PostDataChunkAudio(url='u', title='song'),
+            PostDataChunkFile(id='f1', url='u', filename='f.zip'),
+            PostDataChunkAudio(id='a1', url='u', title='song'),
         ]
     )
     assert use_case._should_execute(post, [DownloadContentTypeFilter.audio]) is True
@@ -112,5 +118,5 @@ def test_one_missing_part_is_enough_to_execute():
 def test_fully_cached_post_is_skipped():
     """No missing parts must mean skip - or every cached post gets re-downloaded."""
     use_case = _use_case()
-    post = _post_with([PostDataChunkFile(url='u', filename='f.zip')])
+    post = _post_with([PostDataChunkFile(id='f1', url='u', filename='f.zip')])
     assert use_case._should_execute(post, []) is False

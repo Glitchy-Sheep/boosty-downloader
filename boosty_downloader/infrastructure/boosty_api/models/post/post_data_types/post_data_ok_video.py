@@ -69,3 +69,5 @@ class BoostyPostDataOkVideoDTO(BoostyBaseDTO):
     upload_status: str | None = None
     complete: bool
     player_urls: list[BoostyOkVideoUrl]
+    # The picture shown before the video plays.
+    preview: str = ''

@@ -8,9 +8,11 @@ visible instead of failing the post.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from support.synthetic_post import (
+    AUDIO_ARTIST,
+    AUDIO_DURATION_S,
     AUDIO_ID,
     AUDIO_NAME,
     AUDIO_SIZE,
@@ -19,14 +21,18 @@ from support.synthetic_post import (
     FILE_NAME,
     FILE_SIZE,
     FIRST_TEXT,
+    IMAGE_HEIGHT,
     IMAGE_ID,
     IMAGE_SIZE,
+    IMAGE_WIDTH,
     IMAGES_HOST,
     POST_ID,
     POST_TITLE,
     SIGNED_QUERY,
+    VIDEO_DURATION_S,
     VIDEO_HOST,
     VIDEO_ID,
+    VIDEO_PREVIEW,
     VIDEO_TITLE,
     synthetic_post,
 )
@@ -81,29 +87,52 @@ def test_every_chunk_kind_maps_in_order():
 
     image, file, video, audio = chunks[6:]
     assert isinstance(image, PostDataChunkImage)
-    assert (image.url, image.size) == (
+    assert (image.id, image.url, image.size, image.width, image.height) == (
+        IMAGE_ID,
         f'{IMAGES_HOST}/image/{IMAGE_ID}{SIGNED_QUERY}',
         IMAGE_SIZE,
+        IMAGE_WIDTH,
+        IMAGE_HEIGHT,
     )
     assert isinstance(file, PostDataChunkFile)
-    assert (file.url, file.filename, file.size) == (
+    assert (file.id, file.url, file.filename, file.size) == (
+        FILE_ID,
         f'{CDN_HOST}/file/{FILE_ID}{SIGNED_QUERY}',
         FILE_NAME,
         FILE_SIZE,
     )
     # Video links are signed on their own: no signed query appended.
     assert isinstance(video, PostDataChunkBoostyVideo)
-    assert (video.id, video.title, video.quality, video.url) == (
+    assert (
+        video.id,
+        video.title,
+        video.quality,
+        video.url,
+        video.preview_url,
+        video.duration,
+    ) == (
         VIDEO_ID,
         VIDEO_TITLE,
         'medium',
         f'{VIDEO_HOST}/medium.mp4?fake-sig',
+        VIDEO_PREVIEW,
+        timedelta(seconds=VIDEO_DURATION_S),
     )
     assert isinstance(audio, PostDataChunkAudio)
-    assert (audio.url, audio.title, audio.size) == (
+    assert (
+        audio.id,
+        audio.url,
+        audio.title,
+        audio.size,
+        audio.duration,
+        audio.artist,
+    ) == (
+        AUDIO_ID,
         f'{CDN_HOST}/audio/{AUDIO_ID}{SIGNED_QUERY}',
         AUDIO_NAME,
         AUDIO_SIZE,
+        timedelta(seconds=AUDIO_DURATION_S),
+        AUDIO_ARTIST,
     )
 
     assert result.incomplete_content_types == set()

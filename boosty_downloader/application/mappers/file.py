@@ -11,6 +11,7 @@ def to_domain_file_chunk(
 ) -> PostDataChunkFile:
     """Convert API PostDataFile to domain PostDataChunkFile."""
     return PostDataChunkFile(
+        id=api_file.id,
         url=api_file.url + signed_query,
         filename=api_file.title,
         size=api_file.size,

@@ -11,7 +11,10 @@ def to_domain_audio_chunk(
 ) -> PostDataChunkAudio:
     """Convert API PostDataAudio to domain PostDataChunkAudio."""
     return PostDataChunkAudio(
+        id=api_audio.id,
         url=api_audio.url + signed_query,
         title=api_audio.title,
         size=api_audio.size,
+        duration=api_audio.duration,
+        artist=api_audio.artist,
     )

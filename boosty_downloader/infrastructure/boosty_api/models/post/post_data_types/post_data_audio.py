@@ -1,5 +1,6 @@
 """Module with audio file representation of posts data"""
 
+from datetime import timedelta
 from typing import Literal
 
 from boosty_downloader.infrastructure.boosty_api.models.base import BoostyBaseDTO
@@ -18,3 +19,5 @@ class BoostyPostDataAudioDTO(BoostyBaseDTO):
     show_views_counter: bool
     upload_status: str | None
     views_counter: int
+    artist: str = ''
+    duration: timedelta | None = None

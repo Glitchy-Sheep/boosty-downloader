@@ -11,6 +11,9 @@ def to_domain_image_chunk(
 ) -> PostDataChunkImage:
     """Convert API PostDataImage to domain PostDataChunkImage."""
     return PostDataChunkImage(
+        id=api_image.id,
         url=api_image.url + signed_query,
         size=api_image.size,
+        width=api_image.width,
+        height=api_image.height,
     )

@@ -114,7 +114,7 @@ def _use_case(media: _FailingMedia) -> tuple[DownloadSinglePostUseCase, _Context
 
 async def _process_file_chunk(use_case: DownloadSinglePostUseCase) -> None:
     await use_case._safely_process_chunk(
-        PostDataChunkFile(url=RESOURCE, filename='a.zip'),
+        PostDataChunkFile(id='f1', url=RESOURCE, filename='a.zip'),
         [DownloadContentTypeFilter.files],
         _post(),
     )

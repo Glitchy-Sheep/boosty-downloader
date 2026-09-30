@@ -116,7 +116,7 @@ def _file(n: int) -> dict[str, object]:
 
 
 def _image() -> dict[str, object]:
-    return {'type': 'image', 'url': 'https://cdn/image/i1', 'size': 1}
+    return {'type': 'image', 'id': 'i1', 'url': 'https://cdn/image/i1', 'size': 1}
 
 
 def _post_dto(chunks: list[dict[str, object]]) -> PostDTO:

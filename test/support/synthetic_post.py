@@ -35,11 +35,17 @@ SIGNED_QUERY = '?fake-signed-query'
 FIRST_TEXT = 'Hello from the fixture post!'
 # Whole kilobytes and megabytes: the sizes read as "10.0 KB" and "4.0 MB" on the page.
 IMAGE_SIZE = 10 * 1024
+IMAGE_WIDTH = 1200
+IMAGE_HEIGHT = 800
 FILE_NAME = 'fixture-archive.zip'
 FILE_SIZE = 4 * 1024 * 1024
 VIDEO_TITLE = 'Fixture video'
+VIDEO_DURATION_S = 120
+VIDEO_PREVIEW = f'{IMAGES_HOST}/preview/full'
 AUDIO_NAME = 'fixture-song.mp3'
 AUDIO_SIZE = 24 * 1024
+AUDIO_ARTIST = 'Example Artist'
+AUDIO_DURATION_S = 3
 # A chunk type the client does not know: it must be reported, not fatal.
 UNKNOWN_CHUNK_TYPE = 'hologram_message'
 
@@ -89,8 +95,8 @@ def image_chunk() -> dict[str, Any]:
         'id': IMAGE_ID,
         'url': f'{IMAGES_HOST}/image/{IMAGE_ID}',
         'size': IMAGE_SIZE,
-        'width': 1200,
-        'height': 800,
+        'width': IMAGE_WIDTH,
+        'height': IMAGE_HEIGHT,
         'rendition': '',
     }
 
@@ -118,10 +124,10 @@ def ok_video_chunk() -> dict[str, Any]:
         'title': VIDEO_TITLE,
         'url': '',
         'playerUrls': player_urls,
-        'duration': 120,
+        'duration': VIDEO_DURATION_S,
         'width': 640,
         'height': 480,
-        'preview': f'{IMAGES_HOST}/preview/full',
+        'preview': VIDEO_PREVIEW,
         'defaultPreview': f'{IMAGES_HOST}/preview/default',
         'failoverHost': 'video-failover.example',
         'uploadStatus': 'ok',
@@ -140,11 +146,11 @@ def audio_chunk() -> dict[str, Any]:
         'url': f'{CDN_HOST}/audio/{AUDIO_ID}',
         'title': AUDIO_NAME,
         'fileType': 'MP3',
-        'artist': 'Example Artist',
+        'artist': AUDIO_ARTIST,
         'album': '',
         'track': '',
         'size': AUDIO_SIZE,
-        'duration': 3,
+        'duration': AUDIO_DURATION_S,
         'complete': True,
         'uploadStatus': None,
         'timeCode': 3,

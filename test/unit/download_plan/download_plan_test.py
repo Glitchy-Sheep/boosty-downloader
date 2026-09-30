@@ -42,12 +42,18 @@ def cache(tmp_path: Path) -> Iterator[SQLitePostCache]:
 
 
 def _image(size: int = 10) -> dict[str, object]:
-    return {'type': 'image', 'url': 'https://images.example/i', 'size': size}
+    return {
+        'type': 'image',
+        'id': 'i1',
+        'url': 'https://images.example/i',
+        'size': size,
+    }
 
 
 def _file(size: int = 20, *, complete: bool = True) -> dict[str, object]:
     return {
         'type': 'file',
+        'id': 'f1',
         'url': 'https://cdn.example/f',
         'title': 'a.zip',
         'size': size,

@@ -96,7 +96,13 @@ def _make_audio(
 
 def _make_file(payload: dict[str, object]) -> BoostyPostDataFileDTO:
     return BoostyPostDataFileDTO.model_validate(
-        {'type': 'file', 'url': 'https://cdn/f', 'title': 'a.zip', **payload}
+        {
+            'type': 'file',
+            'id': 'f1',
+            'url': 'https://cdn/f',
+            'title': 'a.zip',
+            **payload,
+        }
     )
 
 
