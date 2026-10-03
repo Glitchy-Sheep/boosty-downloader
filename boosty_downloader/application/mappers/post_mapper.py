@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from boosty_downloader.application import mappers
 from boosty_downloader.domain.content_types import DownloadContentTypeFilter
-from boosty_downloader.domain.post import Post
+from boosty_downloader.domain.post import Post, SubscriptionLevel
 from boosty_downloader.domain.post_data_chunks import PostDataChunkText
 from boosty_downloader.infrastructure.boosty_api.models.post.base_post_data import (
     BoostyPostDataExternalVideoDTO,
@@ -22,6 +22,9 @@ from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types imp
     BoostyPostDataOkVideoDTO,
     BoostyPostDataTextDTO,
     BoostyPostDataUnknownDTO,
+)
+from boosty_downloader.infrastructure.boosty_api.models.post.post_overview import (
+    PostCountDTO,
 )
 
 if TYPE_CHECKING:
@@ -46,11 +49,11 @@ class PostMappingResult:
     stream_only_videos: list[str] = field(default_factory=list[str])
 
 
-def map_post_dto_to_domain(  # noqa: C901, PLR0912 - one match-dispatcher over every chunk type
-    post_dto: PostDTO, preferred_video_quality: BoostyOkVideoType
-) -> PostMappingResult:
-    """Convert a Boosty API PostDTO object to a domain Post object, mapping all data chunks to their domain representations."""
-    post = Post(
+def _to_domain_post(post_dto: PostDTO) -> Post:
+    """Build the domain post from the listing, without its chunks."""
+    level = post_dto.subscription_level
+    count = post_dto.count or PostCountDTO()
+    return Post(
         uuid=post_dto.id,
         title=post_dto.title,
         created_at=post_dto.created_at,
@@ -58,7 +61,32 @@ def map_post_dto_to_domain(  # noqa: C901, PLR0912 - one match-dispatcher over e
         has_access=post_dto.has_access,
         signed_query=post_dto.signed_query,
         post_data_chunks=[],
+        published_at=post_dto.publish_time,
+        tags=[tag.title for tag in post_dto.tags or []],
+        teaser=[
+            mappers.to_domain_image_chunk(image, post_dto.signed_query)
+            for image in post_dto.teaser or []
+        ],
+        content_counters={
+            counter.type: counter.count for counter in post_dto.content_counters or []
+        },
+        likes=count.likes,
+        comments=count.comments,
+        subscription_level=SubscriptionLevel(
+            name=level.name, price=level.price, currency_prices=level.currency_prices
+        )
+        if level
+        else None,
+        price=post_dto.price,
+        currency_prices=post_dto.currency_prices,
     )
+
+
+def map_post_dto_to_domain(  # noqa: C901, PLR0912 - one match-dispatcher over every chunk type
+    post_dto: PostDTO, preferred_video_quality: BoostyOkVideoType
+) -> PostMappingResult:
+    """Convert a Boosty API PostDTO object to a domain Post object, mapping all data chunks to their domain representations."""
+    post = _to_domain_post(post_dto)
 
     incomplete_content_types: set[DownloadContentTypeFilter] = set()
     stream_only_videos: list[str] = []

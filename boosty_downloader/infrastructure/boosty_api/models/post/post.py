@@ -2,18 +2,42 @@
 
 from __future__ import annotations
 
-from datetime import datetime  # noqa: TC003 Pydantic should know this type fully
+from datetime import datetime
+from typing import Annotated
 
-from pydantic import ValidationError, field_validator
+from pydantic import ValidationError, WrapValidator, field_validator
 
-from boosty_downloader.infrastructure.boosty_api.models.base import BoostyBaseDTO
+from boosty_downloader.infrastructure.boosty_api.models.base import (
+    BoostyBaseDTO,
+    none_on_error,
+)
 from boosty_downloader.infrastructure.boosty_api.models.post.base_post_data import (
     BasePostData,  # noqa: TC001 Pydantic should know this type fully
+)
+from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types import (
+    BoostyPostDataImageDTO,
+)
+from boosty_downloader.infrastructure.boosty_api.models.post.post_overview import (
+    ContentCounterDTO,
+    PostCountDTO,
+    PostTagDTO,
 )
 from boosty_downloader.infrastructure.boosty_api.models.post.subscription_level import (
     SubscriptionLevelDTO,
     TolerantCurrencyPrices,
 )
+
+# Overview data: a malformed value becomes None instead of failing the post.
+TolerantTime = Annotated[datetime | None, WrapValidator(none_on_error)]
+TolerantTags = Annotated[list[PostTagDTO] | None, WrapValidator(none_on_error)]
+# The pictures shown in place of a post the account cannot open.
+TolerantTeaser = Annotated[
+    list[BoostyPostDataImageDTO] | None, WrapValidator(none_on_error)
+]
+TolerantContentCounters = Annotated[
+    list[ContentCounterDTO] | None, WrapValidator(none_on_error)
+]
+TolerantPostCount = Annotated[PostCountDTO | None, WrapValidator(none_on_error)]
 
 
 class PostDTO(BoostyBaseDTO):
@@ -61,5 +85,11 @@ class PostDTO(BoostyBaseDTO):
             return None
 
     signed_query: str
+
+    publish_time: TolerantTime = None
+    tags: TolerantTags = None
+    teaser: TolerantTeaser = None
+    content_counters: TolerantContentCounters = None
+    count: TolerantPostCount = None
 
     data: list[BasePostData]

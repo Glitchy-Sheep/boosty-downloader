@@ -17,6 +17,8 @@ from support.synthetic_post import (
     AUDIO_NAME,
     AUDIO_SIZE,
     CDN_HOST,
+    COMMENTS,
+    CONTENT_COUNTS,
     FILE_ID,
     FILE_NAME,
     FILE_SIZE,
@@ -26,9 +28,15 @@ from support.synthetic_post import (
     IMAGE_SIZE,
     IMAGE_WIDTH,
     IMAGES_HOST,
+    LIKES,
     POST_ID,
     POST_TITLE,
     SIGNED_QUERY,
+    TAG_TITLES,
+    TEASER_ID,
+    TIER_NAME,
+    TIER_PRICE,
+    TIER_PRICES,
     VIDEO_DURATION_S,
     VIDEO_HOST,
     VIDEO_ID,
@@ -41,6 +49,7 @@ from boosty_downloader.application.filtering import BoostyOkVideoType
 from boosty_downloader.application.mappers.post_mapper import (
     map_post_dto_to_domain,
 )
+from boosty_downloader.domain.post import SubscriptionLevel
 from boosty_downloader.domain.post_data_chunks import (
     PostDataChunkAudio,
     PostDataChunkBoostyVideo,
@@ -139,3 +148,23 @@ def test_every_chunk_kind_maps_in_order():
     assert result.stream_only_videos == []
     # The unknown chunk is dropped from the domain but stays visible to the reader.
     assert [u.path for u in collect_unknown_content(dto)] == ['data[10].type']
+
+
+def test_what_the_listing_tells_about_the_post_maps_too():
+    """Records, the locked card and the tag filter read these, not the chunks."""
+    dto = PostDTO.model_validate(synthetic_post())
+
+    post = map_post_dto_to_domain(dto, BoostyOkVideoType.medium).post
+
+    assert post.published_at == datetime(2025, 6, 15, 15, 6, 40, tzinfo=timezone.utc)
+    assert post.tags == TAG_TITLES
+    # Teaser images are image chunks, signed like the others.
+    assert [(image.id, image.url) for image in post.teaser] == [
+        (TEASER_ID, f'{IMAGES_HOST}/teaser/{TEASER_ID}{SIGNED_QUERY}')
+    ]
+    assert post.content_counters == CONTENT_COUNTS
+    assert (post.likes, post.comments) == (LIKES, COMMENTS)
+    assert post.subscription_level == SubscriptionLevel(
+        name=TIER_NAME, price=TIER_PRICE, currency_prices=TIER_PRICES
+    )
+    assert (post.price, post.currency_prices) == (0, {'EUR': 0, 'RUB': 0, 'USD': 0})

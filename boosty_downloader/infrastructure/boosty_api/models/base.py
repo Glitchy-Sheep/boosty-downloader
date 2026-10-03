@@ -1,7 +1,20 @@
 """Base model for all Boosty API DTOs."""
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    ValidationError,
+    ValidatorFunctionWrapHandler,
+)
 from pydantic.alias_generators import to_camel
+
+
+def none_on_error(value: object, handler: ValidatorFunctionWrapHandler) -> object:
+    """Parse the value, or give None when it is malformed: overview data never fails a post."""
+    try:
+        return handler(value)
+    except ValidationError:
+        return None
 
 
 class BoostyBaseDTO(BaseModel):

@@ -25,6 +25,7 @@ FILE_ID = '10000000-0000-4000-8000-000000000301'
 VIDEO_ID = '10000000-0000-4000-8000-000000000400'
 AUDIO_ID = '10000000-0000-4000-8000-000000000500'
 UNKNOWN_ID = '10000000-0000-4000-8000-000000000600'
+TEASER_ID = '10000000-0000-4000-8000-000000000700'
 
 POST_TITLE = 'Fixture post with every content type'
 CREATED_AT = 1_750_000_000  # 2025-06-15T15:06:40Z
@@ -46,6 +47,14 @@ AUDIO_NAME = 'fixture-song.mp3'
 AUDIO_SIZE = 24 * 1024
 AUDIO_ARTIST = 'Example Artist'
 AUDIO_DURATION_S = 3
+TAG_TITLES = ['fixture', 'every kind']
+LIKES = 5
+COMMENTS = 2
+TIER_NAME = 'Fixture tier'
+TIER_PRICE = 250
+TIER_PRICES = {'EUR': 2.5, 'RUB': 250, 'USD': 2.7}
+# The post's own chunks as the listing counts them by kind.
+CONTENT_COUNTS = {'text': 3, 'image': 1, 'file': 1, 'ok_video': 1, 'audio': 1}
 # A chunk type the client does not know: it must be reported, not fatal.
 UNKNOWN_CHUNK_TYPE = 'hologram_message'
 
@@ -159,6 +168,20 @@ def audio_chunk() -> dict[str, Any]:
     }
 
 
+def teaser_image() -> dict[str, Any]:
+    """The picture Boosty shows in place of the post to readers without access."""
+    return {
+        'type': 'image',
+        'id': TEASER_ID,
+        'url': f'{IMAGES_HOST}/teaser/{TEASER_ID}',
+        'size': 20 * 1024,
+        'width': 1280,
+        'height': 720,
+        'rendition': 'teaser_auto_background',
+        'isInvalid': None,
+    }
+
+
 def unknown_chunk() -> dict[str, Any]:
     return {'type': UNKNOWN_CHUNK_TYPE, 'id': UNKNOWN_ID, 'complete': True}
 
@@ -184,8 +207,37 @@ def synthetic_post() -> dict[str, Any]:
         'currencyPrices': {'EUR': 0, 'RUB': 0, 'USD': 0},
         'signedQuery': SIGNED_QUERY,
         'isPinned': False,
-        'tags': [],
-        'teaser': [],
+        'tags': [
+            {'id': 11 + index, 'title': title} for index, title in enumerate(TAG_TITLES)
+        ],
+        'teaser': [teaser_image()],
+        'contentCounters': [
+            {'type': kind, 'count': count, 'size': 0}
+            for kind, count in CONTENT_COUNTS.items()
+        ],
+        'count': {
+            'likes': LIKES,
+            'comments': COMMENTS,
+            'reactions': dict.fromkeys(
+                (
+                    'angry',
+                    'dislike',
+                    'fire',
+                    'heart',
+                    'laught',
+                    'like',
+                    'sad',
+                    'wonder',
+                ),
+                0,
+            ),
+        },
+        'subscriptionLevel': {
+            'id': 7,
+            'name': TIER_NAME,
+            'price': TIER_PRICE,
+            'currencyPrices': TIER_PRICES,
+        },
         'data': [
             text_chunk(FIRST_TEXT),
             block_end(),

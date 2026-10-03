@@ -4,23 +4,18 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from pydantic import ValidationError, ValidatorFunctionWrapHandler, WrapValidator
+from pydantic import WrapValidator
 
-from boosty_downloader.infrastructure.boosty_api.models.base import BoostyBaseDTO
-
-
-def _none_on_error(value: object, handler: ValidatorFunctionWrapHandler) -> object:
-    try:
-        return handler(value)
-    except ValidationError:
-        return None
-
+from boosty_downloader.infrastructure.boosty_api.models.base import (
+    BoostyBaseDTO,
+    none_on_error,
+)
 
 # Prices per currency code, e.g. {'RUB': 199, 'USD': 2.54}. Overview data
 # only: a malformed value becomes None instead of failing the post.
 TolerantCurrencyPrices = Annotated[
     dict[str, float] | None,
-    WrapValidator(_none_on_error),
+    WrapValidator(none_on_error),
 ]
 
 
