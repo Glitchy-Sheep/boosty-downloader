@@ -5,6 +5,7 @@ These are used to represent different parts of a post, such as text, images, etc
 """
 
 from dataclasses import dataclass, field
+from datetime import timedelta
 from enum import Enum
 
 
@@ -12,19 +13,27 @@ from enum import Enum
 class PostDataChunkAudio:
     """Represent an audio data chunk within a post."""
 
+    # Boosty's id: stable across runs, unlike the signed url.
+    id: str
     url: str
     title: str
     # Bytes as the API reports them; None when the API stays silent.
     size: int | None = None
+    duration: timedelta | None = None
+    artist: str = ''
 
 
 @dataclass
 class PostDataChunkImage:
     """Represent an image data chunk within a post."""
 
+    # Boosty's id: stable across runs, unlike the signed url.
+    id: str
     url: str
     # Bytes as the API reports them; None when the API stays silent.
     size: int | None = None
+    width: int | None = None
+    height: int | None = None
 
 
 @dataclass
@@ -78,6 +87,9 @@ class PostDataChunkBoostyVideo:
     title: str
     url: str
     quality: str
+    # The picture shown before the video plays; None when Boosty has none.
+    preview_url: str | None = None
+    duration: timedelta | None = None
 
 
 @dataclass
@@ -95,6 +107,8 @@ class PostDataChunkExternalVideo:
 class PostDataChunkFile:
     """Represent a file data chunk within a post."""
 
+    # Boosty's id: stable across runs, unlike the signed url.
+    id: str
     url: str
     filename: str
     # Bytes as the API reports them; None when the API stays silent.

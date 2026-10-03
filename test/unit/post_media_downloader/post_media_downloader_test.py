@@ -94,13 +94,13 @@ def _fake_transport(
 async def _download_every_kind(media: PostMediaDownloader) -> list[Path]:
     return [
         await media.download_image(
-            PostDataChunkImage(url='https://cdn/image/40f9e868'), _noop
+            PostDataChunkImage(id='i1', url='https://cdn/image/40f9e868'), _noop
         ),
         await media.download_file(
-            PostDataChunkFile(url='u', filename='any.appimage'), _noop
+            PostDataChunkFile(id='f1', url='u', filename='any.appimage'), _noop
         ),
         await media.download_audio(
-            PostDataChunkAudio(url='u', title='song.mp3'), _noop
+            PostDataChunkAudio(id='a1', url='u', title='song.mp3'), _noop
         ),
         await media.download_boosty_video(
             PostDataChunkBoostyVideo(
@@ -151,7 +151,7 @@ async def test_file_progress_comes_out_in_one_shape(
     seen: list[MediaProgress] = []
 
     await _downloader(tmp_path).download_file(
-        PostDataChunkFile(url='u', filename='a.zip'), seen.append
+        PostDataChunkFile(id='f1', url='u', filename='a.zip'), seen.append
     )
 
     assert seen == [MediaProgress(downloaded_bytes=40, total_bytes=100, delta_bytes=40)]
@@ -179,7 +179,7 @@ async def test_transport_failure_becomes_a_media_error_with_the_cause_kept(
 
     with pytest.raises(MediaDownloadError) as info:
         await _downloader(tmp_path).download_file(
-            PostDataChunkFile(url=RESOURCE, filename='a.zip'), _noop
+            PostDataChunkFile(id='f1', url=RESOURCE, filename='a.zip'), _noop
         )
 
     assert info.value.__cause__ is error
@@ -201,7 +201,7 @@ async def test_cancelled_transfer_is_a_cancellation_without_the_partial_file(
 
     with pytest.raises(asyncio.CancelledError):
         await _downloader(tmp_path).download_file(
-            PostDataChunkFile(url=RESOURCE, filename='a.zip'), _noop
+            PostDataChunkFile(id='f1', url=RESOURCE, filename='a.zip'), _noop
         )
 
     assert not partial.exists()

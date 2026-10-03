@@ -9,6 +9,7 @@ class BoostyPostDataImageDTO(BoostyBaseDTO):
     """Image content piece in posts"""
 
     type: Literal['image']
+    id: str
     url: str
     size: int | None = None
     width: int | None = None

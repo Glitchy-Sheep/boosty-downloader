@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 FILES = DownloadContentTypeFilter.files
 POST_CONTENT = DownloadContentTypeFilter.post_content
 ATTACHMENT = PostDataChunkFile(
-    url='https://cdn.example/f', filename='report.pdf', size=4321
+    id='f1', url='https://cdn.example/f', filename='report.pdf', size=4321
 )
 
 

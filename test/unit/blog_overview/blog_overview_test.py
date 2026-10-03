@@ -191,14 +191,14 @@ def test_media_is_counted_by_kind_and_only_in_accessible_posts():
             'viewsCounter': 0,
         }
     )
-    image = BoostyPostDataImageDTO(type='image', url='u')
+    image = BoostyPostDataImageDTO(type='image', id='i1', url='u')
     accessible_post = _post(
         'open',
         data=[
             BoostyPostDataTextDTO(type='text', content='', modificator=''),
             image,
             image,
-            BoostyPostDataFileDTO(type='file', url='u', title='f'),
+            BoostyPostDataFileDTO(type='file', id='f1', url='u', title='f'),
             ok_video,
             BoostyPostDataExternalVideoDTO(type='video', url='u'),
             audio,
