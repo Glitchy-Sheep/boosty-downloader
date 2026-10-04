@@ -10,7 +10,7 @@ from pydantic.alias_generators import to_camel
 
 
 def none_on_error(value: object, handler: ValidatorFunctionWrapHandler) -> object:
-    """Parse the value, or give None when it is malformed: overview data never fails a post."""
+    """Parse optional metadata, returning None when the value is malformed."""
     try:
         return handler(value)
     except ValidationError:

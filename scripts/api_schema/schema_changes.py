@@ -33,8 +33,10 @@ def find_changes(committed: JsonDict, live: JsonDict) -> list[SchemaChange]:
     for name, schema in _schemas(live).items():
         if name in known:
             changes += _object_changes(known[name], schema, name)
-        elif name.startswith('Chunk'):
+        elif name.startswith(('Chunk', 'BlogDescriptionChunk')):
             changes.append(SchemaChange('new_chunk', name, _chunk_kind(schema)))
+        else:
+            changes += _object_changes({}, schema, name)
     return changes
 
 

@@ -35,7 +35,7 @@ CHANGES_ARTIFACT = 'api-changes'
 # New things first, then what changed in the keys the schema knows.
 NEW_KINDS = ('new_chunk', 'new_key')
 CHANGE_LINES = {
-    'new_chunk': '- new content type <code>{detail}</code>: posts lose it',
+    'new_chunk': '- new content type <code>{detail}</code> in <code>{where}</code>',
     'new_key': '- <code>{where}</code> ({detail})',
     'new_type': '- <code>{where}</code>: {detail}',
     'new_value': '- <code>{where}</code>: new value <code>{detail}</code>',

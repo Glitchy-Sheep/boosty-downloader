@@ -212,8 +212,8 @@ tasks:
   api:schema:
     desc: "Write docs/api/boosty-api.yaml from live Boosty answers: task api:schema -- <blog>..."
     summary: |
-      Reads one page of posts per blog plus the newest post through the
-      single-post endpoint and writes the observed shapes as OpenAPI 3.1.
+      Reads blog metadata, one page of posts and the newest post through the
+      single-post endpoint, then writes the observed shapes as OpenAPI 3.1.
       The account token comes from BOOSTY_TOKEN in the environment, else
       auth.auth_header of config.yaml, else ./.env (--anonymous sends none);
       --pages N reads more pages.

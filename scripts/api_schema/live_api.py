@@ -83,6 +83,11 @@ def open_api_session(token: str | None) -> aiohttp.ClientSession:
     )
 
 
+async def fetch_blog_info(session: aiohttp.ClientSession, blog: str) -> JsonDict:
+    """Blog metadata through the blog endpoint."""
+    return await _get(session, f'blog/{blog}', {}, what=f'blog {blog}')
+
+
 async def fetch_listing_pages(
     session: aiohttp.ClientSession, blog: str, *, pages: int
 ) -> list[JsonDict]:

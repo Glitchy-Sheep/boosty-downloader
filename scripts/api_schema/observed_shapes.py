@@ -16,7 +16,7 @@ from typing import cast
 
 # Arrays at these paths hold objects of several kinds told apart by `type`:
 # every kind gets a shape of its own instead of one blend of all keys.
-ARRAYS_SPLIT_BY_TYPE: frozenset[str] = frozenset({'data'})
+ARRAYS_SPLIT_BY_TYPE: frozenset[str] = frozenset({'data', 'description'})
 # Keys whose string values form a vocabulary worth listing in the schema.
 VOCABULARY_KEY_SUFFIXES = (
     'type',

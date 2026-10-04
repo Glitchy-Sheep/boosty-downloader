@@ -1,7 +1,7 @@
 """
 Observed shapes rendered as an OpenAPI 3.1 document.
 
-The document covers the two endpoints the client calls. Its schemas carry
+The document covers the three endpoints the client calls. Its schemas carry
 custom fields: `x-presence` (share of samples with the key, on optional keys),
 `x-seen-values` (vocabulary of a field, for reading), `x-unread-by-client`
 (keys the client's models ignore) and `x-observed` at the top with sample
@@ -19,7 +19,9 @@ if TYPE_CHECKING:
     from api_schema.observed_shapes import ObservedKey, ObservedObject
 
 # A value outside these lists is drift: the client switches on them.
-PATHS_WITH_STRICT_ENUM: frozenset[str] = frozenset({'data[].playerUrls[].type'})
+PATHS_WITH_STRICT_ENUM: frozenset[str] = frozenset(
+    {'data[].playerUrls[].type', 'description[].playerUrls[].type'}
+)
 
 _COMPONENT_REF_PREFIX = '#/components/schemas/'
 JsonDict = dict[str, object]
@@ -33,6 +35,7 @@ class ObservedAnswers:
     page: ObservedObject
     # Every post, from listings and single-post answers alike.
     post: ObservedObject
+    blog: ObservedObject
     captured_at: str
     samples: dict[str, int]
     # Schema name -> keys the client's models do not read.
@@ -44,6 +47,7 @@ def build_openapi_document(observation: ObservedAnswers) -> JsonDict:
     components: dict[str, JsonDict] = {}
     post = object_schema(observation.post, '', components)
     components['Post'] = post
+    components['BlogInfo'] = object_schema(observation.blog, '', components)
 
     page = object_schema(observation.page, '', components)
     properties = cast('JsonDict', page['properties'])
@@ -71,6 +75,14 @@ def build_openapi_document(observation: ObservedAnswers) -> JsonDict:
         'x-observed': {
             'captured_at': observation.captured_at,
             'samples': dict(sorted(observation.samples.items())),
+            'blog_info': {
+                'captured_at': observation.captured_at,
+                'samples': {
+                    'blogs': observation.samples.get('blogs', 0),
+                    'views': observation.samples.get('views', 0),
+                    'responses': observation.blog.samples,
+                },
+            },
         },
         'paths': _paths(),
         'components': {'schemas': dict(sorted(components.items()))},
@@ -121,7 +133,7 @@ def key_schema(
     if shape.nested is not None:
         nested = object_schema(shape.nested, path, components)
         schema.update({k: v for k, v in nested.items() if k != 'type'})
-    if shape.variants is not None:
+    if shape.variants:
         schema['items'] = _chunk_variants_schema(shape.variants, path, components)
     elif shape.items is not None:
         schema['items'] = key_schema(shape.items, f'{path}[]', components)
@@ -142,7 +154,7 @@ def _chunk_variants_schema(
     """One component per item kind, told apart by the `type` key."""
     refs: list[JsonDict] = []
     for kind, shape in sorted(variants.items()):
-        name = chunk_component_name(kind)
+        name = chunk_component_name(kind, path)
         schema = object_schema(shape, f'{path}[]', components)
         properties = cast('JsonDict', schema['properties'])
         properties['type'] = {'type': 'string', 'const': kind}
@@ -151,9 +163,10 @@ def _chunk_variants_schema(
     return {'oneOf': refs, 'discriminator': {'propertyName': 'type'}}
 
 
-def chunk_component_name(kind: str) -> str:
-    """Name the component of one chunk kind: `ok_video` -> `ChunkOkVideo`."""
-    return 'Chunk' + ''.join(part.capitalize() for part in kind.split('_'))
+def chunk_component_name(kind: str, path: str = 'data') -> str:
+    """Keep post and blog-description observations in separate components."""
+    prefix = 'BlogDescriptionChunk' if path == 'description' else 'Chunk'
+    return prefix + ''.join(part.capitalize() for part in kind.split('_'))
 
 
 def _ref(name: str) -> JsonDict:
@@ -168,6 +181,18 @@ def _paths() -> JsonDict:
         'schema': {'type': 'string'},
     }
     return {
+        '/blog/{blog}': {
+            'get': {
+                'summary': 'Blog metadata and owner details',
+                'parameters': [blog],
+                'responses': {
+                    '200': _json_response('BlogInfo'),
+                    '400': {'description': 'Malformed blog name'},
+                    '401': {'description': 'Credentials rejected'},
+                    '404': {'description': 'No such blog'},
+                },
+            }
+        },
         '/blog/{blog}/post/': {
             'get': {
                 'summary': 'A page of the blog posts, newest first',

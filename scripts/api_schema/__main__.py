@@ -4,7 +4,7 @@ Observed schema of the Boosty API: `build` writes it, `changes` diffs against it
 - `task api:schema -- <blog>...` writes docs/api/boosty-api.yaml.
 - `task api:changes -- <blog>...` lists what the live API added since.
 
-Both read one page of posts per blog plus the newest post through the
+Both read blog metadata, one page of posts per blog and the newest post through the
 single-post endpoint and turn the answers into shapes. The account token
 comes from `BOOSTY_TOKEN` in the environment, else `auth.auth_header` of
 config.yaml, else ./.env; `--anonymous` sends none. With a token the blogs
@@ -28,6 +28,7 @@ import yaml
 
 from api_schema.live_api import (
     LiveApiError,
+    fetch_blog_info,
     fetch_listing_pages,
     fetch_single_post,
     find_account_token,
@@ -122,19 +123,21 @@ async def _observe_blog_answers(
     """Read the blogs in every view and keep only their shapes and counts."""
     page_shape = ObservedObject()
     post_shape = ObservedObject()
+    blog_shape = ObservedObject()
     counts = {'pages': 0, 'posts': 0}
     for token in views:
         async with open_api_session(token) as session:
             for blog in blogs:
                 await _observe_blog(
-                    session, blog, pages, (page_shape, post_shape), counts
+                    session, blog, pages, (page_shape, post_shape, blog_shape), counts
                 )
     return ObservedAnswers(
         page=page_shape,
         post=post_shape,
+        blog=blog_shape,
         captured_at=datetime.now(tz=timezone.utc).date().isoformat(),
         samples={'blogs': len(blogs), 'views': len(views), **counts},
-        unread_by_client=keys_unread_by_client(post_shape, page_shape),
+        unread_by_client=keys_unread_by_client(post_shape, page_shape, blog_shape),
     )
 
 
@@ -142,11 +145,12 @@ async def _observe_blog(
     session: aiohttp.ClientSession,
     blog: str,
     pages: int,
-    shapes: tuple[ObservedObject, ObservedObject],
+    shapes: tuple[ObservedObject, ObservedObject, ObservedObject],
     counts: dict[str, int],
 ) -> None:
-    """Observe the listing pages of one blog and its newest post."""
-    page_shape, post_shape = shapes
+    """Observe blog metadata, listing pages and the newest post."""
+    page_shape, post_shape, blog_shape = shapes
+    observe(blog_shape, await fetch_blog_info(session, blog))
     answers = await fetch_listing_pages(session, blog, pages=pages)
     for page in answers:
         counts['pages'] += 1
@@ -181,7 +185,9 @@ def _print_summary(
 ) -> None:
     components = cast('JsonDict', document['components'])
     schemas = cast('dict[str, JsonDict]', components['schemas'])
-    chunks = sorted(name for name in schemas if name.startswith('Chunk'))
+    chunks = sorted(
+        name for name in schemas if name.startswith(('Chunk', 'BlogDescriptionChunk'))
+    )
     mode = 'with the account token' if with_token else 'anonymous'
     rich.print(f'[green]Wrote {output}[/green] ({mode})')
     rich.print(f'Samples: {observation.samples}')

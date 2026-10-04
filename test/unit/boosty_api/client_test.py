@@ -218,3 +218,53 @@ async def test_single_post_401_raises_unauthorized():
 
     with pytest.raises(BoostyAPIUnauthorizedError):
         await client.get_single_post('any_author', 'p1')
+
+
+@pytest.mark.parametrize(
+    ('status', 'error_type'),
+    [
+        (400, BoostyAPIInvalidUsernameError),
+        (401, BoostyAPIUnauthorizedError),
+        (404, BoostyAPINoUsernameError),
+        (403, BoostyAPIUnknownError),
+        (503, BoostyAPIUnknownError),
+    ],
+)
+async def test_blog_status_errors_do_not_parse_the_body(
+    status: int, error_type: type[Exception]
+) -> None:
+    client = _make_client(_FakeResponse(status, json_error=_JsonMustNotBeCalledError()))
+
+    with pytest.raises(error_type) as caught:
+        await client.get_blog_info('example_author')
+
+    if isinstance(
+        caught.value, (BoostyAPIInvalidUsernameError, BoostyAPINoUsernameError)
+    ):
+        assert caught.value.username == 'example_author'
+
+
+@pytest.mark.parametrize(
+    'parse_error',
+    [
+        ContentTypeError(cast('RequestInfo', None), ()),
+        json.JSONDecodeError('Expecting value', '<html></html>', 0),
+    ],
+)
+async def test_blog_non_json_response_is_unknown_error(parse_error: Exception) -> None:
+    client = _make_client(_FakeResponse(200, json_error=parse_error))
+
+    with pytest.raises(BoostyAPIUnknownError, match='Non-JSON response'):
+        await client.get_blog_info('example_author')
+
+
+@pytest.mark.parametrize('data', [None, [], 'blog', 42])
+async def test_blog_non_object_response_carries_validation_details(
+    data: object,
+) -> None:
+    client = _make_client(_FakeResponse(200, json_data=data))
+
+    with pytest.raises(BoostyAPIValidationError) as caught:
+        await client.get_blog_info('example_author')
+
+    assert caught.value.errors
