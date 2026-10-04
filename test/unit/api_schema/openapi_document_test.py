@@ -37,15 +37,21 @@ def _post(**overrides: object) -> JsonDict:
     return post
 
 
-def _observe(posts: list[JsonDict]) -> ObservedAnswers:
+def _observe(
+    posts: list[JsonDict], blogs: list[JsonDict] | None = None
+) -> ObservedAnswers:
     page = ObservedObject()
     observe(page, {'data': [], 'extra': {'offset': '', 'isLast': True}})
     post_shape = ObservedObject()
     for post in posts:
         observe(post_shape, post)
+    blog_shape = ObservedObject()
+    for blog in blogs or []:
+        observe(blog_shape, blog)
     return ObservedAnswers(
         page=page,
         post=post_shape,
+        blog=blog_shape,
         captured_at='2026-09-22',
         samples={'posts': len(posts), 'pages': 1},
         unread_by_client={'Post': ['hasAccess']},
@@ -135,6 +141,10 @@ def test_unread_keys_and_sample_counts_are_recorded():
     assert document['x-observed'] == {
         'captured_at': '2026-09-22',
         'samples': {'pages': 1, 'posts': 1},
+        'blog_info': {
+            'captured_at': '2026-09-22',
+            'samples': {'blogs': 0, 'views': 0, 'responses': 0},
+        },
     }
 
 
@@ -148,3 +158,51 @@ def test_yaml_is_deterministic_and_carries_no_values():
     assert POST_ID not in first
     assert 'video.example' not in first
     assert yaml.safe_load(first)['openapi'] == '3.1.0'
+
+
+def test_blog_endpoint_and_description_components_are_independent() -> None:
+    blog: JsonDict = {
+        'description': [
+            {'type': 'text', 'content': 'private description', 'blogOnly': True},
+            {'type': 'ok_video', 'playerUrls': [{'type': 'tiny', 'url': ''}]},
+        ],
+        'owner': {
+            'name': 'private owner',
+            'avatarUrl': 'https://private.example/avatar',
+        },
+        'title': 'private blog title',
+    }
+    document = build_openapi_document(_observe([_post()], [blog]))
+    schemas = _schemas(document)
+    assert 'blogOnly' not in schemas['ChunkText']['properties']
+    description_text = schemas['BlogDescriptionChunkText']
+    assert 'blogOnly' in description_text['properties']
+    assert 'modificator' not in description_text['properties']
+    blog_schema = cast('dict[str, JsonDict]', schemas['BlogInfo']['properties'])
+    assert blog_schema['description']['items'] == {
+        'oneOf': [
+            {'$ref': '#/components/schemas/BlogDescriptionChunkOkVideo'},
+            {'$ref': '#/components/schemas/BlogDescriptionChunkText'},
+        ],
+        'discriminator': {'propertyName': 'type'},
+    }
+    paths = cast('dict[str, JsonDict]', document['paths'])
+    operation = cast('JsonDict', paths['/blog/{blog}']['get'])
+    responses = cast('dict[str, JsonDict]', operation['responses'])
+    assert responses['200']['content'] == {
+        'application/json': {'schema': {'$ref': '#/components/schemas/BlogInfo'}}
+    }
+    video = cast(
+        'dict[str, JsonDict]', schemas['BlogDescriptionChunkOkVideo']['properties']
+    )
+    items = cast('dict[str, JsonDict]', video['playerUrls']['items'])
+    assert items['properties']['type']['enum'] == ['tiny']
+    rendered = to_yaml(document)
+    assert 'private' not in rendered
+    assert rendered == to_yaml(build_openapi_document(_observe([_post()], [blog])))
+
+
+def test_always_empty_description_has_no_invalid_oneof() -> None:
+    document = build_openapi_document(_observe([_post()], [{'description': []}]))
+    blog = cast('dict[str, JsonDict]', _schemas(document)['BlogInfo']['properties'])
+    assert blog['description'] == {'type': 'array'}

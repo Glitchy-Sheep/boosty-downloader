@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Boosty API as seen by boosty-downloader
-  version: '2026-09-24'
+  version: '2026-10-03'
   description: 'Observed, not official: built from live answers by `task api:schema`. Only shapes and
     counts are recorded.'
 x-observed:
@@ -11,7 +11,35 @@ x-observed:
     pages: 2
     posts: 24
     views: 2
+  blog_info:
+    captured_at: '2026-10-03'
+    samples:
+      blogs: 2
+      views: 2
+      responses: 4
 paths:
+  /blog/{blog}:
+    get:
+      summary: Blog metadata and owner details
+      parameters:
+      - name: blog
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogInfo'
+        '400':
+          description: Malformed blog name
+        '401':
+          description: Credentials rejected
+        '404':
+          description: No such blog
   /blog/{blog}/post/:
     get:
       summary: A page of the blog posts, newest first
@@ -69,6 +97,530 @@ paths:
           description: No such post
 components:
   schemas:
+    BlogDescriptionChunkAudioFile:
+      type: object
+      required:
+      - album
+      - artist
+      - complete
+      - duration
+      - fileType
+      - id
+      - isInvalid
+      - showViewsCounter
+      - size
+      - timeCode
+      - title
+      - track
+      - type
+      - uploadStatus
+      - url
+      - viewsCounter
+      properties:
+        album:
+          type: string
+        artist:
+          type: string
+        complete:
+          type: boolean
+        duration:
+          type: integer
+        fileType:
+          type: string
+          x-seen-values:
+          - MP3
+        id:
+          type: string
+          format: uuid
+        isInvalid:
+          type: 'null'
+        showViewsCounter:
+          type: boolean
+        size:
+          type: integer
+        timeCode:
+          type: integer
+        title:
+          type: string
+        track:
+          type: string
+        type:
+          type: string
+          const: audio_file
+        uploadStatus:
+          type: 'null'
+        url:
+          type: string
+          format: uri
+        viewsCounter:
+          type: integer
+      x-unread-by-client:
+      - album
+      - fileType
+      - isInvalid
+      - track
+    BlogDescriptionChunkImage:
+      type: object
+      required:
+      - height
+      - id
+      - isInvalid
+      - rendition
+      - size
+      - type
+      - url
+      - width
+      properties:
+        height:
+          type: integer
+        id:
+          type: string
+          format: uuid
+        isInvalid:
+          type: 'null'
+        rendition:
+          type: string
+        size:
+          type: integer
+        type:
+          type: string
+          const: image
+        url:
+          type: string
+          format: uri
+        width:
+          type: integer
+      x-unread-by-client:
+      - isInvalid
+      - rendition
+    BlogDescriptionChunkOkVideo:
+      type: object
+      required:
+      - complete
+      - defaultPreview
+      - duration
+      - failoverHost
+      - height
+      - id
+      - isInvalid
+      - playerUrls
+      - preview
+      - previewId
+      - showViewsCounter
+      - status
+      - timeCode
+      - title
+      - type
+      - uploadStatus
+      - url
+      - vid
+      - viewsCounter
+      - width
+      properties:
+        complete:
+          type: boolean
+        defaultPreview:
+          type: string
+          format: uri
+        duration:
+          type: integer
+        failoverHost:
+          type: string
+        height:
+          type: integer
+        id:
+          type: string
+          format: uuid
+        isInvalid:
+          type: 'null'
+        playerUrls:
+          type: array
+          items:
+            type: object
+            required:
+            - type
+            - url
+            properties:
+              type:
+                type: string
+                enum:
+                - dash
+                - dash_uni
+                - full_hd
+                - high
+                - hls
+                - live_cmaf
+                - live_dash
+                - live_hls
+                - live_ondemand_hls
+                - live_playback_dash
+                - live_playback_hls
+                - low
+                - lowest
+                - medium
+                - ondemand_dash
+                - ondemand_hls
+                - quad_hd
+                - tiny
+                - ultra_hd
+              url:
+                type: string
+        preview:
+          type: string
+          format: uri
+        previewId:
+          type: string
+          format: uuid
+        showViewsCounter:
+          type: boolean
+        status:
+          type: string
+          x-seen-values:
+          - ok
+        timeCode:
+          type: integer
+        title:
+          type: string
+        type:
+          type: string
+          const: ok_video
+        uploadStatus:
+          type: string
+          x-seen-values:
+          - ok
+        url:
+          type: string
+        vid:
+          type: string
+        viewsCounter:
+          type: integer
+        width:
+          type: integer
+      x-unread-by-client:
+      - defaultPreview
+      - height
+      - isInvalid
+      - previewId
+      - showViewsCounter
+      - status
+      - timeCode
+      - url
+      - vid
+      - viewsCounter
+      - width
+    BlogDescriptionChunkText:
+      type: object
+      required:
+      - content
+      - modificator
+      - type
+      properties:
+        content:
+          type: string
+        modificator:
+          type: string
+        type:
+          type: string
+          const: text
+    BlogInfo:
+      type: object
+      required:
+      - acceptedCurrencies
+      - accessRights
+      - allowedPromoTypes
+      - allowedReactionList
+      - blogUrl
+      - count
+      - coverUrl
+      - currency
+      - description
+      - flags
+      - hasAdultContent
+      - isBlackListed
+      - isBlackListedByUser
+      - isOwner
+      - isReadOnly
+      - isSubscribed
+      - isTotalBaned
+      - owner
+      - paymentMethods
+      - publicWebSocketChannel
+      - reactionsDisabled
+      - signedQuery
+      - socialLinks
+      - subscription
+      - subscriptionKind
+      - title
+      properties:
+        acceptedCurrencies:
+          type: array
+          items:
+            type: string
+        accessRights:
+          type: object
+          required:
+          - canChangeCurrency
+          - canCreate
+          - canCreateComments
+          - canDeleteComments
+          - canEdit
+          - canSetPayout
+          - canView
+          properties:
+            canChangeCurrency:
+              type: boolean
+            canCreate:
+              type: boolean
+            canCreateComments:
+              type: boolean
+            canDeleteComments:
+              type: boolean
+            canEdit:
+              type: boolean
+            canSetPayout:
+              type: boolean
+            canView:
+              type: boolean
+        allowedPromoTypes:
+          type: array
+          items:
+            type: string
+        allowedReactionList:
+          type: array
+          items:
+            type: string
+        blogUrl:
+          type: string
+        count:
+          type: object
+          required:
+          - posts
+          - showcase
+          - subscribers
+          properties:
+            posts:
+              type: integer
+            showcase:
+              type: integer
+            subscribers:
+              type: integer
+        coverUrl:
+          type: string
+        currency:
+          type: string
+          x-seen-values:
+          - RUB
+        description:
+          type: array
+          items:
+            oneOf:
+            - $ref: '#/components/schemas/BlogDescriptionChunkAudioFile'
+            - $ref: '#/components/schemas/BlogDescriptionChunkImage'
+            - $ref: '#/components/schemas/BlogDescriptionChunkOkVideo'
+            - $ref: '#/components/schemas/BlogDescriptionChunkText'
+            discriminator:
+              propertyName: type
+        flags:
+          type: object
+          required:
+          - acceptDonationMessages
+          - allowGoogleIndex
+          - allowIndex
+          - forbiddenChangeHasAIContent
+          - forbiddenChangeHasAdultContent
+          - hasAIContent
+          - hasAdultContent
+          - hasSubscriptionLevels
+          - hasTargets
+          - isAlien
+          - isContentSaleDisabled
+          - isPaymentAcceptBlocked
+          - isPayoutBlocked
+          - isRssFeedEnabled
+          - isShowcaseEnabled
+          - isVerifyPayoutBlocked
+          - requiredVerificationForPayments
+          - showPostDonations
+          properties:
+            acceptDonationMessages:
+              type: boolean
+            allowGoogleIndex:
+              type: boolean
+            allowIndex:
+              type: boolean
+            forbiddenChangeHasAIContent:
+              type: boolean
+            forbiddenChangeHasAdultContent:
+              type: boolean
+            hasAIContent:
+              type: boolean
+            hasAdultContent:
+              type: boolean
+            hasSubscriptionLevels:
+              type: boolean
+            hasTargets:
+              type: boolean
+            isAlien:
+              type: boolean
+            isContentSaleDisabled:
+              type: boolean
+            isPaymentAcceptBlocked:
+              type: boolean
+            isPayoutBlocked:
+              type: boolean
+            isRssFeedEnabled:
+              type: boolean
+            isShowcaseEnabled:
+              type: boolean
+            isVerifyPayoutBlocked:
+              type: boolean
+            requiredVerificationForPayments:
+              type: boolean
+            showPostDonations:
+              type: boolean
+        hasAdultContent:
+          type: boolean
+        isBlackListed:
+          type: boolean
+        isBlackListedByUser:
+          type: boolean
+        isOwner:
+          type: boolean
+        isReadOnly:
+          type: boolean
+        isSubscribed:
+          type: boolean
+        isTotalBaned:
+          type: boolean
+        owner:
+          type: object
+          required:
+          - avatarUrl
+          - externalApps
+          - hasAvatar
+          - id
+          - isOfficial
+          - name
+          properties:
+            avatarUrl:
+              type: string
+              format: uri
+            externalApps:
+              type: object
+              required:
+              - discord
+              - max
+              - telegram
+              properties:
+                discord:
+                  type: object
+                  required:
+                  - hasAccount
+                  - hasServer
+                  - serverName
+                  - username
+                  properties:
+                    hasAccount:
+                      type: boolean
+                    hasServer:
+                      type: boolean
+                    serverName:
+                      type: string
+                    username:
+                      type: string
+                max:
+                  type: object
+                  required:
+                  - hasAccount
+                  - username
+                  properties:
+                    hasAccount:
+                      type: boolean
+                    username:
+                      type: string
+                telegram:
+                  type: object
+                  required:
+                  - hasAccount
+                  - username
+                  properties:
+                    hasAccount:
+                      type: boolean
+                    username:
+                      type: string
+            hasAvatar:
+              type: boolean
+            id:
+              type: integer
+            isOfficial:
+              type: boolean
+            name:
+              type: string
+        paymentMethods:
+          type: array
+          items:
+            type: object
+            required:
+            - currencies
+            - name
+            properties:
+              currencies:
+                type: array
+                items:
+                  type: string
+              name:
+                type: string
+        publicWebSocketChannel:
+          type: string
+        reactionsDisabled:
+          type: boolean
+        signedQuery:
+          type: string
+        socialLinks:
+          type: array
+          items:
+            type: object
+            required:
+            - type
+            - url
+            properties:
+              type:
+                type: string
+                x-seen-values:
+                - telegram
+                - vk
+                - youtube
+              url:
+                type: string
+                format: uri
+        subscription:
+          type: 'null'
+        subscriptionKind:
+          type: string
+        title:
+          type: string
+      x-unread-by-client:
+      - acceptedCurrencies
+      - accessRights
+      - allowedPromoTypes
+      - allowedReactionList
+      - blogUrl
+      - currency
+      - flags
+      - hasAdultContent
+      - isBlackListed
+      - isBlackListedByUser
+      - isOwner
+      - isReadOnly
+      - isSubscribed
+      - isTotalBaned
+      - paymentMethods
+      - publicWebSocketChannel
+      - reactionsDisabled
+      - signedQuery
+      - socialLinks
+      - subscription
+      - subscriptionKind
     ChunkAudioFile:
       type: object
       required:

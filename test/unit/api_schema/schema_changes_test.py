@@ -99,3 +99,31 @@ def test_a_new_chunk_kind_is_named_by_its_type():
     assert find_changes(committed, live) == [
         SchemaChange('new_chunk', 'ChunkPoll', 'poll')
     ]
+
+
+def test_blog_description_additions_are_reported_separately() -> None:
+    known = _document(
+        BlogInfo=_post(owner=_post(name={'type': 'string'})),
+        BlogDescriptionChunkText=_chunk('text'),
+    )
+    live = _document(
+        BlogInfo=_post(
+            owner=_post(name={'type': ['string', 'null']}, verified={'type': 'boolean'})
+        ),
+        BlogDescriptionChunkText=_post(
+            type={'type': 'string', 'const': 'text'}, content={'type': 'string'}
+        ),
+        BlogDescriptionChunkPoll=_chunk('poll'),
+    )
+    assert find_changes(known, live) == [
+        SchemaChange('new_type', 'BlogInfo.owner.name', 'string → null|string'),
+        SchemaChange('new_key', 'BlogInfo.owner.verified', 'boolean'),
+        SchemaChange('new_key', 'BlogDescriptionChunkText.content', 'string'),
+        SchemaChange('new_chunk', 'BlogDescriptionChunkPoll', 'poll'),
+    ]
+
+
+def test_new_blog_component_reports_its_fields() -> None:
+    assert find_changes(
+        _document(), _document(BlogInfo=_post(title={'type': 'string'}))
+    ) == [SchemaChange('new_key', 'BlogInfo.title', 'string')]

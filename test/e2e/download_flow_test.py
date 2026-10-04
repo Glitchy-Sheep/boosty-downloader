@@ -14,9 +14,11 @@ import time
 import uuid
 from typing import TYPE_CHECKING, cast
 
+import pytest
 from aiohttp import ClientSession, web
 from aiohttp.test_utils import TestServer
 from aiohttp_retry import ExponentialRetry, RetryClient
+from support.synthetic_blog import BLOG_TITLE, OWNER_NAME, POST_COUNT, synthetic_blog
 from support.synthetic_post import (
     AUDIO_SIZE,
     FAKE_HOSTS,
@@ -55,7 +57,6 @@ from boosty_downloader.infrastructure.post_caching.post_cache import (
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import pytest
     from yarl import URL
 
     from boosty_downloader.application.run_statistics import RunStatistics
@@ -112,13 +113,14 @@ def _blob_body(path: str) -> web.Response:
     return web.Response(body=b'file bytes', content_type='application/octet-stream')
 
 
-def _build_app(
+def _build_app(  # noqa: PLR0913 - independent fake-server failure modes
     served_media: list[str],
     media_delay: float = 0.0,
     *,
     fail_first_file: bool = False,
     dead_images: bool = False,
     external_video_url: str | None = None,
+    blog_failures: list[int] | None = None,
 ) -> web.Application:
     fixture_text = json.dumps(synthetic_post())
     file_failures_left = 1 if fail_first_file else 0
@@ -139,6 +141,12 @@ def _build_app(
             }
         )
 
+    async def blog_info(request: web.Request) -> web.Response:
+        del request
+        if blog_failures:
+            return web.Response(status=blog_failures.pop(0))
+        return web.json_response(synthetic_blog())
+
     async def blob(request: web.Request) -> web.Response:
         nonlocal file_failures_left
         served_media.append(request.path)
@@ -152,6 +160,7 @@ def _build_app(
         return _blob_body(request.path)
 
     app = web.Application()
+    app.router.add_get(f'/v1/blog/{AUTHOR}', blog_info)
     app.router.add_get(f'/v1/blog/{AUTHOR}/post/', listing)
     app.router.add_get('/{tail:.*}', blob)
     return app
@@ -458,3 +467,31 @@ async def test_retried_post_fetches_only_the_failed_part_and_is_counted_once(
         )
     finally:
         await server.close()
+
+
+@pytest.mark.parametrize('failures', [[], [503], [429]])
+async def test_blog_info_uses_exact_route_and_existing_retries(
+    failures: list[int],
+) -> None:
+    served_media: list[str] = []
+    pending = failures.copy()
+    async with (
+        TestServer(_build_app(served_media, blog_failures=pending)) as server,
+        RetryClient(
+            retry_options=ExponentialRetry(
+                attempts=2, start_timeout=0.01, statuses={429}
+            )
+        ) as session,
+    ):
+        client = BoostyAPIClient(session, base_url=server.make_url('/v1/'))
+        blog = await client.get_blog_info(AUTHOR)
+
+    assert blog.title == BLOG_TITLE
+    assert blog.owner is not None
+    assert blog.owner.name == OWNER_NAME
+    assert blog.count is not None
+    assert blog.count.posts == POST_COUNT
+    assert blog.description is not None
+    assert len(blog.description) == 5
+    assert pending == []
+    assert served_media == []

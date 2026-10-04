@@ -14,6 +14,7 @@ from yarl import URL
 from boosty_downloader.infrastructure.boosty_api.core.endpoints import (
     BOOSTY_DEFAULT_BASE_URL,
 )
+from boosty_downloader.infrastructure.boosty_api.models.blog import BlogInfoDTO
 from boosty_downloader.infrastructure.boosty_api.models.post.extra import Extra
 from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
 from boosty_downloader.infrastructure.boosty_api.models.post.posts_request import (
@@ -146,6 +147,30 @@ class BoostyAPIClient:
             async with self._limiter:
                 return await self.session.get(url, params=params, headers=headers)
         return await self.session.get(url, params=params, headers=headers)
+
+    async def get_blog_info(self, author_name: str) -> BlogInfoDTO:
+        """Read blog metadata, preserving valid fields when optional values are broken."""
+        response = await self._throttled_get(f'blog/{author_name}')
+        if response.status == HTTPStatus.NOT_FOUND:
+            raise BoostyAPINoUsernameError(author_name)
+        if response.status == HTTPStatus.UNAUTHORIZED:
+            raise BoostyAPIUnauthorizedError
+        if response.status == HTTPStatus.BAD_REQUEST:
+            raise BoostyAPIInvalidUsernameError(author_name)
+        if response.status != HTTPStatus.OK:
+            raise BoostyAPIUnknownError(
+                response.status, f'Unexpected status code: {response.status}'
+            )
+        try:
+            data = await response.json()
+        except (ContentTypeError, json.JSONDecodeError) as error:
+            raise BoostyAPIUnknownError(
+                response.status, 'Non-JSON response from the API'
+            ) from error
+        try:
+            return BlogInfoDTO.model_validate(data)
+        except ValidationError as error:
+            raise BoostyAPIValidationError(errors=error.errors()) from error
 
     async def get_author_posts(
         self,

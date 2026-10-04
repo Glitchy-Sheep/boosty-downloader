@@ -14,6 +14,7 @@ from typing import Any
 
 import yaml
 from jsonschema import Draft202012Validator
+from support.synthetic_blog import synthetic_blog
 from support.synthetic_post import synthetic_post, unknown_chunk
 
 SCHEMA_FILE = Path(__file__).parents[3] / 'docs' / 'api' / 'boosty-api.yaml'
@@ -71,3 +72,9 @@ def test_unknown_chunk_is_unknown_to_the_schema():
     ]
 
     assert not matches, f'The schema now knows the "unknown" chunk: {matches}'
+
+
+def test_synthetic_blog_matches_the_observed_schema() -> None:
+    errors = _errors(_validator('BlogInfo'), synthetic_blog())
+
+    assert not errors, 'Synthetic blog differs from the schema:\n' + '\n'.join(errors)

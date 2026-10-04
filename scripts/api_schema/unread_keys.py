@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, get_args
 
 from api_schema.openapi_document import chunk_component_name
+from boosty_downloader.infrastructure.boosty_api.models.blog import BlogInfoDTO
 from boosty_downloader.infrastructure.boosty_api.models.post import post_data_types
 from boosty_downloader.infrastructure.boosty_api.models.post.extra import Extra
 from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
@@ -21,19 +22,29 @@ if TYPE_CHECKING:
 
 
 def keys_unread_by_client(
-    post: ObservedObject, page: ObservedObject
+    post: ObservedObject, page: ObservedObject, blog: ObservedObject
 ) -> dict[str, list[str]]:
     """Observed keys per component that no model field reads."""
     unread = {
         'Post': _unread(post, PostDTO),
+        'BlogInfo': _unread(blog, BlogInfoDTO),
         'PageExtra': _unread(_nested(page, 'extra'), Extra),
     }
-    data = post.keys.get('data')
-    variants = data.variants if data is not None else None
-    for kind, model in _chunk_dto_by_type().items():
-        if variants is not None and kind in variants:
-            unread[chunk_component_name(kind)] = _unread(variants[kind], model)
+    unread.update(_unread_chunks(post, 'data'))
+    unread.update(_unread_chunks(blog, 'description'))
     return {name: keys for name, keys in unread.items() if keys}
+
+
+def _unread_chunks(shape: ObservedObject, path: str) -> dict[str, list[str]]:
+    data = shape.keys.get(path)
+    variants = data.variants if data is not None else None
+    if not variants:
+        return {}
+    return {
+        chunk_component_name(kind, path): _unread(variants[kind], model)
+        for kind, model in _chunk_dto_by_type().items()
+        if kind in variants
+    }
 
 
 def _unread(shape: ObservedObject | None, model: type[BaseModel]) -> list[str]:
