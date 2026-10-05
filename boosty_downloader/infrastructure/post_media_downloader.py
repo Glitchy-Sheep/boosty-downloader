@@ -29,10 +29,7 @@ from boosty_downloader.infrastructure.file_downloader import (
     DownloadFileConfig,
     download_file,
 )
-from boosty_downloader.infrastructure.path_sanitizer import (
-    MAX_NAME_BYTES,
-    sanitize_filename,
-)
+from boosty_downloader.infrastructure.media_filenames import boosty_video_filename
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -87,25 +84,11 @@ class MediaDownloadError(Exception):
         self.retryable = retryable
 
 
-# download_file appends a guessed extension to video names later:
-# the byte budget here leaves room so that never re-truncates the name.
-_GUESSED_EXTENSION_RESERVE_BYTES = 8
-
 _EXT_VIDEO_INFO_FAILED = (
     "External video unavailable or access restricted (can't get info)"
 )
 _EXT_VIDEO_DOWNLOAD_FAILED = 'External video download failed'
 _EXT_VIDEO_UNAVAILABLE = 'External video unavailable'
-
-
-def boosty_video_filename(video: PostDataChunkBoostyVideo) -> str:
-    """Filename unique per video: titles repeat inside a post, ids never do."""
-    title = video.title.strip() or 'video'
-    return sanitize_filename(
-        title,
-        suffix=f' ({video.id[:8]})',
-        max_bytes=MAX_NAME_BYTES - _GUESSED_EXTENSION_RESERVE_BYTES,
-    )
 
 
 def _remove_partial(file: Path | None) -> None:
@@ -168,7 +151,7 @@ class PostMediaDownloader:
         """Save a Boosty video as 'Title (id8)' plus the extension Content-Type gives."""
         return await self._download(
             url=video.url,
-            filename=boosty_video_filename(video),
+            filename=boosty_video_filename(video.title, video.id),
             subdir='boosty_videos',
             guess_extension=True,
             on_progress=on_progress,

@@ -13,14 +13,26 @@ from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 from unicodedata import normalize
 
+from yarl import URL
+
+from boosty_downloader.domain.post_data_chunks import (
+    PostDataChunkAudio,
+    PostDataChunkBoostyVideo,
+    PostDataChunkFile,
+    PostDataChunkImage,
+)
 from boosty_downloader.domain.stored_post import MediaKind
+from boosty_downloader.infrastructure.media_filenames import boosty_video_filename
 from boosty_downloader.infrastructure.path_sanitizer import (
     compose_filename,
+    sanitize_filename,
 )
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
     from collections.abc import Set as AbstractSet
+
+    from boosty_downloader.application.mappers.live_post import LiveMedia
 
 
 @dataclass(frozen=True)
@@ -56,6 +68,57 @@ class _FileCandidate:
     candidate_number: int
     path: str
     size: int
+
+
+def get_preferred_media_path(media_id: str, media: LiveMedia) -> MediaPathHint | None:
+    """Derive a discovery hint from downloader names, including unfinished uploads."""
+    match media.download:
+        case PostDataChunkImage():
+            return _image_path_hint(media.download)
+        case PostDataChunkFile():
+            return _author_path_hint(media.download.filename, 'files')
+        case PostDataChunkAudio():
+            return _author_path_hint(media.download.title, 'audio')
+        case PostDataChunkBoostyVideo():
+            return _video_path_hint(media.download.title, media.download.id)
+        case _:
+            return _unfinished_path_hint(media_id, media)
+
+
+def _unfinished_path_hint(media_id: str, media: LiveMedia) -> MediaPathHint | None:
+    match media.kind:
+        case MediaKind.file:
+            return _author_path_hint(media.filename, 'files')
+        case MediaKind.audio:
+            return _author_path_hint(media.title, 'audio')
+        case MediaKind.boosty_video:
+            return _video_path_hint(media.title, media_id.split(':', 1)[1])
+        case MediaKind.image | MediaKind.external_video:
+            return None
+
+
+def _image_path_hint(image: PostDataChunkImage) -> MediaPathHint:
+    name = URL(image.url).name
+    # Encoded slashes belong to the filename, not to the folder layout.
+    return MediaPathHint(
+        path=f'images/{sanitize_filename(name)}', suffix_from_response=True
+    )
+
+
+def _author_path_hint(name: str | None, subdir: str) -> MediaPathHint | None:
+    if name is None:
+        return None
+    basename = PurePosixPath(name).name
+    if not basename:
+        basename = compose_filename(basename)
+    return MediaPathHint(path=f'{subdir}/{basename}')
+
+
+def _video_path_hint(title: str | None, video_id: str) -> MediaPathHint | None:
+    if title is None:
+        return None
+    name = boosty_video_filename(title, video_id)
+    return MediaPathHint(path=f'boosty_videos/{name}', suffix_from_response=True)
 
 
 def reserve_media_path(
