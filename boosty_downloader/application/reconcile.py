@@ -7,6 +7,7 @@ from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from boosty_downloader.application._media_order import order_media_ids
+from boosty_downloader.application.media_paths import find_recorded_file
 from boosty_downloader.domain.stored_post import (
     MediaBlock,
     MediaEntry,
@@ -19,6 +20,7 @@ if TYPE_CHECKING:
     from datetime import datetime
 
     from boosty_downloader.application.mappers.live_post import LiveMedia, LivePost
+    from boosty_downloader.application.media_paths import DiskSnapshot
 
 
 def prepare_record(
@@ -91,3 +93,40 @@ def _removed_entry(previous: MediaEntry, position: int, now: datetime) -> MediaE
     if entry.removed_at is None:
         entry.removed_at = now
     return entry
+
+
+def observe_recorded_files(record: StoredPost, disk: DiskSnapshot) -> StoredPost:
+    """
+    Observe downloaded/deleted copies of an accessible post in an independent record.
+
+    Missing copies keep their paths and last known sizes. Existing copies keep their actual sizes, including zero, even when the author removed the piece.
+    """
+    observed = deepcopy(record)
+    observed.media = {
+        media_id: _observe_saved_file(entry, disk)
+        for media_id, entry in observed.media.items()
+    }
+    return observed
+
+
+def _observe_saved_file(entry: MediaEntry, disk: DiskSnapshot) -> MediaEntry:
+    match entry.status:
+        case MediaStatus.downloaded | MediaStatus.deleted:
+            return _recorded_file_state(entry, disk)
+        case _:
+            return entry
+
+
+def _recorded_file_state(entry: MediaEntry, disk: DiskSnapshot) -> MediaEntry:
+    found = None
+    if entry.path is not None:
+        found = find_recorded_file(entry.path, disk)
+    if found is None:
+        return replace(entry, status=MediaStatus.deleted)
+    return replace(
+        entry,
+        status=MediaStatus.downloaded,
+        path=found.path,
+        size=found.size,
+        error=None,
+    )
