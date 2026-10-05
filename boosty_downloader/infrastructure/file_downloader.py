@@ -7,14 +7,14 @@ import mimetypes
 from asyncio import CancelledError
 from asyncio import TimeoutError as AsyncioTimeoutError
 from dataclasses import dataclass
-from pathlib import PurePath
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 
 import aiofiles
 from aiohttp import ClientConnectionError, ClientPayloadError
 
 from boosty_downloader.infrastructure.path_sanitizer import (
-    sanitize_filename,
+    compose_filename,
 )
 
 if TYPE_CHECKING:
@@ -122,14 +122,13 @@ class DownloadUnexpectedStatusError(DownloadError):
 
 def _app_built_filename(name: str, guessed_ext: str | None) -> str:
     """App-built names (videos, images): the guessed extension is glued on."""
-    return sanitize_filename(name, suffix=guessed_ext or '')
+    return compose_filename(name, extension=guessed_ext or '')
 
 
 def _author_filename(name: str) -> str:
-    """Truncate an author-given name; its own extension always survives."""
-    pure = PurePath(name)
-    ext = pure.suffix
-    return sanitize_filename(pure.stem, suffix=sanitize_filename(ext) if ext else '')
+    """Keep an author-given extension within the shared filename budget."""
+    pure = PurePosixPath(name)
+    return compose_filename(pure.stem, extension=pure.suffix)
 
 
 # What a CDN answers on a dead signature; 403 can also mean genuinely

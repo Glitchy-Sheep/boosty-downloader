@@ -23,6 +23,7 @@ from boosty_downloader.infrastructure.html_generator.models import (
     HtmlGenText,
     HtmlGenUnavailable,
     HtmlGenVideo,
+    HtmlListStyle,
 )
 from boosty_downloader.infrastructure.human_readable_filesize import (
     human_readable_size,
@@ -186,7 +187,9 @@ def render_html_chunk(chunk: HtmlGenChunk) -> str:  # noqa: PLR0911 - one templa
             )
         case HtmlGenList():
             return env.get_template('list.html').render(
-                lst=chunk, render_chunk=render_html_chunk
+                lst=chunk,
+                tag='ol' if chunk.style is HtmlListStyle.ORDERED else 'ul',
+                render_chunk=render_html_chunk,
             )
         case HtmlGenFile():
             return _render_attachments([chunk])

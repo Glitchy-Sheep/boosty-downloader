@@ -2,6 +2,7 @@
 
 ### Fixed
 
+- Attachment filenames use the same cleaning rules on Windows, Linux and macOS, including names with colons or backslashes. Unusually long extensions share the filename length budget
 - On Windows, a `.zip` attachment in `post.html` gets the archive icon like on Linux and macOS. Before, it got the generic file icon because Windows names the zip type differently
 
 ## 4.3.0

@@ -14,6 +14,9 @@ from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types imp
     BoostyPostDataLinkDTO,
     BoostyPostDataTextDTO,
 )
+from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types.post_data_text import (
+    PARAGRAPH_END_MODIFIER,
+)
 
 
 def _parse_header(style_definition: str) -> int:
@@ -146,7 +149,7 @@ def _parse_content_field(
 
     text, style_info, styles_array = _extract_content_field(content)
 
-    if modificator == 'BLOCK_END':
+    if modificator == PARAGRAPH_END_MODIFIER:
         text += '\n'
 
     header_level = _parse_header(style_info)

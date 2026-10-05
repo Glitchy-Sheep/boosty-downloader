@@ -10,6 +10,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, TypeAlias
 
 from boosty_downloader.application import mappers
+from boosty_downloader.application.mappers.list import to_domain_list_style
 from boosty_downloader.domain.post_data_chunks import (
     PostDataChunkAudio,
     PostDataChunkBoostyVideo,
@@ -17,7 +18,6 @@ from boosty_downloader.domain.post_data_chunks import (
     PostDataChunkFile,
     PostDataChunkImage,
     PostDataChunkText,
-    PostDataChunkTextualList,
 )
 from boosty_downloader.domain.stored_post import (
     Block,
@@ -26,8 +26,10 @@ from boosty_downloader.domain.stored_post import (
     ListItem,
     MediaBlock,
     MediaKind,
+    ParagraphBreak,
     PostMetadata,
     TextBlock,
+    TextContent,
 )
 from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types import (
     BoostyPostDataAudioDTO,
@@ -41,6 +43,13 @@ from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types imp
     BoostyPostDataTextDTO,
     BoostyPostDataUnknownDTO,
 )
+from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types.post_data_list import (
+    BoostyListItemType,
+    BoostyPostDataListItemDTO,
+)
+from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types.post_data_text import (
+    PARAGRAPH_END_MODIFIER,
+)
 
 if TYPE_CHECKING:
     from datetime import timedelta
@@ -51,6 +60,9 @@ if TYPE_CHECKING:
     )
 
 
+_TextDTO: TypeAlias = (
+    BoostyPostDataTextDTO | BoostyPostDataHeaderDTO | BoostyPostDataLinkDTO
+)
 DownloadableMediaChunk: TypeAlias = (
     PostDataChunkImage
     | PostDataChunkFile
@@ -108,11 +120,13 @@ def map_post_dto_to_live(
                 | BoostyPostDataHeaderDTO()
                 | BoostyPostDataLinkDTO()
             ):
-                live.blocks.append(_to_text_block(mappers.to_domain_text_chunk(chunk)))
+                live.blocks.extend(_map_text(chunk))
             case BoostyPostDataListDTO():
-                mapped = mappers.to_domain_list_chunk(chunk)
                 live.blocks.append(
-                    ListBlock(_to_list_items(mapped.items), mapped.style)
+                    ListBlock(
+                        [_map_list_item(item) for item in chunk.items],
+                        to_domain_list_style(chunk.style),
+                    )
                 )
             case (
                 BoostyPostDataImageDTO()
@@ -182,14 +196,34 @@ def _to_text_block(fragments: list[PostDataChunkText.TextFragment]) -> TextBlock
     return TextBlock(result)
 
 
-def _to_list_items(items: list[PostDataChunkTextualList.ListItem]) -> list[ListItem]:
-    return [
-        ListItem(
-            data=[_to_text_block(chunk.text_fragments) for chunk in item.data],
-            nested_items=_to_list_items(item.nested_items),
-        )
-        for item in items
-    ]
+def _map_text(chunk: _TextDTO) -> list[TextContent]:
+    ends_paragraph = (
+        isinstance(chunk, (BoostyPostDataTextDTO, BoostyPostDataHeaderDTO))
+        and chunk.modificator == PARAGRAPH_END_MODIFIER
+    )
+    # Paragraph boundaries must survive separately from inline line breaks.
+    source = chunk.model_copy(update={'modificator': ''}) if ends_paragraph else chunk
+    text = _to_text_block(mappers.to_domain_text_chunk(source))
+    result: list[TextContent] = [text] if text.fragments or not ends_paragraph else []
+    if ends_paragraph:
+        result.append(ParagraphBreak())
+    return result
+
+
+def _map_list_item(item: BoostyPostDataListItemDTO) -> ListItem:
+    data: list[TextContent] = []
+    for chunk in item.data:
+        if chunk.type is BoostyListItemType.text:
+            data.extend(
+                _map_text(
+                    BoostyPostDataTextDTO(
+                        type='text',
+                        content=chunk.content,
+                        modificator=chunk.modificator or '',
+                    )
+                )
+            )
+    return ListItem(data, [_map_list_item(nested) for nested in item.items])
 
 
 def _map_media(

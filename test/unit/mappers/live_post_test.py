@@ -68,6 +68,7 @@ from boosty_downloader.domain.stored_post import (
     ListItem,
     MediaBlock,
     MediaKind,
+    ParagraphBreak,
     PostMetadata,
     TextBlock,
 )
@@ -111,11 +112,11 @@ def test_complete_post_keeps_metadata_body_order_and_blank_paragraphs():
     )
     assert live.blocks == [
         TextBlock([TextFragment(FIRST_TEXT)]),
-        TextBlock([LineBreak()]),
+        ParagraphBreak(),
         TextBlock([]),
-        TextBlock([LineBreak()]),
+        ParagraphBreak(),
         TextBlock([]),
-        TextBlock([LineBreak()]),
+        ParagraphBreak(),
         MediaBlock(f'image:{IMAGE_ID}'),
         MediaBlock(f'file:{FILE_ID}'),
         MediaBlock(f'boosty_video:{VIDEO_ID}'),
@@ -345,10 +346,11 @@ def test_rich_text_links_and_headers_keep_explicit_breaks_and_blank_blocks():
                 LineBreak(),
             ]
         ),
-        TextBlock([LineBreak()]),
+        ParagraphBreak(),
         TextBlock([]),
-        TextBlock([LineBreak()]),
-        TextBlock([TextFragment('last'), LineBreak()]),
+        ParagraphBreak(),
+        TextBlock([TextFragment('last')]),
+        ParagraphBreak(),
     ]
 
 
@@ -387,7 +389,7 @@ def test_nested_lists_keep_text_breaks_and_fall_back_for_unknown_style(style: st
                         TextBlock(
                             [TextFragment('parent'), LineBreak(), TextFragment('next')]
                         ),
-                        TextBlock([LineBreak()]),
+                        ParagraphBreak(),
                         TextBlock([]),
                     ],
                     nested_items=[
@@ -433,7 +435,9 @@ def test_outputs_own_metadata_downloads_and_styles_without_mutating_the_dto():
     assert right.style.bold
     nested = first.blocks[1]
     assert isinstance(nested, ListBlock)
-    nested_fragment = nested.items[0].data[0].fragments[0]
+    nested_text = nested.items[0].data[0]
+    assert isinstance(nested_text, TextBlock)
+    nested_fragment = nested_text.fragments[0]
     assert isinstance(nested_fragment, TextFragment)
     nested_fragment.style.bold = False
     first.post.tags.append('local edit')
@@ -486,3 +490,67 @@ def test_crlf_split_across_style_runs_remains_one_break(
             [TextFragment('A', style=first_style), LineBreak(), TextFragment('B')]
         )
     ]
+
+
+@pytest.mark.parametrize('inside_list', [False, True], ids=['body', 'nested-list'])
+@pytest.mark.parametrize(
+    'boundary_in_text', [False, True], ids=['separate', 'attached']
+)
+def test_paragraph_boundary_is_distinct_from_an_inline_break(
+    *,
+    inside_list: bool,
+    boundary_in_text: bool,
+):
+    if boundary_in_text:
+        inline = [text_chunk('A\n'), text_chunk('B')]
+        paragraphs = [
+            {**text_chunk('A'), 'modificator': 'BLOCK_END'},
+            text_chunk('B'),
+        ]
+    else:
+        inline = [text_chunk('A'), text_chunk('\n'), text_chunk('B'), block_end()]
+        paragraphs = [text_chunk('A'), block_end(), text_chunk('B'), block_end()]
+    if inside_list:
+        inline = [
+            {'type': 'list', 'items': [{'data': [], 'items': [{'data': inline}]}]}
+        ]
+        paragraphs = [
+            {'type': 'list', 'items': [{'data': [], 'items': [{'data': paragraphs}]}]}
+        ]
+
+    assert _map_chunks(inline).blocks != _map_chunks(paragraphs).blocks
+
+
+@pytest.mark.parametrize('inside_list', [False, True], ids=['body', 'nested-list'])
+def test_consecutive_paragraph_boundaries_keep_empty_and_inline_text_distinct(
+    *,
+    inside_list: bool,
+):
+    styled = text_chunk('A\r\n')
+    styled['content'] = json.dumps(['A\r\n', 'unstyled', [[0, 0, 3]]])
+    styled['modificator'] = 'BLOCK_END'
+    chunks = [
+        block_end(),
+        {**text_chunk(''), 'modificator': 'BLOCK_END'},
+        text_chunk(''),
+        text_chunk('\n'),
+        styled,
+    ]
+    expected = [
+        ParagraphBreak(),
+        ParagraphBreak(),
+        TextBlock([]),
+        TextBlock([LineBreak()]),
+        TextBlock([TextFragment('A', style=TextStyle(bold=True)), LineBreak()]),
+        ParagraphBreak(),
+    ]
+    if inside_list:
+        chunks = [
+            {'type': 'list', 'items': [{'data': [], 'items': [{'data': chunks}]}]}
+        ]
+        live = _map_chunks(chunks)
+        block = live.blocks[0]
+        assert isinstance(block, ListBlock)
+        assert block.items[0].nested_items[0].data == expected
+    else:
+        assert _map_chunks(chunks).blocks == expected

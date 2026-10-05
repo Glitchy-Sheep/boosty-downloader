@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from api_schema.schema_changes import SchemaChange, find_changes
+from api_schema.schema_changes import ChangeKind, SchemaChange, find_changes
 
 
 def _document(**schemas: dict[str, object]) -> dict[str, object]:
@@ -40,7 +40,7 @@ def test_a_new_key_names_its_path_and_type():
     )
 
     assert find_changes(committed, live) == [
-        SchemaChange('new_key', 'Post.hasAIContent', 'boolean')
+        SchemaChange(ChangeKind.new_key, 'Post.hasAIContent', 'boolean')
     ]
 
 
@@ -62,8 +62,8 @@ def test_a_new_key_inside_a_nested_object_and_a_list_item():
     )
 
     assert find_changes(committed, live) == [
-        SchemaChange('new_key', 'Post.user.isOfficial', 'boolean'),
-        SchemaChange('new_key', 'Post.tags[].title', 'string'),
+        SchemaChange(ChangeKind.new_key, 'Post.user.isOfficial', 'boolean'),
+        SchemaChange(ChangeKind.new_key, 'Post.tags[].title', 'string'),
     ]
 
 
@@ -72,7 +72,7 @@ def test_a_new_type_shows_before_and_after():
     live = _document(Post=_post(price={'type': ['integer', 'number']}))
 
     assert find_changes(committed, live) == [
-        SchemaChange('new_type', 'Post.price', 'integer → integer|number')
+        SchemaChange(ChangeKind.new_type, 'Post.price', 'integer → integer|number')
     ]
 
 
@@ -87,8 +87,8 @@ def test_new_vocabulary_values_one_by_one():
     )
 
     assert find_changes(committed, live) == [
-        SchemaChange('new_value', 'ChunkOkVideo.status', 'failed'),
-        SchemaChange('new_value', 'ChunkOkVideo.status', 'processing'),
+        SchemaChange(ChangeKind.new_value, 'ChunkOkVideo.status', 'failed'),
+        SchemaChange(ChangeKind.new_value, 'ChunkOkVideo.status', 'processing'),
     ]
 
 
@@ -97,7 +97,7 @@ def test_a_new_chunk_kind_is_named_by_its_type():
     live = _document(ChunkText=_chunk('text'), ChunkPoll=_chunk('poll'))
 
     assert find_changes(committed, live) == [
-        SchemaChange('new_chunk', 'ChunkPoll', 'poll')
+        SchemaChange(ChangeKind.new_chunk, 'ChunkPoll', 'poll')
     ]
 
 
@@ -116,14 +116,16 @@ def test_blog_description_additions_are_reported_separately() -> None:
         BlogDescriptionChunkPoll=_chunk('poll'),
     )
     assert find_changes(known, live) == [
-        SchemaChange('new_type', 'BlogInfo.owner.name', 'string → null|string'),
-        SchemaChange('new_key', 'BlogInfo.owner.verified', 'boolean'),
-        SchemaChange('new_key', 'BlogDescriptionChunkText.content', 'string'),
-        SchemaChange('new_chunk', 'BlogDescriptionChunkPoll', 'poll'),
+        SchemaChange(
+            ChangeKind.new_type, 'BlogInfo.owner.name', 'string → null|string'
+        ),
+        SchemaChange(ChangeKind.new_key, 'BlogInfo.owner.verified', 'boolean'),
+        SchemaChange(ChangeKind.new_key, 'BlogDescriptionChunkText.content', 'string'),
+        SchemaChange(ChangeKind.new_chunk, 'BlogDescriptionChunkPoll', 'poll'),
     ]
 
 
 def test_new_blog_component_reports_its_fields() -> None:
     assert find_changes(
         _document(), _document(BlogInfo=_post(title={'type': 'string'}))
-    ) == [SchemaChange('new_key', 'BlogInfo.title', 'string')]
+    ) == [SchemaChange(ChangeKind.new_key, 'BlogInfo.title', 'string')]

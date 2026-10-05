@@ -1,4 +1,3 @@
-{% set tag = 'ol' if lst.style.value == 'ordered' else 'ul' %}
 {% macro render_item(item) %}
 <li>
 {% for txt in item.data %}

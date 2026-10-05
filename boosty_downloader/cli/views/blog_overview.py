@@ -94,6 +94,7 @@ def _days_ago(now: datetime, last: datetime) -> str:
 class _LadderRow:
     name: str
     price: str
+    highlight_price: bool
     adds: str
     posts: int
     per_post: str
@@ -110,6 +111,7 @@ def _ladder_rows(overview: BlogOverview) -> list[_LadderRow]:
         _LadderRow(
             name='No tier',
             price='free',
+            highlight_price=False,
             adds='-',
             posts=overview.free_posts,
             per_post='',
@@ -119,7 +121,8 @@ def _ladder_rows(overview: BlogOverview) -> list[_LadderRow]:
     rows += [
         _LadderRow(
             name=escape(tier.tier),
-            price='free tier' if tier.price == 0 else f'{price(tier.price)}/mo',
+            price=_tier_price(tier.price),
+            highlight_price=True,
             adds=str(tier.adds),
             posts=tier.posts,
             per_post=_per_post(
@@ -135,6 +138,7 @@ def _ladder_rows(overview: BlogOverview) -> list[_LadderRow]:
             _LadderRow(
                 name='Everything',
                 price=f'+ {price(singles.total)} once',
+                highlight_price=True,
                 adds=str(singles.posts),
                 posts=overview.total_posts,
                 per_post=price_range(singles.min_price, singles.max_price),
@@ -142,6 +146,14 @@ def _ladder_rows(overview: BlogOverview) -> list[_LadderRow]:
             )
         )
     return rows
+
+
+def _tier_price(amount: float) -> str:
+    match amount:
+        case 0:
+            return 'free tier'
+        case _:
+            return f'{price(amount)}/mo'
 
 
 def _per_post(sold: int, of: int, low: float, high: float) -> str:
@@ -171,15 +183,31 @@ def _ladder_table(overview: BlogOverview) -> Table:
     for row in _ladder_rows(overview):
         share = row.posts / overview.total_posts
         table.add_row(
-            '[green]✔[/green]' if row.yours else '',
+            _row_marker(row),
             row.name,
-            row.price if row.price == 'free' else f'[yellow]{row.price}[/yellow]',
+            _row_price(row),
             row.adds,
             str(row.posts),
             f'{share:.0%}',
             row.per_post,
         )
     return table
+
+
+def _row_marker(row: _LadderRow) -> str:
+    match row.yours:
+        case True:
+            return '[green]✔[/green]'
+        case False:
+            return ''
+
+
+def _row_price(row: _LadderRow) -> str:
+    match row.highlight_price:
+        case True:
+            return f'[yellow]{row.price}[/yellow]'
+        case False:
+            return row.price
 
 
 def _for_you_line(overview: BlogOverview) -> str:

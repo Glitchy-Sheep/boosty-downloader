@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from dataclasses import asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, cast
@@ -46,6 +46,16 @@ DEFAULT_OUTPUT = Path('docs/api/boosty-api.yaml')
 DEFAULT_CONFIG = Path('config.yaml')
 DEFAULT_CHANGES = Path('api-changes.json')
 JsonDict = dict[str, object]
+
+
+@dataclass
+class _CaptureShapes:
+    """Separate observations of listing pages, posts and blog metadata."""
+
+    page: ObservedObject = field(default_factory=ObservedObject)
+    post: ObservedObject = field(default_factory=ObservedObject)
+    blog: ObservedObject = field(default_factory=ObservedObject)
+
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 
@@ -121,23 +131,19 @@ async def _observe_blog_answers(
     blogs: list[str], views: list[str | None], pages: int
 ) -> ObservedAnswers:
     """Read the blogs in every view and keep only their shapes and counts."""
-    page_shape = ObservedObject()
-    post_shape = ObservedObject()
-    blog_shape = ObservedObject()
+    shapes = _CaptureShapes()
     counts = {'pages': 0, 'posts': 0}
     for token in views:
         async with open_api_session(token) as session:
             for blog in blogs:
-                await _observe_blog(
-                    session, blog, pages, (page_shape, post_shape, blog_shape), counts
-                )
+                await _observe_blog(session, blog, pages, shapes, counts)
     return ObservedAnswers(
-        page=page_shape,
-        post=post_shape,
-        blog=blog_shape,
+        page=shapes.page,
+        post=shapes.post,
+        blog=shapes.blog,
         captured_at=datetime.now(tz=timezone.utc).date().isoformat(),
         samples={'blogs': len(blogs), 'views': len(views), **counts},
-        unread_by_client=keys_unread_by_client(post_shape, page_shape, blog_shape),
+        unread_by_client=keys_unread_by_client(shapes.post, shapes.page, shapes.blog),
     )
 
 
@@ -145,19 +151,18 @@ async def _observe_blog(
     session: aiohttp.ClientSession,
     blog: str,
     pages: int,
-    shapes: tuple[ObservedObject, ObservedObject, ObservedObject],
+    shapes: _CaptureShapes,
     counts: dict[str, int],
 ) -> None:
     """Observe blog metadata, listing pages and the newest post."""
-    page_shape, post_shape, blog_shape = shapes
-    observe(blog_shape, await fetch_blog_info(session, blog))
+    observe(shapes.blog, await fetch_blog_info(session, blog))
     answers = await fetch_listing_pages(session, blog, pages=pages)
     for page in answers:
         counts['pages'] += 1
-        counts['posts'] += _observe_listing_page(page, page_shape, post_shape)
+        counts['posts'] += _observe_listing_page(page, shapes.page, shapes.post)
     newest = _newest_post_id(answers[0]) if answers else None
     if newest is not None:
-        observe(post_shape, await fetch_single_post(session, blog, newest))
+        observe(shapes.post, await fetch_single_post(session, blog, newest))
         counts['posts'] += 1
 
 
@@ -202,7 +207,7 @@ def _print_changes(found: list[SchemaChange], output: Path) -> None:
         return
     rich.print(f'[yellow]{len(found)} changes against the schema[/yellow] ({output})')
     for change in found:
-        rich.print(f'  {change.kind}: {change.where} {change.detail}')
+        rich.print(f'  {change.kind.value}: {change.where} {change.detail}')
 
 
 if __name__ == '__main__':

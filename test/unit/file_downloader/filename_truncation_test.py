@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from boosty_downloader.domain.post import PostDataChunkBoostyVideo
 from boosty_downloader.infrastructure.file_downloader import (
     _app_built_filename,
@@ -40,3 +42,15 @@ def test_long_video_title_keeps_id_and_extension() -> None:
 
     assert name.endswith(' (a2dd6942).mp4')
     assert len(name.encode('utf-8')) <= MAX_NAME_BYTES
+
+
+@pytest.mark.parametrize(
+    ('name', 'expected'),
+    [
+        ('a:b?.zi?p', 'ab.zip'),
+        (r'folder\lesson.zip', 'folderlesson.zip'),
+    ],
+    ids=['colon-is-not-a-drive', 'backslash-is-not-a-directory'],
+)
+def test_author_names_use_portable_filename_characters(name: str, expected: str):
+    assert _author_filename(name) == expected
