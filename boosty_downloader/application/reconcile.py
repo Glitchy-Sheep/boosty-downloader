@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from boosty_downloader.application._media_order import order_media_ids
+from boosty_downloader.application.filtering import MEDIA_KIND_TO_FILTER
 from boosty_downloader.application.media_paths import (
     find_media_file,
     find_recorded_file,
@@ -21,11 +22,88 @@ from boosty_downloader.domain.stored_post import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Collection, Mapping
+    from collections.abc import Set as AbstractSet
     from datetime import datetime
 
     from boosty_downloader.application.mappers.live_post import LiveMedia, LivePost
     from boosty_downloader.application.media_paths import DiskSnapshot, FileMatch
+    from boosty_downloader.domain.content_types import DownloadContentTypeFilter
+
+
+@dataclass(frozen=True, slots=True)
+class ReconcileResult:
+    """Owned post state and unique media IDs to fetch in current body order."""
+
+    record: StoredPost | None
+    download_ids: list[str]
+
+
+def reconcile(  # noqa: PLR0913 - reconciliation combines saved/live state and run options
+    stored: StoredPost | None,
+    live: LivePost,
+    disk: DiskSnapshot,
+    filters: Collection[DownloadContentTypeFilter],
+    now: datetime,
+    *,
+    restore_missing: bool = False,
+    checked_unavailable_ids: AbstractSet[str] = frozenset(),
+) -> ReconcileResult:
+    """
+    Reconcile a complete post and plan its downloads without I/O or input mutation.
+
+    Empty filters select no downloads. The caller tracks checked unavailable IDs within this post and run; planning an attempt does not record its outcome.
+    """
+    record = prepare_record(stored, live, now)
+    if not live.has_access or record is None:
+        return ReconcileResult(record=record, download_ids=[])
+    record = observe_recorded_files(record, disk)
+    record = recover_media_files(record, live.media, disk)
+    download_ids = _plan_downloads(
+        record,
+        live.media,
+        filters,
+        restore_missing=restore_missing,
+        checked_unavailable_ids=checked_unavailable_ids,
+    )
+    return ReconcileResult(record=record, download_ids=download_ids)
+
+
+def _plan_downloads(
+    record: StoredPost,
+    live_media: Mapping[str, LiveMedia],
+    filters: Collection[DownloadContentTypeFilter],
+    *,
+    restore_missing: bool,
+    checked_unavailable_ids: AbstractSet[str],
+) -> list[str]:
+    """Apply restore to the owned record and select ready current pieces."""
+    download_ids: list[str] = []
+    for media_id, entry in record.media.items():
+        live = live_media.get(media_id)
+        if live is None or entry.removed_at is not None:
+            continue
+        if MEDIA_KIND_TO_FILTER[live.kind] not in filters:
+            continue
+        if restore_missing and entry.status is MediaStatus.deleted:
+            entry.status = MediaStatus.pending
+        if live.download is None:
+            continue
+        if _is_download_due(media_id, entry.status, checked_unavailable_ids):
+            download_ids.append(media_id)
+    return download_ids
+
+
+def _is_download_due(
+    media_id: str, status: MediaStatus, checked_unavailable_ids: AbstractSet[str]
+) -> bool:
+    match status:
+        case MediaStatus.pending | MediaStatus.failed:
+            return True
+        case MediaStatus.unavailable:
+            return media_id not in checked_unavailable_ids
+        case MediaStatus.downloaded | MediaStatus.deleted:
+            return False
 
 
 def prepare_record(

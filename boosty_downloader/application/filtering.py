@@ -15,6 +15,7 @@ from boosty_downloader.domain.post_data_chunks import (
     PostDataChunkText,
     PostDataChunkTextualList,
 )
+from boosty_downloader.domain.stored_post import MediaKind
 from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types.post_data_ok_video import (
     BoostyOkVideoType,
 )
@@ -55,6 +56,16 @@ CHUNK_TO_FILTER: Final[dict[type, DownloadContentTypeFilter]] = {
     PostDataChunkText: DownloadContentTypeFilter.post_content,
     PostDataChunkTextualList: DownloadContentTypeFilter.post_content,
     PostDataChunkImage: DownloadContentTypeFilter.post_content,
+}
+
+
+# A present media piece has a kind even before it has a downloadable chunk.
+MEDIA_KIND_TO_FILTER: Final[dict[MediaKind, DownloadContentTypeFilter]] = {
+    MediaKind.image: DownloadContentTypeFilter.post_content,
+    MediaKind.file: DownloadContentTypeFilter.files,
+    MediaKind.audio: DownloadContentTypeFilter.audio,
+    MediaKind.boosty_video: DownloadContentTypeFilter.boosty_videos,
+    MediaKind.external_video: DownloadContentTypeFilter.external_videos,
 }
 
 
