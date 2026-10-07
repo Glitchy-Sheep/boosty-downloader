@@ -10,6 +10,7 @@ import mimetypes
 import re
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 
 from jinja2 import Environment, PackageLoader, select_autoescape
@@ -17,10 +18,12 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 from boosty_downloader.infrastructure.html_generator.models import (
     HtmlGenAudio,
     HtmlGenChunk,
+    HtmlGenDeleted,
     HtmlGenFile,
     HtmlGenHeading,
     HtmlGenImage,
     HtmlGenList,
+    HtmlGenNotDownloaded,
     HtmlGenParagraph,
     HtmlGenText,
     HtmlGenUnavailable,
@@ -170,6 +173,40 @@ def _unavailable_title(item: HtmlGenUnavailable) -> str:
     return f'{title}: {item.label}' if item.label else title
 
 
+def _format_duration(duration: timedelta | None) -> str | None:
+    """Whole seconds as M:SS or H:MM:SS; negative durations display zero."""
+    if duration is None:
+        return None
+    total_seconds = max(0, duration // timedelta(seconds=1))
+    minutes, seconds = divmod(total_seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f'{hours}:{minutes:02}:{seconds:02}'
+    return f'{minutes}:{seconds:02}'
+
+
+def _render_missing_media(
+    item: HtmlGenUnavailable | HtmlGenNotDownloaded | HtmlGenDeleted,
+) -> str:
+    match item:
+        case HtmlGenUnavailable():
+            return env.get_template('unavailable.html').render(
+                item=item,
+                title=_unavailable_title(item),
+                duration=_format_duration(item.duration),
+            )
+        case HtmlGenNotDownloaded():
+            return env.get_template('not_downloaded.html').render(
+                item=item,
+                kind=item.kind.value.capitalize(),
+                duration=_format_duration(item.duration),
+            )
+        case HtmlGenDeleted():
+            return env.get_template('deleted.html').render(
+                item=item, kind=item.kind.value.capitalize()
+            )
+
+
 def _is_line_break(fragment: HtmlInline) -> bool:
     return isinstance(fragment, HtmlLineBreak)
 
@@ -211,10 +248,8 @@ def render_html_chunk(chunk: HtmlGenChunk) -> str:  # noqa: PLR0911 - one templa
             )
         case HtmlGenFile():
             return _render_attachments([chunk])
-        case HtmlGenUnavailable():
-            return env.get_template('unavailable.html').render(
-                item=chunk, title=_unavailable_title(chunk)
-            )
+        case HtmlGenUnavailable() | HtmlGenNotDownloaded() | HtmlGenDeleted():
+            return _render_missing_media(chunk)
 
 
 def render_html(chunks: list[HtmlGenChunk], page_title: str) -> str:

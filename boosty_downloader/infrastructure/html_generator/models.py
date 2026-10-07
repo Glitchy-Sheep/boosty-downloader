@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TypeAlias
+from typing import TYPE_CHECKING, TypeAlias
+
+if TYPE_CHECKING:
+    from datetime import timedelta
 
 
 @dataclass
@@ -122,6 +125,7 @@ class UnavailableKind(Enum):
     IMAGE = 'image'
     VIDEO = 'video'
     AUDIO = 'audio'
+    FILE = 'file'
 
 
 @dataclass
@@ -134,6 +138,25 @@ class HtmlGenUnavailable:
     label: str = ''
     # Where the piece lives outside Boosty (external videos): the reader can try it there.
     source_url: str | None = None
+    duration: timedelta | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class HtmlGenNotDownloaded:
+    """A media piece that has not been downloaded, with a link to its post."""
+
+    kind: UnavailableKind
+    post_url: str
+    label: str = ''
+    duration: timedelta | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class HtmlGenDeleted:
+    """A media piece whose saved file is missing from disk."""
+
+    kind: UnavailableKind
+    label: str = ''
 
 
 # Union type for all HTML chunk types
@@ -146,4 +169,6 @@ HtmlGenChunk: TypeAlias = (
     | HtmlGenFile
     | HtmlGenAudio
     | HtmlGenUnavailable
+    | HtmlGenNotDownloaded
+    | HtmlGenDeleted
 )
