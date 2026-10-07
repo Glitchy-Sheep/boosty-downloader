@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import TypeAlias
 
 
 @dataclass
@@ -30,6 +31,32 @@ class HtmlGenText:
     """Text content for HTML generation."""
 
     text_fragments: list[HtmlTextFragment]
+
+
+@dataclass(frozen=True, slots=True)
+class HtmlLineBreak:
+    """A line break within a paragraph or heading."""
+
+
+HtmlInline: TypeAlias = HtmlTextFragment | HtmlLineBreak
+
+
+@dataclass(frozen=True, slots=True)
+class HtmlGenParagraph:
+    """A paragraph, including an explicitly empty one."""
+
+    fragments: list[HtmlInline]
+
+
+@dataclass(frozen=True, slots=True)
+class HtmlGenHeading:
+    """A heading whose level applies to every inline fragment."""
+
+    level: int
+    fragments: list[HtmlInline]
+
+
+HtmlTextBlock: TypeAlias = HtmlGenParagraph | HtmlGenHeading
 
 
 @dataclass
@@ -59,7 +86,7 @@ class HtmlListStyle(Enum):
 class HtmlListItem:
     """A single item in an HTML list."""
 
-    data: list[HtmlGenText]
+    data: list[HtmlGenText | HtmlTextBlock]
     nested_items: list[HtmlListItem] = field(default_factory=list['HtmlListItem'])
 
 
@@ -110,8 +137,9 @@ class HtmlGenUnavailable:
 
 
 # Union type for all HTML chunk types
-HtmlGenChunk = (
+HtmlGenChunk: TypeAlias = (
     HtmlGenText
+    | HtmlTextBlock
     | HtmlGenImage
     | HtmlGenVideo
     | HtmlGenList

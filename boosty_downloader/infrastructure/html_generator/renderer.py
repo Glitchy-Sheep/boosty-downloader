@@ -18,11 +18,15 @@ from boosty_downloader.infrastructure.html_generator.models import (
     HtmlGenAudio,
     HtmlGenChunk,
     HtmlGenFile,
+    HtmlGenHeading,
     HtmlGenImage,
     HtmlGenList,
+    HtmlGenParagraph,
     HtmlGenText,
     HtmlGenUnavailable,
     HtmlGenVideo,
+    HtmlInline,
+    HtmlLineBreak,
     HtmlListStyle,
 )
 from boosty_downloader.infrastructure.human_readable_filesize import (
@@ -166,11 +170,25 @@ def _unavailable_title(item: HtmlGenUnavailable) -> str:
     return f'{title}: {item.label}' if item.label else title
 
 
+def _is_line_break(fragment: HtmlInline) -> bool:
+    return isinstance(fragment, HtmlLineBreak)
+
+
+def _render_structured_text(block: HtmlGenParagraph | HtmlGenHeading, tag: str) -> str:
+    return env.get_template('structured_text.html').render(
+        block=block, tag=tag, is_line_break=_is_line_break
+    )
+
+
 def render_html_chunk(chunk: HtmlGenChunk) -> str:  # noqa: PLR0911 - one template per chunk kind
     """Render a single HtmlGenChunk to its HTML representation."""
     match chunk:
         case HtmlGenText():
             return env.get_template('text.html').render(text=chunk)
+        case HtmlGenParagraph():
+            return _render_structured_text(chunk, 'p')
+        case HtmlGenHeading():
+            return _render_structured_text(chunk, f'h{chunk.level}')
         case HtmlGenImage():
             return env.get_template('image.html').render(
                 image=chunk, src=_media_src(chunk.url)
