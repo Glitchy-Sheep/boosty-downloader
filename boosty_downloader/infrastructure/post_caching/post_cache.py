@@ -156,7 +156,10 @@ class SQLitePostCache:
         """Check if the database schema has all columns defined in the model."""
         try:
             inspector = inspect(self._engine)
-            existing = {col['name'] for col in inspector.get_columns('post_cache')}
+            existing = {
+                col['name']
+                for col in inspector.get_columns(PostCacheEntryModel.__tablename__)
+            }
             expected = {c.name for c in PostCacheEntryModel.__table__.columns}
             return expected.issubset(existing)
         except (OperationalError, DatabaseError):

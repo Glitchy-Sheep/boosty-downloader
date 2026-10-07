@@ -20,6 +20,7 @@ from boosty_downloader.domain.stored_post import (
     MediaEntry,
     MediaKind,
     MediaStatus,
+    ParagraphBreak,
     PostMetadata,
     PostSync,
     StoredPost,
@@ -67,12 +68,16 @@ def stored_post(metadata: PostMetadata) -> StoredPost:
                     ),
                 ]
             ),
+            ParagraphBreak(),
             TextBlock([LineBreak()]),
             TextBlock([]),
             ListBlock(
                 items=[
                     ListItem(
-                        data=[TextBlock([PostDataChunkText.TextFragment('First')])],
+                        data=[
+                            TextBlock([PostDataChunkText.TextFragment('First')]),
+                            ParagraphBreak(),
+                        ],
                         nested_items=[
                             ListItem(
                                 data=[
@@ -308,3 +313,30 @@ def test_author_info_distinguishes_unknown_from_empty_and_zero():
     assert unknown.remote_post_count is None
     assert complete.title != complete.owner_name
     assert complete == deepcopy(complete)
+
+
+def test_records_distinguish_paragraph_boundaries_from_inline_breaks(
+    metadata: PostMetadata,
+):
+    first = TextBlock([PostDataChunkText.TextFragment('First')])
+    second = TextBlock([PostDataChunkText.TextFragment('Second')])
+    paragraph = StoredPost(
+        metadata,
+        PostSync(_ADDED, _SYNCED),
+        blocks=[first, ParagraphBreak(), second, ParagraphBreak()],
+    )
+    inline = replace(
+        paragraph,
+        blocks=[first, TextBlock([LineBreak()]), second, ParagraphBreak()],
+    )
+    empty_text = replace(
+        paragraph,
+        blocks=[first, TextBlock([]), second, ParagraphBreak()],
+    )
+
+    assert paragraph != inline
+    assert paragraph != empty_text
+    assert inline != empty_text
+    assert ListItem(data=[first, ParagraphBreak(), second]) != ListItem(
+        data=[first, TextBlock([LineBreak()]), second]
+    )

@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from boosty_downloader.domain.post import PostDataChunkBoostyVideo
+import pytest
+
 from boosty_downloader.infrastructure.file_downloader import (
     _app_built_filename,
     _author_filename,
 )
-from boosty_downloader.infrastructure.path_sanitizer import MAX_NAME_BYTES
-from boosty_downloader.infrastructure.post_media_downloader import (
+from boosty_downloader.infrastructure.media_filenames import (
     boosty_video_filename,
 )
+from boosty_downloader.infrastructure.path_sanitizer import MAX_NAME_BYTES
 
 
 def test_author_extension_survives_truncation() -> None:
@@ -32,11 +33,20 @@ def test_app_built_name_gets_the_guessed_extension() -> None:
 
 def test_long_video_title_keeps_id_and_extension() -> None:
     """Truncation must eat neither the dedup id (#104) nor the extension."""
-    video = PostDataChunkBoostyVideo(
-        id='a2dd6942-full', title='я' * 300, url='u', quality='medium'
-    )
-
-    name = _app_built_filename(boosty_video_filename(video), '.mp4')
+    stem = boosty_video_filename('я' * 300, 'a2dd6942-full')
+    name = _app_built_filename(stem, '.mp4')
 
     assert name.endswith(' (a2dd6942).mp4')
     assert len(name.encode('utf-8')) <= MAX_NAME_BYTES
+
+
+@pytest.mark.parametrize(
+    ('name', 'expected'),
+    [
+        ('a:b?.zi?p', 'ab.zip'),
+        (r'folder\lesson.zip', 'folderlesson.zip'),
+    ],
+    ids=['colon-is-not-a-drive', 'backslash-is-not-a-directory'],
+)
+def test_author_names_use_portable_filename_characters(name: str, expected: str):
+    assert _author_filename(name) == expected

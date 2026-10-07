@@ -46,17 +46,25 @@ class LineBreak:
 
 
 @dataclass
+class ParagraphBreak:
+    """End the current paragraph; consecutive boundaries preserve blank paragraphs."""
+
+
+@dataclass
 class TextBlock:
-    """Ordered text fragments; a block containing only a break separates paragraphs."""
+    """An ordered run of styled text with inline line breaks."""
 
     fragments: list[PostDataChunkText.TextFragment | LineBreak]
+
+
+TextContent: TypeAlias = TextBlock | ParagraphBreak
 
 
 @dataclass
 class ListItem:
     """Text and nested items in a stored list."""
 
-    data: list[TextBlock]
+    data: list[TextContent]
     nested_items: list['ListItem'] = field(default_factory=list['ListItem'])
 
 
@@ -77,7 +85,7 @@ class MediaBlock:
     media_id: str
 
 
-Block: TypeAlias = TextBlock | ListBlock | MediaBlock
+Block: TypeAlias = TextContent | ListBlock | MediaBlock
 
 
 @dataclass

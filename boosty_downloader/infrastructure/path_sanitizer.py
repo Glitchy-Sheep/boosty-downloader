@@ -3,10 +3,12 @@
 import errno
 import re
 import unicodedata
+from typing import Final
 
 # Byte budget for one path component: ext4/APFS allow 255 bytes,
 # NTFS 255 UTF-16 chars; 240 leaves headroom on every platform.
 MAX_NAME_BYTES = 240
+_EMPTY_FILENAME_STEM: Final = 'untitled'
 
 # <>:"/\|?* are forbidden on Windows; control chars (newlines, tabs)
 # are forbidden there too and unreadable everywhere else.
@@ -68,9 +70,31 @@ def sanitize_filename(
         cleaned = cleaned.rstrip('. ')
 
     if not cleaned:
-        cleaned = 'untitled'
+        cleaned = _EMPTY_FILENAME_STEM
 
     result = cleaned + suffix
     if result.split('.', 1)[0].upper() in _RESERVED_NAMES:
         result = f'_{result}'
     return result
+
+
+def compose_filename(stem: str, *, extension: str = '', marker: str = '') -> str:
+    """
+    Build one safe filename within the shared byte budget.
+
+    The caller supplies a short, filesystem-safe collision marker. The extension is cleaned and shortened only when needed to leave room for the marker and a non-empty stem.
+    """
+    suffix_budget = (
+        MAX_NAME_BYTES
+        - len(marker.encode('utf-8'))
+        - len(_EMPTY_FILENAME_STEM.encode('utf-8'))
+    )
+    extension = (
+        sanitize_filename(extension, max_bytes=suffix_budget) if extension else ''
+    )
+    tail = marker + extension
+    name = sanitize_filename(stem, suffix=tail)
+    if len(name.encode('utf-8')) > MAX_NAME_BYTES:
+        # Windows device names need room for their leading underscore.
+        name = sanitize_filename(stem, suffix=tail, max_bytes=MAX_NAME_BYTES - 1)
+    return name

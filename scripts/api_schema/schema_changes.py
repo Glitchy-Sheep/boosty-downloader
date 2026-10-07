@@ -11,10 +11,19 @@ client fails the canary tests instead; these changes break nothing yet.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, cast
+from enum import Enum
+from typing import cast
 
 JsonDict = dict[str, object]
-ChangeKind = Literal['new_chunk', 'new_key', 'new_type', 'new_value']
+
+
+class ChangeKind(str, Enum):
+    """Additions detected in the observed API schema."""
+
+    new_chunk = 'new_chunk'
+    new_key = 'new_key'
+    new_type = 'new_type'
+    new_value = 'new_value'
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,7 +43,9 @@ def find_changes(committed: JsonDict, live: JsonDict) -> list[SchemaChange]:
         if name in known:
             changes += _object_changes(known[name], schema, name)
         elif name.startswith(('Chunk', 'BlogDescriptionChunk')):
-            changes.append(SchemaChange('new_chunk', name, _chunk_kind(schema)))
+            changes.append(
+                SchemaChange(ChangeKind.new_chunk, name, _chunk_kind(schema))
+            )
         else:
             changes += _object_changes({}, schema, name)
     return changes
@@ -65,7 +76,7 @@ def _object_changes(
         if key in known:
             changes += _key_changes(known[key], schema, path)
         else:
-            changes.append(SchemaChange('new_key', path, type_text(schema)))
+            changes.append(SchemaChange(ChangeKind.new_key, path, type_text(schema)))
     return changes
 
 
@@ -73,9 +84,9 @@ def _key_changes(committed: JsonDict, live: JsonDict, where: str) -> list[Schema
     changes: list[SchemaChange] = []
     if _types(live) - _types(committed):
         detail = f'{type_text(committed)} → {type_text(live)}'
-        changes.append(SchemaChange('new_type', where, detail))
+        changes.append(SchemaChange(ChangeKind.new_type, where, detail))
     changes += [
-        SchemaChange('new_value', where, value)
+        SchemaChange(ChangeKind.new_value, where, value)
         for value in sorted(_values(live) - _values(committed))
     ]
     changes += _object_changes(committed, live, where)
