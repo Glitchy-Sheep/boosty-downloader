@@ -7,7 +7,11 @@ from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from boosty_downloader.application._media_order import order_media_ids
-from boosty_downloader.application.media_paths import find_recorded_file
+from boosty_downloader.application.media_paths import (
+    find_media_file,
+    find_recorded_file,
+    get_preferred_media_path,
+)
 from boosty_downloader.domain.stored_post import (
     MediaBlock,
     MediaEntry,
@@ -17,10 +21,11 @@ from boosty_downloader.domain.stored_post import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from datetime import datetime
 
     from boosty_downloader.application.mappers.live_post import LiveMedia, LivePost
-    from boosty_downloader.application.media_paths import DiskSnapshot
+    from boosty_downloader.application.media_paths import DiskSnapshot, FileMatch
 
 
 def prepare_record(
@@ -123,10 +128,84 @@ def _recorded_file_state(entry: MediaEntry, disk: DiskSnapshot) -> MediaEntry:
         found = find_recorded_file(entry.path, disk)
     if found is None:
         return replace(entry, status=MediaStatus.deleted)
+    return _downloaded_entry(entry, found)
+
+
+def _downloaded_entry(entry: MediaEntry, found: FileMatch) -> MediaEntry:
     return replace(
         entry,
         status=MediaStatus.downloaded,
         path=found.path,
         size=found.size,
         error=None,
+    )
+
+
+def recover_media_files(
+    record: StoredPost, live_media: Mapping[str, LiveMedia], disk: DiskSnapshot
+) -> StoredPost:
+    """
+    Recover pending/failed/unavailable files in an independent record.
+
+    The caller supplies an accessible post. Files must be nonempty and match the live size when known. Without live metadata, only the recorded path is considered.
+    """
+    recovered = deepcopy(record)
+    reservations = {
+        media_id: entry.path
+        for media_id, entry in recovered.media.items()
+        if entry.path is not None
+    }
+    order = sorted(
+        recovered.media, key=lambda media_id: recovered.media[media_id].position
+    )
+    for media_id in order:
+        entry = _recover_entry(
+            media_id,
+            recovered.media[media_id],
+            live_media.get(media_id),
+            disk,
+            reservations,
+        )
+        recovered.media[media_id] = entry
+        if entry.path is not None:
+            reservations[media_id] = entry.path
+    return recovered
+
+
+def _recover_entry(
+    media_id: str,
+    entry: MediaEntry,
+    live: LiveMedia | None,
+    disk: DiskSnapshot,
+    reservations: Mapping[str, str],
+) -> MediaEntry:
+    match entry.status:
+        case MediaStatus.pending | MediaStatus.failed | MediaStatus.unavailable:
+            found = _find_recoverable_file(media_id, entry, live, disk, reservations)
+        case _:
+            return entry
+    if found is None:
+        return entry
+    return _downloaded_entry(entry, found)
+
+
+def _find_recoverable_file(
+    media_id: str,
+    entry: MediaEntry,
+    live: LiveMedia | None,
+    disk: DiskSnapshot,
+    reservations: Mapping[str, str],
+) -> FileMatch | None:
+    preferred = None
+    expected_size = None
+    if live is not None:
+        preferred = get_preferred_media_path(media_id, live)
+        expected_size = live.expected_size
+    return find_media_file(
+        media_id,
+        disk,
+        reservations,
+        recorded_path=entry.path,
+        preferred=preferred,
+        expected_size=expected_size,
     )
