@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import TYPE_CHECKING, TypeAlias
+
+if TYPE_CHECKING:
+    from datetime import timedelta
 
 
 @dataclass
@@ -30,6 +34,32 @@ class HtmlGenText:
     """Text content for HTML generation."""
 
     text_fragments: list[HtmlTextFragment]
+
+
+@dataclass(frozen=True, slots=True)
+class HtmlLineBreak:
+    """A line break within a paragraph or heading."""
+
+
+HtmlInline: TypeAlias = HtmlTextFragment | HtmlLineBreak
+
+
+@dataclass(frozen=True, slots=True)
+class HtmlGenParagraph:
+    """A paragraph, including an explicitly empty one."""
+
+    fragments: list[HtmlInline]
+
+
+@dataclass(frozen=True, slots=True)
+class HtmlGenHeading:
+    """A heading whose level applies to every inline fragment."""
+
+    level: int
+    fragments: list[HtmlInline]
+
+
+HtmlTextBlock: TypeAlias = HtmlGenParagraph | HtmlGenHeading
 
 
 @dataclass
@@ -59,7 +89,7 @@ class HtmlListStyle(Enum):
 class HtmlListItem:
     """A single item in an HTML list."""
 
-    data: list[HtmlGenText]
+    data: list[HtmlGenText | HtmlTextBlock]
     nested_items: list[HtmlListItem] = field(default_factory=list['HtmlListItem'])
 
 
@@ -77,7 +107,7 @@ class HtmlGenFile:
 
     url: str
     filename: str
-    # Bytes as the API reports them; None when unknown.
+    # Bytes reported by the API or observed on disk; None when unknown.
     size: int | None = None
 
 
@@ -89,12 +119,23 @@ class HtmlGenAudio:
     title: str | None = None
 
 
+HtmlGenMedia: TypeAlias = HtmlGenImage | HtmlGenVideo | HtmlGenAudio | HtmlGenFile
+
+
+@dataclass(frozen=True, slots=True)
+class HtmlGenRemovedMedia:
+    """Saved media removed from the post, in display order."""
+
+    media: list[HtmlGenMedia]
+
+
 class UnavailableKind(Enum):
     """What kind of media piece is missing from the page."""
 
     IMAGE = 'image'
     VIDEO = 'video'
     AUDIO = 'audio'
+    FILE = 'file'
 
 
 @dataclass
@@ -107,15 +148,35 @@ class HtmlGenUnavailable:
     label: str = ''
     # Where the piece lives outside Boosty (external videos): the reader can try it there.
     source_url: str | None = None
+    duration: timedelta | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class HtmlGenNotDownloaded:
+    """A media piece that has not been downloaded, with a link to its post."""
+
+    kind: UnavailableKind
+    post_url: str
+    label: str = ''
+    duration: timedelta | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class HtmlGenDeleted:
+    """A media piece whose saved file is missing from disk."""
+
+    kind: UnavailableKind
+    label: str = ''
 
 
 # Union type for all HTML chunk types
-HtmlGenChunk = (
+HtmlGenChunk: TypeAlias = (
     HtmlGenText
-    | HtmlGenImage
-    | HtmlGenVideo
+    | HtmlTextBlock
     | HtmlGenList
-    | HtmlGenFile
-    | HtmlGenAudio
+    | HtmlGenMedia
+    | HtmlGenRemovedMedia
     | HtmlGenUnavailable
+    | HtmlGenNotDownloaded
+    | HtmlGenDeleted
 )

@@ -10,24 +10,38 @@ import mimetypes
 import re
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
+from typing import Final
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
 from boosty_downloader.infrastructure.html_generator.models import (
     HtmlGenAudio,
     HtmlGenChunk,
+    HtmlGenDeleted,
     HtmlGenFile,
+    HtmlGenHeading,
     HtmlGenImage,
     HtmlGenList,
+    HtmlGenMedia,
+    HtmlGenNotDownloaded,
+    HtmlGenParagraph,
+    HtmlGenRemovedMedia,
     HtmlGenText,
     HtmlGenUnavailable,
     HtmlGenVideo,
+    HtmlInline,
+    HtmlLineBreak,
     HtmlListStyle,
 )
 from boosty_downloader.infrastructure.human_readable_filesize import (
     human_readable_size,
 )
+
+# Bump when the generated page structure or styling changes.
+PAGE_TEMPLATE_VERSION: Final[int] = 1
+
 
 # Load all templates as a package files
 # So if ANY structure changed in this path - it should be reflected here.
@@ -166,11 +180,52 @@ def _unavailable_title(item: HtmlGenUnavailable) -> str:
     return f'{title}: {item.label}' if item.label else title
 
 
-def render_html_chunk(chunk: HtmlGenChunk) -> str:  # noqa: PLR0911 - one template per chunk kind
-    """Render a single HtmlGenChunk to its HTML representation."""
+def _format_duration(duration: timedelta | None) -> str | None:
+    """Whole seconds as M:SS or H:MM:SS; negative durations display zero."""
+    if duration is None:
+        return None
+    total_seconds = max(0, duration // timedelta(seconds=1))
+    minutes, seconds = divmod(total_seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f'{hours}:{minutes:02}:{seconds:02}'
+    return f'{minutes}:{seconds:02}'
+
+
+def _render_missing_media(
+    item: HtmlGenUnavailable | HtmlGenNotDownloaded | HtmlGenDeleted,
+) -> str:
+    match item:
+        case HtmlGenUnavailable():
+            return env.get_template('unavailable.html').render(
+                item=item,
+                title=_unavailable_title(item),
+                duration=_format_duration(item.duration),
+            )
+        case HtmlGenNotDownloaded():
+            return env.get_template('not_downloaded.html').render(
+                item=item,
+                kind=item.kind.value.capitalize(),
+                duration=_format_duration(item.duration),
+            )
+        case HtmlGenDeleted():
+            return env.get_template('deleted.html').render(
+                item=item, kind=item.kind.value.capitalize()
+            )
+
+
+def _is_line_break(fragment: HtmlInline) -> bool:
+    return isinstance(fragment, HtmlLineBreak)
+
+
+def _render_structured_text(block: HtmlGenParagraph | HtmlGenHeading, tag: str) -> str:
+    return env.get_template('structured_text.html').render(
+        block=block, tag=tag, is_line_break=_is_line_break
+    )
+
+
+def _render_media(chunk: HtmlGenMedia) -> str:
     match chunk:
-        case HtmlGenText():
-            return env.get_template('text.html').render(text=chunk)
         case HtmlGenImage():
             return env.get_template('image.html').render(
                 image=chunk, src=_media_src(chunk.url)
@@ -185,22 +240,43 @@ def render_html_chunk(chunk: HtmlGenChunk) -> str:  # noqa: PLR0911 - one templa
             return env.get_template('audio.html').render(
                 audio=chunk, src=_media_src(chunk.url)
             )
+        case HtmlGenFile():
+            return _render_attachments([chunk])
+
+
+def _render_removed_media(section: HtmlGenRemovedMedia) -> str:
+    if not section.media:
+        return ''
+    return env.get_template('removed_media.html').render(
+        content=_render_chunks(section.media)
+    )
+
+
+def render_html_chunk(chunk: HtmlGenChunk) -> str:  # noqa: PLR0911 - one template per chunk kind
+    """Render a single HtmlGenChunk to its HTML representation."""
+    match chunk:
+        case HtmlGenText():
+            return env.get_template('text.html').render(text=chunk)
+        case HtmlGenParagraph():
+            return _render_structured_text(chunk, 'p')
+        case HtmlGenHeading():
+            return _render_structured_text(chunk, f'h{chunk.level}')
+        case HtmlGenImage() | HtmlGenVideo() | HtmlGenAudio() | HtmlGenFile():
+            return _render_media(chunk)
         case HtmlGenList():
             return env.get_template('list.html').render(
                 lst=chunk,
                 tag='ol' if chunk.style is HtmlListStyle.ORDERED else 'ul',
                 render_chunk=render_html_chunk,
             )
-        case HtmlGenFile():
-            return _render_attachments([chunk])
-        case HtmlGenUnavailable():
-            return env.get_template('unavailable.html').render(
-                item=chunk, title=_unavailable_title(chunk)
-            )
+        case HtmlGenRemovedMedia():
+            return _render_removed_media(chunk)
+        case HtmlGenUnavailable() | HtmlGenNotDownloaded() | HtmlGenDeleted():
+            return _render_missing_media(chunk)
 
 
-def render_html(chunks: list[HtmlGenChunk], page_title: str) -> str:
-    """Render a list of HTML chunks to a full HTML page."""
+def _render_chunks(chunks: Iterable[HtmlGenChunk]) -> str:
+    """Render page content, grouping neighbouring file attachments."""
     rendered = [
         _render_attachments(item) if isinstance(item, list) else render_html_chunk(item)
         for item in _group_attachments(chunks)
@@ -208,8 +284,15 @@ def render_html(chunks: list[HtmlGenChunk], page_title: str) -> str:
     # Empty chunks (e.g. text with no fragments) would otherwise leave
     # blank lines between their neighbours.
     parts = [part.strip('\n') for part in rendered if part.strip()]
+    return '\n'.join(parts)
+
+
+def render_html(chunks: list[HtmlGenChunk], page_title: str) -> str:
+    """Render a list of HTML chunks to a full HTML page."""
     return env.get_template('base.html').render(
-        content='\n'.join(parts), title=page_title
+        content=_render_chunks(chunks),
+        title=page_title,
+        page_template_version=PAGE_TEMPLATE_VERSION,
     )
 
 

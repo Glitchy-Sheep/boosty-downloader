@@ -12,6 +12,7 @@ from boosty_downloader.infrastructure.html_generator.models import (
     HtmlGenVideo,
     HtmlListItem,
     HtmlListStyle,
+    HtmlTextBlock,
     HtmlTextFragment,
     HtmlTextStyle,
 )
@@ -19,22 +20,25 @@ from boosty_downloader.infrastructure.html_generator.models import (
 
 def convert_text_to_html(chunk: PostDataChunkText) -> HtmlGenText:
     """Convert domain text chunk to HTML text model."""
-    fragments: list[HtmlTextFragment] = []
-    for frag in chunk.text_fragments:
-        style = HtmlTextStyle(
-            bold=frag.style.bold,
-            italic=frag.style.italic,
-            underline=frag.style.underline,
-        )
-        html_fragment = HtmlTextFragment(
-            text=frag.text,
-            link_url=frag.link_url,
-            header_level=frag.header_level,
-            style=style,
-        )
-        fragments.append(html_fragment)
+    return HtmlGenText(
+        text_fragments=[convert_text_fragment(frag) for frag in chunk.text_fragments]
+    )
 
-    return HtmlGenText(text_fragments=fragments)
+
+def convert_text_fragment(
+    fragment: PostDataChunkText.TextFragment,
+) -> HtmlTextFragment:
+    """Copy styled text into an independent presentation fragment."""
+    return HtmlTextFragment(
+        text=fragment.text,
+        link_url=fragment.link_url,
+        header_level=fragment.header_level,
+        style=HtmlTextStyle(
+            bold=fragment.style.bold,
+            italic=fragment.style.italic,
+            underline=fragment.style.underline,
+        ),
+    )
 
 
 def convert_video_to_html(src: str, title: str) -> HtmlGenVideo:
@@ -46,18 +50,23 @@ def convert_list_to_html(chunk: PostDataChunkTextualList) -> HtmlGenList:
     """Convert domain list chunk to HTML list model."""
 
     def convert_list_item(item: PostDataChunkTextualList.ListItem) -> HtmlListItem:
-        data = [convert_text_to_html(text_chunk) for text_chunk in item.data]
+        data: list[HtmlGenText | HtmlTextBlock] = [
+            convert_text_to_html(text_chunk) for text_chunk in item.data
+        ]
         nested_items = [convert_list_item(nested) for nested in item.nested_items]
         return HtmlListItem(data=data, nested_items=nested_items)
 
     items = [convert_list_item(item) for item in chunk.items]
-    style = (
-        HtmlListStyle.ORDERED
-        if chunk.style is PostDataChunkTextualList.ListStyle.ordered
-        else HtmlListStyle.UNORDERED
-    )
+    return HtmlGenList(items=items, style=convert_list_style(chunk.style))
 
-    return HtmlGenList(items=items, style=style)
+
+def convert_list_style(style: PostDataChunkTextualList.ListStyle) -> HtmlListStyle:
+    """Map the stored list style to its presentation counterpart."""
+    match style:
+        case PostDataChunkTextualList.ListStyle.ordered:
+            return HtmlListStyle.ORDERED
+        case PostDataChunkTextualList.ListStyle.unordered:
+            return HtmlListStyle.UNORDERED
 
 
 def convert_audio_to_html(src: str, title: str) -> HtmlGenAudio:

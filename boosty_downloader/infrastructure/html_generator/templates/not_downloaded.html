@@ -1,0 +1,10 @@
+<div class="unavailable">
+    <span class="unavailable-icon" aria-hidden="true">⚠️</span>
+    <span class="unavailable-text">
+        <span class="unavailable-title"><span data-page-generated="true">{{ kind }} not downloaded{% if item.label %}: {% endif %}</span>{{ item.label }}</span>
+{% if duration is not none %}
+        <span class="unavailable-reason" data-page-generated="true">Duration: {{ duration }}</span>
+{% endif %}
+        <a class="unavailable-link" href="{{ item.post_url }}" data-page-generated="true">Open the post on Boosty</a>
+    </span>
+</div>
