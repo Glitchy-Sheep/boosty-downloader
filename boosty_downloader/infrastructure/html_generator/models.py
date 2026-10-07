@@ -119,6 +119,16 @@ class HtmlGenAudio:
     title: str | None = None
 
 
+HtmlGenMedia: TypeAlias = HtmlGenImage | HtmlGenVideo | HtmlGenAudio | HtmlGenFile
+
+
+@dataclass(frozen=True, slots=True)
+class HtmlGenRemovedMedia:
+    """Saved media removed from the post, in display order."""
+
+    media: list[HtmlGenMedia]
+
+
 class UnavailableKind(Enum):
     """What kind of media piece is missing from the page."""
 
@@ -163,11 +173,9 @@ class HtmlGenDeleted:
 HtmlGenChunk: TypeAlias = (
     HtmlGenText
     | HtmlTextBlock
-    | HtmlGenImage
-    | HtmlGenVideo
     | HtmlGenList
-    | HtmlGenFile
-    | HtmlGenAudio
+    | HtmlGenMedia
+    | HtmlGenRemovedMedia
     | HtmlGenUnavailable
     | HtmlGenNotDownloaded
     | HtmlGenDeleted
