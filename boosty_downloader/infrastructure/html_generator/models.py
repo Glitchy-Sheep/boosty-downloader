@@ -107,7 +107,7 @@ class HtmlGenFile:
 
     url: str
     filename: str
-    # Bytes as the API reports them; None when unknown.
+    # Bytes reported by the API or observed on disk; None when unknown.
     size: int | None = None
 
 
