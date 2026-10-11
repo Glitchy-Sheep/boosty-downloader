@@ -57,10 +57,6 @@ from boosty_downloader.infrastructure.html_generator.renderer import (
 from boosty_downloader.infrastructure.human_readable_filesize import (
     human_readable_size,
 )
-from boosty_downloader.infrastructure.path_sanitizer import (
-    MAX_NAME_BYTES,
-    sanitize_filename,
-)
 from boosty_downloader.infrastructure.post_media_downloader import (
     MediaDownloadError,
     PostMediaDownloader,
@@ -68,7 +64,6 @@ from boosty_downloader.infrastructure.post_media_downloader import (
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
-    from datetime import datetime
     from pathlib import Path
     from uuid import UUID
 
@@ -168,20 +163,6 @@ def _page_placeholder(
         case _:
             # Only downloaded attachments get a card; text never fails.
             return None
-
-
-def compose_post_directory_name(title: str, created_at: datetime, post_id: str) -> str:
-    """
-    One folder per post: 'YYYY-MM-DD - Title (id8)'.
-
-    The id tail keeps two same-titled posts apart; the title is cut to
-    fit the filesystem name limit, the date and the id always survive.
-    """
-    clean_title = title.strip() or 'No title'
-    prefix = f'{created_at.date()} - '
-    suffix = f' ({post_id[:8]})'
-    budget = MAX_NAME_BYTES - len(prefix.encode('utf-8'))
-    return prefix + sanitize_filename(clean_title, suffix=suffix, max_bytes=budget)
 
 
 class DownloadSinglePostUseCase:

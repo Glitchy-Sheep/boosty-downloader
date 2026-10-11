@@ -12,8 +12,8 @@ from boosty_downloader.application.exceptions.application_errors import (
 )
 from boosty_downloader.application.use_cases.download_single_post import (
     DownloadSinglePostUseCase,
-    compose_post_directory_name,
 )
+from boosty_downloader.domain.post_folder import compose_post_directory_name
 from boosty_downloader.infrastructure.boosty_api.core.client import (
     BoostyAPIClient,
     BoostyAPIError,
