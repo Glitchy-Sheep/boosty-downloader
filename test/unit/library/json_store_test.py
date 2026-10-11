@@ -50,7 +50,7 @@ record.post.title = 'Interrupted update'
 def abort_before_replace(source, destination):
     os._exit(73)
 
-json_store.os.replace = abort_before_replace
+Path.replace = abort_before_replace
 json_store.write_post_record(folder, record)
 """
 
@@ -103,7 +103,8 @@ def test_replacement_flushes_and_syncs_complete_file_then_closes_before_publicat
     old_bytes = (tmp_path / 'post.json').read_bytes()
     record.post.title = 'Updated'
     synced_descriptors: list[int] = []
-    real_fsync, real_replace = os.fsync, os.replace
+    real_fsync, real_replace = os.fsync, Path.replace
+    replaced = False
 
     def observe_fsync(descriptor: int) -> None:
         (temporary,) = tmp_path.glob('post.json.*.tmp')
@@ -112,6 +113,7 @@ def test_replacement_flushes_and_syncs_complete_file_then_closes_before_publicat
         real_fsync(descriptor)
 
     def observe_replace(source: Path, destination: Path) -> None:
+        nonlocal replaced
         assert len(synced_descriptors) == 1
         with pytest.raises(OSError) as raised:  # noqa: PT011 - Check errno across platforms.
             os.fstat(synced_descriptors[0])
@@ -121,11 +123,13 @@ def test_replacement_flushes_and_syncs_complete_file_then_closes_before_publicat
         assert Path(destination).read_bytes() == old_bytes
         assert decode_post_record(Path(source).read_bytes()) == record
         real_replace(source, destination)
+        replaced = True
 
     monkeypatch.setattr(json_store.os, 'fsync', observe_fsync)
-    monkeypatch.setattr(json_store.os, 'replace', observe_replace)
+    monkeypatch.setattr(Path, 'replace', observe_replace)
     write_post_record(tmp_path, record)
 
+    assert replaced
     assert read_post_record(tmp_path) == record
     assert list(tmp_path.glob('post.json.*.tmp')) == []
 
@@ -294,7 +298,7 @@ def test_prepublication_failure_keeps_old_record_and_cleans_only_own_temporary(
             case FailurePoint.fsync:
                 monkeypatch.setattr(json_store.os, 'fsync', Mock(side_effect=error))
             case FailurePoint.replace:
-                monkeypatch.setattr(json_store.os, 'replace', Mock(side_effect=error))
+                monkeypatch.setattr(Path, 'replace', Mock(side_effect=error))
 
         with pytest.raises(OSError, match='injected disk failure') as raised:
             write_post_record(tmp_path, record)
@@ -313,7 +317,7 @@ def test_cleanup_failure_does_not_hide_the_publication_error(
     old_bytes = (tmp_path / 'post.json').read_bytes()
     error = OSError('publication failed')
     with monkeypatch.context() as patches:
-        patches.setattr(json_store.os, 'replace', Mock(side_effect=error))
+        patches.setattr(Path, 'replace', Mock(side_effect=error))
         patches.setattr(
             Path, 'unlink', Mock(side_effect=PermissionError('cleanup denied'))
         )
@@ -331,7 +335,7 @@ def test_interrupted_publication_cleans_owned_temporary(
 ):
     write_post_record(tmp_path, record)
     old_bytes = (tmp_path / 'post.json').read_bytes()
-    monkeypatch.setattr(json_store.os, 'replace', Mock(side_effect=KeyboardInterrupt))
+    monkeypatch.setattr(Path, 'replace', Mock(side_effect=KeyboardInterrupt))
 
     with pytest.raises(KeyboardInterrupt):
         write_post_record(tmp_path, record)
@@ -346,7 +350,7 @@ def test_overlapping_writes_own_distinct_temporaries_and_last_publication_wins(
     other = deepcopy(record)
     other.post.title = 'Other writer'
     sources: list[Path] = []
-    real_replace = os.replace
+    real_replace = Path.replace
 
     def publish_with_other_writer(source: Path, destination: Path) -> None:
         sources.append(Path(source))
@@ -356,7 +360,7 @@ def test_overlapping_writes_own_distinct_temporaries_and_last_publication_wins(
             assert Path(source).exists()
         real_replace(source, destination)
 
-    monkeypatch.setattr(json_store.os, 'replace', publish_with_other_writer)
+    monkeypatch.setattr(Path, 'replace', publish_with_other_writer)
     write_post_record(tmp_path, record)
 
     assert len(set(sources)) == 2
