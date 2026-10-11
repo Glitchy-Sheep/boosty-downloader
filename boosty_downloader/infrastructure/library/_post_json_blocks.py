@@ -46,6 +46,7 @@ class JsonFragmentType(str, Enum):
 class _JsonValue(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
+        hide_input_in_errors=True,
         strict=True,
         revalidate_instances='always',
     )
