@@ -37,6 +37,7 @@ from boosty_downloader.infrastructure.library.errors import (
 )
 
 POST_SCHEMA_VERSION: Final = 1
+_INVALID_UNION_TAG: Final = 'union_tag_invalid'
 _ISO_DATETIME_PREFIX: Final = compile_pattern(r'^\d{4}-\d{2}-\d{2}[Tt ]')
 _ISO_DURATION_PREFIX: Final = compile_pattern(r'^[+-]?P')
 _DATETIME_FIELDS: Final = frozenset(
@@ -214,7 +215,10 @@ def _validation_message(error: ValidationError) -> str:
         include_input=False, include_context=False, include_url=False
     )[0]
     location = '.'.join(str(part) for part in problem['loc']) or 'record'
-    return f'Invalid post record at {location}: {problem["msg"]}'
+    message = problem['msg']
+    if problem['type'] == _INVALID_UNION_TAG:
+        message = 'Unknown content type tag'
+    return f'Invalid post record at {location}: {message}'
 
 
 def _read_json_object(data: bytes) -> dict[str, object]:
@@ -252,7 +256,7 @@ def _decode_document(data: bytes, raw: Mapping[str, object]) -> _PostDocument:
         _validate_document_temporal_text(raw)
         return _PostDocument.model_validate_json(data)
     except ValidationError as error:
-        raise InvalidPostRecordError(_validation_message(error)) from error
+        raise InvalidPostRecordError(_validation_message(error)) from None
     except ValueError as error:
         message = f'Invalid post record: {error}'
         raise InvalidPostRecordError(message) from error
@@ -270,7 +274,7 @@ def encode_post_record(record: StoredPost) -> bytes:
         )
         return (document.model_dump_json(indent=2) + '\n').encode('utf-8')
     except ValidationError as error:
-        raise InvalidPostRecordError(_validation_message(error)) from error
+        raise InvalidPostRecordError(_validation_message(error)) from None
     except (ValueError, TypeError, AttributeError) as error:
         message = 'Invalid post record: values cannot be encoded'
         raise InvalidPostRecordError(message) from error

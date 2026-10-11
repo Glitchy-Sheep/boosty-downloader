@@ -636,3 +636,19 @@ def test_numeric_timestamp_strings_are_not_saved_datetime_values(
 
     with pytest.raises(InvalidPostRecordError):
         decode_post_record(dumps(document).encode())
+
+
+@pytest.mark.parametrize('context', ['body', 'fragment'])
+def test_unknown_tags_do_not_expose_saved_content_in_errors(context: str) -> None:
+    private_value = 'private-post-content-in-corrupted-tag'
+    block: JsonObject = {'type': private_value}
+    if context == 'fragment':
+        block = {'type': 'text', 'fragments': [block]}
+    document = loads(GOLDEN_RECORD)
+    document['blocks'] = [block]
+
+    with pytest.raises(InvalidPostRecordError) as error:
+        decode_post_record(dumps(document).encode())
+
+    assert private_value not in str(error.value)
+    assert private_value not in ''.join(format_exception(error.value))
