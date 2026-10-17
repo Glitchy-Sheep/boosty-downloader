@@ -35,7 +35,12 @@ def render_download_plan(
         _posts_table(plan),
     ]
     if plan.new_posts == 0 and plan.outdated_posts == 0:
-        parts += ['', 'Nothing to download - everything is up to date.']
+        message = (
+            'Nothing to download under the current filters.'
+            if plan.filtered_out_posts
+            else 'Nothing to download - everything is up to date.'
+        )
+        parts += ['', message]
     else:
         parts += [
             '',

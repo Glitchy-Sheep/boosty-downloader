@@ -29,6 +29,9 @@ from boosty_downloader.infrastructure.boosty_api.core.client import (
 )
 from boosty_downloader.infrastructure.boosty_api.models.post.extra import Extra
 from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
+from boosty_downloader.infrastructure.boosty_api.models.post.post_overview import (
+    PostTagDTO,
+)
 from boosty_downloader.infrastructure.boosty_api.models.post.posts_request import (
     PostsResponse,
 )
@@ -56,6 +59,7 @@ class _FakeReporter:
     def __init__(self) -> None:
         self.errors: list[str] = []
         self.warnings: list[str] = []
+        self.infos: list[str] = []
 
     def create_task(self, *args: object, **kwargs: object) -> uuid.UUID:
         del args, kwargs
@@ -68,7 +72,7 @@ class _FakeReporter:
         del args, kwargs
 
     def info(self, message: str) -> None:
-        del message
+        self.infos.append(message)
 
     def success(self, message: str) -> None:
         del message
@@ -411,3 +415,27 @@ async def test_run_statistics_count_locked_and_failed_posts(
     stats = use_case.context.run_statistics
     assert stats.posts_failed == 1
     assert stats.posts_locked == 1
+
+
+async def test_excluded_posts_do_not_download_or_stop_the_listing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reporter = _FakeReporter()
+    failed_logger = _FakeFailedLogger()
+    api = _FakeApi()
+    use_case = _use_case(['excluded', 'keep'], reporter, failed_logger, api=api)
+    assert api._page is not None
+    api._page.posts[0].tags = [PostTagDTO(title='sample')]
+    use_case.context.excluded_tags = ('SAMPLE',)
+    calls = _script_outcomes(monkeypatch, {})
+
+    await use_case.execute()
+
+    assert calls == ['keep']
+    assert use_case.context.run_statistics.posts_without_content == 1
+    assert use_case.context.run_statistics.posts_failed == 0
+    assert failed_logger.entries == []
+    assert any(
+        'Skip post (excluded tag): post excluded' in message
+        for message in reporter.infos
+    )

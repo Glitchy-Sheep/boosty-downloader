@@ -28,6 +28,7 @@ from boosty_downloader.cli.cli_options import (
     ContentTypeFilterOption,
     DestinationDirectoryOption,
     DryRunOption,
+    ExcludeTagOption,
     PostUrlOption,
     PreferredVideoQualityOption,
     RequestDelaySecondsOption,
@@ -92,6 +93,7 @@ async def _dry_run_handler(
     settings: AppSettings,
     content_type_filter: list[DownloadContentTypeFilter],
     preferred_video_quality: VideoQualityOption,
+    excluded_tags: tuple[str, ...] = (),
 ) -> None:
     """Print the overview and the plan of a would-be run; download nothing."""
     report = await PlanDownloadUseCase(
@@ -100,6 +102,7 @@ async def _dry_run_handler(
         logger=logger_instances.downloader_logger,
         post_cache=app.cache,
         filters=content_type_filter,
+        excluded_tags=excluded_tags,
         preferred_video_quality=preferred_video_quality.to_ok_video_type(),
     ).execute()
     console = app.reporter.console
@@ -140,6 +143,7 @@ async def _download_handler(  # noqa: PLR0913
     cache_directory: Path | None,
     skip_all_failures: bool,
     dry_run: bool,
+    excluded_tags: tuple[str, ...] = (),
 ) -> None:
     logger = logger_instances.downloader_logger
     settings = load_settings(
@@ -159,6 +163,7 @@ async def _download_handler(  # noqa: PLR0913
                 settings=settings,
                 content_type_filter=content_type_filter,
                 preferred_video_quality=preferred_video_quality,
+                excluded_tags=excluded_tags,
             )
             return
 
@@ -167,6 +172,7 @@ async def _download_handler(  # noqa: PLR0913
             downloader_session=app.media_http,
             external_videos_downloader=ExternalVideosDownloader(),
             filters=content_type_filter,
+            excluded_tags=excluded_tags,
             post_cache=app.cache,
             preferred_video_quality=preferred_video_quality.to_ok_video_type(),
             progress_reporter=app.reporter,
@@ -228,6 +234,7 @@ def register(app: typer.Typer) -> None:
         cache_directory: CacheDirectoryOption = None,
         skip_all_failures: SkipAllFailuresOption = False,
         dry_run: DryRunOption = False,
+        exclude_tag: ExcludeTagOption = None,
     ) -> None:
         """
         Download posts from a Boosty creator: boosty-downloader download USERNAME
@@ -248,6 +255,7 @@ def register(app: typer.Typer) -> None:
             - [bold red]NOTE:[/bold red] If you specify [italic]post_content[/italic] without [italic]boosty_videos[/italic], [italic]external_videos[/italic] or [italic]files[/italic],
                     those videos and attachments won't appear on the post page due to cache limitations.
             - For best results, just leave all filters by default.
+            - Use `--exclude-tag TAG` to skip posts with a tag (whole name, case-insensitive); repeat for multiple tags.
 
 
         [bold]RATE LIMITING:[/bold]
@@ -264,6 +272,10 @@ def register(app: typer.Typer) -> None:
             - Cache doesn't check local files, you can delete them and they still won't re-download.
 
         """
+        excluded_tags = tuple(tag.strip() for tag in exclude_tag or ())
+        if any(not tag for tag in excluded_tags):
+            msg = 'tag must not be empty'
+            raise typer.BadParameter(msg, param_hint='--exclude-tag')
         if dry_run and post_url is not None:
             msg = '--dry-run previews the full-blog run; combine it with --post-url is not supported'
             raise typer.BadParameter(msg)
@@ -279,6 +291,7 @@ def register(app: typer.Typer) -> None:
                     content_type_filter or list(DownloadContentTypeFilter)
                 ),
                 preferred_video_quality=preferred_video_quality,
+                excluded_tags=excluded_tags,
                 request_delay_seconds=request_delay_seconds,
                 destination_directory=destination_directory,
                 cache_directory=cache_directory,

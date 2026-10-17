@@ -93,3 +93,12 @@ def test_filtered_out_row_appears_only_when_present(
 
     assert 'Nothing under these filters' in text
     assert 'Known download size: 0.00 B' in text
+
+
+def test_filtered_posts_do_not_claim_everything_is_cached(
+    plain: Callable[[RenderableType], str],
+):
+    text = plain(render_download_plan(_plan(filtered_out_posts=2), filters=[]))
+    assert 'Nothing under these filters' in text
+    assert 'Nothing to download under the current filters.' in text
+    assert 'everything is up to date' not in text

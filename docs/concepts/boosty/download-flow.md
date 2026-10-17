@@ -19,11 +19,12 @@ CLI (typer)
 ```
 
 1. **Fetch.** `BoostyAPIClient.iterate_over_posts` pages through `blog/{name}/post/` with a rate limiter; `--post-url` asks for one post by id. Each answer turns into validated `PostDTO` objects.
-2. **Cache check.** A SQLite cache keeps per-post flags by content type (files, videos, audio, ...). The run skips the parts it already has.
-3. **Map.** `map_post_dto_to_domain` turns API DTOs into domain chunks (text, image, video, file, audio, list). The domain layer knows nothing about Boosty shapes.
-4. **Download.** `PostMediaDownloader` saves images, files and Boosty videos through the aiohttp downloader and external videos (YouTube, Vimeo) through yt-dlp, up to 4 files of a post at once.
-5. **Render.** Chunks processed in this run become `post.html` via Jinja templates.
-6. **Remember.** The cache records which content types finished, so the next run downloads only what is missing.
+2. **Tag exclusions.** Before mapping, cache checks or downloads, `--exclude-tag TAG` skips a post if any tag name matches in full, ignoring case and surrounding whitespace. Repeating the option excludes multiple names. Missing or malformed tags are treated as no tags. Bulk downloads, `--post-url` and dry-run plans share the matching rule; tag skips use the existing filtered-out counts and do not update the cache or remove existing files.
+3. **Cache check.** A SQLite cache keeps per-post flags by content type (files, videos, audio, ...). The run skips the parts it already has.
+4. **Map.** `map_post_dto_to_domain` turns API DTOs into domain chunks (text, image, video, file, audio, list). The domain layer knows nothing about Boosty shapes.
+5. **Download.** `PostMediaDownloader` saves images, files and Boosty videos through the aiohttp downloader and external videos (YouTube, Vimeo) through yt-dlp, up to 4 files of a post at once.
+6. **Render.** Chunks processed in this run become `post.html` via Jinja templates.
+7. **Remember.** The cache records which content types finished, so the next run downloads only what is missing.
 
 ## When a piece fails
 
