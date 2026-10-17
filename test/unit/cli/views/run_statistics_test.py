@@ -33,7 +33,7 @@ def test_full_run(
         [
             'Run finished in 4m 12s',
             (
-                'Posts: 5 downloaded, 3 already cached, 1 without matching content, '
+                'Posts: 5 downloaded, 3 already cached, 1 skipped by filters, '
                 '2 failed, 4 locked'
             ),
             'Media downloaded',

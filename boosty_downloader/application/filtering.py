@@ -21,7 +21,7 @@ from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types.pos
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterable, Sequence
 
     from boosty_downloader.domain.post import Post
 
@@ -76,3 +76,9 @@ def post_has_content_for(
     return any(
         CHUNK_TO_FILTER.get(type(chunk)) in parts for chunk in post.post_data_chunks
     )
+
+
+def has_excluded_tag(tag_names: Iterable[str], excluded_tags: Sequence[str]) -> bool:
+    """Match whole tag names, ignoring case and surrounding whitespace."""
+    excluded = {tag.strip().casefold() for tag in excluded_tags if tag.strip()}
+    return any(name.strip().casefold() in excluded for name in tag_names)

@@ -178,6 +178,7 @@ async def _run_download(
     api_base: URL,
     reporter: _QuietReporter,
     external_videos: ExternalVideosDownloader | None = None,
+    excluded_tags: tuple[str, ...] = (),
 ) -> RunStatistics:
     """One full download run wired exactly like the app, minus the console."""
     async with ClientSession() as session:
@@ -195,6 +196,7 @@ async def _run_download(
                 ),
                 post_cache=cache,
                 filters=list(DownloadContentTypeFilter),
+                excluded_tags=excluded_tags,
                 preferred_video_quality=BoostyOkVideoType.medium,
                 progress_reporter=reporter,
                 failed_logger=FailedDownloadsLogger(
@@ -308,7 +310,9 @@ async def test_media_of_one_post_downloads_in_parallel(tmp_path: Path) -> None:
         await server.close()
 
 
-async def _dry_run(destination: Path, api_base: URL) -> DryRunReport:
+async def _dry_run(
+    destination: Path, api_base: URL, *, excluded_tags: tuple[str, ...] = ()
+) -> DryRunReport:
     """The dry-run wired exactly like the CLI does it."""
     async with ClientSession() as session:
         retry_client = RetryClient(
@@ -322,6 +326,7 @@ async def _dry_run(destination: Path, api_base: URL) -> DryRunReport:
                 logger=RichLogger('e2e-dry'),
                 post_cache=cache,
                 filters=list(DownloadContentTypeFilter),
+                excluded_tags=excluded_tags,
                 preferred_video_quality=BoostyOkVideoType.medium,
             ).execute()
 
@@ -495,3 +500,44 @@ async def test_blog_info_uses_exact_route_and_existing_retries(
     assert len(blog.description) == 5
     assert pending == []
     assert served_media == []
+
+
+async def test_excluding_then_including_a_tag_preserves_download_eligibility(
+    tmp_path: Path,
+) -> None:
+    served_media: list[str] = []
+    async with TestServer(_build_app(served_media)) as server:
+        report = await _dry_run(
+            tmp_path, server.make_url('/'), excluded_tags=('FIXTURE',)
+        )
+        assert report.plan.filtered_out_posts == 1
+        assert report.plan.new_posts == 0
+        assert report.plan.media == MediaCounts()
+        assert served_media == []
+
+        stats = await _run_download(
+            tmp_path,
+            server.make_url('/'),
+            _QuietReporter(),
+            excluded_tags=('FIXTURE',),
+        )
+        assert stats.posts_without_content == 1
+        assert stats.posts_failed == 0
+        assert served_media == []
+        assert not (tmp_path / POST_DIR_NAME).exists()
+
+        await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
+        assert served_media
+        _assert_post_tree(tmp_path)
+
+        served_media.clear()
+        html_path = tmp_path / POST_DIR_NAME / 'post.html'
+        original_html = html_path.read_bytes()
+        await _run_download(
+            tmp_path,
+            server.make_url('/'),
+            _QuietReporter(),
+            excluded_tags=('fixture',),
+        )
+        assert served_media == []
+        assert html_path.read_bytes() == original_html

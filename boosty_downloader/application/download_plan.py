@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 from boosty_downloader.application.blog_overview import MediaCounts
 from boosty_downloader.application.filtering import (
     CHUNK_TO_FILTER,
+    has_excluded_tag,
     post_has_content_for,
 )
 from boosty_downloader.application.mappers.post_mapper import map_post_dto_to_domain
@@ -46,7 +47,7 @@ class DownloadPlan:
     outdated_posts: int
     # Nothing missing: the run would skip them in seconds.
     complete_posts: int
-    # Posts with missing parts but no content under the chosen filters.
+    # Posts skipped by tag or with no missing content under the chosen types.
     filtered_out_posts: int
     # Media pieces the run would fetch.
     media: MediaCounts
@@ -62,6 +63,7 @@ def build_download_plan(
     post_cache: PostCache,
     filters: Sequence[DownloadContentTypeFilter],
     preferred_video_quality: BoostyOkVideoType,
+    excluded_tags: Sequence[str] = (),
 ) -> DownloadPlan:
     """Preview a download run. Locked posts are not planned: the run skips them."""
     new = outdated = complete = filtered_out = 0
@@ -70,6 +72,9 @@ def build_download_plan(
     unknown_size_videos = 0
 
     for post_dto in posts:
+        if has_excluded_tag((tag.title for tag in post_dto.tags or ()), excluded_tags):
+            filtered_out += 1
+            continue
         if not post_dto.has_access:
             continue
         mapped = map_post_dto_to_domain(

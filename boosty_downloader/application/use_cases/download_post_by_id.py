@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from boosty_downloader.application.filtering import has_excluded_tag
 from boosty_downloader.application.post_retry import (
     PostDownloadRetrier,
     PostOutcome,
@@ -89,6 +90,16 @@ class DownloadPostByIdUseCase:
                 'so the client can be updated.'
             )
             return PostOutcome.failed
+
+        if has_excluded_tag(
+            (tag.title for tag in post.tags or ()), self.context.excluded_tags
+        ):
+            self.context.progress_reporter.info(
+                f'Skip post (excluded tag): {post.title}'
+            )
+            self.context.run_statistics.posts_without_content += 1
+            # Like content-type skips, this is a successful no-op.
+            return PostOutcome.downloaded
 
         if not post.has_access:
             self.context.progress_reporter.error(

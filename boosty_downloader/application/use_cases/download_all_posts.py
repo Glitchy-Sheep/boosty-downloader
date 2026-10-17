@@ -8,6 +8,7 @@ from boosty_downloader.application.exceptions.application_errors import (
     ApplicationTooManyFailuresError,
 )
 from boosty_downloader.application.failure_streak import FailureStreakBreaker
+from boosty_downloader.application.filtering import has_excluded_tag
 from boosty_downloader.application.post_retry import (
     PostDownloadRetrier,
     PostOutcome,
@@ -110,6 +111,16 @@ class DownloadAllPostUseCase:
             )
 
             for post_dto in page.posts:
+                if has_excluded_tag(
+                    (tag.title for tag in post_dto.tags or ()),
+                    self.context.excluded_tags,
+                ):
+                    self.context.progress_reporter.info(
+                        f'Skip post (excluded tag): {post_dto.title}'
+                    )
+                    self.context.run_statistics.posts_without_content += 1
+                    self.context.progress_reporter.update_task(page_task_id, advance=1)
+                    continue
                 if not post_dto.has_access:
                     self.context.progress_reporter.warn(
                         f'Skip post ([red]no access to content[/red]): {post_dto.title}'

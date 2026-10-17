@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Added
+
+- `download --exclude-tag TAG` skips posts matching any excluded tag name (case-insensitive); repeat the option for multiple tags. Works with `--post-url` and `--dry-run`
+
 ### Fixed
 
 - Attachment filenames use the same cleaning rules on Windows, Linux and macOS, including names with colons or backslashes. Unusually long extensions share the filename length budget

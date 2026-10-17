@@ -98,6 +98,7 @@ def _post(
     updated_at: datetime = _DAY,
     data: list[dict[str, object]] | None = None,
     has_access: bool = True,
+    tags: list[dict[str, object]] | None = None,
 ) -> PostDTO:
     return PostDTO.model_validate(
         {
@@ -108,6 +109,7 @@ def _post(
             'hasAccess': has_access,
             'signedQuery': '?sq',
             'data': data or [],
+            'tags': tags or [],
         }
     )
 
@@ -116,11 +118,14 @@ def _plan(
     posts: list[PostDTO],
     cache: SQLitePostCache,
     filters: list[DownloadContentTypeFilter] = ALL_FILTERS,
+    *,
+    excluded_tags: tuple[str, ...] = (),
 ) -> DownloadPlan:
     return build_download_plan(
         posts,
         post_cache=cache,
         filters=filters,
+        excluded_tags=excluded_tags,
         preferred_video_quality=BoostyOkVideoType.medium,
     )
 
@@ -219,3 +224,31 @@ def test_locked_posts_are_not_planned(cache: SQLitePostCache):
 
     assert plan.new_posts == 0
     assert plan.media == MediaCounts()
+
+
+def test_tag_exclusion_leaves_new_posts_eligible_for_a_later_run(
+    cache: SQLitePostCache,
+):
+    post = _post(data=[_image()], tags=[{'title': 'sample'}, {'title': 'sample tag'}])
+
+    plan = _plan([post], cache, excluded_tags=('SAMPLE',))
+
+    assert plan.filtered_out_posts == 1
+    assert plan.new_posts == plan.complete_posts == plan.outdated_posts == 0
+    assert plan.media == MediaCounts()
+    assert plan.known_bytes == plan.unknown_size_videos == 0
+    assert not cache.has_post(post.id)
+    assert _plan([post], cache).new_posts == 1
+
+
+def test_tag_exclusion_preserves_existing_cache_entries(cache: SQLitePostCache):
+    post = _post(data=[_image()], tags=[{'title': 'sample'}])
+    cache.cache_post(post.id, post.updated_at, ALL_FILTERS)
+
+    plan = _plan([post], cache, excluded_tags=('sample',))
+
+    assert plan.filtered_out_posts == 1
+    assert plan.complete_posts == 0
+    assert plan.media == MediaCounts()
+    assert cache.has_post(post.id)
+    assert _plan([post], cache).complete_posts == 1

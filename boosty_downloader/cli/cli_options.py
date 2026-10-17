@@ -50,6 +50,18 @@ ContentTypeFilterOption = Annotated[
 ]
 
 
+ExcludeTagOption = Annotated[
+    list[str] | None,
+    typer.Option(
+        '--exclude-tag',
+        help='Skip posts with this tag (whole name, case-insensitive). Repeat to exclude multiple tags.',
+        metavar='TAG',
+        show_default=False,
+        rich_help_panel=HelpPanels.filtering,
+    ),
+]
+
+
 PreferredVideoQualityOption = Annotated[
     VideoQualityOption,
     typer.Option(
