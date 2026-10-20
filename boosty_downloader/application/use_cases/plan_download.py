@@ -53,12 +53,14 @@ class PlanDownloadUseCase:
         post_cache: PostCache,
         filters: Sequence[DownloadContentTypeFilter],
         preferred_video_quality: BoostyOkVideoType,
+        excluded_tags: Sequence[str] = (),
     ) -> None:
         self.author_name = author_name
         self.boosty_api = boosty_api
         self.logger = logger
         self.post_cache = post_cache
         self.filters = filters
+        self.excluded_tags = excluded_tags
         self.preferred_video_quality = preferred_video_quality
 
     async def execute(self) -> DryRunReport:
@@ -69,6 +71,7 @@ class PlanDownloadUseCase:
                 walk.posts,
                 post_cache=self.post_cache,
                 filters=self.filters,
+                excluded_tags=self.excluded_tags,
                 preferred_video_quality=self.preferred_video_quality,
             ),
             problems=walk.problems,

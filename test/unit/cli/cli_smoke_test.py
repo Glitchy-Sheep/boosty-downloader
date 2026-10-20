@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import pytest
 from typer.testing import CliRunner
 
+from boosty_downloader.cli.commands import download as download_command
 from boosty_downloader.infrastructure.post_caching.post_cache import SQLitePostCache
 from boosty_downloader.main import typer_app
 
@@ -269,3 +270,40 @@ def test_root_help_names_the_env_var() -> None:
 
     assert '--config' in help_text
     assert 'BOOSTY_DOWNLOADER_CONFIG' in help_text
+
+
+@pytest.mark.parametrize(
+    'extra',
+    [[], ['--dry-run'], ['--post-url', 'https://boosty.to/someone/posts/p1']],
+)
+def test_exclude_tag_options_reach_the_download_handler(
+    monkeypatch: pytest.MonkeyPatch, extra: list[str]
+) -> None:
+    calls: list[object] = []
+
+    async def record_download(**kwargs: object) -> None:
+        calls.append(kwargs['excluded_tags'])
+
+    monkeypatch.setattr(download_command, '_download_handler', record_download)
+    result = runner.invoke(
+        typer_app,
+        [
+            'download',
+            'someone',
+            '--exclude-tag',
+            ' SAMPLE ',
+            '--exclude-tag',
+            'sample tag',
+            *extra,
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert calls == [('SAMPLE', 'sample tag')]
+
+
+@pytest.mark.parametrize('tag', ['', '   '])
+def test_empty_excluded_tag_is_a_usage_error(tag: str) -> None:
+    result = runner.invoke(typer_app, ['download', 'someone', '--exclude-tag', tag])
+    assert result.exit_code == 2
+    assert 'tag must not be empty' in _plain_text(result.output)

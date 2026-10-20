@@ -54,7 +54,7 @@ def _posts_line(stats: RunStatistics) -> str:
     if stats.posts_cached:
         parts.append(f'{stats.posts_cached} already cached')
     if stats.posts_without_content:
-        parts.append(f'{stats.posts_without_content} without matching content')
+        parts.append(f'{stats.posts_without_content} skipped by filters')
     if stats.posts_failed:
         parts.append(f'[red]{stats.posts_failed} failed[/red]')
     if stats.posts_locked:

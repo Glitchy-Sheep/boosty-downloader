@@ -28,6 +28,9 @@ from boosty_downloader.infrastructure.boosty_api.core.client import (
     BoostyAPIValidationError,
 )
 from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
+from boosty_downloader.infrastructure.boosty_api.models.post.post_overview import (
+    PostTagDTO,
+)
 from boosty_downloader.infrastructure.file_downloader import (
     DownloadUnexpectedStatusError,
 )
@@ -315,3 +318,25 @@ async def test_cancellation_propagates_for_the_130_exit_code(
 
     with pytest.raises(ApplicationCancelledError):
         await _use_case(api, reporter).execute()
+
+
+async def test_excluded_post_is_successfully_skipped_without_downloading(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    post = _post()
+    post.tags = [PostTagDTO(title='sample')]
+    reporter = _FakeReporter()
+    calls = _script_download(monkeypatch)
+    use_case = _use_case(_FakeApi(post=post), reporter)
+    use_case.context.excluded_tags = ('SAMPLE',)
+
+    outcome = await use_case.execute()
+
+    assert outcome is PostOutcome.downloaded
+    assert calls == []
+    assert use_case.context.run_statistics.posts_without_content == 1
+    assert use_case.context.run_statistics.posts_failed == 0
+    assert any(
+        'Skip post (excluded tag): post' in message for message in reporter.infos
+    )
+    assert reporter.errors == []
