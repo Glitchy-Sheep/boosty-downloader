@@ -119,24 +119,6 @@ Now you can just download your content with the following command:
 boosty-downloader download YOUR_CREATOR_NAME
 ```
 
-### Excluding posts by tag
-
-Skip posts containing any of the specified Boosty tags:
-
-```bash
-boosty-downloader download YOUR_CREATOR_NAME --exclude-tag 'sample' --exclude-tag 'another tag'
-```
-
-Tag names match in full, ignoring case and surrounding whitespace. A match to
-any excluded tag skips the entire post before saving HTML or fetching media.
-Posts with no tags (including unavailable or malformed tag metadata) remain
-eligible. With no `--exclude-tag`, behavior is unchanged.
-
-The same exclusions apply to `--post-url` and `--dry-run`. The dry-run blog
-overview still describes the whole blog; its download plan includes tag skips
-in the existing filtered-out count. Exclusion does not delete existing files or
-mark a post as downloaded in the cache. Remove the option later to download those posts.
-
 ## 🛡️ When downloads fail
 
 One bad link never costs you the whole run:
