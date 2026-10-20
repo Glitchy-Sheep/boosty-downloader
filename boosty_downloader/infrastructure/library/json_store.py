@@ -13,12 +13,12 @@ from boosty_downloader.infrastructure.library._post_json import (
 )
 from boosty_downloader.infrastructure.library.errors import InvalidPostRecordError
 
-_POST_FILENAME: Final = 'post.json'
+POST_RECORD_FILENAME: Final = 'post.json'
 
 
 def read_post_record(post_folder: Path) -> StoredPost | None:
     """Read a saved record; a missing file returns None without creating folders."""
-    post_file = post_folder / _POST_FILENAME
+    post_file = post_folder / POST_RECORD_FILENAME
     try:
         data = post_file.read_bytes()
     except FileNotFoundError:
@@ -30,14 +30,18 @@ def read_post_record(post_folder: Path) -> StoredPost | None:
         raise type(error)(message) from error
 
 
-def write_post_record(post_folder: Path, record: StoredPost) -> None:
-    """Validate and save a record atomically in an existing post folder."""
-    post_file = post_folder / _POST_FILENAME
+def write_post_record(
+    post_folder: Path, record: StoredPost, *, create_folder: bool = False
+) -> None:
+    """Validate a record before optionally creating its folder and saving atomically."""
+    post_file = post_folder / POST_RECORD_FILENAME
     try:
         data = encode_post_record(record)
     except InvalidPostRecordError as error:
         message = f'{post_file}: {error}'
         raise type(error)(message) from error
+    if create_folder:
+        post_folder.mkdir(parents=True, exist_ok=True)
     _write_atomically(post_file, data)
 
 

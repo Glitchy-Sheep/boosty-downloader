@@ -1,4 +1,4 @@
-"""Errors in saved post content, distinct from filesystem failures."""
+"""Errors in saved post content or identity, distinct from filesystem failures."""
 
 
 class InvalidPostRecordError(ValueError):
@@ -7,3 +7,7 @@ class InvalidPostRecordError(ValueError):
 
 class UnsupportedPostSchemaError(InvalidPostRecordError):
     """The record uses a schema version this reader does not support."""
+
+
+class AmbiguousPostFolderError(ValueError):
+    """More than one candidate folder matches a post lookup."""
