@@ -1,12 +1,10 @@
 """Read and atomically publish the record in one known post folder."""
 
-import os
-from contextlib import suppress
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 from typing import Final
 
 from boosty_downloader.domain.stored_post import StoredPost
+from boosty_downloader.infrastructure.library._atomic_write import write_atomically
 from boosty_downloader.infrastructure.library._post_json import (
     decode_post_record,
     encode_post_record,
@@ -42,25 +40,4 @@ def write_post_record(
         raise type(error)(message) from error
     if create_folder:
         post_folder.mkdir(parents=True, exist_ok=True)
-    _write_atomically(post_file, data)
-
-
-def _write_atomically(post_file: Path, data: bytes) -> None:
-    temporary_path: Path | None = None
-    try:
-        with NamedTemporaryFile(
-            mode='wb',
-            dir=post_file.parent,
-            prefix=f'{post_file.name}.',
-            suffix='.tmp',
-            delete=False,
-        ) as temporary:
-            temporary_path = Path(temporary.name)
-            temporary.write(data)
-            temporary.flush()
-            os.fsync(temporary.fileno())
-        temporary_path.replace(post_file)
-    finally:
-        if temporary_path is not None:
-            with suppress(OSError):
-                temporary_path.unlink(missing_ok=True)
+    write_atomically(post_file, data)

@@ -20,7 +20,7 @@ from boosty_downloader.domain.stored_post import (
     StoredPost,
     TextBlock,
 )
-from boosty_downloader.infrastructure.library import json_store
+from boosty_downloader.infrastructure.library import _atomic_write, json_store
 from boosty_downloader.infrastructure.library._post_json import (
     decode_post_record,
     encode_post_record,
@@ -125,7 +125,7 @@ def test_replacement_flushes_and_syncs_complete_file_then_closes_before_publicat
         real_replace(source, destination)
         replaced = True
 
-    monkeypatch.setattr(json_store.os, 'fsync', observe_fsync)
+    monkeypatch.setattr(_atomic_write.os, 'fsync', observe_fsync)
     monkeypatch.setattr(Path, 'replace', observe_replace)
     write_post_record(tmp_path, record)
 
@@ -233,7 +233,7 @@ def test_invalid_record_is_rejected_before_creating_a_temporary(
     old_bytes = (tmp_path / 'post.json').read_bytes()
     record.post.id = ''
     create_temporary = Mock(side_effect=AssertionError('filesystem was touched'))
-    monkeypatch.setattr(json_store, 'NamedTemporaryFile', create_temporary)
+    monkeypatch.setattr(_atomic_write, 'NamedTemporaryFile', create_temporary)
 
     with pytest.raises(InvalidPostRecordError):
         write_post_record(tmp_path, record)
@@ -303,7 +303,7 @@ def test_temporary_creation_error_preserves_existing_record(
     write_post_record(tmp_path, record)
     old_bytes = (tmp_path / 'post.json').read_bytes()
     error = PermissionError('folder is not writable')
-    monkeypatch.setattr(json_store, 'NamedTemporaryFile', Mock(side_effect=error))
+    monkeypatch.setattr(_atomic_write, 'NamedTemporaryFile', Mock(side_effect=error))
 
     with pytest.raises(PermissionError) as raised:
         write_post_record(tmp_path, record)
@@ -333,7 +333,7 @@ def test_prepublication_failure_keeps_old_record_and_cleans_only_own_temporary(
         dir=tmp_path, prefix='post.json.', suffix='.tmp', delete=False
     ) as temporary:
         monkeypatch.setattr(
-            json_store, 'NamedTemporaryFile', Mock(return_value=temporary)
+            _atomic_write, 'NamedTemporaryFile', Mock(return_value=temporary)
         )
         match failure_point:
             case FailurePoint.write:
@@ -346,7 +346,7 @@ def test_prepublication_failure_keeps_old_record_and_cleans_only_own_temporary(
             case FailurePoint.flush:
                 monkeypatch.setattr(temporary, 'flush', Mock(side_effect=error))
             case FailurePoint.fsync:
-                monkeypatch.setattr(json_store.os, 'fsync', Mock(side_effect=error))
+                monkeypatch.setattr(_atomic_write.os, 'fsync', Mock(side_effect=error))
             case FailurePoint.replace:
                 monkeypatch.setattr(Path, 'replace', Mock(side_effect=error))
 

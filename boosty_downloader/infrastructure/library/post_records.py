@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import re
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path, PurePosixPath
 from stat import S_ISDIR
 from typing import TYPE_CHECKING, Final, TypeAlias
 
@@ -12,6 +11,10 @@ from boosty_downloader.domain.post_folder import (
     compose_post_directory_name,
     get_post_id_prefix,
     parse_post_folder_id,
+)
+from boosty_downloader.infrastructure.library._record_paths import (
+    check_containment,
+    get_author_folder,
 )
 from boosty_downloader.infrastructure.library.errors import AmbiguousPostFolderError
 from boosty_downloader.infrastructure.library.json_store import (
@@ -25,7 +28,6 @@ if TYPE_CHECKING:
 
 _PostFoldersByPrefix: TypeAlias = dict[str, list[Path]]
 _POST_FOLDER_DEPTH: Final = 2
-_UNSAFE_AUTHOR_CHARACTERS = re.compile(r'[<>:"/\\|?*\x00-\x1f\x7f]')
 
 
 class JsonPostRecords:
@@ -42,7 +44,7 @@ class JsonPostRecords:
     def find_post(self, author: str, post_id: str) -> LocatedPost | None:
         """Find the full identity, or one surviving recordless folder, without writes."""
         prefix = get_post_id_prefix(post_id)
-        author_folder = self._author_folder(author)
+        author_folder = get_author_folder(self._root, author)
         candidates = self._read_candidates(author_folder, prefix)
         matches = [
             candidate
@@ -59,7 +61,7 @@ class JsonPostRecords:
 
     def choose_post_folder(self, post: PostMetadata) -> str:
         """Suggest an unoccupied relative path without creating or reserving it."""
-        author_folder = self._author_folder(post.author)
+        author_folder = get_author_folder(self._root, post.author)
         collision = 0
         while True:
             name = compose_post_directory_name(
@@ -67,7 +69,7 @@ class JsonPostRecords:
             )
             candidate = author_folder / name
             if not _is_occupied(candidate):
-                self._check_containment(candidate)
+                check_containment(self._root, candidate)
                 return candidate.relative_to(self._root).as_posix()
             collision += 1
 
@@ -94,9 +96,9 @@ class JsonPostRecords:
         ):
             msg = f'Invalid folder for {post.author}/{post.id}: {folder!r}'
             raise ValueError(msg)
-        target = self._author_folder(post.author) / relative.name
-        self._check_containment(target)
-        self._check_containment(target / POST_RECORD_FILENAME)
+        target = get_author_folder(self._root, post.author) / relative.name
+        check_containment(self._root, target)
+        check_containment(self._root, target / POST_RECORD_FILENAME)
         return target
 
     def _check_ownership(self, folder: str, target: Path, post: PostMetadata) -> None:
@@ -129,24 +131,6 @@ class JsonPostRecords:
             # Retry discovery when the failed save's folder cannot be inspected.
             self._folders_by_author.pop(folder.parent.name, None)
 
-    def _author_folder(self, author: str) -> Path:
-        _validate_author(author)
-        folder = self._root / author
-        self._check_containment(folder)
-        try:
-            mode = folder.stat().st_mode
-        except FileNotFoundError:
-            return folder
-        if not S_ISDIR(mode):
-            msg = f'Author folder is not a directory: {folder}'
-            raise NotADirectoryError(msg)
-        return folder
-
-    def _check_containment(self, path: Path) -> None:
-        if not path.resolve().is_relative_to(self._root):
-            msg = f'Path escapes the library root: {path}'
-            raise ValueError(msg)
-
     def _folders_for(self, author_folder: Path) -> _PostFoldersByPrefix:
         author = author_folder.name
         if author not in self._folders_by_author:
@@ -162,27 +146,14 @@ class JsonPostRecords:
         return candidates
 
     def _read_folder(self, folder: Path) -> LocatedPost | None:
-        self._check_containment(folder)
+        check_containment(self._root, folder)
         if not _is_directory(folder):
             return None
-        self._check_containment(folder / POST_RECORD_FILENAME)
+        check_containment(self._root, folder / POST_RECORD_FILENAME)
         record = read_post_record(folder)
         if record is None and not _is_directory(folder):
             return None
         return LocatedPost(folder.relative_to(self._root).as_posix(), record)
-
-
-def _validate_author(author: str) -> None:
-    if (
-        not author
-        or author in {'.', '..'}
-        or author != author.strip()
-        or author.endswith('.')
-        or _UNSAFE_AUTHOR_CHARACTERS.search(author)
-        or PureWindowsPath(author).is_reserved()
-    ):
-        msg = f'Author must be a single portable directory name: {author!r}'
-        raise ValueError(msg)
 
 
 def _scan_post_folders(author_folder: Path) -> _PostFoldersByPrefix:
