@@ -116,10 +116,10 @@ class PostStore(Protocol):
         """
         Atomically save the full record without changing current access.
 
-        An existing post keeps its folder and marks. Failed folder-identity checks leave both posts unchanged.
+        The folder must be valid for the record under the adapter's layout, normally obtained through lookup or choice. An existing post keeps its folder and marks. Failed folder-identity checks leave both posts unchanged.
 
         Raises:
-            ValueError: The folder belongs to another post or would move this post.
+            ValueError: The folder is invalid, belongs to another post or would move this post.
 
         """
         ...

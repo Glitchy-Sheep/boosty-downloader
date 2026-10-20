@@ -1,11 +1,11 @@
-"""Find stable post folders and choose unused paths within one library root."""
+"""Find and save post records in stable folders within one library root."""
 
 from __future__ import annotations
 
 import re
-from pathlib import Path, PureWindowsPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from stat import S_ISDIR
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING, Final, TypeAlias
 
 from boosty_downloader.domain.library import LocatedPost
 from boosty_downloader.domain.post_folder import (
@@ -17,18 +17,20 @@ from boosty_downloader.infrastructure.library.errors import AmbiguousPostFolderE
 from boosty_downloader.infrastructure.library.json_store import (
     POST_RECORD_FILENAME,
     read_post_record,
+    write_post_record,
 )
 
 if TYPE_CHECKING:
-    from boosty_downloader.domain.stored_post import PostMetadata
+    from boosty_downloader.domain.stored_post import PostMetadata, StoredPost
 
 _PostFoldersByPrefix: TypeAlias = dict[str, list[Path]]
+_POST_FOLDER_DEPTH: Final = 2
 _UNSAFE_AUTHOR_CHARACTERS = re.compile(r'[<>:"/\\|?*\x00-\x1f\x7f]')
 
 
 class JsonPostRecords:
     """
-    Post-record lookup and folder choice for one library run.
+    Post-record lookup, folder choice and owned saves for one library run.
 
     Each author's folders are indexed once after a successful scan. Only paths are cached; records are read afresh. A new instance discovers folders added or renamed outside this component.
     """
@@ -68,6 +70,64 @@ class JsonPostRecords:
                 self._check_containment(candidate)
                 return candidate.relative_to(self._root).as_posix()
             collision += 1
+
+    def save_post(self, folder: str, record: StoredPost) -> None:
+        """Save in a valid owned folder; preserve other posts and retained files."""
+        target = self._validated_folder(folder, record.post)
+        self._check_ownership(folder, target, record.post)
+        prefix = get_post_id_prefix(record.post.id)
+        try:
+            write_post_record(target, record, create_folder=True)
+        except OSError:
+            self._remember_failed_folder(target, prefix)
+            raise
+        self._remember_folder(target, prefix)
+
+    def _validated_folder(self, folder: str, post: PostMetadata) -> Path:
+        relative = PurePosixPath(folder)
+        prefix = get_post_id_prefix(post.id)
+        if (
+            len(relative.parts) != _POST_FOLDER_DEPTH
+            or relative.as_posix() != folder
+            or relative.parts[0] != post.author
+            or parse_post_folder_id(relative.name) != prefix
+        ):
+            msg = f'Invalid folder for {post.author}/{post.id}: {folder!r}'
+            raise ValueError(msg)
+        target = self._author_folder(post.author) / relative.name
+        self._check_containment(target)
+        self._check_containment(target / POST_RECORD_FILENAME)
+        return target
+
+    def _check_ownership(self, folder: str, target: Path, post: PostMetadata) -> None:
+        current = self.find_post(post.author, post.id)
+        if (
+            current is not None
+            and current.record is not None
+            and current.folder != folder
+        ):
+            msg = f'Post {post.author}/{post.id} already occupies {current.folder}'
+            raise ValueError(msg)
+        existing = read_post_record(target)
+        if existing is not None and (
+            existing.post.author != post.author or existing.post.id != post.id
+        ):
+            msg = f'Post folder belongs to another post: {folder}'
+            raise ValueError(msg)
+
+    def _remember_folder(self, folder: Path, prefix: str) -> None:
+        index = self._folders_by_author.setdefault(folder.parent.name, {})
+        candidates = index.setdefault(prefix, [])
+        if folder not in candidates:
+            candidates.append(folder)
+
+    def _remember_failed_folder(self, folder: Path, prefix: str) -> None:
+        try:
+            if _is_directory(folder):
+                self._remember_folder(folder, prefix)
+        except OSError:
+            # Retry discovery when the failed save's folder cannot be inspected.
+            self._folders_by_author.pop(folder.parent.name, None)
 
     def _author_folder(self, author: str) -> Path:
         _validate_author(author)

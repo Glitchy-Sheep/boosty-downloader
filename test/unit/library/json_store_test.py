@@ -250,6 +250,53 @@ def test_write_requires_existing_parent(tmp_path: Path, record: StoredPost):
     assert list(tmp_path.iterdir()) == []
 
 
+def test_opt_in_folder_creation_validates_once_and_creates_missing_parents(
+    tmp_path: Path, record: StoredPost, monkeypatch: pytest.MonkeyPatch
+):
+    folder = tmp_path / 'missing' / 'nested'
+    encode = Mock(wraps=encode_post_record)
+    monkeypatch.setattr(json_store, 'encode_post_record', encode)
+
+    write_post_record(folder, record, create_folder=True)
+
+    encode.assert_called_once_with(record)
+    assert read_post_record(folder) == record
+    assert [path.name for path in folder.iterdir()] == ['post.json']
+
+
+def test_invalid_record_does_not_create_folder_or_parents(
+    tmp_path: Path, record: StoredPost, monkeypatch: pytest.MonkeyPatch
+):
+    folder = tmp_path / 'missing' / 'nested'
+    record.post.id = ''
+    create_folder = Mock(side_effect=AssertionError('filesystem was touched'))
+    monkeypatch.setattr(Path, 'mkdir', create_folder)
+
+    with pytest.raises(InvalidPostRecordError) as raised:
+        write_post_record(folder, record, create_folder=True)
+
+    create_folder.assert_not_called()
+    assert str(folder / 'post.json') in str(raised.value)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_folder_creation_error_preserves_existing_record(
+    tmp_path: Path, record: StoredPost, monkeypatch: pytest.MonkeyPatch
+):
+    write_post_record(tmp_path, record)
+    old_bytes = (tmp_path / 'post.json').read_bytes()
+    record.post.title = 'Unpublished'
+    error = PermissionError('folder creation denied')
+    monkeypatch.setattr(Path, 'mkdir', Mock(side_effect=error))
+
+    with pytest.raises(PermissionError) as raised:
+        write_post_record(tmp_path, record, create_folder=True)
+
+    assert raised.value is error
+    assert (tmp_path / 'post.json').read_bytes() == old_bytes
+    assert [path.name for path in tmp_path.iterdir()] == ['post.json']
+
+
 def test_temporary_creation_error_preserves_existing_record(
     tmp_path: Path, record: StoredPost, monkeypatch: pytest.MonkeyPatch
 ):
@@ -266,12 +313,15 @@ def test_temporary_creation_error_preserves_existing_record(
     assert [path.name for path in tmp_path.iterdir()] == ['post.json']
 
 
+@pytest.mark.parametrize('create_folder', [False, True])
 @pytest.mark.parametrize('failure_point', FailurePoint)
 def test_prepublication_failure_keeps_old_record_and_cleans_only_own_temporary(
     tmp_path: Path,
     record: StoredPost,
     monkeypatch: pytest.MonkeyPatch,
     failure_point: FailurePoint,
+    *,
+    create_folder: bool,
 ):
     write_post_record(tmp_path, record)
     old_bytes = (tmp_path / 'post.json').read_bytes()
@@ -301,7 +351,7 @@ def test_prepublication_failure_keeps_old_record_and_cleans_only_own_temporary(
                 monkeypatch.setattr(Path, 'replace', Mock(side_effect=error))
 
         with pytest.raises(OSError, match='injected disk failure') as raised:
-            write_post_record(tmp_path, record)
+            write_post_record(tmp_path, record, create_folder=create_folder)
 
         assert raised.value is error
         assert temporary.closed
