@@ -1,4 +1,4 @@
-"""Errors in saved post content or identity, distinct from filesystem failures."""
+"""Errors in saved library records or identity, distinct from filesystem failures."""
 
 
 class InvalidPostRecordError(ValueError):
@@ -11,3 +11,11 @@ class UnsupportedPostSchemaError(InvalidPostRecordError):
 
 class AmbiguousPostFolderError(ValueError):
     """More than one candidate folder matches a post lookup."""
+
+
+class InvalidAuthorRecordError(ValueError):
+    """Author details or locked-post observations violate their JSON format."""
+
+
+class UnsupportedAuthorSchemaError(InvalidAuthorRecordError):
+    """An author service record uses an unsupported schema version."""
