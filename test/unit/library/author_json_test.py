@@ -26,8 +26,8 @@ from boosty_downloader.infrastructure.library.errors import (
 JsonObject: TypeAlias = dict[str, Any]
 Decoder: TypeAlias = Callable[[bytes], object]
 NOW = datetime(2026, 10, 20, 12, 30, 45, 123456, tzinfo=timezone.utc)
-POST_ID = 'abcd1234-1111-2222-3333-444444444444'
-SECOND_ID = 'abcd1234-1111-2222-3333-555555555555'
+POST_ID = '00000000-0000-4000-8000-000000000001'
+SECOND_ID = '00000000-0000-4000-8000-000000000002'
 AUTHOR_DOCUMENT: JsonObject = {
     'schema_version': 1,
     'author': {
