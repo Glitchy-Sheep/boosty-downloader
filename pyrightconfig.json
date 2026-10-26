@@ -3,7 +3,8 @@
     "include": [
         "boosty_downloader",
         "test/support/memory_post_store.py",
-        "test/unit/library/memory_post_store_test.py"
+        "test/unit/library/memory_post_store_test.py",
+        "test/unit/library/post_store_test.py"
     ],
     "exclude": [
         "**/node_modules",
