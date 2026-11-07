@@ -2,15 +2,15 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, feat/v5]
     types: [opened, synchronize, reopened, labeled]
   push:
-    branches: [main]
+    branches: [main, feat/v5]
 
 permissions:
   contents: read
 
-# A new push to a PR cancels its previous run; runs on main are never cancelled.
+# A new push to a PR cancels its previous run; push runs are never cancelled.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -106,7 +106,7 @@ jobs:
     timeout-minutes: 5
     steps:
       # Full history is needed to diff the Unreleased section
-      # against the merge base between the PR branch and main.
+      # against the PR target branch.
       - name: Checkout (full history)
         uses: actions/checkout@v7
         with:

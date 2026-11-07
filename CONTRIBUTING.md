@@ -27,7 +27,12 @@ All available commands are listed via bare `task`.
 
 ## 👩‍💻 Making Changes
 
-This project uses **trunk-based development** - all changes go to `main` via short-lived branches and pull requests.
+Changes use short-lived task branches and pull requests, with two integration branches:
+
+- `main` maintains the current 4.x downloader. Start maintenance work from `main` and target it in the PR.
+- `feat/v5` combines the new library storage and viewer. Start v5 tasks from `feat/v5` and target it in the PR.
+
+Shared fixes and dependency updates land in `main` first, then merge into `feat/v5`. When v5 is complete, it returns to `main` through a final reviewed PR.
 
 ### Branch naming
 
@@ -61,7 +66,7 @@ The project uses:
 
 ## 📝 Commit Messages
 
-PRs are squash-merged, so the PR title becomes the commit on `main`. Follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) with the area of the project in parentheses:
+PRs are squash-merged, so the PR title becomes the commit on the target branch. Follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) with the area of the project in parentheses:
 
 ```
 feat(cli): add --config to point at a config file
@@ -78,6 +83,8 @@ The PR description follows the [PR template](.github/pull_request_template.md).
 Describe not only **what** changed, but **why**.
 
 ## 🚀 Releasing (Maintainers)
+
+Releases are cut from `main`. Merge the completed `feat/v5` branch into `main` before starting the v5.0.0 release.
 
 1. Make sure `## Unreleased` in CHANGELOG.md has all changes listed
 2. Run the release wizard:
