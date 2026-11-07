@@ -1,9 +1,9 @@
-"""The downloader saves portable names for author files and built-in media."""
+"""Reserved names match the actual files written by the downloader."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, TypeAlias
+from dataclasses import replace
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
@@ -11,12 +11,22 @@ from aiohttp import web
 from aiohttp.test_utils import TestServer
 from aiohttp_retry import RetryClient
 
+from boosty_downloader.application.mappers.live_post import LiveMedia
+from boosty_downloader.application.media_paths import (
+    DiskSnapshot,
+    FileMatch,
+    MediaPathHint,
+    find_media_file,
+    get_preferred_media_path,
+    reserve_media_path,
+)
 from boosty_downloader.domain.post_data_chunks import (
     PostDataChunkAudio,
     PostDataChunkBoostyVideo,
     PostDataChunkFile,
     PostDataChunkImage,
 )
+from boosty_downloader.domain.stored_post import MediaKind
 from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
 )
@@ -31,122 +41,88 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 PAYLOAD = b'synthetic media'
-BuiltinMedia: TypeAlias = (
-    PostDataChunkImage
-    | PostDataChunkFile
-    | PostDataChunkAudio
-    | PostDataChunkBoostyVideo
-)
+MEDIA_ID = 'file:abcdefgh-first'
 
 
-@dataclass(frozen=True)
-class FileDownloadCase:
-    filename: str
-    expected_name: str
-    guess_extension: bool = False
-
-
-@dataclass(frozen=True)
-class MediaDownloadCase:
-    chunk: BuiltinMedia
-    content_type: str
-    expected_path: str
-
-
-def _create_media_app(content_type: str) -> web.Application:
-    async def serve_payload(_: web.Request) -> web.Response:
-        return web.Response(body=PAYLOAD, content_type=content_type)
-
-    app = web.Application()
-    app.router.add_get('/{tail:.*}', serve_payload)
-    return app
+async def _serve_payload(_: web.Request) -> web.Response:
+    return web.Response(body=PAYLOAD, content_type='video/mp4')
 
 
 @pytest.mark.parametrize(
-    'case',
+    ('filename', 'guess_extension'),
     [
-        pytest.param(
-            FileDownloadCase(filename='a:b?.zi?p', expected_name='ab.zip'),
-            id='unsafe-extension',
-        ),
-        pytest.param(
-            FileDownloadCase(
-                filename='report.' + 'я' * 150,
-                expected_name='report.' + 'я' * 115,
-            ),
-            id='long-extension',
-        ),
-        pytest.param(
-            FileDownloadCase(
-                filename='CON.' + 'я' * 150,
-                expected_name='_CON.' + 'я' * 115,
-            ),
-            id='device-long-extension',
-        ),
-        pytest.param(
-            FileDownloadCase(
-                filename='lesson.v1.tar.gz', expected_name='lesson.v1.tar.gz'
-            ),
-            id='dotted-author-name',
-        ),
-        pytest.param(
-            FileDownloadCase(filename='CON.txt', expected_name='_CON.txt'),
-            id='device-name',
-        ),
-        pytest.param(
-            FileDownloadCase(
-                filename='я' * 300 + '.zip', expected_name='я' * 118 + '.zip'
-            ),
-            id='long-stem',
-        ),
-        pytest.param(
-            FileDownloadCase(
-                filename='lesson.v1',
-                expected_name='lesson.v1.mp4',
-                guess_extension=True,
-            ),
-            id='dotted-guessed-stem',
-        ),
-        pytest.param(
-            FileDownloadCase(
-                filename='C:ON', expected_name='_CON.mp4', guess_extension=True
-            ),
-            id='guessed-device-name',
-        ),
-        pytest.param(
-            FileDownloadCase(
-                filename='я' * 300,
-                expected_name='я' * 118 + '.mp4',
-                guess_extension=True,
-            ),
-            id='long-guessed-stem',
-        ),
+        ('a:b?.zi?p', False),
+        ('report.' + 'я' * 150, False),
+        ('CON.' + 'я' * 150, False),
+        ('lesson.v1.tar.gz', False),
+        ('CON.txt', False),
+        ('я' * 300 + '.zip', False),
+        ('lesson.v1', True),
+        ('C:ON', True),
+        ('я' * 300, True),
+    ],
+    ids=[
+        'unsafe-extension',
+        'long-extension',
+        'device-long-extension',
+        'dotted-author-name',
+        'device-name',
+        'long-stem',
+        'dotted-guessed-stem',
+        'guessed-device-name',
+        'long-guessed-stem',
     ],
 )
-async def test_downloaded_filename_is_portable(
-    tmp_path: Path, case: FileDownloadCase
-) -> None:
-    app = _create_media_app('video/mp4')
+async def test_reserved_candidate_is_the_downloaded_and_rediscovered_name(
+    tmp_path: Path,
+    filename: str,
+    *,
+    guess_extension: bool,
+):
+    preferred = filename + '.mp4' if guess_extension else filename
+    reserved = reserve_media_path(preferred, MEDIA_ID, DiskSnapshot({}), {})
+    app = web.Application()
+    app.router.add_get('/payload', _serve_payload)
+
     async with TestServer(app) as server, RetryClient() as session:
         saved = await download_file(
             DownloadFileConfig(
                 session=session,
                 url=str(server.make_url('/payload')),
-                filename=case.filename,
+                filename=filename,
                 destination=tmp_path,
-                guess_extension=case.guess_extension,
+                guess_extension=guess_extension,
             )
         )
 
-    assert saved == tmp_path / case.expected_name
+    assert saved.name == reserved
     assert saved.read_bytes() == PAYLOAD
     assert len(saved.name.encode('utf-8')) <= MAX_NAME_BYTES
+    assert find_media_file(
+        MEDIA_ID,
+        DiskSnapshot({saved.name: saved.stat().st_size}),
+        {},
+        preferred=MediaPathHint(filename, suffix_from_response=guess_extension),
+        expected_size=len(PAYLOAD),
+    ) == FileMatch(path=saved.name, size=len(PAYLOAD))
+
+
+async def _serve_media_payload(request: web.Request) -> web.Response:
+    content_types = {
+        MediaKind.image.value: 'image/png',
+        MediaKind.file.value: 'application/octet-stream',
+        MediaKind.audio.value: 'audio/mpeg',
+        MediaKind.boosty_video.value: 'video/mp4',
+    }
+    return web.Response(
+        body=PAYLOAD, content_type=content_types[request.match_info['kind']]
+    )
 
 
 async def _save_builtin_media(
-    downloader: PostMediaDownloader, media: BuiltinMedia
+    downloader: PostMediaDownloader, media: LiveMedia
 ) -> Path:
-    match media:
+    match media.download:
         case PostDataChunkImage() as image:
             return await downloader.download_image(image, lambda _: None)
         case PostDataChunkFile() as file:
@@ -159,93 +135,111 @@ async def _save_builtin_media(
 
 
 @pytest.mark.parametrize(
-    'case',
+    'media',
     [
         pytest.param(
-            MediaDownloadCase(
-                chunk=PostDataChunkImage(id='image-empty-id', url='/image/'),
-                content_type='image/png',
-                expected_path='images/untitled.png',
+            LiveMedia(
+                kind=MediaKind.image,
+                download=PostDataChunkImage(id='image-empty-id', url='/image/'),
             ),
             id='empty-image-url-basename',
         ),
         pytest.param(
-            MediaDownloadCase(
-                chunk=PostDataChunkFile(
+            LiveMedia(
+                kind=MediaKind.file,
+                download=PostDataChunkFile(
                     id='file-empty-id', url='/file/empty', filename='/'
                 ),
-                content_type='application/octet-stream',
-                expected_path='files/untitled',
             ),
             id='empty-file-basename',
         ),
         pytest.param(
-            MediaDownloadCase(
-                chunk=PostDataChunkAudio(
+            LiveMedia(
+                kind=MediaKind.audio,
+                download=PostDataChunkAudio(
                     id='audio-empty-id', url='/audio/empty', title='.'
                 ),
-                content_type='audio/mpeg',
-                expected_path='audio/untitled',
             ),
             id='empty-audio-basename',
         ),
         pytest.param(
-            MediaDownloadCase(
-                chunk=PostDataChunkImage(
+            LiveMedia(
+                kind=MediaKind.image,
+                download=PostDataChunkImage(
                     id='image-api-id', url='/image/opaque%2Fpicture%3F?sig=fixture'
                 ),
-                content_type='image/png',
-                expected_path='images/opaquepicture.png',
             ),
             id='encoded-image-name',
         ),
         pytest.param(
-            MediaDownloadCase(
-                chunk=PostDataChunkFile(
+            LiveMedia(
+                kind=MediaKind.file,
+                download=PostDataChunkFile(
                     id='file-api-id', url='/file/archive', filename='nested/report.???'
                 ),
-                content_type='application/octet-stream',
-                expected_path='files/reportuntitled',
             ),
             id='author-path-and-unsafe-extension',
         ),
         pytest.param(
-            MediaDownloadCase(
-                chunk=PostDataChunkAudio(
+            LiveMedia(
+                kind=MediaKind.audio,
+                download=PostDataChunkAudio(
                     id='audio-api-id', url='/audio/song', title='album/track.v1.mp3'
                 ),
-                content_type='audio/mpeg',
-                expected_path='audio/track.v1.mp3',
             ),
             id='audio-title-basename',
         ),
         pytest.param(
-            MediaDownloadCase(
-                chunk=PostDataChunkBoostyVideo(
+            LiveMedia(
+                kind=MediaKind.boosty_video,
+                download=PostDataChunkBoostyVideo(
                     id='abcdefgh-fixture',
                     url='/boosty_video/lesson',
                     title='я' * 300 + '.v1',
                     quality='medium',
                 ),
-                content_type='video/mp4',
-                expected_path='boosty_videos/' + 'я' * 110 + ' (abcdefgh).mp4',
             ),
             id='long-video-title',
         ),
     ],
 )
-async def test_builtin_media_keeps_portable_names_and_folder_layout(
-    tmp_path: Path, case: MediaDownloadCase
-) -> None:
-    app = _create_media_app(case.content_type)
+async def test_preferred_hint_finds_the_file_saved_by_post_media_downloader(
+    tmp_path: Path,
+    media: LiveMedia,
+):
+    chunk = media.download
+    assert isinstance(
+        chunk,
+        (
+            PostDataChunkImage,
+            PostDataChunkFile,
+            PostDataChunkAudio,
+            PostDataChunkBoostyVideo,
+        ),
+    )
+    media_id = f'{media.kind.value}:{chunk.id}'
+    app = web.Application()
+    app.router.add_get('/{kind}/{tail:.*}', _serve_media_payload)
     external = MagicMock(spec=ExternalVideosDownloader)
+
     async with TestServer(app) as server, RetryClient() as session:
-        media = replace(case.chunk, url=str(server.make_url(case.chunk.url)))
+        ready = replace(
+            media, download=replace(chunk, url=str(server.make_url(chunk.url)))
+        )
         downloader = PostMediaDownloader(session, external, tmp_path)
-        relative = await _save_builtin_media(downloader, media)
+        relative = await _save_builtin_media(downloader, ready)
 
     actual = tmp_path / relative
-    assert relative.as_posix() == case.expected_path
     assert actual.read_bytes() == PAYLOAD
     assert len(relative.name.encode('utf-8')) <= MAX_NAME_BYTES
+    hint = get_preferred_media_path(media_id, ready)
+    assert hint is not None
+    observed = relative.as_posix()
+    assert find_media_file(
+        media_id,
+        DiskSnapshot({observed: actual.stat().st_size}),
+        {},
+        preferred=hint,
+        expected_size=len(PAYLOAD),
+    ) == FileMatch(path=observed, size=len(PAYLOAD))
     external.download_video.assert_not_called()

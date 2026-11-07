@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <title>{{ title }}</title>
+    <meta name="boosty-downloader-page-template" content="{{ page_template_version }}" />
 
     <script>
         (function () {
@@ -211,6 +212,25 @@
             display: inline-block;
             font-size: 0.85rem;
             margin-top: 0.2rem;
+        }
+
+        .removed-media {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .removed-media-heading {
+            margin: 0;
+            color: var(--muted-color);
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .removed-media-note {
+            margin: 0.35rem 0 1rem;
+            color: var(--muted-color);
+            font-size: 0.85rem;
         }
 
         #theme-toggle {

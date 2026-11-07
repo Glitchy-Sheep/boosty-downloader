@@ -12,6 +12,7 @@ from boosty_downloader.infrastructure.html_generator.models import (
     HtmlGenVideo,
     HtmlListItem,
     HtmlListStyle,
+    HtmlTextBlock,
     HtmlTextFragment,
     HtmlTextStyle,
 )
@@ -49,7 +50,7 @@ def convert_list_to_html(chunk: PostDataChunkTextualList) -> HtmlGenList:
     """Convert domain list chunk to HTML list model."""
 
     def convert_list_item(item: PostDataChunkTextualList.ListItem) -> HtmlListItem:
-        data: list[HtmlGenText] = [
+        data: list[HtmlGenText | HtmlTextBlock] = [
             convert_text_to_html(text_chunk) for text_chunk in item.data
         ]
         nested_items = [convert_list_item(nested) for nested in item.nested_items]
@@ -60,7 +61,7 @@ def convert_list_to_html(chunk: PostDataChunkTextualList) -> HtmlGenList:
 
 
 def convert_list_style(style: PostDataChunkTextualList.ListStyle) -> HtmlListStyle:
-    """Map the domain list style to its presentation counterpart."""
+    """Map the stored list style to its presentation counterpart."""
     match style:
         case PostDataChunkTextualList.ListStyle.ordered:
             return HtmlListStyle.ORDERED
