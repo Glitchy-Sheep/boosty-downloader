@@ -23,6 +23,8 @@ _DATETIME_FIELDS: Final = frozenset(
         'synced_at',
         'added_at',
         'removed_at',
+        'seen_at',
+        'finished_at',
     }
 )
 

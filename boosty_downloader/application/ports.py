@@ -172,10 +172,10 @@ class LibraryReader(Protocol):
         """
         Save the supplied marks without changing post content or computing timestamps.
 
-        A saved post folder is required. Playback completion is decided by the caller.
+        A saved folder with confirmed full post identity is required. Playback completion is decided by the caller.
 
         Raises:
-            LookupError: The post has no saved folder.
+            LookupError: The post has no confirmed saved folder.
 
         """
         ...

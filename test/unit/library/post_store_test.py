@@ -6,11 +6,13 @@ from copy import deepcopy
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from shutil import rmtree
 from typing import TYPE_CHECKING
 
 import pytest
 
 from boosty_downloader.domain.library import LocatedPost
+from boosty_downloader.domain.library_marks import PlaybackPosition, PostMarks
 from boosty_downloader.domain.post_data_chunks import PostDataChunkText
 from boosty_downloader.domain.stored_post import (
     AuthorInfo,
@@ -28,6 +30,10 @@ from boosty_downloader.infrastructure.library.author_records import (
     read_author_record,
     read_locked_posts,
 )
+from boosty_downloader.infrastructure.library.post_marks import (
+    VIEWER_RECORD_FILENAME,
+    JsonPostMarks,
+)
 from boosty_downloader.infrastructure.library.post_store import JsonPostStore
 
 if TYPE_CHECKING:
@@ -40,6 +46,8 @@ LATER = NOW + timedelta(days=7)
 POST_ID = 'abcdefgh-first'
 MEDIA_ID = 'file:lesson'
 MEDIA_BYTES = b'Saved lesson file'
+AUDIO_ID = 'audio:lesson'
+AUDIO_BYTES = b'Saved lesson audio'
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,12 +77,13 @@ def record() -> StoredPost:
             created_at=NOW,
             updated_at=NOW,
             tags=['lesson'],
-            content_counters={'file': 1},
+            content_counters={'file': 1, 'audio': 1},
         ),
         sync=PostSync(NOW, NOW, page_template=1),
         blocks=[
             TextBlock([PostDataChunkText.TextFragment('Saved body')]),
             MediaBlock(MEDIA_ID),
+            MediaBlock(AUDIO_ID),
         ],
         media={
             MEDIA_ID: MediaEntry(
@@ -85,7 +94,22 @@ def record() -> StoredPost:
                 path='files/lesson.zip',
                 size=len(MEDIA_BYTES),
             ),
+            AUDIO_ID: MediaEntry(
+                kind=MediaKind.audio,
+                status=MediaStatus.downloaded,
+                added_at=NOW,
+                position=1,
+                path='audio/lesson.mp3',
+                size=len(AUDIO_BYTES),
+            ),
         },
+    )
+
+
+@pytest.fixture
+def marks() -> PostMarks:
+    return PostMarks(
+        seen_at=NOW, favorite=True, positions={AUDIO_ID: PlaybackPosition(42.5, NOW)}
     )
 
 
@@ -95,11 +119,11 @@ def _snapshot(paths: Iterable[Path]) -> dict[Path, FileSnapshot]:
     }
 
 
-def _seed_retained_files(root: Path, folder: str) -> list[Path]:
+def _seed_retained_files(root: Path, folder: str, marks: PostMarks) -> list[Path]:
     files = {
         root / folder / 'files/lesson.zip': MEDIA_BYTES,
+        root / folder / 'audio/lesson.mp3': AUDIO_BYTES,
         root / folder / 'post.html': b'<p>Saved page</p>',
-        root / folder / 'viewer.json': b'{"favorite": true}',
         root / 'writer/.boosty-downloader/avatar.jpg': b'avatar',
         root / 'writer/.boosty-downloader/cover.png': b'cover',
         root / f'writer/.boosty-downloader/teasers/{POST_ID}.jpg': b'teaser',
@@ -107,7 +131,8 @@ def _seed_retained_files(root: Path, folder: str) -> list[Path]:
     for path, content in files.items():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
-    return list(files)
+    JsonPostMarks(root).save_marks('writer', POST_ID, marks)
+    return [*files, root / folder / VIEWER_RECORD_FILENAME]
 
 
 def test_lookup_choice_and_absent_clear_do_not_create_a_library(
@@ -146,11 +171,11 @@ def test_locked_only_post_gets_a_body_before_explicit_access_clear(
 
 
 def test_lost_access_and_offline_resave_preserve_content_and_marks(
-    root: Path, store: PostStore, record: StoredPost
+    root: Path, store: PostStore, record: StoredPost, marks: PostMarks
 ):
     folder = store.choose_post_folder(record.post)
     store.save_post(folder, record)
-    retained = _seed_retained_files(root, folder)
+    retained = _seed_retained_files(root, folder, marks)
     before_files = _snapshot(retained)
     post_file = root / folder / 'post.json'
     before_record = _snapshot([post_file])
@@ -159,10 +184,12 @@ def test_lost_access_and_offline_resave_preserve_content_and_marks(
 
     store.save_locked_post(locked)
     store.save_locked_post(other)
+    store.save_author(AuthorInfo('writer', LATER, title='Updated author'))
 
     assert store.find_post('writer', POST_ID) == LocatedPost(folder, record)
     assert _snapshot([post_file]) == before_record
     assert _snapshot(retained) == before_files
+    assert JsonPostMarks(root).get_marks('writer', POST_ID) == marks
     reopened: PostStore = JsonPostStore(root)
     saved = reopened.find_post('writer', POST_ID)
     assert saved is not None
@@ -171,6 +198,7 @@ def test_lost_access_and_offline_resave_preserve_content_and_marks(
     saved.record.sync.page_template = 2
     reopened.save_post(saved.folder, saved.record)
 
+    assert JsonPostMarks(root).get_marks('writer', POST_ID) == marks
     assert read_locked_posts(root, 'writer') == {POST_ID: locked, other.post.id: other}
     after_resave = _snapshot([post_file, *retained])
     reopened.clear_locked_post('writer', POST_ID)
@@ -178,6 +206,7 @@ def test_lost_access_and_offline_resave_preserve_content_and_marks(
     assert read_locked_posts(root, 'writer') == {other.post.id: other}
     assert _snapshot([post_file, *retained]) == after_resave
     assert _snapshot(retained) == before_files
+    assert JsonPostMarks(root).get_marks('writer', POST_ID) == marks
     assert JsonPostStore(root).find_post('writer', POST_ID) == saved
     assert {path.name for path in (root / 'writer').iterdir()} == {
         '.boosty-downloader',
@@ -272,3 +301,140 @@ def test_relative_root_stays_fixed_after_working_directory_changes(
     store.clear_locked_post('writer', POST_ID)
     assert read_locked_posts(root, 'writer') == {}
     assert list(elsewhere.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    'viewer_data',
+    [None, b'{broken', b'{"schema_version": 2}'],
+    ids=['absent', 'corrupt', 'unsupported'],
+)
+def test_content_operations_preserve_absent_or_unreadable_marks(
+    root: Path, store: PostStore, record: StoredPost, viewer_data: bytes | None
+) -> None:
+    folder = store.choose_post_folder(record.post)
+    store.save_post(folder, record)
+    viewer = root / folder / VIEWER_RECORD_FILENAME
+    before: dict[Path, FileSnapshot] = {}
+    if viewer_data is not None:
+        viewer.write_bytes(viewer_data)
+        before = _snapshot([viewer])
+    updated = replace(record, post=replace(record.post, title='Edited lesson'))
+
+    store.save_author(AuthorInfo('writer', LATER, title='New author title'))
+    store.save_locked_post(LockedPost(record.post, LATER))
+    store.save_post(folder, updated)
+    assert store.find_post('writer', POST_ID) == LocatedPost(folder, updated)
+    store.choose_post_folder(updated.post)
+    store.clear_locked_post('writer', POST_ID)
+
+    assert read_author_record(root, 'writer') == AuthorInfo(
+        'writer', LATER, title='New author title'
+    )
+    assert read_locked_posts(root, 'writer') == {}
+    if viewer_data is None:
+        assert not viewer.exists()
+        assert JsonPostMarks(root).get_marks('writer', POST_ID) == PostMarks()
+    else:
+        assert _snapshot([viewer]) == before
+
+
+def test_marks_creation_and_replacement_preserve_content_metadata_and_assets(
+    root: Path, store: PostStore, record: StoredPost, marks: PostMarks
+) -> None:
+    folder = store.choose_post_folder(record.post)
+    store.save_post(folder, record)
+    _seed_retained_files(root, folder, marks)
+    store.save_author(
+        AuthorInfo(
+            'writer',
+            NOW,
+            avatar_path='.boosty-downloader/avatar.jpg',
+            cover_path='.boosty-downloader/cover.png',
+        )
+    )
+    store.save_locked_post(
+        LockedPost(record.post, LATER, f'.boosty-downloader/teasers/{POST_ID}.jpg')
+    )
+    viewer = root / folder / VIEWER_RECORD_FILENAME
+    viewer.unlink()
+    before = _snapshot(path for path in root.rglob('*') if path.is_file())
+    mark_store = JsonPostMarks(root)
+
+    for replacement in (marks, PostMarks()):
+        mark_store.save_marks('writer', POST_ID, replacement)
+
+        assert mark_store.get_marks('writer', POST_ID) == replacement
+        assert (
+            _snapshot(
+                path for path in root.rglob('*') if path.is_file() and path != viewer
+            )
+            == before
+        )
+
+
+def test_post_edit_keeps_positions_for_removed_media(
+    root: Path, store: PostStore, record: StoredPost, marks: PostMarks
+) -> None:
+    folder = store.choose_post_folder(record.post)
+    store.save_post(folder, record)
+    retained = _seed_retained_files(root, folder, marks)
+    before = _snapshot(retained)
+    updated = replace(
+        record,
+        post=replace(record.post, updated_at=LATER, content_counters={'file': 1}),
+        sync=replace(record.sync, synced_at=LATER),
+        blocks=[
+            TextBlock([PostDataChunkText.TextFragment('Updated body')]),
+            MediaBlock(MEDIA_ID),
+        ],
+        media={
+            **record.media,
+            AUDIO_ID: replace(record.media[AUDIO_ID], removed_at=LATER),
+        },
+    )
+
+    store.save_post(folder, updated)
+
+    assert store.find_post('writer', POST_ID) == LocatedPost(folder, updated)
+    assert JsonPostMarks(root).get_marks('writer', POST_ID) == marks
+    assert _snapshot(retained) == before
+
+
+def test_library_move_keeps_content_and_marks_at_the_new_root(
+    tmp_path: Path, root: Path, store: PostStore, record: StoredPost, marks: PostMarks
+) -> None:
+    folder = store.choose_post_folder(record.post)
+    store.save_post(folder, record)
+    _seed_retained_files(root, folder, marks)
+    store.save_author(AuthorInfo('writer', NOW, title='Lessons'))
+    before = _snapshot(path for path in root.rglob('*') if path.is_file())
+    moved = root.rename(tmp_path / 'moved-library')
+
+    assert JsonPostStore(moved).find_post('writer', POST_ID) == LocatedPost(
+        folder, record
+    )
+    assert JsonPostMarks(moved).get_marks('writer', POST_ID) == marks
+    expected = {
+        moved / path.relative_to(root): snapshot for path, snapshot in before.items()
+    }
+    assert _snapshot(path for path in moved.rglob('*') if path.is_file()) == expected
+
+
+def test_deleted_post_saved_again_starts_without_marks(
+    root: Path, store: PostStore, record: StoredPost, marks: PostMarks
+) -> None:
+    folder = store.choose_post_folder(record.post)
+    store.save_post(folder, record)
+    _seed_retained_files(root, folder, marks)
+    mark_store = JsonPostMarks(root)
+    rmtree(root / folder)
+    assert mark_store.get_marks('writer', POST_ID) is None
+
+    new_run = JsonPostStore(root)
+    new_folder = new_run.choose_post_folder(record.post)
+    new_run.save_post(new_folder, record)
+
+    assert new_folder == folder
+    assert new_run.find_post('writer', POST_ID) == LocatedPost(new_folder, record)
+    assert mark_store.get_marks('writer', POST_ID) == PostMarks()
+    assert not (root / new_folder / VIEWER_RECORD_FILENAME).exists()

@@ -19,3 +19,11 @@ class InvalidAuthorRecordError(ValueError):
 
 class UnsupportedAuthorSchemaError(InvalidAuthorRecordError):
     """An author service record uses an unsupported schema version."""
+
+
+class InvalidViewerRecordError(ValueError):
+    """A saved record or supplied marks violate the viewer JSON format."""
+
+
+class UnsupportedViewerSchemaError(InvalidViewerRecordError):
+    """A viewer record uses an unsupported schema version."""
