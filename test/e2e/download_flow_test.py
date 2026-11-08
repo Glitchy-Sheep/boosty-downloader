@@ -222,6 +222,7 @@ async def _run_download(  # noqa: PLR0913 - isolated download scenarios
     excluded_tags: tuple[str, ...] = (),
     filters: list[DownloadContentTypeFilter] | None = None,
     post_id: str | None = None,
+    restore_missing: bool = False,
 ) -> RunStatistics:
     """One full download run wired exactly like the app, minus the console."""
     async with ClientSession() as session:
@@ -240,6 +241,7 @@ async def _run_download(  # noqa: PLR0913 - isolated download scenarios
             library_root=destination,
             filters=list(DownloadContentTypeFilter) if filters is None else filters,
             excluded_tags=excluded_tags,
+            restore_missing=restore_missing,
             preferred_video_quality=BoostyOkVideoType.medium,
             progress_reporter=reporter,
             failed_logger=FailedDownloadsLogger(
@@ -367,7 +369,12 @@ async def test_media_of_one_post_downloads_in_parallel(tmp_path: Path) -> None:
 
 
 async def _dry_run(
-    destination: Path, api_base: URL, *, excluded_tags: tuple[str, ...] = ()
+    destination: Path,
+    api_base: URL,
+    *,
+    excluded_tags: tuple[str, ...] = (),
+    restore_missing: bool = False,
+    filters: list[DownloadContentTypeFilter] | None = None,
 ) -> DryRunReport:
     """The dry-run wired exactly like the CLI does it."""
     async with ClientSession() as session:
@@ -384,8 +391,9 @@ async def _dry_run(
                 JsonPostStore(destination),
                 AUTHOR,
                 BoostyOkVideoType.medium,
+                restore_missing=restore_missing,
             ),
-            filters=list(DownloadContentTypeFilter),
+            filters=list(DownloadContentTypeFilter) if filters is None else filters,
             excluded_tags=excluded_tags,
         ).execute()
 

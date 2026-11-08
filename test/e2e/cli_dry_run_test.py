@@ -12,6 +12,7 @@ import aiohttp
 import pytest
 from rich.text import Text
 from support.synthetic_post import (
+    FILE_ID,
     file_chunk,
     synthetic_post,
     text_chunk,
@@ -21,6 +22,7 @@ from typer.testing import CliRunner
 from boosty_downloader.application.mappers.live_post import map_post_dto_to_live
 from boosty_downloader.application.reconcile import prepare_record
 from boosty_downloader.cli.commands import download as download_command
+from boosty_downloader.domain.stored_post import MediaStatus
 from boosty_downloader.infrastructure.boosty_api.core.client import BoostyAPIClient
 from boosty_downloader.infrastructure.boosty_api.models.post.extra import Extra
 from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
@@ -253,4 +255,45 @@ def test_single_post_preview_rejects_options_before_config_and_debug_setup(
     assert result.exit_code == 2
     output = Text.from_ansi(result.output).plain
     assert '--dry-run previews the full-blog run' in ' '.join(output.split())
+    assert _snapshot(tmp_path) == before
+
+
+@pytest.mark.parametrize('debug', [False, True])
+@pytest.mark.parametrize('restore_missing', [False, True])
+def test_restore_preview_counts_a_deleted_file_without_writing(  # noqa: PLR0913 - independent preview modes
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    listing: list[PostDTO],
+    post: PostDTO,
+    *,
+    debug: bool,
+    restore_missing: bool,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _write_config(tmp_path)
+    library = tmp_path / 'library'
+    folder = _seed_record(library, post)
+    store = JsonPostStore(library)
+    located = store.find_post(AUTHOR, post.id)
+    assert located is not None
+    assert located.record is not None
+    media = located.record.media[f'file:{FILE_ID}']
+    media.status = MediaStatus.downloaded
+    media.path = 'files/missing.zip'
+    media.size = 10
+    store.save_post(located.folder, located.record)
+    assert not (folder / media.path).exists()
+    (tmp_path / DEBUG_LOG_FILENAME).write_text('Earlier diagnostics', encoding='utf-8')
+    listing.append(post)
+    before = _snapshot(tmp_path)
+    args = _preview_args(tmp_path, debug=debug)
+    if restore_missing:
+        args.append('--restore-missing')
+
+    result = runner.invoke(typer_app, args)
+
+    assert result.exit_code == 0, result.exception
+    output = Text.from_ansi(result.output).plain
+    assert re.search(rf'\bfiles[ \t]+{int(restore_missing)}\b', output)
+    assert ('No media downloads planned.' in output) is not restore_missing
     assert _snapshot(tmp_path) == before
