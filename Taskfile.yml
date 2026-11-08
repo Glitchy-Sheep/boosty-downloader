@@ -167,9 +167,11 @@ tasks:
       - uv run pytest {{.CLI_ARGS}} test/canary/
 
   build:
-    desc: Build wheel and source distribution
+    desc: Build viewer assets, wheel and source distribution
     cmds:
+      - task: ui:build
       - uv build
+      - uv run python scripts/check_distribution.py
       - echo "Build complete at ./dist/"
 
   build:install:
