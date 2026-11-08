@@ -24,10 +24,10 @@ from boosty_downloader.infrastructure.boosty_api.utils.auth_parsers import (
     parse_auth_header,
     parse_session_cookie,
 )
+from boosty_downloader.infrastructure.library.post_store import JsonPostStore
 from boosty_downloader.infrastructure.loggers.request_tracing import (
     create_request_trace_config,
 )
-from boosty_downloader.infrastructure.post_caching.post_cache import SQLitePostCache
 from boosty_downloader.infrastructure.yaml_configuration.config import (
     DEFAULT_CONFIG_PATH,
     DownloadSettings,
@@ -41,7 +41,7 @@ if TYPE_CHECKING:
 
     from aiohttp_retry import RetryOptionsBase
 
-    from boosty_downloader.application.ports import PostCache
+    from boosty_downloader.application.ports import PostStore
     from boosty_downloader.infrastructure.loggers.base import RichLogger
 
 
@@ -61,6 +61,11 @@ class AppSettings:
     cache_dir: Path
     auth_header: str
     cookie: str
+
+    @property
+    def library_root(self) -> Path:
+        """Library containing creator folders and their saved post records."""
+        return self.destination_dir.parent
 
 
 def _cache_dir(
@@ -82,9 +87,10 @@ def load_settings(
     config_path: Path = DEFAULT_CONFIG_PATH,
     destination_directory: Path | None = None,
     cache_directory: Path | None = None,
+    read_only: bool = False,
 ) -> AppSettings:
     """Load the config file; a CLI directory wins over the config value."""
-    config = init_config(config_path)
+    config = init_config(config_path, read_only=read_only)
     paths = config.downloading_settings
     target = destination_directory or paths.target_directory
     return AppSettings(
@@ -123,7 +129,7 @@ class App:
     api: BoostyAPIClient
     # Session without credentials, for media downloads only.
     media_http: RetryClient
-    cache: PostCache
+    post_store: PostStore
     reporter: ConsoleProgressReporter
 
 
@@ -160,7 +166,7 @@ async def open_app(
     logger: RichLogger,
     retry_options: RetryOptionsBase = DEFAULT_RETRY_OPTIONS,
 ) -> AsyncGenerator[App]:
-    """Open the sessions, the reporter and the cache; close them all on exit."""
+    """Open network sessions and progress reporting without creating local files."""
     async with AsyncExitStack() as stack:
         api_session = await stack.enter_async_context(
             # Credentials live ONLY here: this session talks to the Boosty API.
@@ -194,15 +200,12 @@ async def open_app(
                 )
             )
         )
-        cache = stack.enter_context(
-            SQLitePostCache(destination=settings.cache_dir, logger=logger)
-        )
         yield App(
             api=BoostyAPIClient(
                 RetryClient(api_session, retry_options=retry_options),
                 request_delay_seconds=request_delay_seconds,
             ),
             media_http=RetryClient(media_session, retry_options=retry_options),
-            cache=cache,
+            post_store=JsonPostStore(settings.library_root),
             reporter=reporter,
         )

@@ -13,6 +13,7 @@ from boosty_downloader.application.download_context import DownloadContext
 from boosty_downloader.application.filtering import (
     VideoQualityOption,
 )
+from boosty_downloader.application.post_preparation import PostPreparer
 from boosty_downloader.application.post_retry import PostOutcome
 from boosty_downloader.application.use_cases.download_all_posts import (
     DownloadAllPostUseCase,
@@ -37,6 +38,7 @@ from boosty_downloader.cli.cli_options import (
     global_options,
 )
 from boosty_downloader.cli.composition_root import load_settings, open_app
+from boosty_downloader.cli.error_reporting import report_command_errors
 from boosty_downloader.cli.update_check import notify_about_updates
 from boosty_downloader.cli.views.blog_overview import render_blog_overview
 from boosty_downloader.cli.views.download_plan import render_download_plan
@@ -50,6 +52,7 @@ from boosty_downloader.infrastructure.external_videos_downloader.external_videos
     ExternalVideosDownloader,
 )
 from boosty_downloader.infrastructure.loggers import logger_instances
+from boosty_downloader.infrastructure.loggers.debug_file import debug_logging
 from boosty_downloader.infrastructure.loggers.failed_downloads_logger import (
     FailedDownloadsLogger,
 )
@@ -100,10 +103,14 @@ async def _dry_run_handler(
         author_name=settings.author_name,
         boosty_api=app.api,
         logger=logger_instances.downloader_logger,
-        post_cache=app.cache,
+        preparer=PostPreparer(
+            library_root=settings.library_root,
+            store=app.post_store,
+            author=settings.author_name,
+            preferred_video_quality=preferred_video_quality.to_ok_video_type(),
+        ),
         filters=content_type_filter,
         excluded_tags=excluded_tags,
-        preferred_video_quality=preferred_video_quality.to_ok_video_type(),
     ).execute()
     console = app.reporter.console
     console.print(
@@ -151,6 +158,7 @@ async def _download_handler(  # noqa: PLR0913
         config_path=config_path,
         destination_directory=destination_directory,
         cache_directory=cache_directory,
+        read_only=dry_run,
     )
     await notify_about_updates(logger)
 
@@ -173,7 +181,8 @@ async def _download_handler(  # noqa: PLR0913
             external_videos_downloader=ExternalVideosDownloader(),
             filters=content_type_filter,
             excluded_tags=excluded_tags,
-            post_cache=app.cache,
+            post_store=app.post_store,
+            library_root=settings.library_root,
             preferred_video_quality=preferred_video_quality.to_ok_video_type(),
             progress_reporter=app.reporter,
             failed_logger=FailedDownloadsLogger(
@@ -242,7 +251,7 @@ def register(app: typer.Typer) -> None:
         [bold]DETAILS:[/bold]
 
             - Use `--post-url` to download a specific post.
-            - Use `--dry-run` to preview a run: new and updated posts, media to fetch and the known size - nothing is downloaded.
+            - Use `--dry-run` to preview a run: new and updated posts, media to fetch and the known size - no files are created or changed.
             - By default, downloads all posts from newest to oldest with all available contents.
             - Unavailable posts are skipped, and you will be notified about them.
             - Every run ends with statistics: posts, media by type, total size and time.
@@ -252,9 +261,8 @@ def register(app: typer.Typer) -> None:
 
             - Use multiple `-f` flags to select content types (all included by default).
             - Example: [italic]boosty-downloader download <USERNAME> -f files -f post_content[/italic]
-            - [bold red]NOTE:[/bold red] If you specify [italic]post_content[/italic] without [italic]boosty_videos[/italic], [italic]external_videos[/italic] or [italic]files[/italic],
-                    those videos and attachments won't appear on the post page due to cache limitations.
-            - For best results, just leave all filters by default.
+            - Every saved page describes the complete post, including media not selected for download.
+            - Filters choose which media to fetch; later runs can add other media to the same page.
             - Use `--exclude-tag TAG` to skip posts with a tag (whole name, case-insensitive); repeat for multiple tags.
 
 
@@ -264,12 +272,13 @@ def register(app: typer.Typer) -> None:
             - Please avoid spamming the API.
 
 
-        [bold]ABOUT CONTENT SYNC & CACHING:[/bold]
+        [bold]ABOUT SAVED POSTS:[/bold]
 
-            - Downloaded content is cached automatically to avoid duplicates.
-            - Downloading the same post with different filters downloads only missing parts.
-            - Posts updated by creators are fully re-downloaded.
-            - Cache doesn't check local files, you can delete them and they still won't re-download.
+            - Saved post records in the destination library track content and downloaded media.
+            - A later run reuses saved media, adds newly selected media and retries failed downloads.
+            - Updated text and metadata refresh the page without downloading unchanged media.
+            - Files you remove locally stay removed.
+            - The legacy --cache-dir option does not control these records.
 
         """
         excluded_tags = tuple(tag.strip() for tag in exclude_tag or ())
@@ -282,20 +291,25 @@ def register(app: typer.Typer) -> None:
         # A broken link or a post of another creator fails here, before any
         # config is read or request is made.
         post_id = _post_id_of(post_url, username) if post_url is not None else None
-        asyncio.run(
-            _download_handler(
-                username=username,
-                config_path=global_options(ctx).config_path,
-                post_id=post_id,
-                content_type_filter=(
-                    content_type_filter or list(DownloadContentTypeFilter)
+        options = global_options(ctx)
+        with (
+            debug_logging(enabled=options.debug, read_only=dry_run),
+            report_command_errors(read_only=dry_run),
+        ):
+            asyncio.run(
+                _download_handler(
+                    username=username,
+                    config_path=options.config_path,
+                    post_id=post_id,
+                    content_type_filter=(
+                        content_type_filter or list(DownloadContentTypeFilter)
+                    ),
+                    preferred_video_quality=preferred_video_quality,
+                    excluded_tags=excluded_tags,
+                    request_delay_seconds=request_delay_seconds,
+                    destination_directory=destination_directory,
+                    cache_directory=cache_directory,
+                    skip_all_failures=skip_all_failures,
+                    dry_run=dry_run,
                 ),
-                preferred_video_quality=preferred_video_quality,
-                excluded_tags=excluded_tags,
-                request_delay_seconds=request_delay_seconds,
-                destination_directory=destination_directory,
-                cache_directory=cache_directory,
-                skip_all_failures=skip_all_failures,
-                dry_run=dry_run,
-            ),
-        )
+            )

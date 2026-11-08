@@ -125,7 +125,7 @@ def test_clean_cache_runs_without_an_event_loop(
 def test_clean_cache_asks_first_and_a_no_keeps_the_cache(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The cache is the only record of what was downloaded; it used to go without a question."""
+    """Declining the legacy-cache confirmation keeps its SQLite file."""
     monkeypatch.chdir(tmp_path)
     db = _plant_cache(tmp_path / 'cache', 'someone')
 
@@ -136,7 +136,7 @@ def test_clean_cache_asks_first_and_a_no_keeps_the_cache(
     )
 
     assert result.exit_code == 0, result.output
-    assert 'the next run downloads everything again' in _plain_text(result.output)
+    assert 'Saved post records and media will be kept' in _plain_text(result.output)
     assert db.exists()
     assert 'is kept' in _plain_text(result.output)
 
