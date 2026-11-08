@@ -1,347 +1,318 @@
-"""Post media downloads run in parallel - capped, ordered, and one failure
-does not throw away the chunks that finished.
-"""
+"""Parallel media work preserves durable outcomes, body order and cancellation."""
 
 from __future__ import annotations
 
 import asyncio
-import time
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, cast
-from uuid import UUID, uuid4
+from typing import TYPE_CHECKING, cast
+from unittest.mock import AsyncMock, Mock, patch
+from uuid import uuid4
 
 import pytest
+from support.synthetic_post import IMAGE_ID, file_chunk, image_chunk, synthetic_post
 
+from boosty_downloader.application.download_context import DownloadContext
 from boosty_downloader.application.exceptions.application_errors import (
     ApplicationCancelledError,
     ApplicationFailedDownloadError,
 )
-from boosty_downloader.application.filtering import (
-    BoostyOkVideoType,
-)
-from boosty_downloader.application.run_statistics import RunStatistics
-from boosty_downloader.application.use_cases import (
-    download_single_post as usecase_module,
-)
+from boosty_downloader.application.filtering import BoostyOkVideoType
+from boosty_downloader.application.ports import FailureLog, ProgressReporter
 from boosty_downloader.application.use_cases.download_single_post import (
     DownloadSinglePostUseCase,
 )
 from boosty_downloader.domain.content_types import DownloadContentTypeFilter
-from boosty_downloader.domain.post_data_chunks import (
-    PostDataChunkFile,
-    PostDataChunkImage,
-)
+from boosty_downloader.domain.stored_post import MediaStatus
 from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
-from boosty_downloader.infrastructure.html_generator.models import (
-    HtmlGenFile,
-    HtmlGenImage,
-    HtmlGenUnavailable,
-    UnavailableKind,
+from boosty_downloader.infrastructure.library.post_store import JsonPostStore
+from boosty_downloader.infrastructure.media_publication import PublishedFile
+from boosty_downloader.infrastructure.post_media_downloader import (
+    MediaDownloadError,
+    PostMediaDownloader,
 )
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from boosty_downloader.application.download_context import DownloadContext
-    from boosty_downloader.domain.post import PostDataAllChunks
-    from boosty_downloader.infrastructure.html_generator.models import HtmlGenChunk
+    from aiohttp_retry import RetryClient
 
-NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
-FILES = DownloadContentTypeFilter.files
-POST_CONTENT = DownloadContentTypeFilter.post_content
-
-
-class _FakeReporter:
-    def create_task(self, *args: object, **kwargs: object) -> UUID:
-        del args, kwargs
-        return uuid4()
-
-    def update_task(self, *args: object, **kwargs: object) -> None:
-        del args, kwargs
-
-    def complete_task(self, *args: object, **kwargs: object) -> None:
-        del args, kwargs
-
-    def success(self, message: str) -> None:
-        del message
-
-    def notice(self, message: str) -> None:
-        del message
-
-    def warn(self, message: str) -> None:
-        del message
-
-
-class _FakeCache:
-    def __init__(self) -> None:
-        self.cached: list[list[DownloadContentTypeFilter]] = []
-
-    def get_post_missing_parts(
-        self, **kwargs: object
-    ) -> list[DownloadContentTypeFilter]:
-        del kwargs
-        return [FILES, POST_CONTENT]
-
-    def cache_post(
-        self,
-        post_uuid: str,
-        updated_at: datetime,
-        parts: list[DownloadContentTypeFilter],
-    ) -> None:
-        del post_uuid, updated_at
-        self.cached.append(parts)
-
-    def commit(self) -> None:
-        pass
-
-
-class _Context:
-    def __init__(self) -> None:
-        self.progress_reporter = _FakeReporter()
-        self.post_cache = _FakeCache()
-        self.filters = [FILES, POST_CONTENT]
-        self.preferred_video_quality = BoostyOkVideoType.medium
-        self.run_statistics = RunStatistics()
-
-
-def _file(n: int) -> dict[str, object]:
-    return {
-        'type': 'file',
-        'id': f'f{n}',
-        'url': f'https://cdn/f{n}',
-        'title': f'file-{n}.bin',
-        'size': 1,
-        'complete': True,
-    }
-
-
-def _image() -> dict[str, object]:
-    return {'type': 'image', 'id': 'i1', 'url': 'https://cdn/image/i1', 'size': 1}
-
-
-def _post_dto(chunks: list[dict[str, object]]) -> PostDTO:
-    return PostDTO(
-        id='p1',
-        title='parallel post',
-        created_at=NOW,
-        updated_at=NOW,
-        has_access=True,
-        signed_query='',
-        data=chunks,
+    from boosty_downloader.domain.post_data_chunks import PostDataChunkFile
+    from boosty_downloader.domain.stored_post import StoredPost
+    from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
+        ExternalVideosDownloader,
     )
+    from boosty_downloader.infrastructure.media_transfer import ReserveMediaPath
+    from boosty_downloader.infrastructure.post_media_downloader import ProgressCallback
+
+
+def _file(index: int) -> dict[str, object]:
+    return {**file_chunk(), 'id': f'f{index}', 'title': f'file-{index}.bin', 'size': 1}
 
 
 def _use_case(
-    tmp_path: Path, chunks: list[dict[str, object]]
-) -> tuple[DownloadSinglePostUseCase, _Context]:
-    context = _Context()
-    use_case = DownloadSinglePostUseCase(
-        destination=tmp_path / 'post',
-        post_dto=_post_dto(chunks),
-        download_context=cast('DownloadContext', context),
+    root: Path, chunks: list[dict[str, object]], media: Mock
+) -> DownloadSinglePostUseCase:
+    payload = synthetic_post()
+    payload['data'] = chunks
+    reporter = Mock(spec=ProgressReporter)
+    reporter.create_task.return_value = uuid4()
+    context = DownloadContext(
+        author_name='author',
+        downloader_session=cast('RetryClient', None),
+        external_videos_downloader=cast('ExternalVideosDownloader', None),
+        post_store=JsonPostStore(root),
+        library_root=root,
+        filters=list(DownloadContentTypeFilter),
+        preferred_video_quality=BoostyOkVideoType.medium,
+        progress_reporter=reporter,
+        failed_logger=AsyncMock(spec=FailureLog),
     )
-    return use_case, context
+    with patch(
+        'boosty_downloader.application.use_cases.download_single_post.PostMediaDownloader',
+        return_value=media,
+    ):
+        return DownloadSinglePostUseCase(root, PostDTO.model_validate(payload), context)
 
 
-def _patch_render(monkeypatch: pytest.MonkeyPatch) -> list[list[HtmlGenChunk]]:
-    rendered: list[list[HtmlGenChunk]] = []
-
-    def fake_render(chunks: list[HtmlGenChunk], **kwargs: object) -> None:
-        del kwargs
-        rendered.append(chunks)
-
-    monkeypatch.setattr(usecase_module, 'render_html_to_file', fake_render)
-    return rendered
+def _record(use_case: DownloadSinglePostUseCase) -> StoredPost:
+    located = use_case.context.post_store.find_post('author', use_case.post_dto.id)
+    assert located is not None
+    assert located.record is not None
+    return located.record
 
 
-def _fail(name: str) -> ApplicationFailedDownloadError:
-    return ApplicationFailedDownloadError(
-        post_uuid='p1', message='dead link', resource=name
-    )
+def _save(filename: str, reserve: ReserveMediaPath) -> PublishedFile:
+    target = reserve(filename)
+    path = target.library_root / target.post_folder / target.relative_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b'x')
+    return PublishedFile(path, size=1)
 
 
-async def test_chunks_download_in_parallel_capped_and_ordered(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+async def test_downloads_overlap_with_a_cap_and_page_keeps_author_order(
+    tmp_path: Path,
 ) -> None:
-    """Six 50ms chunks must overlap (but never more than 4 at once) and the
-    rendered page must keep the author's chunk order regardless of finish order.
-    """
-    active = 0
-    max_active = 0
+    started = [asyncio.Event() for _ in range(6)]
+    release = [asyncio.Event() for _ in range(6)]
+    finished = [asyncio.Event() for _ in range(6)]
+    completion_order: list[int] = []
+    active = maximum = 0
 
-    async def scripted(
-        self: DownloadSinglePostUseCase,
-        chunk: PostDataAllChunks,
-        missing: object,
-        post: object,
-    ) -> object:
-        del self, missing, post
-        nonlocal active, max_active
+    async def download(
+        file: PostDataChunkFile,
+        on_progress: ProgressCallback,
+        *,
+        reserve: ReserveMediaPath,
+    ) -> PublishedFile:
+        del on_progress
+        nonlocal active, maximum
+        index = int(file.id.removeprefix('f'))
         active += 1
-        max_active = max(max_active, active)
-        await asyncio.sleep(0.05)
+        maximum = max(maximum, active)
+        started[index].set()
+        await release[index].wait()
+        result = _save(file.filename, reserve)
         active -= 1
-        return cast('PostDataChunkFile', chunk).filename
+        completion_order.append(index)
+        finished[index].set()
+        return result
 
-    monkeypatch.setattr(DownloadSinglePostUseCase, '_safely_process_chunk', scripted)
-    rendered = _patch_render(monkeypatch)
+    media = Mock(spec=PostMediaDownloader)
+    media.download_file = AsyncMock(side_effect=download)
+    use_case = _use_case(tmp_path, [_file(n) for n in range(6)], media)
+    task = asyncio.create_task(use_case.execute())
+    try:
+        await asyncio.wait_for(started[3].wait(), timeout=2)
+        assert not started[4].is_set()
+        release[3].set()
+        await asyncio.wait_for(started[4].wait(), timeout=2)
+        release[4].set()
+        await asyncio.wait_for(started[5].wait(), timeout=2)
+        for index in [5, 2, 1, 0]:
+            release[index].set()
+            await asyncio.wait_for(finished[index].wait(), timeout=2)
+        await task
+    finally:
+        for event in release:
+            event.set()
+        await asyncio.gather(task, return_exceptions=True)
 
-    started = time.monotonic()
-    use_case, _ = _use_case(tmp_path, [_file(n) for n in range(6)])
-    await use_case.execute()
-    duration = time.monotonic() - started
-
-    assert max_active <= 4, 'the semaphore must cap concurrency at 4'
-    assert max_active >= 2, 'chunks must actually overlap'
-    assert duration < 0.25, f'6x50ms must not run sequentially (took {duration:.2f}s)'
-    assert rendered == [[f'file-{n}.bin' for n in range(6)]], (
-        'the page must keep the original chunk order'
+    assert maximum == 4
+    assert completion_order == [3, 4, 5, 2, 1, 0]
+    assert not (use_case.destination / 'post.html').exists()
+    use_case.finalize()
+    page = (use_case.destination / 'post.html').read_text()
+    positions = [page.index(f'href="files/file-{n}.bin"') for n in range(6)]
+    assert positions == sorted(positions)
+    assert all(
+        entry.status is MediaStatus.downloaded
+        for entry in _record(use_case).media.values()
     )
+    assert use_case.context.run_statistics.posts_downloaded == 0
+    use_case.record_success()
+    assert use_case.context.run_statistics.posts_downloaded == 1
 
 
-async def test_one_failed_chunk_lets_the_others_finish_and_keeps_their_types(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+async def test_failed_file_allows_siblings_to_finish_and_persists_each_outcome(
+    tmp_path: Path,
 ) -> None:
-    """A dead file must not throw away the rest of the post: the siblings run to
-    the end, the page renders without the failed attachment, post_content is
-    cached, files is not - and the failure still reaches the retrier.
-    """
-    cancelled = 0
+    failed = asyncio.Event()
+    finished: list[str] = []
 
-    async def scripted(
-        self: DownloadSinglePostUseCase,
-        chunk: PostDataAllChunks,
-        missing: object,
-        post: object,
-    ) -> object:
-        del self, missing, post
-        nonlocal cancelled
-        name = cast('PostDataChunkFile', chunk).filename
-        if name == 'file-0.bin':
-            await asyncio.sleep(0.01)
-            raise _fail(name)
-        try:
-            await asyncio.sleep(0.05)
-        except asyncio.CancelledError:
-            cancelled += 1
-            raise
-        return None
+    async def download(
+        file: PostDataChunkFile,
+        on_progress: ProgressCallback,
+        *,
+        reserve: ReserveMediaPath,
+    ) -> PublishedFile:
+        del on_progress
+        if file.id == 'f0':
+            failed.set()
+            message = 'dead link'
+            raise MediaDownloadError(message, resource_url=file.url)
+        await failed.wait()
+        await asyncio.sleep(0)
+        result = _save(file.filename, reserve)
+        finished.append(file.id)
+        return result
 
-    monkeypatch.setattr(DownloadSinglePostUseCase, '_safely_process_chunk', scripted)
-    rendered = _patch_render(monkeypatch)
-    use_case, context = _use_case(tmp_path, [_file(n) for n in range(4)])
+    media = Mock(spec=PostMediaDownloader)
+    media.download_file = AsyncMock(side_effect=download)
+    use_case = _use_case(tmp_path, [_file(n) for n in range(4)], media)
 
     with pytest.raises(ApplicationFailedDownloadError) as info:
         await use_case.execute()
 
-    assert info.value.resource == 'file-0.bin'
-    assert cancelled == 0, 'the siblings must finish, not get cancelled'
-    assert rendered == [[]], 'the page renders; the failed attachment is not on it'
-    assert context.post_cache.cached == [[POST_CONTENT]]
-    assert context.run_statistics.posts_downloaded == 0
+    assert 'dead link' in info.value.message
+    assert set(finished) == {'f1', 'f2', 'f3'}
+    record = _record(use_case)
+    assert record.media['file:f0'].status is MediaStatus.failed
+    assert all(
+        record.media[f'file:f{n}'].status is MediaStatus.downloaded for n in range(1, 4)
+    )
+    use_case.finalize()
+    page = (use_case.destination / 'post.html').read_text()
+    assert 'dead link' in page
+    assert all(f'href="files/file-{n}.bin"' in page for n in range(1, 4))
+    assert use_case.context.run_statistics.posts_downloaded == 0
 
 
-async def test_a_failed_page_element_becomes_a_placeholder_and_keeps_the_page_uncached(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+async def test_failed_image_becomes_a_placeholder_then_retry_replaces_it(
+    tmp_path: Path,
 ) -> None:
-    """The page is written with a note at the image's place, so the post stays
-    readable. post_content is not cached: a cached page with a hole could never
-    be rewritten, an uncached one is rewritten by the retry or the next run.
-    """
-    image_ok = False
-
-    async def scripted(
-        self: DownloadSinglePostUseCase,
-        chunk: PostDataAllChunks,
-        missing: object,
-        post: object,
-    ) -> object:
-        del self, missing, post
-        if not isinstance(chunk, PostDataChunkImage):
-            return None
-        if image_ok:
-            return HtmlGenImage(url='images/i1.png')
-        image_failure = _fail('i1')
-        raise image_failure
-
-    monkeypatch.setattr(DownloadSinglePostUseCase, '_safely_process_chunk', scripted)
-    rendered = _patch_render(monkeypatch)
-    use_case, context = _use_case(tmp_path, [_image(), _file(0), _file(1)])
+    media = Mock(spec=PostMediaDownloader)
+    media.download_image = AsyncMock(
+        side_effect=MediaDownloadError('dead image', 'https://images.example/image')
+    )
+    use_case = _use_case(tmp_path, [image_chunk()], media)
 
     with pytest.raises(ApplicationFailedDownloadError):
         await use_case.execute()
+    use_case.finalize()
+    assert 'dead image' in (use_case.destination / 'post.html').read_text()
+    assert _record(use_case).media[f'image:{IMAGE_ID}'].status is MediaStatus.failed
 
-    assert rendered == [
-        [HtmlGenUnavailable(kind=UnavailableKind.IMAGE, reason='dead link')]
-    ]
-    assert context.post_cache.cached == [[FILES]], 'a page with a hole is not cached'
+    async def download(
+        image: object, on_progress: ProgressCallback, *, reserve: ReserveMediaPath
+    ) -> PublishedFile:
+        del image, on_progress
+        return _save('picture.png', reserve)
 
-    # The retry brings the image: the page is rewritten without the note.
-    image_ok = True
+    media.download_image = AsyncMock(side_effect=download)
     await use_case.execute()
+    use_case.finalize()
+    page = (use_case.destination / 'post.html').read_text()
+    assert 'src="images/picture.png"' in page
+    assert 'dead image' not in page
+    assert _record(use_case).media[f'image:{IMAGE_ID}'].status is MediaStatus.downloaded
 
-    assert rendered[-1] == [HtmlGenImage(url='images/i1.png')]
-    assert context.post_cache.cached[-1] == [FILES, POST_CONTENT]
 
-
-async def test_a_retry_keeps_the_page_elements_of_the_earlier_attempt(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+async def test_fresh_attempt_uses_saved_files_in_its_complete_page(
+    tmp_path: Path,
 ) -> None:
-    """A retry fetches the failed type only; the page must still carry the pieces
-    that landed before, or a rewrite after a retry would drop the videos and files
-    of the first attempt.
-    """
-    file_card = HtmlGenFile(url='files/file-0.bin', filename='file-0.bin')
-    image_ok = False
+    async def download_file(
+        file: PostDataChunkFile,
+        on_progress: ProgressCallback,
+        *,
+        reserve: ReserveMediaPath,
+    ) -> PublishedFile:
+        del on_progress
+        return _save(file.filename, reserve)
 
-    async def scripted(
-        self: DownloadSinglePostUseCase,
-        chunk: PostDataAllChunks,
-        missing: object,
-        post: object,
-    ) -> object:
-        del self, missing, post
-        if isinstance(chunk, PostDataChunkFile):
-            # Cached after the first attempt: the retry does not touch it.
-            return None if image_ok else file_card
-        if image_ok:
-            return HtmlGenImage(url='images/i1.png')
-        image_failure = _fail('i1')
-        raise image_failure
-
-    monkeypatch.setattr(DownloadSinglePostUseCase, '_safely_process_chunk', scripted)
-    rendered = _patch_render(monkeypatch)
-    use_case, _ = _use_case(tmp_path, [_image(), _file(0)])
-
+    media = Mock(spec=PostMediaDownloader)
+    media.download_file = AsyncMock(side_effect=download_file)
+    media.download_image = AsyncMock(
+        side_effect=MediaDownloadError('dead image', 'https://images.example/image')
+    )
+    chunks = [image_chunk(), _file(0)]
+    use_case = _use_case(tmp_path, chunks, media)
     with pytest.raises(ApplicationFailedDownloadError):
         await use_case.execute()
-    image_ok = True
-    # Fresh signed links rebuild the use case; the page travels with them.
-    fresh_use_case, _ = _use_case(tmp_path, [_image(), _file(0)])
-    fresh_use_case.take_page_from(use_case)
-    await fresh_use_case.execute()
 
-    assert rendered[-1] == [HtmlGenImage(url='images/i1.png'), file_card]
+    async def download_image(
+        image: object, on_progress: ProgressCallback, *, reserve: ReserveMediaPath
+    ) -> PublishedFile:
+        del image, on_progress
+        return _save('picture.png', reserve)
+
+    media.download_image = AsyncMock(side_effect=download_image)
+    retry = _use_case(tmp_path, chunks, media)
+    await retry.execute()
+    retry.finalize()
+
+    media.download_file.assert_awaited_once()
+    page = (retry.destination / 'post.html').read_text()
+    assert page.index('src="images/picture.png"') < page.index(
+        'href="files/file-0.bin"'
+    )
+    assert all(
+        entry.status is MediaStatus.downloaded
+        for entry in _record(retry).media.values()
+    )
 
 
-async def test_outer_cancel_keeps_the_application_contract(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+async def test_outer_cancel_waits_for_children_and_preserves_application_error(
+    tmp_path: Path,
 ) -> None:
-    """Ctrl+C during a parallel batch must still surface as the application
-    cancellation (the 130 exit code depends on it), not a bare CancelledError.
-    """
+    started = asyncio.Event()
+    cleaning = asyncio.Event()
+    allow_cleanup = asyncio.Event()
+    active = 0
 
-    async def scripted(*args: Any, **kwargs: Any) -> object:  # noqa: ANN401
-        del args, kwargs
-        await asyncio.sleep(5)
-        return None
+    async def download(
+        file: PostDataChunkFile,
+        on_progress: ProgressCallback,
+        *,
+        reserve: ReserveMediaPath,
+    ) -> PublishedFile:
+        del file, on_progress, reserve
+        nonlocal active
+        active += 1
+        if active == 3:
+            started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cleaning.set()
+            await allow_cleanup.wait()
+            active -= 1
+        pytest.fail('The transfer must be cancelled')
 
-    monkeypatch.setattr(DownloadSinglePostUseCase, '_safely_process_chunk', scripted)
-
-    use_case, _ = _use_case(tmp_path, [_file(n) for n in range(3)])
+    media = Mock(spec=PostMediaDownloader)
+    media.download_file = AsyncMock(side_effect=download)
+    use_case = _use_case(tmp_path, [_file(n) for n in range(3)], media)
     task = asyncio.create_task(use_case.execute())
-    await asyncio.sleep(0.05)
-    task.cancel()
-
+    try:
+        await asyncio.wait_for(started.wait(), timeout=2)
+        task.cancel()
+        await asyncio.wait_for(cleaning.wait(), timeout=2)
+        assert not task.done()
+    finally:
+        allow_cleanup.set()
     with pytest.raises(ApplicationCancelledError):
         await task
+    assert active == 0
+    assert use_case.context.run_statistics.posts_downloaded == 0
+    assert all(
+        entry.status is MediaStatus.pending
+        for entry in _record(use_case).media.values()
+    )

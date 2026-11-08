@@ -10,6 +10,7 @@ from boosty_downloader.application.exceptions.application_errors import (
     ApplicationCancelledError,
     ApplicationFailedDownloadError,
 )
+from boosty_downloader.application.post_download_state import PostRunProgress
 from boosty_downloader.application.use_cases.download_single_post import (
     DownloadSinglePostUseCase,
 )
@@ -44,10 +45,14 @@ class _PostAttempt:
 
     post_dto: PostDTO
     use_case: DownloadSinglePostUseCase
-    folder_name: str
     # A refresh is spent even when it fails: the second 400 on fresh
     # links means the problem is not expiry.
     refreshed: bool = False
+
+    @property
+    def folder_name(self) -> str:
+        """Use the located folder, including a retained folder after title changes."""
+        return self.use_case.destination.name
 
 
 class PostDownloadRetrier:
@@ -80,18 +85,22 @@ class PostDownloadRetrier:
             except ApplicationCancelledError:  # noqa: PERF203 - per-post isolation is the point here
                 raise
             except ApplicationFailedDownloadError as e:
-                fresh_attempt = await self._refresh_expired_links(attempt_state, e)
+                fresh_attempt = None
+                if attempt < MAX_DOWNLOAD_ATTEMPTS:
+                    fresh_attempt = await self._refresh_expired_links(attempt_state, e)
                 if fresh_attempt is not None:
                     attempt_state = fresh_attempt
                     continue
                 if not e.retryable:
-                    return self._skip_unavailable(
+                    outcome = self._skip_unavailable(
                         attempt_state.folder_name, failed_posts, e
                     )
+                    return await self._finish(attempt_state, outcome, failed_posts)
                 if attempt == MAX_DOWNLOAD_ATTEMPTS:
-                    return self._skip_after_retries(
+                    outcome = self._skip_after_retries(
                         attempt_state.folder_name, failed_posts, e, attempts=attempt
                     )
+                    return await self._finish(attempt_state, outcome, failed_posts)
                 delay = await self._wait_before_retry(
                     attempt_state.folder_name, e, attempt=attempt, delay=delay
                 )
@@ -100,17 +109,22 @@ class PostDownloadRetrier:
             # Must stay below the cancellation re-raise, or Ctrl+C
             # would be swallowed here.
             except Exception as e:  # noqa: BLE001
-                return await self._skip_unexpected(
+                outcome = await self._skip_unexpected(
                     attempt_state.folder_name,
                     attempt_state.post_dto.id,
                     failed_posts,
                     e,
                 )
+                return await self._finish(attempt_state, outcome, failed_posts)
             else:
-                return PostOutcome.downloaded
-        return PostOutcome.failed
+                return await self._finish(
+                    attempt_state, PostOutcome.downloaded, failed_posts
+                )
+        return await self._finish(attempt_state, PostOutcome.failed, failed_posts)
 
-    def _build_attempt(self, post_dto: PostDTO) -> _PostAttempt:
+    def _build_attempt(
+        self, post_dto: PostDTO, progress: PostRunProgress | None = None
+    ) -> _PostAttempt:
         """Compose the post folder name and the use case that downloads into it."""
         folder_name = compose_post_directory_name(
             post_dto.title, post_dto.created_at, post_dto.id
@@ -119,10 +133,9 @@ class PostDownloadRetrier:
             destination=self.destination / folder_name,
             post_dto=post_dto,
             download_context=self.context,
+            run_progress=progress,
         )
-        return _PostAttempt(
-            post_dto=post_dto, use_case=use_case, folder_name=folder_name
-        )
+        return _PostAttempt(post_dto=post_dto, use_case=use_case)
 
     async def _refresh_expired_links(
         self, attempt_state: _PostAttempt, error: ApplicationFailedDownloadError
@@ -142,10 +155,34 @@ class PostDownloadRetrier:
         except BoostyAPIError:
             # The normal retry/skip path handles the original error.
             return None
-        fresh_attempt = self._build_attempt(fresh_dto)
+        fresh_attempt = self._build_attempt(
+            fresh_dto, attempt_state.use_case.run_progress
+        )
         fresh_attempt.refreshed = True
-        fresh_attempt.use_case.take_page_from(attempt_state.use_case)
         return fresh_attempt
+
+    async def _finish(
+        self, state: _PostAttempt, outcome: PostOutcome, failed_posts: list[str]
+    ) -> PostOutcome:
+        try:
+            state.use_case.finalize()
+        except asyncio.CancelledError as error:
+            raise ApplicationCancelledError(state.post_dto.id) from error
+        except Exception as error:  # noqa: BLE001 - terminal per-post failure boundary
+            message = f'Could not render complete post page: {error}'
+            self.context.progress_reporter.error(message)
+            failed_posts.append(f'{state.folder_name} ({message})')
+            await self._log_unexpected(state.post_dto.id, message)
+            return PostOutcome.failed
+        if outcome is PostOutcome.downloaded:
+            state.use_case.record_success()
+        return outcome
+
+    async def _log_unexpected(self, post_id: str, message: str) -> None:
+        try:
+            await self.context.failed_logger.add_error(post_id, message)
+        except OSError as error:
+            self.context.progress_reporter.warn(f'Could not write failure log: {error}')
 
     def _skip_after_retries(
         self,
@@ -190,10 +227,7 @@ class PostDownloadRetrier:
         self.context.progress_reporter.error(
             f'Skip post after unexpected error: {folder_name} ({error}){hint}'
         )
-        await self.context.failed_logger.add_error(
-            post_id,
-            f'Unexpected error: {error}{hint}',
-        )
+        await self._log_unexpected(post_id, f'Unexpected error: {error}{hint}')
         return PostOutcome.failed
 
     async def _wait_before_retry(

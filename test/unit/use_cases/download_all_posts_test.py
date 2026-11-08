@@ -44,7 +44,7 @@ if TYPE_CHECKING:
 
     from aiohttp_retry import RetryClient
 
-    from boosty_downloader.application.ports import PostCache
+    from boosty_downloader.application.ports import PostStore
     from boosty_downloader.infrastructure.boosty_api.core.client import (
         BoostyAPIClient,
     )
@@ -103,7 +103,7 @@ class _FakeApi:
     def __init__(
         self, page: PostsResponse | None = None, refetch_error: Exception | None = None
     ) -> None:
-        self._page = page
+        self.page = page
         self._refetch_error = refetch_error
         self.refetched: list[str] = []
 
@@ -111,8 +111,8 @@ class _FakeApi:
         self, *args: object, **kwargs: object
     ) -> AsyncGenerator[PostsResponse, None]:
         del args, kwargs
-        assert self._page is not None
-        yield self._page
+        assert self.page is not None
+        yield self.page
 
     async def get_single_post(self, author_name: str, post_id: str) -> PostDTO:
         del author_name
@@ -147,12 +147,13 @@ def _use_case(
         extra=Extra(offset='', is_last=True),
     )
     if api is not None:
-        api._page = page
+        api.page = page
     context = DownloadContext(
         author_name='author',
         downloader_session=cast('RetryClient', None),
         external_videos_downloader=cast('ExternalVideosDownloader', None),
-        post_cache=cast('PostCache', None),
+        post_store=cast('PostStore', None),
+        library_root=Path('unused'),
         filters=[],
         preferred_video_quality=BoostyOkVideoType.medium,
         progress_reporter=reporter,
@@ -407,7 +408,8 @@ async def test_run_statistics_count_locked_and_failed_posts(
     use_case = _use_case(
         ['ok', 'broken', 'locked'], _FakeReporter(), _FakeFailedLogger(), api=api
     )
-    api._page.posts[2] = api._page.posts[2].model_copy(update={'has_access': False})
+    assert api.page is not None
+    api.page.posts[2] = api.page.posts[2].model_copy(update={'has_access': False})
     _script_outcomes(monkeypatch, {'broken': RuntimeError('disk on fire')})
 
     await use_case.execute()
@@ -424,8 +426,8 @@ async def test_excluded_posts_do_not_download_or_stop_the_listing(
     failed_logger = _FakeFailedLogger()
     api = _FakeApi()
     use_case = _use_case(['excluded', 'keep'], reporter, failed_logger, api=api)
-    assert api._page is not None
-    api._page.posts[0].tags = [PostTagDTO(title='sample')]
+    assert api.page is not None
+    api.page.posts[0].tags = [PostTagDTO(title='sample')]
     use_case.context.excluded_tags = ('SAMPLE',)
     calls = _script_outcomes(monkeypatch, {})
 
@@ -439,3 +441,32 @@ async def test_excluded_posts_do_not_download_or_stop_the_listing(
         'Skip post (excluded tag): post excluded' in message
         for message in reporter.infos
     )
+
+
+async def test_last_attempt_does_not_replace_terminal_state_with_unused_refresh(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reporter = _FakeReporter()
+    api = _FakeApi()
+    _disable_retry_sleep(monkeypatch)
+    attempts: list[DownloadSinglePostUseCase] = []
+    finalized: list[DownloadSinglePostUseCase] = []
+
+    async def execute(self: DownloadSinglePostUseCase) -> None:
+        attempts.append(self)
+        if len(attempts) == 5:
+            raise _expired_error()
+        raise ApplicationFailedDownloadError(
+            self.post_dto.id, 'resource', 'transient failure'
+        )
+
+    def finalize(self: DownloadSinglePostUseCase) -> None:
+        finalized.append(self)
+
+    monkeypatch.setattr(DownloadSinglePostUseCase, 'execute', execute)
+    monkeypatch.setattr(DownloadSinglePostUseCase, 'finalize', finalize)
+    await _use_case(['p1'], reporter, _FakeFailedLogger(), api=api).execute()
+    assert len(attempts) == 5
+    assert api.refetched == []
+    assert finalized == [attempts[-1]]
+    assert any('Skip post after 5' in message for message in reporter.errors)

@@ -38,7 +38,7 @@ from boosty_downloader.infrastructure.file_downloader import (
 if TYPE_CHECKING:
     from aiohttp_retry import RetryClient
 
-    from boosty_downloader.application.ports import FailureLog, PostCache
+    from boosty_downloader.application.ports import FailureLog, PostStore
     from boosty_downloader.infrastructure.boosty_api.core.client import (
         BoostyAPIClient,
     )
@@ -118,7 +118,8 @@ def _use_case(api: _FakeApi, reporter: _FakeReporter) -> DownloadPostByIdUseCase
         author_name='author',
         downloader_session=cast('RetryClient', None),
         external_videos_downloader=cast('ExternalVideosDownloader', None),
-        post_cache=cast('PostCache', None),
+        post_store=cast('PostStore', None),
+        library_root=Path('unused'),
         filters=[],
         preferred_video_quality=BoostyOkVideoType.medium,
         progress_reporter=reporter,
