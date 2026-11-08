@@ -13,7 +13,7 @@ from boosty_downloader.application.media_paths import (
 )
 from boosty_downloader.application.reconcile import reconcile
 from boosty_downloader.domain.library import LocatedPost
-from boosty_downloader.domain.stored_post import MediaEntry, MediaStatus
+from boosty_downloader.domain.stored_post import MediaEntry, MediaKind, MediaStatus
 from boosty_downloader.infrastructure.html_generator import PAGE_TEMPLATE_VERSION
 from boosty_downloader.infrastructure.library.media_snapshot import (
     confirm_media_aliases,
@@ -50,6 +50,7 @@ class PreparedPost:
     reconciliation: ReconcileResult
     page_exists: bool
     record_changed: bool
+    preview_download_ids: tuple[str, ...] = ()
 
     @property
     def is_new(self) -> bool:
@@ -70,6 +71,7 @@ class PreparedPost:
         """Whether selected media, saved content or page state needs work."""
         return (
             bool(self.reconciliation.download_ids)
+            or bool(self.preview_download_ids)
             or self.record_changed
             or self.page_needs_update
         )
@@ -133,6 +135,7 @@ def _prepared_post(
         reconciliation=result,
         page_exists=find_recorded_file('post.html', disk) is not None,
         record_changed=_has_record_changes(located.record, result.record),
+        preview_download_ids=_preview_download_ids(live, result.record, disk),
     )
 
 
@@ -144,9 +147,10 @@ def _observe_files(
     queries.add('post.html')
     if located.record is not None:
         queries.update(
-            entry.path
+            path
             for entry in located.record.media.values()
-            if entry.path is not None
+            for path in (entry.path, entry.preview_path)
+            if path is not None
         )
     return confirm_media_aliases(library_root, located.folder, disk, queries)
 
@@ -176,3 +180,24 @@ def _has_record_changes(stored: StoredPost | None, record: StoredPost | None) ->
         record, sync=replace(record.sync, synced_at=stored.sync.synced_at)
     )
     return comparable != stored
+
+
+def _preview_download_ids(
+    live: LivePost, record: StoredPost | None, disk: DiskSnapshot
+) -> tuple[str, ...]:
+    if record is None:
+        return ()
+    return tuple(
+        media_id
+        for media_id, media in live.media.items()
+        if media.kind is MediaKind.boosty_video
+        and media.preview_url
+        and _needs_preview(record.media[media_id], disk)
+    )
+
+
+def _needs_preview(entry: MediaEntry, disk: DiskSnapshot) -> bool:
+    if entry.preview_path is None:
+        return True
+    found = find_recorded_file(entry.preview_path, disk)
+    return found is None or found.size == 0

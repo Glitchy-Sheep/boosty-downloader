@@ -211,6 +211,8 @@ def test_later_run_plans_only_missing_pieces_and_then_becomes_unchanged(
     assert _record(second).media[IMAGE_MEDIA_ID].status is MediaStatus.downloaded
     _complete(preparer, second, FILE_MEDIA_ID, f'files/{FILE_NAME}', FILE_BYTES)
     _complete(preparer, second, VIDEO_MEDIA_ID, 'boosty_videos/lesson.mp4', VIDEO_BYTES)
+    _record(second).media[VIDEO_MEDIA_ID].preview_path = 'previews/lesson.jpg'
+    _write(preparer.library_root / second.folder / 'previews/lesson.jpg', IMAGE_BYTES)
     preparer.store.save_post(second.folder, _record(second))
 
     third = preparer.prepare(post, ALL_FILTERS, LATER + timedelta(days=1))
@@ -551,3 +553,156 @@ def test_restoration_plans_only_selected_deleted_media_without_writes(
     assert record.media[FILE_MEDIA_ID].status is expected_status
     assert record.media[VIDEO_MEDIA_ID].status is MediaStatus.deleted
     assert _files(root) == before
+
+
+@pytest.mark.parametrize(
+    'filters',
+    [
+        (),
+        (DownloadContentTypeFilter.files,),
+        (DownloadContentTypeFilter.post_content,),
+        (DownloadContentTypeFilter.boosty_videos,),
+    ],
+)
+@pytest.mark.parametrize('complete', [False, True])
+def test_video_preview_is_planned_independently_of_filter_and_video_readiness(
+    preparer: PostPreparer,
+    root: Path,
+    filters: tuple[DownloadContentTypeFilter, ...],
+    *,
+    complete: bool,
+) -> None:
+    payload = synthetic_post()
+    payload['data'] = [{**ok_video_chunk(), 'complete': complete}]
+    post = PostDTO.model_validate(payload)
+    prepared = preparer.prepare(post, filters, NOW)
+    assert prepared.preview_download_ids == (VIDEO_MEDIA_ID,)
+    assert prepared.needs_update
+    assert (prepared.live.media[VIDEO_MEDIA_ID].download is not None) is complete
+    if not complete or DownloadContentTypeFilter.boosty_videos not in filters:
+        assert prepared.reconciliation.download_ids == []
+    assert not root.exists()
+
+
+@pytest.mark.parametrize(
+    'data', [None, b'', IMAGE_BYTES], ids=['missing', 'empty', 'present']
+)
+def test_saved_preview_presence_changes_only_the_read_only_update_plan(
+    preparer: PostPreparer,
+    post: PostDTO,
+    root: Path,
+    data: bytes | None,
+) -> None:
+    saved = _seed(preparer, post)
+    saved.record.media[VIDEO_MEDIA_ID].preview_path = 'previews/lesson.jpg'
+    preparer.store.save_post(saved.folder, saved.record)
+    if data is not None:
+        _write(root / saved.folder / 'previews/lesson.jpg', data)
+    before = _files(root)
+    prepared = preparer.prepare(post, [], LATER)
+    expected = () if data else (VIDEO_MEDIA_ID,)
+    assert prepared.preview_download_ids == expected
+    assert prepared.needs_update is (not bool(data))
+    assert not prepared.record_changed
+    assert _files(root) == before
+    assert _record(prepared).media[VIDEO_MEDIA_ID].preview_path == 'previews/lesson.jpg'
+
+
+@pytest.mark.parametrize('preview_url', ['', 'https://images.example/changed-preview'])
+def test_saved_preview_is_reused_when_the_live_url_changes_or_disappears(
+    preparer: PostPreparer,
+    root: Path,
+    preview_url: str,
+) -> None:
+    payload = synthetic_post()
+    payload['data'] = [ok_video_chunk()]
+    post = PostDTO.model_validate(payload)
+    saved = _seed(preparer, post)
+    path = 'previews/lesson.jpg'
+    saved.record.media[VIDEO_MEDIA_ID].preview_path = path
+    preparer.store.save_post(saved.folder, saved.record)
+    _write(root / saved.folder / path, IMAGE_BYTES)
+    payload['data'][0]['preview'] = preview_url
+    before = _files(root)
+    prepared = preparer.prepare(PostDTO.model_validate(payload), [], LATER)
+    assert prepared.preview_download_ids == ()
+    assert not prepared.needs_update
+    assert _record(prepared).media[VIDEO_MEDIA_ID].preview_path == path
+    assert _files(root) == before
+
+
+def test_removed_video_never_requests_its_missing_preview(
+    preparer: PostPreparer,
+    post: PostDTO,
+    root: Path,
+) -> None:
+    saved = _seed(preparer, post)
+    saved.record.media[VIDEO_MEDIA_ID].preview_path = 'previews/lesson.jpg'
+    preparer.store.save_post(saved.folder, saved.record)
+    before = _files(root)
+    prepared = preparer.prepare(_text_post(), [], LATER)
+    assert prepared.preview_download_ids == ()
+    assert _record(prepared).media[VIDEO_MEDIA_ID].removed_at == LATER
+    assert _files(root) == before
+
+
+def test_returned_preview_file_is_reused_without_saving_a_record(
+    preparer: PostPreparer,
+    post: PostDTO,
+    root: Path,
+) -> None:
+    saved = _seed(preparer, post)
+    path = 'previews/lesson.jpg'
+    saved.record.media[VIDEO_MEDIA_ID].preview_path = path
+    preparer.store.save_post(saved.folder, saved.record)
+    assert preparer.prepare(post, [], LATER).preview_download_ids == (VIDEO_MEDIA_ID,)
+    _write(root / saved.folder / path, IMAGE_BYTES)
+    before = _files(root)
+    prepared = preparer.prepare(post, [], LATER)
+    assert prepared.preview_download_ids == ()
+    assert not prepared.needs_update
+    assert _files(root) == before
+
+
+def test_preview_alias_requires_filesystem_confirmation(
+    preparer: PostPreparer,
+    post: PostDTO,
+    root: Path,
+) -> None:
+    saved = _seed(preparer, post)
+    path = 'previews/lesson.jpg'
+    actual = 'PREVIEWS/LESSON.JPG'
+    saved.record.media[VIDEO_MEDIA_ID].preview_path = path
+    preparer.store.save_post(saved.folder, saved.record)
+    _write(root / saved.folder / actual, IMAGE_BYTES)
+    has_alias = (root / saved.folder / path).is_file()
+    before = _files(root)
+    prepared = preparer.prepare(post, [], LATER)
+    assert prepared.preview_download_ids == (() if has_alias else (VIDEO_MEDIA_ID,))
+    if has_alias:
+        assert prepared.disk.aliases[path] == actual
+    assert _files(root) == before
+
+
+def test_linked_preview_is_not_treated_as_a_downloaded_image(
+    preparer: PostPreparer,
+    post: PostDTO,
+    root: Path,
+) -> None:
+    saved = _seed(preparer, post)
+    path = 'previews/lesson.jpg'
+    saved.record.media[VIDEO_MEDIA_ID].preview_path = path
+    preparer.store.save_post(saved.folder, saved.record)
+    target = root / saved.folder / 'original.jpg'
+    _write(target, IMAGE_BYTES)
+    link = root / saved.folder / path
+    link.parent.mkdir()
+    try:
+        link.symlink_to(target)
+    except OSError:
+        pytest.skip('File symlink creation unavailable')
+    prepared = preparer.prepare(post, [], LATER)
+    assert prepared.preview_download_ids == (VIDEO_MEDIA_ID,)
+    assert path in prepared.disk.occupied
+    assert target.read_bytes() == IMAGE_BYTES
+    assert link.is_symlink()

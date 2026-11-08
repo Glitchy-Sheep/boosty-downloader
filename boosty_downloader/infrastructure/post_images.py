@@ -7,16 +7,17 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 from stat import S_ISREG
 from typing import TYPE_CHECKING, Final
+from unicodedata import normalize
 
 from boosty_downloader.domain.stored_post import MediaKind
 from boosty_downloader.infrastructure.file_downloader import (
-    DownloadError,
     open_download_response,
     response_filename,
 )
 from boosty_downloader.infrastructure.image_transfer import (
     enter_image_workspace,
     image_errors,
+    require_image_bytes,
     write_image_response,
 )
 from boosty_downloader.infrastructure.library._media_paths import is_link
@@ -35,6 +36,7 @@ from boosty_downloader.infrastructure.path_sanitizer import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Collection
     from pathlib import Path
 
     from aiohttp_retry import RetryClient
@@ -50,6 +52,7 @@ class _ImageLocation:
     directory: str
     stem: str
     owner_id: str
+    reserved_keys: frozenset[str] = frozenset()
 
     def resolve(self, filename: str) -> Path:
         return resolve_media_destination(
@@ -57,18 +60,19 @@ class _ImageLocation:
         )
 
 
-async def download_post_preview(
+async def download_post_preview(  # noqa: PLR0913 - Transfer inputs and post-wide reservations.
     *,
     session: RetryClient,
     library_root: Path,
     post_folder: str,
     media_id: str,
     url: str,
+    reserved_paths: Collection[str] = (),
 ) -> str:
     """
     Download a video preview and return its post-relative path.
 
-    The caller ensures this preview needs downloading and excludes concurrent transfers of the same media ID. Occupied names are preserved, including incomplete files and links.
+    The caller ensures this preview needs downloading and excludes concurrent transfers of the same media ID. Occupied names and reserved post-relative paths are preserved, including the parent directories of missing files recorded for other media.
     """
     with image_errors(url, label='Post image'):
         location = _ImageLocation(
@@ -77,6 +81,7 @@ async def download_post_preview(
             _PREVIEW_DIRECTORY,
             _video_id(media_id),
             f'preview:{media_id}',
+            _preview_reserved_keys(reserved_paths),
         )
         return await _download_image(session, url, location)
 
@@ -151,15 +156,25 @@ async def _download_image(
             )
             source = directory / 'download.tmp'
             await write_image_response(response, source, filename)
-        _require_image_bytes(source, url)
+        require_image_bytes(source, url)
         published = _publish_image(source, destination, filename, location)
     return f'{location.directory}/{published.name}'
 
 
-def _require_image_bytes(source: Path, url: str) -> None:
-    if source.stat().st_size == 0:
-        message = 'Image response is empty'
-        raise DownloadError(message, file=None, resource_url=url)
+def _path_key(path: str) -> str:
+    return normalize('NFC', path).casefold()
+
+
+def _preview_reserved_keys(reserved_paths: Collection[str]) -> frozenset[str]:
+    reserved = frozenset(_path_key(path) for path in reserved_paths)
+    directory = PurePosixPath(_path_key(_PREVIEW_DIRECTORY))
+    if any(str(parent) in reserved for parent in (directory, *directory.parents)):
+        message = 'Preview directory overlaps a reserved media file'
+        raise ValueError(message)
+    blocked = set(reserved)
+    for path in reserved:
+        blocked.update(str(parent) for parent in PurePosixPath(path).parents)
+    return frozenset(blocked)
 
 
 def _free_filename(location: _ImageLocation, filename: str) -> str:
@@ -167,10 +182,12 @@ def _free_filename(location: _ImageLocation, filename: str) -> str:
     candidate = filename
     suffix = 0
     while True:
-        try:
-            location.resolve(candidate).lstat()
-        except FileNotFoundError:
-            return candidate
+        target = location.resolve(candidate)
+        if _path_key(f'{location.directory}/{candidate}') not in location.reserved_keys:
+            try:
+                target.lstat()
+            except FileNotFoundError:
+                return candidate
         suffix += 1
         candidate = compose_filename(
             source.stem, extension=source.suffix, marker=f' ({suffix})'

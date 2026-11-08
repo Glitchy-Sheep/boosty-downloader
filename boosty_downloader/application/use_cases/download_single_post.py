@@ -24,6 +24,7 @@ from boosty_downloader.application.post_download_state import (
     PostRunProgress,
 )
 from boosty_downloader.application.post_preparation import PostPreparer
+from boosty_downloader.application.preview_sync import ensure_post_previews
 from boosty_downloader.domain.post_data_chunks import (
     PostDataChunkAudio,
     PostDataChunkBoostyVideo,
@@ -106,9 +107,7 @@ class DownloadSinglePostUseCase:
     async def execute(self) -> None:
         """Persist preparation, then fetch only selected missing piece identities."""
         self._needs_render = False
-        observe_post_access(
-            self.context.post_store, self.context.author_name, self.post_dto
-        )
+        await observe_post_access(self.context, self.post_dto)
         self._excluded = has_excluded_tag(
             (tag.title for tag in self.post_dto.tags or ()), self.context.excluded_tags
         )
@@ -148,6 +147,7 @@ class DownloadSinglePostUseCase:
         if prepared.needs_update:
             state.save_initial()
             self._needs_render = True
+        await ensure_post_previews(self.context, state, prepared)
         post_task = self.context.progress_reporter.create_task(
             f'[bold]POST: {self.post_dto.title}[/bold]',
             total=len(prepared.reconciliation.download_ids),

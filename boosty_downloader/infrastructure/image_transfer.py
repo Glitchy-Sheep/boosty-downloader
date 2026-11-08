@@ -44,6 +44,13 @@ async def write_image_response(
         await copy_download_response(response, writer.write, filename=filename)
 
 
+def require_image_bytes(source: Path, url: str) -> None:
+    """Reject an empty completed response before publishing an image."""
+    if source.stat().st_size == 0:
+        message = 'Image response is empty'
+        raise DownloadError(message, file=None, resource_url=url)
+
+
 @contextmanager
 def image_errors(url: str, *, label: str) -> Generator[None, None, None]:
     """Translate image transfer failures without exposing signed URLs in messages."""

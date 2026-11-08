@@ -355,3 +355,25 @@ def test_downloaded_media_cannot_reserve_another_output(attempt: Attempt) -> Non
 
     with pytest.raises(ValueError, match='completed media'):
         attempt.state.reserve(FILE_ID, 'replacement.zip')
+
+
+def test_previous_preview_bytes_remain_occupied_after_its_path_changes(
+    attempt: Attempt,
+) -> None:
+    media_id = 'boosty_video:fixture-boosty_video'
+    prepared = replace(attempt.prepared, preview_download_ids=(media_id,))
+    state = PostDownloadState(attempt.root, attempt.store, prepared, attempt.progress)
+    for relative_path in ('images/shared.png', 'previews/replacement.png'):
+        destination = attempt.root / state.folder / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(b'preview bytes')
+        state.complete_preview(media_id, relative_path)
+
+    target = state.reserve(IMAGE_ID, 'shared.png')
+
+    assert target.relative_path != 'images/shared.png'
+    assert attempt.saved().media[media_id].preview_path == 'previews/replacement.png'
+    assert (attempt.root / state.folder / 'images/shared.png').read_bytes() == (
+        b'preview bytes'
+    )
+    assert attempt.progress.counted_media_ids == set()

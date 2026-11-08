@@ -193,6 +193,23 @@ async def test_incomplete_body_preserves_the_previous_image(tmp_path: Path) -> N
     _assert_clean(tmp_path)
 
 
+async def test_empty_response_preserves_the_previous_image(tmp_path: Path) -> None:
+    previous = _prior_image(tmp_path)
+    timestamp = previous.stat().st_mtime_ns
+
+    async def handler(_: web.Request) -> web.Response:
+        return web.Response(body=b'', content_type='image/png')
+
+    async with _client(handler) as client:
+        with pytest.raises(DownloadError, match='Image response is empty'):
+            await client.download(tmp_path)
+
+    assert previous.read_bytes() == PREVIOUS
+    assert previous.stat().st_mtime_ns == timestamp
+    assert list(previous.parent.iterdir()) == [previous]
+    _assert_clean(tmp_path)
+
+
 @pytest.mark.parametrize('before_headers', [False, True])
 async def test_timeout_preserves_the_previous_image(
     tmp_path: Path, *, before_headers: bool

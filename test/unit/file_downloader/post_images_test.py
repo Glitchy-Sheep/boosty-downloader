@@ -207,6 +207,129 @@ async def test_occupied_regular_file_is_preserved_and_gets_a_free_successor(
     _assert_clean(tmp_path)
 
 
+@pytest.mark.parametrize(
+    ('video_id', 'reserved_paths', 'suffix'),
+    [
+        (VIDEO_ID, (f'previews/{VIDEO_ID}.png',), 1),
+        (VIDEO_ID, (f'PREVIEWS/{VIDEO_ID.upper()}.PNG',), 1),
+        ('vidéo', ('previews/vide\u0301o.png',), 1),
+        (VIDEO_ID, (f'previews/{VIDEO_ID}.png/original.bin',), 1),
+        (VIDEO_ID, (f'PREVIEWS/{VIDEO_ID.upper()}.PNG/original.bin',), 1),
+        ('vidéo', ('previews/vide\u0301o.png/original.bin',), 1),
+        (VIDEO_ID, (f'previews/{VIDEO_ID}.png', f'previews/{VIDEO_ID} (1).png'), 2),
+    ],
+)
+async def test_missing_reserved_preview_paths_are_preserved(
+    tmp_path: Path,
+    video_id: str,
+    reserved_paths: tuple[str, ...],
+    suffix: int,
+) -> None:
+    async with _client(_payload) as client:
+        result = await download_post_preview(
+            session=client.session,
+            library_root=tmp_path,
+            post_folder=POST_FOLDER,
+            media_id=f'boosty_video:{video_id}',
+            url=client.url,
+            reserved_paths=reserved_paths,
+        )
+
+    assert result == f'previews/{video_id} ({suffix}).png'
+    assert (tmp_path / POST_FOLDER / result).read_bytes() == PAYLOAD
+    assert all(not (tmp_path / POST_FOLDER / path).exists() for path in reserved_paths)
+    _assert_clean(tmp_path)
+
+
+@pytest.mark.parametrize('reserved_path', ['previews', 'PREVIEWS'])
+async def test_reserved_preview_parent_is_rejected_before_request(
+    tmp_path: Path, reserved_path: str
+) -> None:
+    requests = 0
+
+    async def handler(request: web.Request) -> web.Response:
+        nonlocal requests
+        requests += 1
+        return await _payload(request)
+
+    async with _client(handler) as client:
+        with pytest.raises(DownloadError):
+            await download_post_preview(
+                session=client.session,
+                library_root=tmp_path,
+                post_folder=POST_FOLDER,
+                media_id=MEDIA_ID,
+                url=client.url,
+                reserved_paths=(reserved_path,),
+            )
+
+    assert requests == 0
+    _assert_empty(tmp_path)
+
+
+async def test_parent_file_is_rejected_before_request(
+    tmp_path: Path, kind: _Kind
+) -> None:
+    parent_file = _preferred(tmp_path, kind).parent
+    parent_file.parent.mkdir(parents=True)
+    parent_file.write_bytes(b'keep parent file')
+    original = _state(parent_file)
+    requests = 0
+
+    async def handler(request: web.Request) -> web.Response:
+        nonlocal requests
+        requests += 1
+        return await _payload(request)
+
+    async with _client(handler) as client:
+        with pytest.raises(DownloadIOFailureError):
+            await client.download(tmp_path, kind)
+
+    assert requests == 0
+    assert _state(parent_file) == original
+    _assert_clean(tmp_path)
+
+
+async def test_publication_retry_preserves_reserved_and_newly_occupied_preview_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first_available = _preferred(tmp_path, _Kind.preview).with_name(
+        f'{VIDEO_ID} (1).png'
+    )
+    reserved = (
+        _relative(_Kind.preview),
+        f'previews/{VIDEO_ID} (2).png/original.bin',
+    )
+    requests = 0
+
+    def occupy_name(file: BinaryIO) -> None:
+        file.close()
+        first_available.write_bytes(b'occupied during transfer')
+
+    async def handler(request: web.Request) -> web.Response:
+        nonlocal requests
+        requests += 1
+        return await _payload(request)
+
+    monkeypatch.setattr(media_writer, '_close_file', occupy_name)
+    async with _client(handler) as client:
+        result = await download_post_preview(
+            session=client.session,
+            library_root=tmp_path,
+            post_folder=POST_FOLDER,
+            media_id=MEDIA_ID,
+            url=client.url,
+            reserved_paths=reserved,
+        )
+
+    assert requests == 1
+    assert result == f'previews/{VIDEO_ID} (3).png'
+    assert (tmp_path / POST_FOLDER / result).read_bytes() == PAYLOAD
+    assert first_available.read_bytes() == b'occupied during transfer'
+    assert all(not (tmp_path / POST_FOLDER / path).exists() for path in reserved)
+    _assert_clean(tmp_path)
+
+
 @pytest.mark.parametrize('target_exists', [False, True])
 async def test_final_symlink_is_preserved_without_following_its_target(
     tmp_path: Path,

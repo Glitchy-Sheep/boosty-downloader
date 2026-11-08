@@ -14,6 +14,7 @@ from boosty_downloader.infrastructure.file_downloader import (
 from boosty_downloader.infrastructure.image_transfer import (
     enter_image_workspace,
     image_errors,
+    require_image_bytes,
     write_image_response,
 )
 from boosty_downloader.infrastructure.library._media_paths import is_link
@@ -61,6 +62,7 @@ async def download_author_image(
             )
             source = directory / 'download.tmp'
             await write_image_response(response, source, filename)
+        require_image_bytes(source, url)
         _publish_image(source, destination, library_root=library_root, author=author)
     return f'{AUTHOR_SERVICE_FOLDER}/{filename}'
 
