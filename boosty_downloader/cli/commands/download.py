@@ -38,7 +38,11 @@ from boosty_downloader.cli.cli_options import (
     UsernameArgument,
     global_options,
 )
-from boosty_downloader.cli.composition_root import load_settings, open_app
+from boosty_downloader.cli.composition_root import (
+    load_settings,
+    open_app,
+    resolve_library_root,
+)
 from boosty_downloader.cli.error_reporting import report_command_errors
 from boosty_downloader.cli.update_check import notify_about_updates
 from boosty_downloader.cli.views.blog_overview import render_blog_overview
@@ -51,6 +55,11 @@ from boosty_downloader.infrastructure.boosty_api.utils.post_url import (
 )
 from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
     ExternalVideosDownloader,
+)
+from boosty_downloader.infrastructure.library._record_paths import validate_author_name
+from boosty_downloader.infrastructure.library.library_format import (
+    check_library_compatibility,
+    initialize_library,
 )
 from boosty_downloader.infrastructure.loggers import logger_instances
 from boosty_downloader.infrastructure.loggers.debug_file import debug_logging
@@ -149,7 +158,7 @@ async def _download_handler(  # noqa: PLR0913
     content_type_filter: list[DownloadContentTypeFilter],
     preferred_video_quality: VideoQualityOption,
     request_delay_seconds: float,
-    destination_directory: Path | None,
+    library_root: Path,
     cache_directory: Path | None,
     skip_all_failures: bool,
     dry_run: bool,
@@ -160,10 +169,12 @@ async def _download_handler(  # noqa: PLR0913
     settings = load_settings(
         username=username,
         config_path=config_path,
-        destination_directory=destination_directory,
+        destination_directory=library_root,
         cache_directory=cache_directory,
         read_only=dry_run,
     )
+    if not dry_run:
+        initialize_library(settings.library_root)
     await notify_about_updates(logger)
 
     async with open_app(
@@ -281,6 +292,7 @@ def register(app: typer.Typer) -> None:
 
         [bold]ABOUT SAVED POSTS:[/bold]
 
+            - Use a separate destination for v5. Older download folders are kept unchanged.
             - Saved post records in the destination library track content and downloaded media.
             - A later run reuses saved media, adds newly selected media and retries failed downloads.
             - Updated text and metadata refresh the page without downloading unchanged media.
@@ -289,6 +301,10 @@ def register(app: typer.Typer) -> None:
             - The legacy --cache-dir option does not control these records.
 
         """
+        try:
+            validate_author_name(username)
+        except ValueError as error:
+            raise typer.BadParameter(str(error), param_hint='USERNAME') from error
         excluded_tags = tuple(tag.strip() for tag in exclude_tag or ())
         if any(not tag for tag in excluded_tags):
             msg = 'tag must not be empty'
@@ -300,6 +316,12 @@ def register(app: typer.Typer) -> None:
         # config is read or request is made.
         post_id = _post_id_of(post_url, username) if post_url is not None else None
         options = global_options(ctx)
+        with report_command_errors(read_only=True):
+            library_root = resolve_library_root(
+                config_path=options.config_path,
+                destination_directory=destination_directory,
+            )
+            check_library_compatibility(library_root)
         with (
             debug_logging(enabled=options.debug, read_only=dry_run),
             report_command_errors(read_only=dry_run),
@@ -315,7 +337,7 @@ def register(app: typer.Typer) -> None:
                     preferred_video_quality=preferred_video_quality,
                     excluded_tags=excluded_tags,
                     request_delay_seconds=request_delay_seconds,
-                    destination_directory=destination_directory,
+                    library_root=library_root,
                     cache_directory=cache_directory,
                     skip_all_failures=skip_all_failures,
                     dry_run=dry_run,

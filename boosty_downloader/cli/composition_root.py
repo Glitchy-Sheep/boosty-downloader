@@ -24,6 +24,9 @@ from boosty_downloader.infrastructure.boosty_api.utils.auth_parsers import (
     parse_auth_header,
     parse_session_cookie,
 )
+from boosty_downloader.infrastructure.library.library_format import (
+    LibraryCompatibilityError,
+)
 from boosty_downloader.infrastructure.library.post_store import JsonPostStore
 from boosty_downloader.infrastructure.loggers.request_tracing import (
     create_request_trace_config,
@@ -105,6 +108,23 @@ def load_settings(
         auth_header=config.auth.auth_header,
         cookie=config.auth.cookie,
     )
+
+
+def resolve_library_root(
+    *,
+    config_path: Path = DEFAULT_CONFIG_PATH,
+    destination_directory: Path | None = None,
+) -> Path:
+    """Resolve the download target without loading credentials or creating files."""
+    target = destination_directory
+    try:
+        if target is None:
+            target = read_download_settings(config_path).target_directory
+        return target.resolve()
+    except (OSError, RuntimeError) as error:
+        source = target if target is not None else config_path
+        message = f'Cannot determine library folder from {source}: {error}'
+        raise LibraryCompatibilityError(message) from error
 
 
 def resolve_cache_dir(
