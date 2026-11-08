@@ -140,7 +140,7 @@ async def test_downloads_overlap_with_a_cap_and_page_keeps_author_order(
     assert completion_order == [3, 4, 5, 2, 1, 0]
     assert not (use_case.destination / 'post.html').exists()
     use_case.finalize()
-    page = (use_case.destination / 'post.html').read_text()
+    page = (use_case.destination / 'post.html').read_text(encoding='utf-8')
     positions = [page.index(f'href="files/file-{n}.bin"') for n in range(6)]
     assert positions == sorted(positions)
     assert all(
@@ -190,7 +190,7 @@ async def test_failed_file_allows_siblings_to_finish_and_persists_each_outcome(
         record.media[f'file:f{n}'].status is MediaStatus.downloaded for n in range(1, 4)
     )
     use_case.finalize()
-    page = (use_case.destination / 'post.html').read_text()
+    page = (use_case.destination / 'post.html').read_text(encoding='utf-8')
     assert 'dead link' in page
     assert all(f'href="files/file-{n}.bin"' in page for n in range(1, 4))
     assert use_case.context.run_statistics.posts_downloaded == 0
@@ -208,7 +208,9 @@ async def test_failed_image_becomes_a_placeholder_then_retry_replaces_it(
     with pytest.raises(ApplicationFailedDownloadError):
         await use_case.execute()
     use_case.finalize()
-    assert 'dead image' in (use_case.destination / 'post.html').read_text()
+    assert 'dead image' in (use_case.destination / 'post.html').read_text(
+        encoding='utf-8'
+    )
     assert _record(use_case).media[f'image:{IMAGE_ID}'].status is MediaStatus.failed
 
     async def download(
@@ -220,7 +222,7 @@ async def test_failed_image_becomes_a_placeholder_then_retry_replaces_it(
     media.download_image = AsyncMock(side_effect=download)
     await use_case.execute()
     use_case.finalize()
-    page = (use_case.destination / 'post.html').read_text()
+    page = (use_case.destination / 'post.html').read_text(encoding='utf-8')
     assert 'src="images/picture.png"' in page
     assert 'dead image' not in page
     assert _record(use_case).media[f'image:{IMAGE_ID}'].status is MediaStatus.downloaded
@@ -260,7 +262,7 @@ async def test_fresh_attempt_uses_saved_files_in_its_complete_page(
     retry.finalize()
 
     media.download_file.assert_awaited_once()
-    page = (retry.destination / 'post.html').read_text()
+    page = (retry.destination / 'post.html').read_text(encoding='utf-8')
     assert page.index('src="images/picture.png"') < page.index(
         'href="files/file-0.bin"'
     )

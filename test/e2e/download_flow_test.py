@@ -826,7 +826,7 @@ async def test_author_rename_retains_post_folder(tmp_path: Path) -> None:
     assert stats.posts_downloaded == 1
     folders = [path.name for path in (tmp_path / AUTHOR).iterdir() if path.is_dir()]
     assert set(folders) == {POST_DIR_NAME, '.boosty-downloader'}
-    html = (tmp_path / AUTHOR / POST_DIR_NAME / 'post.html').read_text()
+    html = (tmp_path / AUTHOR / POST_DIR_NAME / 'post.html').read_text(encoding='utf-8')
     assert '<title>A new author title</title>' in html
 
 
@@ -859,7 +859,9 @@ async def test_replaced_file_gets_free_name_and_preserves_removed_copy(
     assert new.path != old.path
     assert new.path is not None
     assert (tmp_path / located.folder / new.path).read_bytes() == b'file bytes'
-    assert 'Removed by the author' in (old_file.parent.parent / 'post.html').read_text()
+    assert 'Removed by the author' in (old_file.parent.parent / 'post.html').read_text(
+        encoding='utf-8'
+    )
 
 
 async def test_removed_file_returns_to_body_without_another_transfer(
@@ -874,13 +876,13 @@ async def test_removed_file_returns_to_body_without_another_transfer(
     async with TestServer(_build_app(served, payload=payload)) as server:
         await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
     page = tmp_path / AUTHOR / POST_DIR_NAME / 'post.html'
-    assert 'Removed by the author' in page.read_text()
+    assert 'Removed by the author' in page.read_text(encoding='utf-8')
     assert served == []
     async with TestServer(_build_app(served)) as server:
         await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
     assert served == []
-    assert 'Removed by the author' not in page.read_text()
-    assert 'href="files/fixture-archive.zip"' in page.read_text()
+    assert 'Removed by the author' not in page.read_text(encoding='utf-8')
+    assert 'href="files/fixture-archive.zip"' in page.read_text(encoding='utf-8')
 
 
 async def test_real_external_adapter_saves_actual_bytes_in_post_record(
@@ -962,7 +964,7 @@ async def test_page_hardlink_is_replaced_without_modifying_other_name(
         stats = await _run_download(library, server.make_url('/'), _QuietReporter())
     assert stats.posts_downloaded == 1
     assert outside.read_bytes() == b'keep outside bytes'
-    assert '<title>Rebuild linked page</title>' in page.read_text()
+    assert '<title>Rebuild linked page</title>' in page.read_text(encoding='utf-8')
 
 
 async def test_refresh_checks_new_excluded_tags_before_saving_or_downloading(

@@ -88,12 +88,13 @@ def test_broken_destination_symlink_is_occupied(
 ) -> None:
     target = tmp_path / 'missing-target'
     _symlink(destination, target)
+    original_target = destination.readlink()
 
     with pytest.raises(FileExistsError):
         publish_completed_file(source, destination)
 
     assert destination.is_symlink()
-    assert destination.readlink() == target
+    assert destination.readlink() == original_target
     assert not target.exists()
     assert source.read_bytes() == MEDIA_BYTES
 
