@@ -21,6 +21,7 @@
 
 ### Fixed
 
+- On Windows, saving a library record tolerates brief reader locks while preserving complete old or new contents
 - A failed media piece no longer causes completed pieces of the same type to download again. Each completion is saved separately, and an unavailable external video does not prevent retries for a different transient failure
 - Interrupted media transfers no longer leave incomplete files under their final names. Completed files can be recovered after interruption before the record update; filename collisions preserve existing files
 - Renaming a post on Boosty keeps its saved folder. Locally deleted media stays deleted, and author-removed media retains its saved history and local copies
