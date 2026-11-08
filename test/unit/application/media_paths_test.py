@@ -9,13 +9,13 @@ from pathlib import PurePosixPath
 import pytest
 
 from boosty_downloader.application.media_paths import (
-    DiskSnapshot,
     FileMatch,
     MediaPathHint,
     find_media_file,
     find_recorded_file,
     reserve_media_path,
 )
+from boosty_downloader.domain.disk_snapshot import DiskSnapshot
 from boosty_downloader.infrastructure.path_sanitizer import MAX_NAME_BYTES
 
 MEDIA_ID = 'file:abcdefgh-first'

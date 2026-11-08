@@ -13,10 +13,10 @@ from boosty_downloader.application.mappers.live_post import (
     LivePost,
     map_post_dto_to_live,
 )
-from boosty_downloader.application.media_paths import DiskSnapshot
 from boosty_downloader.application.page_builder import build_post_page
 from boosty_downloader.application.reconcile import reconcile
 from boosty_downloader.domain.content_types import DownloadContentTypeFilter
+from boosty_downloader.domain.disk_snapshot import DiskSnapshot
 from boosty_downloader.domain.post_data_chunks import (
     PostDataChunkText,
     PostDataChunkTextualList,

@@ -7,7 +7,7 @@ Paths use portable relative strings. Callers reserve every retained media path b
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
@@ -30,19 +30,9 @@ from boosty_downloader.infrastructure.path_sanitizer import (
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
-    from collections.abc import Set as AbstractSet
 
     from boosty_downloader.application.mappers.live_post import LiveMedia
-
-
-@dataclass(frozen=True)
-class DiskSnapshot:
-    """Observed regular-file sizes and names occupied by other filesystem entries."""
-
-    files: Mapping[str, int]
-    occupied: AbstractSet[str] = field(default_factory=frozenset[str])
-    # Queried spelling -> actual path, only when the filesystem confirms it.
-    aliases: Mapping[str, str] = field(default_factory=dict[str, str])
+    from boosty_downloader.domain.disk_snapshot import DiskSnapshot
 
 
 @dataclass(frozen=True)

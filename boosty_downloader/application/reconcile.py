@@ -27,8 +27,9 @@ if TYPE_CHECKING:
     from datetime import datetime
 
     from boosty_downloader.application.mappers.live_post import LiveMedia, LivePost
-    from boosty_downloader.application.media_paths import DiskSnapshot, FileMatch
+    from boosty_downloader.application.media_paths import FileMatch
     from boosty_downloader.domain.content_types import DownloadContentTypeFilter
+    from boosty_downloader.domain.disk_snapshot import DiskSnapshot
 
 
 @dataclass(frozen=True, slots=True)

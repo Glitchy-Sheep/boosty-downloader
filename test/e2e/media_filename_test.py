@@ -13,13 +13,13 @@ from aiohttp_retry import RetryClient
 
 from boosty_downloader.application.mappers.live_post import LiveMedia
 from boosty_downloader.application.media_paths import (
-    DiskSnapshot,
     FileMatch,
     MediaPathHint,
     find_media_file,
     get_preferred_media_path,
     reserve_media_path,
 )
+from boosty_downloader.domain.disk_snapshot import DiskSnapshot
 from boosty_downloader.domain.post_data_chunks import (
     PostDataChunkAudio,
     PostDataChunkBoostyVideo,
