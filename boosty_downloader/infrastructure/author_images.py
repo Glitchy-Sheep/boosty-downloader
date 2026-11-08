@@ -7,6 +7,8 @@ from enum import Enum
 from stat import S_ISDIR, S_ISREG
 from typing import TYPE_CHECKING
 
+from aiohttp import ClientError
+
 from boosty_downloader.infrastructure.file_downloader import (
     DownloadError,
     copy_download_response,
@@ -140,4 +142,7 @@ def _image_errors(url: str) -> Generator[None, None, None]:
             yield
     except ValueError as error:
         message = 'Invalid author image destination or URL'
+        raise DownloadError(message, file=None, resource_url=url) from error
+    except ClientError as error:
+        message = 'Author image request failed'
         raise DownloadError(message, file=None, resource_url=url) from error

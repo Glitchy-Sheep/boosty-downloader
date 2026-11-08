@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 import pytest
+from support.memory_post_store import MemoryPostStore
 
 from boosty_downloader.application import post_retry as post_retry_module
 from boosty_downloader.application.download_context import DownloadContext
@@ -27,6 +28,7 @@ from boosty_downloader.application.use_cases.download_single_post import (
 from boosty_downloader.infrastructure.boosty_api.core.client import (
     BoostyAPIUnknownError,
 )
+from boosty_downloader.infrastructure.boosty_api.models.blog import BlogInfoDTO
 from boosty_downloader.infrastructure.boosty_api.models.post.extra import Extra
 from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
 from boosty_downloader.infrastructure.boosty_api.models.post.post_overview import (
@@ -44,7 +46,6 @@ if TYPE_CHECKING:
 
     from aiohttp_retry import RetryClient
 
-    from boosty_downloader.application.ports import PostStore
     from boosty_downloader.infrastructure.boosty_api.core.client import (
         BoostyAPIClient,
     )
@@ -114,6 +115,10 @@ class _FakeApi:
         assert self.page is not None
         yield self.page
 
+    async def get_blog_info(self, author_name: str) -> BlogInfoDTO:
+        del author_name
+        return BlogInfoDTO()
+
     async def get_single_post(self, author_name: str, post_id: str) -> PostDTO:
         del author_name
         self.refetched.append(post_id)
@@ -152,7 +157,7 @@ def _use_case(
         author_name='author',
         downloader_session=cast('RetryClient', None),
         external_videos_downloader=cast('ExternalVideosDownloader', None),
-        post_store=cast('PostStore', None),
+        post_store=MemoryPostStore(),
         library_root=Path('unused'),
         filters=[],
         preferred_video_quality=BoostyOkVideoType.medium,
@@ -251,7 +256,9 @@ async def test_failure_streak_stops_the_run_with_a_systemic_diagnosis(
     assert len(calls) == 5, 'the run must stop right at the threshold'
     diagnosis = reporter.errors[-1]
     assert 'systemic' in diagnosis
-    assert 'cached' in diagnosis, 'the stop message must explain how to resume'
+    assert 'completed media remains saved' in diagnosis, (
+        'the stop message must explain how to resume'
+    )
 
 
 async def test_success_resets_the_streak(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -470,3 +477,29 @@ async def test_last_attempt_does_not_replace_terminal_state_with_unused_refresh(
     assert api.refetched == []
     assert finalized == [attempts[-1]]
     assert any('Skip post after 5' in message for message in reporter.errors)
+
+
+async def test_observation_failure_counts_as_failed_post_and_continues(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reporter = _FakeReporter()
+    logger = _FakeFailedLogger()
+    calls = _script_outcomes(monkeypatch, {})
+    use_case = _use_case(['p1', 'p2'], reporter, logger)
+    original = use_case.context.post_store.clear_locked_post
+
+    def clear_locked(author: str, post_id: str) -> None:
+        if post_id == 'p1':
+            message = 'Observation cannot be saved'
+            raise OSError(message)
+        original(author, post_id)
+
+    monkeypatch.setattr(use_case.context.post_store, 'clear_locked_post', clear_locked)
+    await use_case.execute()
+
+    assert calls == ['p2']
+    assert use_case.context.run_statistics.posts_failed == 1
+    assert logger.entries[0][0] == 'p1'
+    assert any(
+        'Observation cannot be saved' in warning for warning in reporter.warnings
+    )

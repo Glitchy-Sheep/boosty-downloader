@@ -11,7 +11,7 @@ from threading import Event
 from typing import TYPE_CHECKING, BinaryIO, Literal
 
 import pytest
-from aiohttp import ClientTimeout, web
+from aiohttp import ClientTimeout, NonHttpUrlClientError, TooManyRedirects, web
 from aiohttp.test_utils import TestServer
 from aiohttp_retry import ExponentialRetry, RetryClient
 
@@ -484,4 +484,56 @@ async def test_response_close_failure_never_publishes_the_completed_temporary_im
 
     assert caught.value.__cause__ is failure
     assert previous.read_bytes() == PREVIOUS
+    _assert_clean(tmp_path)
+
+
+async def test_redirect_loop_preserves_previous_image_and_keeps_url_out_of_message(
+    tmp_path: Path,
+) -> None:
+    previous = _prior_image(tmp_path)
+    timestamp = previous.stat().st_mtime_ns
+    requested = 0
+    signature = 'private-image-signature'
+
+    async def redirect(_: web.Request) -> web.Response:
+        nonlocal requested
+        requested += 1
+        return web.Response(
+            status=302, headers={'Location': f'/image?signature={signature}'}
+        )
+
+    async with _client(redirect) as client:
+        signed_client = _HttpClient(
+            client.session, f'{client.url}?signature={signature}'
+        )
+        with pytest.raises(DownloadError) as caught:
+            await signed_client.download(tmp_path)
+
+    assert requested > 1
+    assert isinstance(caught.value.__cause__, TooManyRedirects)
+    assert str(caught.value) == 'Author image request failed'
+    assert signature not in str(caught.value)
+    assert caught.value.file is None
+    assert previous.read_bytes() == PREVIOUS
+    assert previous.stat().st_mtime_ns == timestamp
+    _assert_clean(tmp_path)
+
+
+async def test_non_http_url_preserves_previous_image_and_keeps_url_out_of_message(
+    tmp_path: Path,
+) -> None:
+    previous = _prior_image(tmp_path)
+    timestamp = previous.stat().st_mtime_ns
+    signature = 'private-image-signature'
+    url = f'ftp://example.invalid/avatar.png?signature={signature}'
+    async with RetryClient(retry_options=ExponentialRetry(attempts=1)) as session:
+        with pytest.raises(DownloadError) as caught:
+            await _HttpClient(session, url).download(tmp_path)
+
+    assert isinstance(caught.value.__cause__, NonHttpUrlClientError)
+    assert str(caught.value) == 'Author image request failed'
+    assert signature not in str(caught.value)
+    assert caught.value.file is None
+    assert previous.read_bytes() == PREVIOUS
+    assert previous.stat().st_mtime_ns == timestamp
     _assert_clean(tmp_path)

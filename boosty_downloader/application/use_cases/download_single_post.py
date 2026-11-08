@@ -18,6 +18,7 @@ from boosty_downloader.application.filtering import (
 )
 from boosty_downloader.application.mappers.post_mapper import map_post_dto_to_domain
 from boosty_downloader.application.page_builder import build_post_page
+from boosty_downloader.application.post_access import observe_post_access
 from boosty_downloader.application.post_download_state import (
     PostDownloadState,
     PostRunProgress,
@@ -104,6 +105,9 @@ class DownloadSinglePostUseCase:
     async def execute(self) -> None:
         """Persist preparation, then fetch only selected missing piece identities."""
         self._needs_render = False
+        observe_post_access(
+            self.context.post_store, self.context.author_name, self.post_dto
+        )
         self._excluded = has_excluded_tag(
             (tag.title for tag in self.post_dto.tags or ()), self.context.excluded_tags
         )
@@ -136,9 +140,6 @@ class DownloadSinglePostUseCase:
             self.run_progress,
         )
         self._state = state
-        self.context.post_store.clear_locked_post(
-            self.context.author_name, self.post_dto.id
-        )
         self._warn_incomplete()
         self._unchanged = not prepared.needs_update
         if prepared.needs_update:
