@@ -2,24 +2,33 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 import pytest
-from aiohttp import ContentTypeError
+from aiohttp import (
+    ClientError,
+    ClientPayloadError,
+    ContentTypeError,
+    ServerDisconnectedError,
+)
 
 from boosty_downloader.infrastructure.boosty_api.core.client import (
     BoostyAPIClient,
     BoostyAPIInvalidUsernameError,
     BoostyAPINoPostError,
     BoostyAPINoUsernameError,
+    BoostyAPITransportError,
     BoostyAPIUnauthorizedError,
     BoostyAPIUnknownError,
     BoostyAPIValidationError,
 )
 
 if TYPE_CHECKING:
+    from types import TracebackType
+
     from aiohttp import RequestInfo
     from aiohttp_retry import RetryClient
 
@@ -34,7 +43,22 @@ class _FakeResponse:
 
     status: int
     json_data: Any = None
-    json_error: Exception | None = None
+    json_error: BaseException | None = None
+    close_error: BaseException | None = None
+    closed: bool = False
+
+    async def __aenter__(self) -> _FakeResponse:  # noqa: PYI034 Python 3.10
+        return self
+
+    async def __aexit__(
+        self,
+        _exc_type: type[BaseException] | None,
+        _exc_value: BaseException | None,
+        _traceback: TracebackType | None,
+    ) -> None:
+        self.closed = True
+        if self.close_error is not None:
+            raise self.close_error
 
     async def json(self) -> object:
         if self.json_error is not None:
@@ -45,11 +69,16 @@ class _FakeResponse:
 class _FakeSession:
     """Stub of RetryClient: returns the one prepared response for any GET."""
 
-    def __init__(self, response: _FakeResponse) -> None:
+    def __init__(
+        self, response: _FakeResponse, *, request_error: BaseException | None = None
+    ) -> None:
         self._response = response
+        self._request_error = request_error
 
     async def get(self, *args: object, **kwargs: object) -> _FakeResponse:
         del args, kwargs  # the stub answers any request the same way
+        if self._request_error is not None:
+            raise self._request_error
         return self._response
 
 
@@ -233,11 +262,13 @@ async def test_single_post_401_raises_unauthorized():
 async def test_blog_status_errors_do_not_parse_the_body(
     status: int, error_type: type[Exception]
 ) -> None:
-    client = _make_client(_FakeResponse(status, json_error=_JsonMustNotBeCalledError()))
+    response = _FakeResponse(status, json_error=_JsonMustNotBeCalledError())
+    client = _make_client(response)
 
     with pytest.raises(error_type) as caught:
         await client.get_blog_info('example_author')
 
+    assert response.closed
     if isinstance(
         caught.value, (BoostyAPIInvalidUsernameError, BoostyAPINoUsernameError)
     ):
@@ -252,19 +283,112 @@ async def test_blog_status_errors_do_not_parse_the_body(
     ],
 )
 async def test_blog_non_json_response_is_unknown_error(parse_error: Exception) -> None:
-    client = _make_client(_FakeResponse(200, json_error=parse_error))
+    response = _FakeResponse(200, json_error=parse_error)
+    client = _make_client(response)
 
     with pytest.raises(BoostyAPIUnknownError, match='Non-JSON response'):
         await client.get_blog_info('example_author')
+
+    assert response.closed
 
 
 @pytest.mark.parametrize('data', [None, [], 'blog', 42])
 async def test_blog_non_object_response_carries_validation_details(
     data: object,
 ) -> None:
-    client = _make_client(_FakeResponse(200, json_data=data))
+    response = _FakeResponse(200, json_data=data)
+    client = _make_client(response)
 
     with pytest.raises(BoostyAPIValidationError) as caught:
         await client.get_blog_info('example_author')
 
     assert caught.value.errors
+    assert response.closed
+
+
+async def test_blog_success_closes_the_response() -> None:
+    response = _FakeResponse(200, json_data={'title': 'Fixture blog'})
+
+    blog = await _make_client(response).get_blog_info('example_author')
+
+    assert blog.title == 'Fixture blog'
+    assert response.closed
+
+
+_TRANSPORT_ERRORS = (
+    ClientError,
+    ClientPayloadError,
+    ServerDisconnectedError,
+    asyncio.TimeoutError,
+)
+
+
+@pytest.mark.parametrize('error_type', _TRANSPORT_ERRORS)
+async def test_blog_request_transport_error_keeps_safe_message_and_cause(
+    error_type: type[Exception],
+) -> None:
+    error = error_type('https://fixture.test/blog?private-fixture')
+    response = _FakeResponse(200)
+    session = _FakeSession(response, request_error=error)
+    client = BoostyAPIClient(session=cast('RetryClient', session))
+
+    with pytest.raises(BoostyAPITransportError) as caught:
+        await client.get_blog_info('example_author')
+
+    assert caught.value.__cause__ is error
+    assert str(caught.value) == 'Cannot read blog metadata from Boosty'
+    assert not response.closed
+
+
+@pytest.mark.parametrize('error_type', _TRANSPORT_ERRORS)
+async def test_blog_body_transport_error_closes_response_and_keeps_cause(
+    error_type: type[Exception],
+) -> None:
+    error = error_type('https://fixture.test/blog?private-fixture')
+    response = _FakeResponse(200, json_error=error)
+
+    with pytest.raises(BoostyAPITransportError) as caught:
+        await _make_client(response).get_blog_info('example_author')
+
+    assert caught.value.__cause__ is error
+    assert str(caught.value) == 'Cannot read blog metadata from Boosty'
+    assert response.closed
+
+
+@pytest.mark.parametrize('error_type', _TRANSPORT_ERRORS)
+async def test_blog_close_transport_error_keeps_safe_message_and_cause(
+    error_type: type[Exception],
+) -> None:
+    error = error_type('https://fixture.test/blog?private-fixture')
+    response = _FakeResponse(200, json_data={}, close_error=error)
+
+    with pytest.raises(BoostyAPITransportError) as caught:
+        await _make_client(response).get_blog_info('example_author')
+
+    assert caught.value.__cause__ is error
+    assert str(caught.value) == 'Cannot read blog metadata from Boosty'
+    assert response.closed
+
+
+@pytest.mark.parametrize('stage', ['request', 'body', 'close'])
+async def test_blog_cancellation_propagates_and_closes_acquired_response(
+    stage: str,
+) -> None:
+    cancelled = asyncio.CancelledError()
+    response = _FakeResponse(200, json_data={})
+    match stage:
+        case 'request':
+            session = _FakeSession(response, request_error=cancelled)
+        case 'body':
+            response.json_error = cancelled
+            session = _FakeSession(response)
+        case _:
+            response.close_error = cancelled
+            session = _FakeSession(response)
+    client = BoostyAPIClient(session=cast('RetryClient', session))
+
+    with pytest.raises(asyncio.CancelledError) as caught:
+        await client.get_blog_info('example_author')
+
+    assert caught.value is cancelled
+    assert response.closed == (stage != 'request')

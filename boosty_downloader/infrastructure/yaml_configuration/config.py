@@ -115,7 +115,7 @@ def create_sample_config_file(config_path: Path) -> None:
 
 def _hint_fix_or_recreate(config_path: Path) -> None:
     logger_instances.downloader_logger.info(
-        'Fix the file by hand, or delete it - the next run creates a fresh sample.'
+        'Fix the file by hand, or delete it - a run without --dry-run creates a fresh sample.'
     )
     logger_instances.downloader_logger.info(
         f'Config location: {config_path.absolute()}'
@@ -196,9 +196,17 @@ def _read_or_exit(read: Callable[[Path], T], config_path: Path) -> T:
         sys.exit(1)
 
 
-def init_config(config_path: Path = DEFAULT_CONFIG_PATH) -> Config:
-    """Load the whole config, credentials included; a missing file gets the sample."""
+def init_config(
+    config_path: Path = DEFAULT_CONFIG_PATH, *, read_only: bool = False
+) -> Config:
+    """Load credentials and paths; read-only previews never create a sample."""
     if not config_path.exists():
+        if read_only:
+            logger_instances.downloader_logger.error(
+                f'Config does not exist at {config_path.absolute()}. '
+                'Dry-run requires an existing config; no sample was created.'
+            )
+            sys.exit(1)
         _create_sample_and_exit(config_path)
     return _read_or_exit(_read_config, config_path)
 

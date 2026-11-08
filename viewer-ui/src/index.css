@@ -1,0 +1,106 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* Dark is the default; the light palette follows the system setting. */
+@custom-variant dark {
+  @media not (prefers-color-scheme: light) {
+    @slot;
+  }
+}
+
+@theme inline {
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-heading: var(--font-sans);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  color-scheme: dark;
+  --background: #0f1115;
+  --foreground: #e8eaf0;
+  --card: #171a21;
+  --card-foreground: #e8eaf0;
+  --popover: #1f232c;
+  --popover-foreground: #e8eaf0;
+  --primary: #7c9cff;
+  --primary-foreground: #0f1115;
+  --primary-soft: rgb(124 156 255 / 0.14);
+  --secondary: #1f232c;
+  --secondary-foreground: #e8eaf0;
+  --muted: #1f232c;
+  --muted-foreground: #9aa3b2;
+  --accent: #1f232c;
+  --accent-foreground: #e8eaf0;
+  --destructive: #f87171;
+  --border: #2a2f3a;
+  --input: #2a2f3a;
+  --ring: #7c9cff;
+  --radius: 10px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --background: #f6f7fb;
+    --foreground: #151821;
+    --card: #ffffff;
+    --card-foreground: #151821;
+    --popover: #ffffff;
+    --popover-foreground: #151821;
+    --primary: #3b5bdb;
+    --primary-foreground: #ffffff;
+    --primary-soft: rgb(59 91 219 / 0.1);
+    --secondary: #f0f2f7;
+    --secondary-foreground: #151821;
+    --muted: #f0f2f7;
+    --muted-foreground: #5b6475;
+    --accent: #f0f2f7;
+    --accent-foreground: #151821;
+    --destructive: #d9480f;
+    --border: #e3e6ee;
+    --input: #e3e6ee;
+    --ring: #3b5bdb;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--muted-foreground) 30%, transparent) transparent;
+  }
+  html {
+    @apply font-sans;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-size: 15px;
+  }
+}
