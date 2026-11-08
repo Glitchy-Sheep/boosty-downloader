@@ -307,3 +307,15 @@ def test_empty_excluded_tag_is_a_usage_error(tag: str) -> None:
     result = runner.invoke(typer_app, ['download', 'someone', '--exclude-tag', tag])
     assert result.exit_code == 2
     assert 'tag must not be empty' in _plain_text(result.output)
+
+
+def test_download_help_explains_restore_missing() -> None:
+    result = runner.invoke(typer_app, ['download', '--help'])
+    help_text = _plain_text(result.output)
+
+    assert result.exit_code == 0
+    assert '--restore-missing' in help_text
+    assert (
+        'Download selected media deleted locally if it is still present in the post'
+        in help_text
+    )
