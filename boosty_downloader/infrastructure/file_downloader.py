@@ -1,4 +1,4 @@
-"""Module to download files with reporting process mechanisms"""
+"""Stream HTTP media into reserved destinations through owned temporary output."""
 
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 
-import aiofiles
 from aiohttp import ClientConnectionError, ClientPayloadError
 
 from boosty_downloader.infrastructure.media_publication import publish_completed_file
@@ -51,26 +50,6 @@ class DownloadingStatus:
     total_bytes: int | None
     total_downloaded_bytes: int
     downloaded_bytes: int = 0
-
-
-@dataclass
-class DownloadFileConfig:
-    """General configuration for the file download"""
-
-    session: RetryClient
-    url: str
-
-    filename: str
-    destination: Path
-    on_status_update: Callable[[DownloadingStatus], None] = lambda _: None
-
-    # True only when the caller builds the filename without an extension
-    # (videos, images). Names that come from the author (files, audio)
-    # already carry their extension and must never be touched.
-    guess_extension: bool = True
-    # 2 MiB: on fast channels the old 512 KiB meant 4x more per-chunk
-    # bookkeeping (progress callback + write) for no benefit.
-    chunk_size_bytes: int = 2097152
 
 
 @dataclass
@@ -198,20 +177,6 @@ def _extension_to_append(content_type: str | None) -> str | None:
     return mimetypes.guess_extension(content_type)
 
 
-async def download_file(
-    dl_config: DownloadFileConfig,
-) -> Path:
-    """Download files and report the downloading process via callback"""
-    async with dl_config.session.get(dl_config.url) as response:
-        _require_success(response, dl_config.url)
-        filename = _response_filename(response, dl_config)
-        file_path = dl_config.destination / filename
-        async with aiofiles.open(file_path, mode='wb') as file:
-            with _download_errors(dl_config.url, file_path):
-                await _copy_response(response, file.write, dl_config, filename)
-        return file_path
-
-
 async def download_reserved_file(config: ReservedDownloadFileConfig) -> PublishedFile:
     """
     Reserve a concrete HTTP filename, then publish only its completed output.
@@ -237,7 +202,7 @@ def _require_success(response: ClientResponse, url: str) -> None:
 
 
 def _response_filename(
-    response: ClientResponse, config: DownloadFileConfig | ReservedDownloadFileConfig
+    response: ClientResponse, config: ReservedDownloadFileConfig
 ) -> str:
     if config.guess_extension:
         return _app_built_filename(
@@ -249,7 +214,7 @@ def _response_filename(
 async def _copy_response(
     response: ClientResponse,
     write: Callable[[bytes], Awaitable[object]],
-    config: DownloadFileConfig | ReservedDownloadFileConfig,
+    config: ReservedDownloadFileConfig,
     filename: str,
 ) -> None:
     total_downloaded = 0
@@ -296,19 +261,19 @@ async def _write_reserved_response(
 
 
 @contextmanager
-def _download_errors(url: str, file: Path | None = None) -> Generator[None, None, None]:
+def _download_errors(url: str) -> Generator[None, None, None]:
     try:
         yield
     except (CancelledError, KeyboardInterrupt) as error:
-        raise DownloadCancelledError(resource_url=url, file=file) from error
+        raise DownloadCancelledError(resource_url=url) from error
     except (TimeoutError, AsyncioTimeoutError) as error:
-        raise DownloadTimeoutError(resource_url=url, file=file) from error
+        raise DownloadTimeoutError(resource_url=url) from error
     except (
         ConnectionResetError,
         BrokenPipeError,
         ClientConnectionError,
         ClientPayloadError,
     ) as error:
-        raise DownloadConnectionError(resource_url=url, file=file) from error
+        raise DownloadConnectionError(resource_url=url) from error
     except OSError as error:
-        raise DownloadIOFailureError(resource_url=url, file=file) from error
+        raise DownloadIOFailureError(resource_url=url) from error

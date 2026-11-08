@@ -118,7 +118,6 @@ class _HookState:
     """Internal state holder for tracking the status of an external video download."""
 
     last_downloaded: int = 0
-    final_filename: Path | None = None
 
 
 class _SilentLogger:
@@ -220,51 +219,6 @@ class ExternalVideosDownloader:
         """Reserve on the event loop and publish only a stopped worker's output."""
         return await download_reserved_video(self, url, reserve, progress_hook)
 
-    def download_video(
-        self,
-        url: str,
-        destination_directory: Path,
-        progress_hook: ExternalVideoDownloadProgressHook | None = None,
-    ) -> Path:
-        """Download video using yt-dlp and repeatedly report progress via progress_hook callback until completion."""
-        info = self._probe_video(url)
-        title = info.get('title')
-        if not isinstance(title, str) or not title.strip():
-            raise ExtVideoInfoError(url)
-
-        clean_title = self._sanitize_title(title)
-        destination_directory.mkdir(parents=True, exist_ok=True)
-
-        outtmpl = self._build_outtmpl(destination_directory, clean_title)
-
-        state = _HookState()
-        internal_hook = self._make_progress_hook(outtmpl, progress_hook, state)
-
-        options: YtDlOptions = self._default_ydl_options.copy()
-        options['outtmpl'] = outtmpl
-        options['progress_hooks'] = [internal_hook]
-
-        try:
-            with YoutubeDL(params=cast('Any', options)) as ydl:
-                try:
-                    # yt-dlp isn't typed; cast to Any and coerce to int
-                    errors: int = int(cast('Any', ydl).download([url]))
-                except KeyboardInterrupt as e:
-                    raise ExtVideoInterruptedByUserError from e
-
-            if errors != 0:
-                raise ExtVideoDownloadError(url)
-
-        except DownloadError as e:
-            raise _failure(e, url, ExtVideoDownloadError) from e
-
-        if state.final_filename is not None:
-            return state.final_filename
-
-        ext = info.get('ext')
-        guessed_ext = ext if isinstance(ext, str) and ext else 'mp4'
-        return destination_directory / f'{clean_title}.{guessed_ext}'
-
     def _probe_video(self, url: str) -> dict[str, Any]:
         # Extract metadata without downloading to validate and fetch title/ext.
         try:
@@ -337,10 +291,5 @@ class ExternalVideosDownloader:
             if user_hook is not None:
                 with contextlib.suppress(Exception):
                     user_hook(status_payload)
-
-            if d.get('status') in {'finished', 'postprocessing'}:
-                f = d.get('filename')
-                if isinstance(f, str):
-                    state.final_filename = Path(f)
 
         return _hook
