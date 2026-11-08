@@ -72,6 +72,7 @@ class IndexAuthor(IndexBase):
     author_json_size: Mapped[int | None]
     locked_json_mtime_ns: Mapped[int | None]
     locked_json_size: Mapped[int | None]
+    locked_json_synced: Mapped[bool] = mapped_column(default=False)
 
 
 class IndexPost(IndexBase):

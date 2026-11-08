@@ -39,11 +39,14 @@ class PostIdentity:
     post_id: str
 
 
-def write_author(connection: Connection, author: AuthorProjection) -> None:
+def write_author(
+    connection: Connection, author: AuthorProjection, *, locked_synced: bool = True
+) -> None:
     """Refresh source metadata without resetting derived post counts."""
     info = author.info
     values: SqlValues = {
         'author': author.author,
+        'locked_json_synced': locked_synced,
         'title': info.title if info else None,
         'owner_name': info.owner_name if info else None,
         'description': info.description if info else None,
