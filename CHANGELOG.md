@@ -4,8 +4,18 @@
 
 - `download --exclude-tag TAG` skips posts matching any excluded tag name (case-insensitive); repeat the option for multiple tags. Works with `--post-url` and `--dry-run`
 
+### Changed
+
+- BREAKING: Downloads use a `post.json` record in each post folder instead of the legacy SQLite cache. `--cache-dir` no longer controls download state, and `clean-cache` only removes the old SQLite cache without resetting saved records or media. Existing v4 cache records are not migrated; use a fresh destination for this development version
+- Every saved `post.html` is built from the complete post record, including media saved on earlier runs and placeholders for media not downloaded yet. Content filters select media transfers, and changing filters on a later run adds to the same page
+- `download --dry-run` shares preparation with real downloads: it reports new records, existing posts to update, unchanged posts, tag exclusions and the exact selected media work. Known bytes use current API sizes; videos with unknown sizes remain explicit
+- Dry-run creates or changes no local files, including config samples, caches, failure logs and debug logs. A missing config is an error; `--debug` prints preview diagnostics on the console and keeps any existing log file unchanged
+
 ### Fixed
 
+- A failed media piece no longer causes completed pieces of the same type to download again. Each completion is saved separately, and an unavailable external video does not prevent retries for a different transient failure
+- Interrupted media transfers no longer leave incomplete files under their final names. Completed files can be recovered after interruption before the record update; filename collisions preserve existing files
+- Renaming a post on Boosty keeps its saved folder. Locally deleted media stays deleted, and author-removed media retains its saved history and local copies
 - Post folder names respect the 240-byte limit for long titles beginning with a Windows device name such as `CON.`
 - Attachment filenames use the same cleaning rules on Windows, Linux and macOS, including names with colons or backslashes. Unusually long extensions share the filename length budget
 - On Windows, a `.zip` attachment in `post.html` gets the archive icon like on Linux and macOS. Before, it got the generic file icon because Windows names the zip type differently
