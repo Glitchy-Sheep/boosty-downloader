@@ -13,6 +13,18 @@
 
 Python itself comes from uv: `.python-version` pins the dev version, and uv downloads that exact standalone CPython on the first `uv sync`.
 
+## Viewer development
+
+The React viewer uses Node 24 LTS, pinned in `.nvmrc`. With nvm installed, run `nvm install` and `nvm use` in the repository. Node is needed for the viewer tasks; Python dependency installation and Python checks remain independent of it.
+
+- `task ui:install` installs the exact npm lockfile in `viewer-ui/`.
+- `task ui:check` runs TypeScript, oxlint and Vitest.
+- `task ui:build` writes static assets to `boosty_downloader/viewer/static/app/`.
+
+Commit `viewer-ui/package-lock.json` with dependency changes. Generated assets and `node_modules` are ignored. The source under `viewer-ui/src/lib/` is tracked despite the repository's general Python `lib/` ignore rule.
+
+The current frontend stage provides the approved shell and theme. Python packaging and the `view` command are connected in later stages.
+
 ## Ruff (lint + format)
 
 [Ruff](https://docs.astral.sh/ruff/) handles both linting and formatting. Configuration: `ruff.toml`.
@@ -92,4 +104,4 @@ uv is one binary that manages Python itself, the venv, the lockfile and builds.
 - Don't activate the venv by habit: a stale `VIRTUAL_ENV` makes tools fail in confusing ways, and `uv run` / `task` never need activation.
 - `uv sync` removes packages installed into `.venv` by hand - declare everything in `pyproject.toml`.
 - The lockfile is `uv.lock` - commit it with every dependency change.
-- The build backend stays `poetry-core`: the `[tool.poetry] packages` block in `pyproject.toml` is required for packaging, keep it.
+- The build backend is `hatchling`; package inclusion is configured under `[tool.hatch.build.targets]` in `pyproject.toml`.
