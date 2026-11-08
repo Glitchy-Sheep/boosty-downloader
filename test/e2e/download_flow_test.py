@@ -25,6 +25,7 @@ from support.synthetic_post import (
     FILE_SIZE,
     IMAGE_SIZE,
     POST_ID,
+    VIDEO_ID,
     file_chunk,
     synthetic_post,
 )
@@ -977,3 +978,49 @@ async def test_refresh_checks_new_excluded_tags_before_saving_or_downloading(
     assert located is not None
     assert located.record is not None
     assert located.record.post.title == 'Fixture post with every content type'
+
+
+@pytest.mark.parametrize(
+    ('media_id', 'relative_path', 'existing_bytes'),
+    [
+        (f'file:{FILE_ID}', 'files/fixture-archive.zip', b'wrong API size'),
+        (f'boosty_video:{VIDEO_ID}', 'boosty_videos/Fixture video (10000000).mp4', b''),
+    ],
+)
+async def test_recordless_folder_preserves_incomplete_preferred_and_unrelated_files(
+    tmp_path: Path,
+    media_id: str,
+    relative_path: str,
+    existing_bytes: bytes,
+) -> None:
+    folder = tmp_path / AUTHOR / POST_DIR_NAME
+    existing = folder / relative_path
+    existing.parent.mkdir(parents=True)
+    existing.write_bytes(existing_bytes)
+    unrelated = existing.parent / 'unrelated.keep'
+    unrelated.write_bytes(b'foreign file')
+    expected_mtime = existing.stat().st_mtime_ns
+    unrelated_mtime = unrelated.stat().st_mtime_ns
+    served: list[str] = []
+    async with TestServer(_build_app(served)) as server:
+        stats = await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
+        assert stats.posts_failed == 0
+        assert existing.read_bytes() == existing_bytes
+        assert existing.stat().st_mtime_ns == expected_mtime
+        assert unrelated.read_bytes() == b'foreign file'
+        assert unrelated.stat().st_mtime_ns == unrelated_mtime
+        located = JsonPostStore(tmp_path).find_post(AUTHOR, POST_ID)
+        assert located is not None
+        assert located.record is not None
+        entry = located.record.media[media_id]
+        assert entry.status is MediaStatus.downloaded
+        assert entry.path is not None
+        assert entry.path != relative_path
+        downloaded = tmp_path / located.folder / entry.path
+        assert entry.size == downloaded.stat().st_size
+        assert downloaded.read_bytes() in (b'file bytes', b'mp4 bytes')
+        served.clear()
+        assert (
+            await _dry_run(tmp_path, server.make_url('/'))
+        ).plan.media == MediaCounts()
+        assert served == []
