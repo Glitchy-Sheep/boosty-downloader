@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 import aiohttp
 import pytest
+from rich.text import Text
 from support.synthetic_post import (
     file_chunk,
     synthetic_post,
@@ -177,10 +178,11 @@ def test_preview_preserves_saved_records_pages_marks_and_existing_logs(
     result = runner.invoke(typer_app, _preview_args(tmp_path, debug=debug))
 
     assert result.exit_code == 0, result.exception
-    assert 'Existing posts to update' in result.output
-    assert '4.00 MB' in result.output
-    assert re.search(r'Existing posts to update\s+1', result.output)
-    assert re.search(r'New records\s+0', result.output)
+    output = Text.from_ansi(result.output).plain
+    assert 'Existing posts to update' in output
+    assert '4.00 MB' in output
+    assert re.search(r'Existing posts to update\s+1', output)
+    assert re.search(r'New records\s+0', output)
     assert _snapshot(tmp_path) == before
 
 
@@ -249,5 +251,6 @@ def test_single_post_preview_rejects_options_before_config_and_debug_setup(
     )
 
     assert result.exit_code == 2
-    assert '--dry-run previews the full-blog run' in ' '.join(result.output.split())
+    output = Text.from_ansi(result.output).plain
+    assert '--dry-run previews the full-blog run' in ' '.join(output.split())
     assert _snapshot(tmp_path) == before

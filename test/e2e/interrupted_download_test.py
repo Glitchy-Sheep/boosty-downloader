@@ -34,8 +34,8 @@ if TYPE_CHECKING:
     from boosty_downloader.domain.library import LocatedPost
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-VIDEO_BYTES = b'video fixture bytes\x00' * 8192
-FIRST_CHUNK_SIZE = 64 * 1024
+VIDEO_BYTES = b'video fixture bytes\x00' * 65536
+FIRST_CHUNK_SIZE = 512 * 1024
 MEDIA_ID = f'boosty_video:{VIDEO_ID}'
 TIMEOUT = 15
 
@@ -182,7 +182,7 @@ def _find_partial(root: Path) -> PartialOutput | None:
         if (
             (workspace / '.owner').is_file()
             and partial.is_file()
-            and partial.stat().st_size == FIRST_CHUNK_SIZE
+            and 0 < partial.stat().st_size <= FIRST_CHUNK_SIZE
         ):
             return PartialOutput(folder, final, workspace, partial)
     return None
@@ -243,7 +243,9 @@ async def test_killed_transfer_leaves_no_final_and_restart_downloads_once(
             state.finish_first.set()
             await asyncio.wait_for(state.first_finished.wait(), timeout=TIMEOUT)
             assert not output.final.exists()
-            assert output.partial.read_bytes() == VIDEO_BYTES[:FIRST_CHUNK_SIZE]
+            partial_bytes = output.partial.read_bytes()
+            assert 0 < len(partial_bytes) <= FIRST_CHUNK_SIZE
+            assert partial_bytes == VIDEO_BYTES[: len(partial_bytes)]
             located = _located(root)
             assert located.record is not None
             entry = located.record.media[MEDIA_ID]

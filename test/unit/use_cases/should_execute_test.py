@@ -178,7 +178,7 @@ async def test_posts_without_selected_media_still_save_complete_body_and_page(
     record = _record(use_case)
     assert not record.media
     assert bool(record.blocks) is bool(chunks)
-    page = (use_case.destination / 'post.html').read_text()
+    page = (use_case.destination / 'post.html').read_text(encoding='utf-8')
     if chunks:
         assert 'Readable text' in page or 'List item' in page
     assert media.mock_calls == []
@@ -218,7 +218,7 @@ async def test_later_audio_filter_adds_audio_without_redownloading_saved_file(
     assert record.media[f'file:{FILE_ID}'].status is MediaStatus.downloaded
     assert record.media[f'file:{FILE_ID}'].path == file_path
     assert record.media[f'audio:{AUDIO_ID}'].status is MediaStatus.downloaded
-    page = (second.destination / 'post.html').read_text()
+    page = (second.destination / 'post.html').read_text(encoding='utf-8')
     assert 'href="files/saved.bin"' in page
     assert 'src="audio/saved.bin"' in page
 
@@ -244,7 +244,9 @@ async def test_unfinished_upload_warns_and_keeps_a_pending_placeholder(
         + use_case.destination.name
     )
     assert next(iter(_record(use_case).media.values())).status is MediaStatus.pending
-    assert 'not downloaded' in (use_case.destination / 'post.html').read_text()
+    assert 'not downloaded' in (use_case.destination / 'post.html').read_text(
+        encoding='utf-8'
+    )
 
 
 @pytest.mark.parametrize(
@@ -269,4 +271,6 @@ async def test_stream_only_video_warns_with_display_title_without_download(
         'Skip video (streams are not supported yet): ' + (title.strip() or 'video')
     )
     assert next(iter(_record(use_case).media.values())).status is MediaStatus.pending
-    assert 'not downloaded' in (use_case.destination / 'post.html').read_text()
+    assert 'not downloaded' in (use_case.destination / 'post.html').read_text(
+        encoding='utf-8'
+    )

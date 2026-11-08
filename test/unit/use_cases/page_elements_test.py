@@ -113,7 +113,7 @@ async def test_saved_attachment_appears_on_terminal_page_with_actual_size(
     assert not (use_case.destination / 'post.html').exists()
     assert _record(use_case).sync.page_template is None
     use_case.finalize()
-    page = (use_case.destination / 'post.html').read_text()
+    page = (use_case.destination / 'post.html').read_text(encoding='utf-8')
     assert 'href="files/report.pdf"' in page
     assert '7 B' in page
     assert _record(use_case).sync.page_template == PAGE_TEMPLATE_VERSION
