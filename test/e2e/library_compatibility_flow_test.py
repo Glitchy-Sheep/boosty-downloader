@@ -196,7 +196,7 @@ def test_bad_marker_fails_before_debug_log_or_network(
     result = runner.invoke(typer_app, ['--debug', *_command(root)])
 
     assert result.exit_code == 1
-    assert 'library.json' in _plain(result.output)
+    _assert_path_in_output(result.output, path)
     assert _snapshot(tmp_path) == before
 
 

@@ -31,7 +31,7 @@ class _ReachedUpdateCheckError(Exception):
 
 
 def _plain(output: str) -> str:
-    return ' '.join(Text.from_ansi(output).plain.split())
+    return ' '.join(Text.from_ansi(output).plain.replace('│', ' ').split())
 
 
 @pytest.mark.parametrize(
