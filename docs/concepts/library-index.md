@@ -22,4 +22,14 @@ Rebuilding writes only index files. Canonical records, marks, pages and media st
 
 Actual downloads prepare the index once and update it after successful canonical saves. The adapter indexes post records, author information and access observations, preserving saved body and viewing marks across access changes. An index or projection failure warns once and disables further index attempts for the run. Canonical saves continue; their own errors still fail normally. Dry-run and `check` do not open the index.
 
-The index defaults to `.boosty-downloader/index.db` under the library root. The CLI `--cache-dir` value overrides `downloading_settings.cache_directory` from YAML and places it at `<cache-directory>/index.db`, without an author subdirectory. Query APIs, synchronization on viewer open and the `reindex` command remain subsequent integration steps.
+The index defaults to `.boosty-downloader/index.db` under the library root. The CLI `--cache-dir` value overrides `downloading_settings.cache_directory` from YAML and places it at `<cache-directory>/index.db`, without an author subdirectory. The `JsonLibraryReader` adapter prepares the index and synchronizes canonical changes when opened by its caller. The `view` and `reindex` commands remain subsequent integration steps.
+
+## Reading a library
+
+`JsonLibraryReader` implements the storage-neutral library queries. Constructing it performs no I/O; `prepare()` checks the index and synchronizes source changes. Author and post lists read indexed metadata, without loading complete post bodies. Post details read the known canonical folder and verify its full identity. Lists preserve original tag order and combine content kind, unseen, exact tag and text filters.
+
+Search treats input as words with prefix matching, joined with AND; quotes, asterisks and operator-looking text cannot become query syntax. The existing text folding makes `все` and `всё` match alike, without conflating `мои` and `мой`. An unseen filter includes accessible posts that have no seen time or have newer saved pieces. A text-only edit does not make a seen post unseen.
+
+Synchronization compares file sizes and modification times for post records, marks and author/access metadata. Unchanged records are not decoded, and media directories are not traversed. New or changed records update only their projections. Removed sources remove or adjust their index rows, including full-text rows; retained locked observations can keep a locked-only entry. A moved post folder keeps its full identity, while duplicate folders for the same post are an error. Invalid source data rolls back the whole synchronization and leaves canonical files untouched.
+
+Viewing marks are read fresh from `viewer.json`. Saving marks writes canonical data before refreshing its index projection and preserves the timestamps supplied by the caller. Reader errors are reported to its caller; if the index update fails after a successful marks save, the canonical marks remain durable and a later synchronization can recover the projection.
