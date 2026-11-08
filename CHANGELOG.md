@@ -13,6 +13,7 @@
 
 ### Changed
 
+- BREAKING: v5 marks new libraries and refuses unmarked destinations containing older post folders before any download request or startup write. Choose a separate destination and keep older downloads for posts no longer available on Boosty
 - BREAKING: Downloads use a `post.json` record in each post folder instead of the legacy SQLite cache. `--cache-dir` no longer controls download state, and `clean-cache` only removes the old SQLite cache without resetting saved records or media. Existing v4 cache records are not migrated; use a fresh destination for this development version
 - Every saved `post.html` is built from the complete post record, including media saved on earlier runs and placeholders for media not downloaded yet. Content filters select media transfers, and changing filters on a later run adds to the same page
 - `download --dry-run` shares preparation with real downloads: it reports new records, existing posts to update, unchanged posts, tag exclusions and the exact selected media work. Known bytes use current API sizes; videos with unknown sizes remain explicit

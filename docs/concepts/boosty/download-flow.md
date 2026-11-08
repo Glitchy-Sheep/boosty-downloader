@@ -5,7 +5,9 @@ Boosty Downloader saves each accessible post as a complete `post.json` record, i
 ## The pipeline
 
 ```text
-CLI: config, filters, JsonPostStore, separate API and media sessions
+CLI: validate arguments and check library compatibility without writes
+  -> config, initialize new library marker, filters, JsonPostStore
+  -> separate API and media sessions
   -> DownloadAllPostUseCase / DownloadPostByIdUseCase
   -> refresh_author: blog details and owned avatar/cover images
   -> BoostyAPIClient: paginated listing / one post by ID
@@ -57,7 +59,7 @@ The pure cover selector reads the saved body order and a filesystem snapshot. It
 
 The overview reports inaccessible posts separately. Unfinished uploads and author-removed pieces are not counted as downloads. Unknown video sizes remain explicit rather than being guessed from older local files. After an unchanged successful download, the next preview reports no media work for that post.
 
-Preview startup also stays read-only: it does not create a library, SQLite cache, metadata, media, failure log or sample config. A missing config produces an error without creating its parent folder. `--debug` shows preview diagnostics on the console and does not create or truncate a debug log. Ordinary `download` and `check` commands retain sample-config setup and file diagnostics.
+Preview startup also stays read-only: it does not create a library, SQLite cache, metadata, media, failure log or sample config. A missing config produces an error without creating its parent folder. `--debug` shows preview diagnostics on the console and does not create or truncate a debug log. Ordinary `download` retains sample-config setup and file diagnostics after the library compatibility check. `check` retains its existing setup behavior.
 
 ## Failures and interruption
 
@@ -79,7 +81,9 @@ Media links from listing responses expire after 24 hours. The download walk uses
 
 Download state lives in `<destination>/<author>/<post folder>/post.json`. Author information, avatar/cover images and locked-post observations live under `<destination>/<author>/.boosty-downloader/`. `author.json` uses author-relative image paths; `locked.json` retains observations of posts not encountered during a partial run. Dry-run and `check` do not update these files. The downloader no longer opens SQLite. `--cache-dir` is only relevant to the legacy `clean-cache` command, which removes an old database without resetting records or removing media.
 
-Use a fresh destination for development checks. Migration from the v4 cache and a guard against selecting a v4 library are not implemented. Library indexing, standalone page rebuilding and the library viewer belong to later stages. Existing storage or rendering components do not mean those workflows are connected to the CLI yet.
+The first actual download creates the immutable `<destination>/.boosty-downloader/library.json` marker with `format_version: 5`. Dry-run checks compatibility without creating it. Before sample-config creation, debug-file setup or any network request, every download form checks an unmarked destination for recognized post folders under every author. If it finds one, the command names the destination, asks for another folder and explains why older downloads should be kept. It never reads the old post contents or SQLite cache. A malformed, unsupported or unsafe marker is an error rather than an invitation to overwrite it.
+
+There is no automatic migration or adoption of older downloads. Library indexing, standalone page rebuilding and the library viewer belong to later stages; each will use the same compatibility boundary when connected to the CLI.
 
 ## Layers
 
