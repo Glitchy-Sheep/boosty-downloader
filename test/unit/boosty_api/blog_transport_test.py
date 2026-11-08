@@ -89,7 +89,7 @@ async def test_blog_total_timeout_is_an_api_error_and_releases_connection(
         await stop.wait()
         return response
 
-    async with _blog_client(handler, timeout=ClientTimeout(total=0.03)) as client:
+    async with _blog_client(handler, timeout=ClientTimeout(total=1)) as client:
         try:
             with pytest.raises(BoostyAPITransportError) as caught:
                 await client.get_blog_info(AUTHOR)

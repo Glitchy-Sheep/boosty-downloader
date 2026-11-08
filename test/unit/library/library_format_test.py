@@ -414,18 +414,17 @@ def test_parent_link_swap_before_publication_preserves_outside_files(
     moved = tmp_path / 'moved-service'
     outside = tmp_path / 'outside'
     outside.mkdir()
-    original_fsync = library_format.os.fsync
+    original_publish = library_format._publish_or_validate  # pyright: ignore[reportPrivateUsage]
 
-    def swap_parent(descriptor: int) -> None:
-        original_fsync(descriptor)
-        temporary = next(service.iterdir())
+    def swap_parent(library: Path, temporary: Path) -> None:
         service.rename(moved)
         _symlink(service, outside)
         (outside / temporary.name).write_bytes(b'foreign file with same name')
+        original_publish(library, temporary)
 
-    monkeypatch.setattr(library_format.os, 'fsync', swap_parent)
+    monkeypatch.setattr(library_format, '_publish_or_validate', swap_parent)
 
-    with pytest.raises(LibraryCompatibilityError, match='link'):
+    with pytest.raises(LibraryCompatibilityError, match='must not be a symbolic link'):
         initialize_library(root)
 
     assert not (outside / LIBRARY_MARKER_PATH.name).exists()
