@@ -133,7 +133,7 @@ boosty-downloader download YOUR_CREATOR_NAME -o ./v5-downloads
 
 The preview covers the whole blog; `--dry-run` cannot be combined with `--post-url`. `post_content` includes the post's images. Each saved page includes the complete body, downloaded media from earlier runs and placeholders for media that has not been downloaded. The final command adds the remaining selected media to the same pages.
 
-Records and pages live under `<destination>/<creator>/<post folder>/`. Renaming a post on Boosty does not move its saved folder. Files you delete locally are recorded as deleted and stay deleted on an ordinary run. The summary counts remaining deleted media in the accessible, non-excluded posts processed by this run. Media removed by the author stays in the saved history, including any local copy.
+Records and pages live under `<destination>/<creator>/<post folder>/`. Renaming a post on Boosty does not move its saved folder. Content files you delete locally are recorded as deleted and stay deleted on an ordinary run. The summary counts remaining deleted media in the accessible, non-excluded posts processed by this run. Media removed by the author stays in the saved history, including any local copy.
 
 To restore deleted files that are still in the creator's posts, preview and run with `--restore-missing`:
 
@@ -147,6 +147,10 @@ Content filters also apply to restoration, and the option works with `--post-url
 Each real download refreshes the creator's title, description, display name, avatar and cover. Author details and images live in `<destination>/<creator>/.boosty-downloader/`; `author.json` refers to those images with paths relative to the creator's folder. If metadata or an image cannot be fetched, a warning is shown and the saved version remains available.
 
 Posts observed without access are listed in `.boosty-downloader/locked.json` without creating a post folder. Losing access keeps any previously saved page, media and viewing marks. Confirmed access clears the corresponding locked observation even if a tag excludes that post from downloading. The file records observed access, so posts not encountered during a partial run are retained. `--dry-run` and `check` do not update these records or images.
+
+Video previews are saved under each post's `previews/` directory, even when video downloads are filtered out or the video is not ready yet. Locked-post teasers live in the creator's `.boosty-downloader/teasers/` directory. Existing usable previews and teasers are reused; missing ones are fetched on a later run without `--restore-missing`. Excluded tags prevent these image downloads too. Their transfers do not count as downloaded post media.
+
+Library cover selection uses the first current downloaded image, then the preview of the first current Boosty video. A locked post uses its teaser. Removed media cannot become the cover. These images and cover rules prepare the saved records for the library viewer; they do not add a new viewer command yet.
 
 This development version uses `post.json` instead of the v4 SQLite cache. Use a fresh destination when trying v5: automatic migration and a guard against selecting a v4 library are not implemented yet. `--cache-dir` does not move the new records; `clean-cache` only removes a legacy SQLite cache and does not reset saved posts or remove media.
 

@@ -69,6 +69,7 @@ def _application(state: LocalServerState) -> web.Application:
             text_chunk('A complete page after restart'),
             {
                 **ok_video_chunk(),
+                'preview': f'http://{request.host}/preview.png',
                 'playerUrls': [
                     {'type': 'medium', 'url': f'http://{request.host}/video.mp4'}
                 ],
@@ -97,9 +98,13 @@ def _application(state: LocalServerState) -> web.Application:
             state.first_finished.set()
         return response
 
+    async def preview(_request: web.Request) -> web.Response:
+        return web.Response(body=b'preview bytes', content_type='image/png')
+
     app = web.Application()
     app.router.add_get(f'/v1/blog/{AUTHOR}/post/{POST_ID}', post)
     app.router.add_get('/video.mp4', video)
+    app.router.add_get('/preview.png', preview)
     return app
 
 
