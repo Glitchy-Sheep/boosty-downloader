@@ -7,7 +7,7 @@ Paths use portable relative strings. Callers reserve every retained media path b
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
@@ -29,20 +29,10 @@ from boosty_downloader.infrastructure.path_sanitizer import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
-    from collections.abc import Set as AbstractSet
+    from collections.abc import Collection, Iterator, Mapping
 
     from boosty_downloader.application.mappers.live_post import LiveMedia
-
-
-@dataclass(frozen=True)
-class DiskSnapshot:
-    """Observed regular-file sizes and names occupied by other filesystem entries."""
-
-    files: Mapping[str, int]
-    occupied: AbstractSet[str] = field(default_factory=frozenset[str])
-    # Queried spelling -> actual path, only when the filesystem confirms it.
-    aliases: Mapping[str, str] = field(default_factory=dict[str, str])
+    from boosty_downloader.domain.disk_snapshot import DiskSnapshot
 
 
 @dataclass(frozen=True)
@@ -59,6 +49,14 @@ class FileMatch:
 
     path: str
     size: int
+
+
+@dataclass(frozen=True, slots=True)
+class _PathCandidate:
+    """A generated path and its position in the collision-name family."""
+
+    number: int
+    path: str
 
 
 @dataclass(frozen=True, order=True)
@@ -119,6 +117,48 @@ def _video_path_hint(title: str | None, video_id: str) -> MediaPathHint | None:
         return None
     name = boosty_video_filename(title, video_id)
     return MediaPathHint(path=f'boosty_videos/{name}', suffix_from_response=True)
+
+
+def get_media_alias_queries(
+    hints: Mapping[str, MediaPathHint], disk: DiskSnapshot
+) -> set[str]:
+    """
+    Build concrete alternate spellings for filesystem identity checks.
+
+    Matching spelling only identifies a query. Recovery still requires a confirmed alias in the snapshot.
+    """
+    by_folder: dict[str, list[str]] = {}
+    for path in disk.files:
+        if not _is_temporary(path):
+            folder = _path_key(str(PurePosixPath(path).parent))
+            by_folder.setdefault(folder, []).append(path)
+    queries: set[str] = set()
+    for media_id, hint in hints.items():
+        if media_id.startswith(f'{MediaKind.external_video.value}:'):
+            continue
+        folder = _path_key(str(PurePosixPath(hint.path).parent))
+        queries.update(
+            _candidate_alias_queries(
+                hint, _identity_token(media_id), by_folder.get(folder, ())
+            )
+        )
+    return queries
+
+
+def _candidate_alias_queries(
+    hint: MediaPathHint, token: str, paths: Collection[str]
+) -> set[str]:
+    queries: set[str] = set()
+    for path in paths:
+        key = _path_key(path)
+        for candidate in _candidate_paths(path, hint, token, fold_markers=True):
+            if (
+                candidate.path != path
+                and not _is_temporary(candidate.path)
+                and _path_key(candidate.path) == key
+            ):
+                queries.add(candidate.path)
+    return queries
 
 
 def reserve_media_path(
@@ -224,18 +264,28 @@ def _candidate_path(
 
 
 def _candidate_number(path: str, hint: MediaPathHint, token: str) -> int | None:
+    for candidate in _candidate_paths(path, hint, token):
+        if path == candidate.path:
+            return candidate.number
+    return None
+
+
+def _candidate_paths(
+    path: str, hint: MediaPathHint, token: str, *, fold_markers: bool = False
+) -> Iterator[_PathCandidate]:
     observed = PurePosixPath(path)
     suffixes = ('', observed.suffix) if hint.suffix_from_response else ('',)
-    marker = rf' \({re.escape(token)}(?:-([2-9]|[1-9][0-9]+))?\)'
+    name, marker_token = observed.name, token
+    if fold_markers:
+        name, marker_token = _path_key(name), _path_key(marker_token)
+    marker = rf' \({re.escape(marker_token)}(?:-([2-9]|[1-9][0-9]+))?\)'
     numbers = [0] + [
         int(match[1]) if match[1] is not None else 1
-        for match in re.finditer(marker, observed.name)
+        for match in re.finditer(marker, name)
     ]
     for number in sorted(set(numbers)):
         for suffix in suffixes:
-            if path == _candidate_path(hint, token, number, suffix):
-                return number
-    return None
+            yield _PathCandidate(number, _candidate_path(hint, token, number, suffix))
 
 
 def _identity_token(media_id: str) -> str:
@@ -250,8 +300,10 @@ def _path_key(path: str) -> str:
 
 
 def _is_temporary(path: str) -> bool:
-    name = PurePosixPath(path).name
-    return name.startswith('.') and name.endswith('.part')
+    return any(
+        part.startswith('.') and part.endswith('.part')
+        for part in PurePosixPath(path).parts
+    )
 
 
 def _is_plausible(size: int, expected_size: int | None) -> bool:

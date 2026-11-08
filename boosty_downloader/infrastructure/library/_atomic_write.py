@@ -1,4 +1,4 @@
-"""Atomic publication of library record bytes."""
+"""Atomic publication of library record and page bytes."""
 
 import os
 from contextlib import suppress

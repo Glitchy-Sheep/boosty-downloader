@@ -1,9 +1,8 @@
 """End-to-end: a full download run against a local Boosty-shaped server.
 
 The server serves the synthetic post and small media blobs. The run
-uses the real API client, file downloader, cache and renderer - only the
-console reporter and yt-dlp are absent. This is the safety net for the DI
-and use-case refactoring stages: the on-disk tree must not change.
+uses the real API client, record store, file downloader and renderer.
+Only the console reporter and yt-dlp are replaced.
 """
 
 from __future__ import annotations
@@ -22,8 +21,12 @@ from support.synthetic_blog import BLOG_TITLE, OWNER_NAME, POST_COUNT, synthetic
 from support.synthetic_post import (
     AUDIO_SIZE,
     FAKE_HOSTS,
+    FILE_ID,
     FILE_SIZE,
     IMAGE_SIZE,
+    POST_ID,
+    VIDEO_ID,
+    file_chunk,
     synthetic_post,
 )
 
@@ -33,7 +36,12 @@ from boosty_downloader.application.download_context import DownloadContext
 from boosty_downloader.application.filtering import (
     BoostyOkVideoType,
 )
+from boosty_downloader.application.post_download_state import PostDownloadState
+from boosty_downloader.application.post_preparation import PostPreparer
 from boosty_downloader.application.run_statistics import RunStatistics
+from boosty_downloader.application.use_cases import (
+    download_single_post as single_post_module,
+)
 from boosty_downloader.application.use_cases.download_all_posts import (
     DownloadAllPostUseCase,
 )
@@ -42,27 +50,27 @@ from boosty_downloader.application.use_cases.plan_download import (
     PlanDownloadUseCase,
 )
 from boosty_downloader.domain.content_types import DownloadContentTypeFilter
+from boosty_downloader.domain.stored_post import MediaKind, MediaStatus
 from boosty_downloader.infrastructure.boosty_api.core.client import BoostyAPIClient
 from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
+    ExternalVideosDownloader,
     ExtVideoUnavailableError,
 )
+from boosty_downloader.infrastructure.library.post_store import JsonPostStore
 from boosty_downloader.infrastructure.loggers.base import RichLogger
 from boosty_downloader.infrastructure.loggers.failed_downloads_logger import (
     FailedDownloadsLogger,
 )
-from boosty_downloader.infrastructure.post_caching.post_cache import (
-    SQLitePostCache,
-)
 
 if TYPE_CHECKING:
     from pathlib import Path
+    from typing import Any
 
     from yarl import URL
 
     from boosty_downloader.application.run_statistics import RunStatistics
-    from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
-        ExternalVideosDownloader,
-    )
+    from boosty_downloader.infrastructure.html_generator.models import HtmlGenChunk
+    from boosty_downloader.infrastructure.media_publication import PublishedFile
 
 AUTHOR = 'example_author'
 POST_DIR_NAME = '2025-06-15 - Fixture post with every content type (00000000)'
@@ -113,6 +121,12 @@ def _blob_body(path: str) -> web.Response:
     return web.Response(body=b'file bytes', content_type='application/octet-stream')
 
 
+def _local_payload(text: str, host: str) -> dict[str, Any]:
+    for source_host in FAKE_HOSTS:
+        text = text.replace(source_host, f'http://{host}')
+    return json.loads(text)
+
+
 def _build_app(  # noqa: PLR0913 - independent fake-server failure modes
     served_media: list[str],
     media_delay: float = 0.0,
@@ -121,17 +135,17 @@ def _build_app(  # noqa: PLR0913 - independent fake-server failure modes
     dead_images: bool = False,
     external_video_url: str | None = None,
     blog_failures: list[int] | None = None,
+    payload: dict[str, Any] | None = None,
+    refreshed_payload: dict[str, Any] | None = None,
+    first_file_status: int = 404,
 ) -> web.Application:
-    fixture_text = json.dumps(synthetic_post())
+    fixture_text = json.dumps(payload if payload is not None else synthetic_post())
     file_failures_left = 1 if fail_first_file else 0
 
     async def listing(request: web.Request) -> web.Response:
         # The synthetic post links to fake hosts; the server rewrites them
         # to itself so every media request stays local.
-        local_text = fixture_text
-        for host in FAKE_HOSTS:
-            local_text = local_text.replace(host, f'http://{request.host}')
-        post = json.loads(local_text)
+        post = _local_payload(fixture_text, request.host)
         if external_video_url is not None:
             post['data'].append({'type': 'video', 'url': external_video_url})
         return web.json_response(
@@ -154,14 +168,23 @@ def _build_app(  # noqa: PLR0913 - independent fake-server failure modes
             await asyncio.sleep(media_delay)
         if '/file/' in request.path and file_failures_left:
             file_failures_left -= 1
-            return web.Response(status=404)
+            return web.Response(status=first_file_status)
         if '/image/' in request.path and dead_images:
             return web.Response(status=404)
         return _blob_body(request.path)
 
+    async def single_post(request: web.Request) -> web.Response:
+        fresh = (
+            json.dumps(refreshed_payload)
+            if refreshed_payload is not None
+            else fixture_text
+        )
+        return web.json_response(_local_payload(fresh, request.host))
+
     app = web.Application()
     app.router.add_get(f'/v1/blog/{AUTHOR}', blog_info)
     app.router.add_get(f'/v1/blog/{AUTHOR}/post/', listing)
+    app.router.add_get(f'/v1/blog/{AUTHOR}/post/{POST_ID}', single_post)
     app.router.add_get('/{tail:.*}', blob)
     return app
 
@@ -169,16 +192,25 @@ def _build_app(  # noqa: PLR0913 - independent fake-server failure modes
 class _GoneExternalVideos:
     """yt-dlp stand-in: every external video is deleted."""
 
-    def download_video(self, **kwargs: object) -> Path:
-        raise ExtVideoUnavailableError(str(kwargs['url']), 'This video is unavailable')
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def download_reserved_video(
+        self, url: str, *args: object, **kwargs: object
+    ) -> Path:
+        del args, kwargs
+        self.calls += 1
+        raise ExtVideoUnavailableError(url, 'This video is unavailable')
 
 
-async def _run_download(
+async def _run_download(  # noqa: PLR0913 - isolated download scenarios
     destination: Path,
     api_base: URL,
     reporter: _QuietReporter,
+    *,
     external_videos: ExternalVideosDownloader | None = None,
     excluded_tags: tuple[str, ...] = (),
+    filters: list[DownloadContentTypeFilter] | None = None,
 ) -> RunStatistics:
     """One full download run wired exactly like the app, minus the console."""
     async with ClientSession() as session:
@@ -186,34 +218,35 @@ async def _run_download(
             session, retry_options=ExponentialRetry(attempts=2, start_timeout=0.1)
         )
         boosty_api = BoostyAPIClient(retry_client, base_url=api_base / 'v1/')
-        with SQLitePostCache(destination, RichLogger('e2e-cache')) as cache:
-            context = DownloadContext(
-                author_name=AUTHOR,
-                downloader_session=retry_client,
-                # The fixture has no external videos: yt-dlp must stay out.
-                external_videos_downloader=cast(
-                    'ExternalVideosDownloader', external_videos
-                ),
-                post_cache=cache,
-                filters=list(DownloadContentTypeFilter),
-                excluded_tags=excluded_tags,
-                preferred_video_quality=BoostyOkVideoType.medium,
-                progress_reporter=reporter,
-                failed_logger=FailedDownloadsLogger(
-                    destination / 'failed_downloads.log'
-                ),
-            )
-            await DownloadAllPostUseCase(
-                author_name=AUTHOR,
-                boosty_api=boosty_api,
-                destination=destination,
-                download_context=context,
-            ).execute()
-            return context.run_statistics
+        context = DownloadContext(
+            author_name=AUTHOR,
+            downloader_session=retry_client,
+            # The fixture has no external videos: yt-dlp must stay out.
+            external_videos_downloader=cast(
+                'ExternalVideosDownloader', external_videos
+            ),
+            post_store=JsonPostStore(destination),
+            library_root=destination,
+            filters=list(DownloadContentTypeFilter) if filters is None else filters,
+            excluded_tags=excluded_tags,
+            preferred_video_quality=BoostyOkVideoType.medium,
+            progress_reporter=reporter,
+            failed_logger=FailedDownloadsLogger(
+                destination / AUTHOR / 'failed_downloads.log'
+            ),
+        )
+        await DownloadAllPostUseCase(
+            author_name=AUTHOR,
+            boosty_api=boosty_api,
+            destination=destination / AUTHOR,
+            download_context=context,
+        ).execute()
+        return context.run_statistics
 
 
 def _assert_post_tree(destination: Path) -> None:
     """The on-disk layout is the app's public contract with its users."""
+    destination = destination / AUTHOR
     post_dir = destination / POST_DIR_NAME
     tree = sorted(p.name for p in destination.iterdir())
     assert post_dir.is_dir(), f'actual tree: {tree}'
@@ -229,7 +262,7 @@ def _assert_post_tree(destination: Path) -> None:
     html = (post_dir / 'post.html').read_text(encoding='utf-8')
     assert '<title>Fixture post with every content type</title>' in html
     assert 'images/10000000-0000-4000-8000-000000000201.png' in html
-    assert 'boosty_videos/Fixture video (10000000).mp4' in html
+    assert 'boosty_videos/Fixture%20video%20%2810000000%29.mp4' in html
     assert 'audio/fixture-song.mp3' in html
 
 
@@ -243,11 +276,13 @@ async def test_full_run_builds_the_expected_post_tree(tmp_path: Path) -> None:
 
         assert reporter.errors == []
         _assert_post_tree(tmp_path)
-        html = (tmp_path / POST_DIR_NAME / 'post.html').read_text(encoding='utf-8')
+        html = (tmp_path / AUTHOR / POST_DIR_NAME / 'post.html').read_text(
+            encoding='utf-8'
+        )
         assert 'href="files/fixture-archive.zip"' in html
-        # The card names the file and shows the size the API reported.
+        # The card names the file and shows its actual saved size.
         assert 'fixture-archive.zip' in html
-        assert 'File · ZIP · 4.0 MB' in html
+        assert 'File · ZIP · 10 B' in html
         # The closing statistics must describe exactly what landed on disk.
         assert stats.posts_downloaded == 1
         assert stats.media == MediaCounts(images=1, files=1, boosty_videos=1, audio=1)
@@ -258,8 +293,8 @@ async def test_full_run_builds_the_expected_post_tree(tmp_path: Path) -> None:
         await server.close()
 
 
-async def test_second_run_serves_from_cache(tmp_path: Path) -> None:
-    """A rerun must not touch the network for media: that is the cache promise."""
+async def test_second_run_reuses_saved_media(tmp_path: Path) -> None:
+    """A rerun must not touch the network for media: saved pieces are complete."""
     served_media: list[str] = []
     server = TestServer(_build_app(served_media))
     await server.start_server()
@@ -272,7 +307,7 @@ async def test_second_run_serves_from_cache(tmp_path: Path) -> None:
         stats = await _run_download(tmp_path, server.make_url('/'), reporter)
 
         assert len(served_media) == media_after_first
-        assert any('cached' in notice for notice in reporter.notices)
+        assert any('unchanged' in notice for notice in reporter.notices)
         assert stats.posts_cached == 1
         assert stats.posts_downloaded == 0
         assert stats.media == MediaCounts()
@@ -299,7 +334,9 @@ async def test_media_of_one_post_downloads_in_parallel(tmp_path: Path) -> None:
             f'4 media x 0.4s must overlap, not queue (took {duration:.2f}s)'
         )
 
-        html = (tmp_path / POST_DIR_NAME / 'post.html').read_text(encoding='utf-8')
+        html = (tmp_path / AUTHOR / POST_DIR_NAME / 'post.html').read_text(
+            encoding='utf-8'
+        )
         image_at = html.index('images/')
         video_at = html.index('boosty_videos/')
         audio_at = html.index('audio/')
@@ -319,16 +356,19 @@ async def _dry_run(
             session, retry_options=ExponentialRetry(attempts=2, start_timeout=0.1)
         )
         boosty_api = BoostyAPIClient(retry_client, base_url=api_base / 'v1/')
-        with SQLitePostCache(destination, RichLogger('e2e-dry')) as cache:
-            return await PlanDownloadUseCase(
-                author_name=AUTHOR,
-                boosty_api=boosty_api,
-                logger=RichLogger('e2e-dry'),
-                post_cache=cache,
-                filters=list(DownloadContentTypeFilter),
-                excluded_tags=excluded_tags,
-                preferred_video_quality=BoostyOkVideoType.medium,
-            ).execute()
+        return await PlanDownloadUseCase(
+            author_name=AUTHOR,
+            boosty_api=boosty_api,
+            logger=RichLogger('e2e-dry'),
+            preparer=PostPreparer(
+                destination,
+                JsonPostStore(destination),
+                AUTHOR,
+                BoostyOkVideoType.medium,
+            ),
+            filters=list(DownloadContentTypeFilter),
+            excluded_tags=excluded_tags,
+        ).execute()
 
 
 async def test_dry_run_promises_the_post_but_touches_no_media(tmp_path: Path) -> None:
@@ -349,14 +389,14 @@ async def test_dry_run_promises_the_post_but_touches_no_media(tmp_path: Path) ->
         assert report.plan.unknown_size_videos == 1
         assert report.overview.total_posts == 1
 
-        # After a real run the same plan collapses to "everything complete".
+        # After a real run the same plan reports an unchanged record.
         await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
         media_downloaded = len(served_media)
         assert media_downloaded > 0
 
         report = await _dry_run(tmp_path, server.make_url('/'))
 
-        assert report.plan.complete_posts == 1
+        assert report.plan.unchanged_posts == 1
         assert report.plan.new_posts == 0
         assert report.plan.media == MediaCounts()
         assert len(served_media) == media_downloaded, 'second dry-run fetched media'
@@ -368,7 +408,7 @@ async def test_a_post_with_a_dead_image_still_gets_a_readable_page(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A piece that never downloads must not hide the whole post: the page is
-    written with a note at its place, the other content types are cached, and
+    written with a note at its place, the other media are saved, and
     the next run asks for the missing piece only and rewrites the page.
     """
 
@@ -383,12 +423,12 @@ async def test_a_post_with_a_dead_image_still_gets_a_readable_page(
         stats = await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
 
         assert stats.posts_failed == 1
-        post_dir = tmp_path / POST_DIR_NAME
+        post_dir = tmp_path / AUTHOR / POST_DIR_NAME
         html = (post_dir / 'post.html').read_text(encoding='utf-8')
         assert 'Image not downloaded' in html
         assert 'Unexpected status code: 404' in html
         assert '<img' not in html
-        assert 'boosty_videos/Fixture video (10000000).mp4' in html
+        assert 'boosty_videos/Fixture%20video%20%2810000000%29.mp4' in html
         assert (post_dir / 'files' / 'fixture-archive.zip').exists()
 
         served_media.clear()
@@ -429,11 +469,13 @@ async def test_a_gone_external_video_costs_one_attempt_and_keeps_the_post_readab
         # One attempt: image, file, video, audio - and never again.
         assert len(served_media) == 4, served_media
         _assert_post_tree(tmp_path)
-        html = (tmp_path / POST_DIR_NAME / 'post.html').read_text(encoding='utf-8')
+        html = (tmp_path / AUTHOR / POST_DIR_NAME / 'post.html').read_text(
+            encoding='utf-8'
+        )
         assert f'Video not downloaded: {gone_url}' in html
         assert 'This video is unavailable' in html
         assert f'href="{gone_url}">Open the original</a>' in html
-        log = (tmp_path / 'failed_downloads.log').read_text(encoding='utf-8')
+        log = (tmp_path / AUTHOR / 'failed_downloads.log').read_text(encoding='utf-8')
         assert 'External video unavailable: This video is unavailable' in log
     finally:
         await server.close()
@@ -455,9 +497,10 @@ async def test_retried_post_fetches_only_the_failed_part_and_is_counted_once(
         assert any('Attempt 1 failed' in warning for warning in reporter.warnings)
         assert reporter.errors == []
         _assert_post_tree(tmp_path)
-        html = (tmp_path / POST_DIR_NAME / 'post.html').read_text(encoding='utf-8')
-        # The page was written on the first attempt without the file and
-        # rewritten with its card when the retry brought it.
+        html = (tmp_path / AUTHOR / POST_DIR_NAME / 'post.html').read_text(
+            encoding='utf-8'
+        )
+        # The terminal page includes the file completed by the retry.
         assert 'href="files/fixture-archive.zip"' in html
         # First attempt: image, file (404), video, audio. Second attempt: the file.
         assert len(served_media) == 5, served_media
@@ -510,7 +553,7 @@ async def test_excluding_then_including_a_tag_preserves_download_eligibility(
         report = await _dry_run(
             tmp_path, server.make_url('/'), excluded_tags=('FIXTURE',)
         )
-        assert report.plan.filtered_out_posts == 1
+        assert report.plan.excluded_posts == 1
         assert report.plan.new_posts == 0
         assert report.plan.media == MediaCounts()
         assert served_media == []
@@ -524,14 +567,14 @@ async def test_excluding_then_including_a_tag_preserves_download_eligibility(
         assert stats.posts_without_content == 1
         assert stats.posts_failed == 0
         assert served_media == []
-        assert not (tmp_path / POST_DIR_NAME).exists()
+        assert not (tmp_path / AUTHOR / POST_DIR_NAME).exists()
 
         await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
         assert served_media
         _assert_post_tree(tmp_path)
 
         served_media.clear()
-        html_path = tmp_path / POST_DIR_NAME / 'post.html'
+        html_path = tmp_path / AUTHOR / POST_DIR_NAME / 'post.html'
         original_html = html_path.read_bytes()
         await _run_download(
             tmp_path,
@@ -541,3 +584,445 @@ async def test_excluding_then_including_a_tag_preserves_download_eligibility(
         )
         assert served_media == []
         assert html_path.read_bytes() == original_html
+
+
+async def test_separate_content_selections_build_one_complete_page(
+    tmp_path: Path,
+) -> None:
+    served: list[str] = []
+    async with TestServer(_build_app(served)) as server:
+        await _run_download(
+            tmp_path,
+            server.make_url('/'),
+            _QuietReporter(),
+            filters=[DownloadContentTypeFilter.post_content],
+        )
+        assert len(served) == 1
+        image = next((tmp_path / AUTHOR / POST_DIR_NAME / 'images').iterdir())
+        original = (image.read_bytes(), image.stat().st_mtime_ns)
+        plan = (await _dry_run(tmp_path, server.make_url('/'))).plan
+        assert plan.updated_posts == 1
+        assert plan.media == MediaCounts(files=1, audio=1, boosty_videos=1)
+        served.clear()
+        stats = await _run_download(
+            tmp_path,
+            server.make_url('/'),
+            _QuietReporter(),
+            filters=[
+                DownloadContentTypeFilter.files,
+                DownloadContentTypeFilter.boosty_videos,
+                DownloadContentTypeFilter.audio,
+            ],
+        )
+        assert len(served) == 3
+        assert stats.media == plan.media
+        assert (image.read_bytes(), image.stat().st_mtime_ns) == original
+        _assert_post_tree(tmp_path)
+
+
+async def test_retry_keeps_successful_peer_of_the_same_kind(tmp_path: Path) -> None:
+    payload = synthetic_post()
+    second = file_chunk()
+    second.update(
+        id='10000000-0000-4000-8000-000000000302',
+        url='https://cdn.example/file/second',
+        title='second.zip',
+    )
+    payload['data'].append(second)
+    served: list[str] = []
+    async with TestServer(
+        _build_app(served, fail_first_file=True, payload=payload)
+    ) as server:
+        stats = await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
+    assert served.count(f'/file/{FILE_ID}') == 2
+    assert served.count('/file/second') == 1
+    assert stats.media == MediaCounts(images=1, files=2, audio=1, boosty_videos=1)
+    assert stats.posts_downloaded == 1
+    assert stats.downloaded_bytes == len(
+        b'png bytesmp4 bytesfile bytesfile bytesmp3 bytes'
+    )
+
+
+async def test_unavailable_video_does_not_block_retry_of_a_transient_file(
+    tmp_path: Path,
+) -> None:
+    external = _GoneExternalVideos()
+    served: list[str] = []
+    app = _build_app(
+        served, fail_first_file=True, external_video_url='https://video.example/gone'
+    )
+    async with TestServer(app) as server:
+        reporter = _QuietReporter()
+        stats = await _run_download(
+            tmp_path,
+            server.make_url('/'),
+            reporter,
+            external_videos=cast('ExternalVideosDownloader', external),
+        )
+    assert external.calls == 1
+    assert len(served) == 5
+    assert stats.posts_failed == 1
+    assert stats.media == MediaCounts(images=1, files=1, audio=1, boosty_videos=1)
+    _assert_post_tree(tmp_path)
+    assert any('retrying will not help' in message for message in reporter.errors)
+
+
+async def test_page_is_rendered_once_after_all_retries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rendered: list[Path] = []
+    original = single_post_module.render_html_to_file
+
+    def render(chunks: list[HtmlGenChunk], out_path: Path, page_title: str) -> None:
+        rendered.append(out_path)
+        original(chunks, out_path, page_title)
+
+    monkeypatch.setattr(single_post_module, 'render_html_to_file', render)
+    async with TestServer(_build_app([], fail_first_file=True)) as server:
+        await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
+    assert rendered == [tmp_path / AUTHOR / POST_DIR_NAME / 'post.html']
+
+
+@pytest.mark.parametrize('dead_images', [False, True])
+async def test_render_failure_preserves_completed_media_and_transfer_cause(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    dead_images: bool,
+) -> None:
+    original = single_post_module.render_html_to_file
+
+    def broken_render(
+        chunks: list[HtmlGenChunk], out_path: Path, page_title: str
+    ) -> None:
+        del chunks, out_path, page_title
+        message = 'page cannot be written'
+        raise OSError(message)
+
+    async def no_sleep(delay: float) -> None:
+        del delay
+
+    monkeypatch.setattr(post_retry_module.asyncio, 'sleep', no_sleep)
+    monkeypatch.setattr(single_post_module, 'render_html_to_file', broken_render)
+    served: list[str] = []
+    async with TestServer(_build_app(served, dead_images=dead_images)) as server:
+        reporter = _QuietReporter()
+        stats = await _run_download(tmp_path, server.make_url('/'), reporter)
+        assert stats.posts_failed == 1
+        assert any('page cannot be written' in message for message in reporter.errors)
+        if dead_images:
+            assert any('404' in message for message in reporter.errors)
+        located = JsonPostStore(tmp_path).find_post(AUTHOR, POST_ID)
+        assert located is not None
+        assert located.record is not None
+        assert located.record.sync.page_template is None
+        assert located.record.media[f'file:{FILE_ID}'].status is MediaStatus.downloaded
+        served.clear()
+        monkeypatch.setattr(single_post_module, 'render_html_to_file', original)
+        await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
+        assert all('/image/' in path for path in served)
+        assert len(served) == (5 if dead_images else 0)
+        assert (tmp_path / AUTHOR / POST_DIR_NAME / 'post.html').is_file()
+
+
+async def test_published_video_is_recovered_after_completed_state_save_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = PostDownloadState.complete
+
+    def fail_video_save(
+        self: PostDownloadState, media_id: str, result: PublishedFile
+    ) -> bool:
+        if self.record.media[media_id].kind is MediaKind.boosty_video:
+            message = 'record write interrupted'
+            raise OSError(message)
+        return original(self, media_id, result)
+
+    monkeypatch.setattr(PostDownloadState, 'complete', fail_video_save)
+    served: list[str] = []
+    async with TestServer(_build_app(served)) as server:
+        stats = await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
+        assert stats.posts_failed == 1
+        video = next((tmp_path / AUTHOR / POST_DIR_NAME / 'boosty_videos').iterdir())
+        original_file = (video.read_bytes(), video.stat().st_mtime_ns)
+        monkeypatch.setattr(PostDownloadState, 'complete', original)
+        served.clear()
+        report = await _dry_run(tmp_path, server.make_url('/'))
+        assert report.plan.updated_posts == 1
+        assert report.plan.media == MediaCounts()
+        stats = await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
+        assert stats.posts_downloaded == 1
+        assert stats.media == MediaCounts()
+        assert served == []
+        assert (video.read_bytes(), video.stat().st_mtime_ns) == original_file
+        _assert_post_tree(tmp_path)
+
+
+async def test_refresh_losing_access_preserves_saved_body_and_previous_page(
+    tmp_path: Path,
+) -> None:
+    locked = synthetic_post()
+    locked.update(
+        hasAccess=False,
+        title='Locked response must not replace the saved body',
+        data=[],
+    )
+    served: list[str] = []
+    app = _build_app(
+        served, fail_first_file=True, first_file_status=403, refreshed_payload=locked
+    )
+    async with TestServer(app) as server:
+        await _run_download(
+            tmp_path,
+            server.make_url('/'),
+            _QuietReporter(),
+            filters=[DownloadContentTypeFilter.post_content],
+        )
+        page = tmp_path / AUTHOR / POST_DIR_NAME / 'post.html'
+        original_page = (page.read_bytes(), page.stat().st_mtime_ns)
+        stats = await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
+        assert stats.posts_failed == 1
+        assert (page.read_bytes(), page.stat().st_mtime_ns) == original_page
+        located = JsonPostStore(tmp_path).find_post(AUTHOR, POST_ID)
+        assert located is not None
+        assert located.record is not None
+        assert located.record.post.title == 'Fixture post with every content type'
+        assert located.record.blocks
+        assert located.record.sync.page_template is None
+
+
+async def test_author_rename_retains_post_folder(tmp_path: Path) -> None:
+    served: list[str] = []
+    async with TestServer(_build_app(served)) as server:
+        await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
+    payload = synthetic_post()
+    payload['title'] = 'A new author title'
+    served.clear()
+    async with TestServer(_build_app(served, payload=payload)) as server:
+        stats = await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
+    assert served == []
+    assert stats.posts_downloaded == 1
+    folders = [path.name for path in (tmp_path / AUTHOR).iterdir() if path.is_dir()]
+    assert folders == [POST_DIR_NAME]
+    html = (tmp_path / AUTHOR / POST_DIR_NAME / 'post.html').read_text(encoding='utf-8')
+    assert '<title>A new author title</title>' in html
+
+
+async def test_replaced_file_gets_free_name_and_preserves_removed_copy(
+    tmp_path: Path,
+) -> None:
+    served: list[str] = []
+    async with TestServer(_build_app(served)) as server:
+        await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
+    old_file = tmp_path / AUTHOR / POST_DIR_NAME / 'files' / 'fixture-archive.zip'
+    old_bytes = (old_file.read_bytes(), old_file.stat().st_mtime_ns)
+    payload = synthetic_post()
+    replacement_id = '10000000-0000-4000-8000-000000000302'
+    for chunk in payload['data']:
+        if chunk.get('id') == FILE_ID:
+            chunk.update(id=replacement_id, url='https://cdn.example/file/replacement')
+    served.clear()
+    async with TestServer(_build_app(served, payload=payload)) as server:
+        stats = await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
+    assert served == ['/file/replacement']
+    assert stats.media == MediaCounts(files=1)
+    assert (old_file.read_bytes(), old_file.stat().st_mtime_ns) == old_bytes
+    located = JsonPostStore(tmp_path).find_post(AUTHOR, POST_ID)
+    assert located is not None
+    assert located.record is not None
+    old = located.record.media[f'file:{FILE_ID}']
+    new = located.record.media[f'file:{replacement_id}']
+    assert old.removed_at is not None
+    assert new.removed_at is None
+    assert new.path != old.path
+    assert new.path is not None
+    assert (tmp_path / located.folder / new.path).read_bytes() == b'file bytes'
+    assert 'Removed by the author' in (old_file.parent.parent / 'post.html').read_text(
+        encoding='utf-8'
+    )
+
+
+async def test_removed_file_returns_to_body_without_another_transfer(
+    tmp_path: Path,
+) -> None:
+    served: list[str] = []
+    async with TestServer(_build_app(served)) as server:
+        await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
+    payload = synthetic_post()
+    payload['data'] = [chunk for chunk in payload['data'] if chunk.get('id') != FILE_ID]
+    served.clear()
+    async with TestServer(_build_app(served, payload=payload)) as server:
+        await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
+    page = tmp_path / AUTHOR / POST_DIR_NAME / 'post.html'
+    assert 'Removed by the author' in page.read_text(encoding='utf-8')
+    assert served == []
+    async with TestServer(_build_app(served)) as server:
+        await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
+    assert served == []
+    assert 'Removed by the author' not in page.read_text(encoding='utf-8')
+    assert 'href="files/fixture-archive.zip"' in page.read_text(encoding='utf-8')
+
+
+async def test_real_external_adapter_saves_actual_bytes_in_post_record(
+    tmp_path: Path,
+) -> None:
+    payload = synthetic_post()
+    payload['data'].append({'type': 'video', 'url': 'https://cdn.example/external.mp4'})
+    served: list[str] = []
+    async with TestServer(_build_app(served, payload=payload)) as server:
+        stats = await _run_download(
+            tmp_path,
+            server.make_url('/'),
+            _QuietReporter(),
+            external_videos=ExternalVideosDownloader(),
+        )
+        assert stats.posts_failed == 0
+        assert stats.media.external_videos == 1
+        located = JsonPostStore(tmp_path).find_post(AUTHOR, POST_ID)
+        assert located is not None
+        assert located.record is not None
+        external = next(
+            entry
+            for entry in located.record.media.values()
+            if entry.kind is MediaKind.external_video
+        )
+        assert external.status is MediaStatus.downloaded
+        assert external.size == len(b'mp4 bytes')
+        assert external.path is not None
+        assert (tmp_path / located.folder / external.path).read_bytes() == b'mp4 bytes'
+        served.clear()
+        await _run_download(
+            tmp_path,
+            server.make_url('/'),
+            _QuietReporter(),
+            external_videos=ExternalVideosDownloader(),
+        )
+        assert served == []
+
+
+async def test_page_symlink_cannot_overwrite_a_file_outside_library(
+    tmp_path: Path,
+) -> None:
+    library = tmp_path / 'library'
+    async with TestServer(_build_app([])) as server:
+        await _run_download(library, server.make_url('/'), _QuietReporter())
+        outside = tmp_path / 'keep.txt'
+        outside.write_bytes(b'keep outside bytes')
+        page = library / AUTHOR / POST_DIR_NAME / 'post.html'
+        page.unlink()
+        try:
+            page.symlink_to(outside)
+        except OSError:
+            pytest.skip('File symlink creation unavailable')
+        reporter = _QuietReporter()
+        stats = await _run_download(library, server.make_url('/'), reporter)
+    assert outside.read_bytes() == b'keep outside bytes'
+    assert page.is_symlink()
+    assert stats.posts_failed == 1
+    assert any('page destination is a link' in message for message in reporter.errors)
+
+
+async def test_page_hardlink_is_replaced_without_modifying_other_name(
+    tmp_path: Path,
+) -> None:
+    library = tmp_path / 'library'
+    async with TestServer(_build_app([])) as server:
+        await _run_download(library, server.make_url('/'), _QuietReporter())
+        outside = tmp_path / 'keep.txt'
+        outside.write_bytes(b'keep outside bytes')
+        page = library / AUTHOR / POST_DIR_NAME / 'post.html'
+        page.unlink()
+        try:
+            page.hardlink_to(outside)
+        except OSError:
+            pytest.skip('File hardlink creation unavailable')
+    payload = synthetic_post()
+    payload['title'] = 'Rebuild linked page'
+    async with TestServer(_build_app([], payload=payload)) as server:
+        stats = await _run_download(library, server.make_url('/'), _QuietReporter())
+    assert stats.posts_downloaded == 1
+    assert outside.read_bytes() == b'keep outside bytes'
+    assert '<title>Rebuild linked page</title>' in page.read_text(encoding='utf-8')
+
+
+async def test_refresh_checks_new_excluded_tags_before_saving_or_downloading(
+    tmp_path: Path,
+) -> None:
+    excluded = synthetic_post()
+    excluded.update(
+        title='Excluded refreshed title', tags=[{'id': 99, 'title': 'skip-new-tag'}]
+    )
+    served: list[str] = []
+    app = _build_app(
+        served, fail_first_file=True, first_file_status=403, refreshed_payload=excluded
+    )
+    async with TestServer(app) as server:
+        await _run_download(
+            tmp_path,
+            server.make_url('/'),
+            _QuietReporter(),
+            filters=[DownloadContentTypeFilter.post_content],
+        )
+        page = tmp_path / AUTHOR / POST_DIR_NAME / 'post.html'
+        original_page = (page.read_bytes(), page.stat().st_mtime_ns)
+        served.clear()
+        stats = await _run_download(
+            tmp_path,
+            server.make_url('/'),
+            _QuietReporter(),
+            excluded_tags=('skip-new-tag',),
+        )
+    assert served.count(f'/file/{FILE_ID}') == 1
+    assert stats.posts_without_content == 1
+    assert (page.read_bytes(), page.stat().st_mtime_ns) == original_page
+    located = JsonPostStore(tmp_path).find_post(AUTHOR, POST_ID)
+    assert located is not None
+    assert located.record is not None
+    assert located.record.post.title == 'Fixture post with every content type'
+
+
+@pytest.mark.parametrize(
+    ('media_id', 'relative_path', 'existing_bytes'),
+    [
+        (f'file:{FILE_ID}', 'files/fixture-archive.zip', b'wrong API size'),
+        (f'boosty_video:{VIDEO_ID}', 'boosty_videos/Fixture video (10000000).mp4', b''),
+    ],
+)
+async def test_recordless_folder_preserves_incomplete_preferred_and_unrelated_files(
+    tmp_path: Path,
+    media_id: str,
+    relative_path: str,
+    existing_bytes: bytes,
+) -> None:
+    folder = tmp_path / AUTHOR / POST_DIR_NAME
+    existing = folder / relative_path
+    existing.parent.mkdir(parents=True)
+    existing.write_bytes(existing_bytes)
+    unrelated = existing.parent / 'unrelated.keep'
+    unrelated.write_bytes(b'foreign file')
+    expected_mtime = existing.stat().st_mtime_ns
+    unrelated_mtime = unrelated.stat().st_mtime_ns
+    served: list[str] = []
+    async with TestServer(_build_app(served)) as server:
+        stats = await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
+        assert stats.posts_failed == 0
+        assert existing.read_bytes() == existing_bytes
+        assert existing.stat().st_mtime_ns == expected_mtime
+        assert unrelated.read_bytes() == b'foreign file'
+        assert unrelated.stat().st_mtime_ns == unrelated_mtime
+        located = JsonPostStore(tmp_path).find_post(AUTHOR, POST_ID)
+        assert located is not None
+        assert located.record is not None
+        entry = located.record.media[media_id]
+        assert entry.status is MediaStatus.downloaded
+        assert entry.path is not None
+        assert entry.path != relative_path
+        downloaded = tmp_path / located.folder / entry.path
+        assert entry.size == downloaded.stat().st_size
+        assert downloaded.read_bytes() in (b'file bytes', b'mp4 bytes')
+        served.clear()
+        assert (
+            await _dry_run(tmp_path, server.make_url('/'))
+        ).plan.media == MediaCounts()
+        assert served == []
