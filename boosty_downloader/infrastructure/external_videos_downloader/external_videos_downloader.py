@@ -8,16 +8,28 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from http import HTTPStatus
 from pathlib import Path
-from typing import Any, ClassVar, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from yt_dlp.networking.exceptions import HTTPError
 from yt_dlp.YoutubeDL import YoutubeDL
 from yt_dlp.utils import DownloadError, ExtractorError
 
+from boosty_downloader.infrastructure.external_videos_downloader.prepared_video import (
+    CaptureFinalFilePP,
+    PreparedExternalVideo,
+)
+from boosty_downloader.infrastructure.external_videos_downloader.reserved_download import (
+    download_reserved_video,
+)
 from boosty_downloader.infrastructure.path_sanitizer import (
+    compose_filename,
     MAX_NAME_BYTES,
     sanitize_filename,
 )
+
+if TYPE_CHECKING:
+    from boosty_downloader.infrastructure.media_publication import PublishedFile
+    from boosty_downloader.infrastructure.media_transfer import ReserveMediaPath
 
 # yt-dlp appends the real extension to the template ('.webm', '.mp4', ...):
 # the title byte budget leaves room for it.
@@ -146,6 +158,68 @@ class ExternalVideosDownloader:
         'logger': _SilentLogger(),  # Suppress noisy error logging
     }
 
+    def prepare_video(self, url: str) -> PreparedExternalVideo:
+        """Resolve one video's metadata without creating media output."""
+        info = self._probe_video(url)
+        title = info.get('title')
+        if (
+            not isinstance(title, str)
+            or not title.strip()
+            or info.get('_type', 'video') != 'video'
+            or info.get('additional_urls')
+        ):
+            raise ExtVideoInfoError(url)
+        clean_title = self._sanitize_title(title)
+        extension = info.get('ext') or 'mp4'
+        if not isinstance(extension, str) or sanitize_filename(extension) != extension:
+            raise ExtVideoInfoError(url)
+        filename = compose_filename(clean_title, extension=f'.{extension}')
+        return PreparedExternalVideo(url, clean_title, filename, info)
+
+    def download_prepared(
+        self,
+        prepared: PreparedExternalVideo,
+        directory: Path,
+        progress_hook: ExternalVideoDownloadProgressHook | None = None,
+    ) -> Path:
+        """Process resolved metadata and return the actual postprocessed output."""
+        outtmpl = self._build_outtmpl(directory, prepared.title)
+        capture = CaptureFinalFilePP()
+        options = self._prepared_options(outtmpl, progress_hook)
+        try:
+            with YoutubeDL(params=cast('Any', options)) as ydl:
+                ydl.add_post_processor(capture, when='after_move')
+                prepared.process(ydl)
+        except KeyboardInterrupt as error:
+            raise ExtVideoInterruptedByUserError(prepared.url) from error
+        except DownloadError as error:
+            raise _failure(error, prepared.url, ExtVideoDownloadError) from error
+        if capture.path is None:
+            raise ExtVideoDownloadError(prepared.url)
+        return capture.path
+
+    def _prepared_options(
+        self, outtmpl: str, progress_hook: ExternalVideoDownloadProgressHook | None
+    ) -> YtDlOptions:
+        return {
+            **self._default_ydl_options,
+            'cachedir': False,
+            'noplaylist': True,
+            'outtmpl': outtmpl,
+            'progress_hooks': [
+                self._make_progress_hook(outtmpl, progress_hook, _HookState())
+            ],
+        }
+
+    async def download_reserved_video(
+        self,
+        url: str,
+        reserve: ReserveMediaPath,
+        progress_hook: ExternalVideoDownloadProgressHook | None = None,
+    ) -> PublishedFile:
+        """Reserve on the event loop and publish only a stopped worker's output."""
+        return await download_reserved_video(self, url, reserve, progress_hook)
+
     def download_video(
         self,
         url: str,
@@ -194,7 +268,11 @@ class ExternalVideosDownloader:
     def _probe_video(self, url: str) -> dict[str, Any]:
         # Extract metadata without downloading to validate and fetch title/ext.
         try:
-            opts = {**self._default_ydl_options, 'skip_download': True}
+            opts = {
+                **self._default_ydl_options,
+                'skip_download': True,
+                'noplaylist': True,
+            }
             with YoutubeDL(cast('Any', opts)) as ydl:
                 raw = cast('Any', ydl).extract_info(url, download=False)
         except DownloadError as e:
