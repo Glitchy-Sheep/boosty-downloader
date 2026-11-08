@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
@@ -519,4 +519,35 @@ def test_saved_media_paths_still_receive_physical_alias_confirmation(
         assert observed.status is MediaStatus.deleted
         assert observed.path == entry.path
         assert entry.path not in prepared.disk.aliases
+    assert _files(root) == before
+
+
+@pytest.mark.parametrize('restore_missing', [False, True])
+def test_restoration_plans_only_selected_deleted_media_without_writes(
+    preparer: PostPreparer, post: PostDTO, root: Path, *, restore_missing: bool
+) -> None:
+    saved = _seed(preparer, post)
+    for media_id, path in (
+        (FILE_MEDIA_ID, f'files/{FILE_NAME}'),
+        (VIDEO_MEDIA_ID, 'boosty_videos/saved.mp4'),
+    ):
+        entry = saved.record.media[media_id]
+        entry.status = MediaStatus.downloaded
+        entry.path = path
+        entry.size = 12
+    preparer.store.save_post(saved.folder, saved.record)
+    before = _files(root)
+    assert preparer.restore_missing is False
+    configured = (
+        replace(preparer, restore_missing=True) if restore_missing else preparer
+    )
+
+    prepared = configured.prepare(post, [DownloadContentTypeFilter.files], LATER)
+
+    expected = [FILE_MEDIA_ID] if restore_missing else []
+    assert prepared.reconciliation.download_ids == expected
+    record = _record(prepared)
+    expected_status = MediaStatus.pending if restore_missing else MediaStatus.deleted
+    assert record.media[FILE_MEDIA_ID].status is expected_status
+    assert record.media[VIDEO_MEDIA_ID].status is MediaStatus.deleted
     assert _files(root) == before

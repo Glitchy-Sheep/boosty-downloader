@@ -23,6 +23,7 @@ class RunStatistics:
     posts_locked: int = 0
     media: MediaCounts = field(default_factory=MediaCounts)
     downloaded_bytes: int = 0
+    media_deleted: int = 0
 
     def add_media(self, media: MediaCounts, downloaded_bytes: int) -> None:
         """Count one finished media download."""
