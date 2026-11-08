@@ -231,12 +231,20 @@ def test_response_suffix_matching_finds_a_numbered_existing_file():
     ('path', 'expected'),
     [
         ('.file.part', None),
+        ('files/.boosty-attempt.part/archive.zip', None),
+        ('videos/.boosty-attempt.part/fragments/clip.mp4', None),
         ('file.part', FileMatch(path='file.part', size=12)),
         ('.cover', FileMatch(path='.cover', size=12)),
     ],
-    ids=['download-temporary', 'ordinary-part-attachment', 'ordinary-dotfile'],
+    ids=[
+        'download-temporary',
+        'workspace-output',
+        'nested-workspace-output',
+        'ordinary-part-attachment',
+        'ordinary-dotfile',
+    ],
 )
-def test_only_hidden_part_files_are_temporary(
+def test_hidden_part_files_and_their_contents_are_temporary(
     path: str,
     expected: FileMatch | None,
 ):

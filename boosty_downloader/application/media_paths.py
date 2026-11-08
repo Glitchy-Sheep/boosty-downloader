@@ -300,8 +300,10 @@ def _path_key(path: str) -> str:
 
 
 def _is_temporary(path: str) -> bool:
-    name = PurePosixPath(path).name
-    return name.startswith('.') and name.endswith('.part')
+    return any(
+        part.startswith('.') and part.endswith('.part')
+        for part in PurePosixPath(path).parts
+    )
 
 
 def _is_plausible(size: int, expected_size: int | None) -> bool:
