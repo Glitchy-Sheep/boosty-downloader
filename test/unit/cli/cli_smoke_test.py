@@ -125,7 +125,7 @@ def test_clean_cache_runs_without_an_event_loop(
 def test_clean_cache_asks_first_and_a_no_keeps_the_cache(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The cache is the only record of what was downloaded; it used to go without a question."""
+    """Declining the legacy-cache confirmation keeps its SQLite file."""
     monkeypatch.chdir(tmp_path)
     db = _plant_cache(tmp_path / 'cache', 'someone')
 
@@ -136,7 +136,7 @@ def test_clean_cache_asks_first_and_a_no_keeps_the_cache(
     )
 
     assert result.exit_code == 0, result.output
-    assert 'the next run downloads everything again' in _plain_text(result.output)
+    assert 'Saved post records and media will be kept' in _plain_text(result.output)
     assert db.exists()
     assert 'is kept' in _plain_text(result.output)
 
@@ -277,8 +277,9 @@ def test_root_help_names_the_env_var() -> None:
     [[], ['--dry-run'], ['--post-url', 'https://boosty.to/someone/posts/p1']],
 )
 def test_exclude_tag_options_reach_the_download_handler(
-    monkeypatch: pytest.MonkeyPatch, extra: list[str]
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, extra: list[str]
 ) -> None:
+    monkeypatch.chdir(tmp_path)
     calls: list[object] = []
 
     async def record_download(**kwargs: object) -> None:
@@ -307,3 +308,15 @@ def test_empty_excluded_tag_is_a_usage_error(tag: str) -> None:
     result = runner.invoke(typer_app, ['download', 'someone', '--exclude-tag', tag])
     assert result.exit_code == 2
     assert 'tag must not be empty' in _plain_text(result.output)
+
+
+def test_download_help_explains_restore_missing() -> None:
+    result = runner.invoke(typer_app, ['download', '--help'])
+    help_text = _plain_text(result.output)
+
+    assert result.exit_code == 0
+    assert '--restore-missing' in help_text
+    assert (
+        'Download selected media deleted locally if it is still present in the post'
+        in help_text
+    )

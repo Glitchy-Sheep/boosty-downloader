@@ -38,6 +38,8 @@ from boosty_downloader.infrastructure.html_generator.models import (
 from boosty_downloader.infrastructure.human_readable_filesize import (
     human_readable_size,
 )
+from boosty_downloader.infrastructure.library._atomic_write import write_atomically
+from boosty_downloader.infrastructure.library._media_paths import is_link
 
 # Bump when the generated page structure or styling changes.
 PAGE_TEMPLATE_VERSION: Final[int] = 1
@@ -302,4 +304,15 @@ def render_html_to_file(
     """Render HTML chunks to HTML file."""
     html = render_html(chunks, page_title)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(html, encoding='utf-8')
+    _check_page_destination(out_path)
+    write_atomically(out_path, html.encode('utf-8'))
+
+
+def _check_page_destination(path: Path) -> None:
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return
+    if is_link(info):
+        message = f'Post page destination is a link: {path}'
+        raise ValueError(message)

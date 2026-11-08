@@ -7,13 +7,14 @@
 
 Welcome to the **Boosty Downloader** project! 
 
-This CLI tool allows you to download most of the content from Boosty.to in bulk.
-The post content itself is saved in html with a little bit of styling.
+This CLI tool downloads content from Boosty.to in bulk and saves complete post pages as styled HTML. Each post also has a `post.json` record that keeps its content and individual media states across runs.
 
 **You can download:**
+
 - Boosty Videos
 - External Videos (YouTube, Vimeo)
 - Files
+- Audio
 - Full Post content (including photos and links)
 
 ## 📑 Table of Contents
@@ -28,6 +29,7 @@ The post content itself is saved in html with a little bit of styling.
       - [Option 2 - With helper script](#option-2---with-helper-script)
     - [Step 2: Paste the cookie and auth header into the config file](#step-2-paste-the-cookie-and-auth-header-into-the-config-file)
     - [Step 3: Run the utility](#step-3-run-the-utility)
+  - [🔄 Continuing a download](#-continuing-a-download)
   - [🛡️ When downloads fail](#️-when-downloads-fail)
   - [💖 Contributing](#-contributing)
   - [📜 License](#-license)
@@ -38,11 +40,11 @@ The post content itself is saved in html with a little bit of styling.
 
 - 📦 **Bulk download**: Download all available content from your favorite creator.
 - 🔎 **Blog overview**: `check` shows what each subscription tier gives (posts and share of the blog), where you stand, what the rest costs, media counts and the posting date range.
-- 🧪 **Dry run**: `download --dry-run` previews a run before you start it: new and updated posts, media to fetch by type and the known download size.
+- 🧪 **Dry run**: `download --dry-run` reads the same saved records and local files as a real run. It reports new, changed and unchanged posts, selected media to fetch and known bytes, with unknown video sizes shown separately. It creates or changes no files.
 - 📈 **Run statistics**: every download ends with what it did: posts, media by type, total size and time.
-- 📂 **Content type filters**: Download only the content you need (videos, images, etc) with `--content-type-filter`.
+- 📂 **Content type filters**: Choose which media to fetch with `--content-type-filter`; the page still describes the full post and shows the state of media not downloaded yet.
 - 📄 **Download specific posts**: Download post by url and username.
-- 🔃 **Sync content seamlessly**: The utility keeps cache of already downloaded posts, so you can resume your download at any time or get new content after a while.
+- 🔃 **Continue across runs**: Finished media is remembered individually. A later run can add other content types and refresh the page while keeping files downloaded earlier.
 - 📼 **Choose your video quality**: You can choose preferred video quality to download (for boosty videos)
 - 🎨 **Beauty posts preview**: You can see posts content with rendered offline html files with dark/light theme changing.
 - 📊 **Order matters**: Posts have dates in names, so you can just sort it by name in your file explorer and see them in the correct chronological order.
@@ -107,7 +109,7 @@ The post content itself is saved in html with a little bit of styling.
 
 ### Step 2: Paste the cookie and auth header into the config file
 
-This config will be created during first run of the app in the current working directory.
+A first `download` or `check` run creates a sample `config.yaml` in the current working directory if it is missing. Use `--config PATH` before the command name to choose another file. `download --dry-run` requires an existing config and reports an error without creating a sample.
 
 <img src="https://raw.githubusercontent.com/Glitchy-Sheep/boosty-downloader/main/assets/config_guide.png">
 
@@ -119,24 +121,57 @@ Now you can just download your content with the following command:
 boosty-downloader download YOUR_CREATOR_NAME
 ```
 
+## 🔄 Continuing a download
+
+Use the same destination for successive runs. For example, save text and images first, inspect the remaining work, then add the other media:
+
+```bash
+boosty-downloader download YOUR_CREATOR_NAME -f post_content -o ./v5-downloads
+boosty-downloader download YOUR_CREATOR_NAME --dry-run -o ./v5-downloads
+boosty-downloader download YOUR_CREATOR_NAME -o ./v5-downloads
+```
+
+The preview covers the whole blog; `--dry-run` cannot be combined with `--post-url`. `post_content` includes the post's images. Each saved page includes the complete body, downloaded media from earlier runs and placeholders for media that has not been downloaded. The final command adds the remaining selected media to the same pages.
+
+Records and pages live under `<destination>/<creator>/<post folder>/`. Renaming a post on Boosty does not move its saved folder. Content files you delete locally are recorded as deleted and stay deleted on an ordinary run. The summary counts remaining deleted media in the accessible, non-excluded posts processed by this run. Media removed by the author stays in the saved history, including any local copy.
+
+To restore deleted files that are still in the creator's posts, preview and run with `--restore-missing`:
+
+```bash
+boosty-downloader download YOUR_CREATOR_NAME --restore-missing --dry-run -o ./v5-downloads
+boosty-downloader download YOUR_CREATOR_NAME --restore-missing -o ./v5-downloads
+```
+
+Content filters also apply to restoration, and the option works with `--post-url`. Files removed from the post by the creator are never restored. A file you edited or re-encoded is kept at its current size. A file you copy back is recognized without another download. Deleting a whole post folder makes it a new download even without this option.
+
+Each real download refreshes the creator's title, description, display name, avatar and cover. Author details and images live in `<destination>/<creator>/.boosty-downloader/`; `author.json` refers to those images with paths relative to the creator's folder. If metadata or an image cannot be fetched, a warning is shown and the saved version remains available.
+
+Posts observed without access are listed in `.boosty-downloader/locked.json` without creating a post folder. Losing access keeps any previously saved page, media and viewing marks. Confirmed access clears the corresponding locked observation even if a tag excludes that post from downloading. The file records observed access, so posts not encountered during a partial run are retained. `--dry-run` and `check` do not update these records or images.
+
+Video previews are saved under each post's `previews/` directory, even when video downloads are filtered out or the video is not ready yet. Locked-post teasers live in the creator's `.boosty-downloader/teasers/` directory. Existing usable previews and teasers are reused; missing ones are fetched on a later run without `--restore-missing`. Excluded tags prevent these image downloads too. Their transfers do not count as downloaded post media.
+
+Library cover selection uses the first current downloaded image, then the preview of the first current Boosty video. A locked post uses its teaser. Removed media cannot become the cover. These images and cover rules prepare the saved records for the library viewer; they do not add a new viewer command yet.
+
+This development version uses `post.json` instead of the v4 SQLite cache. Choose a fresh destination for v5. The first actual download marks it with `.boosty-downloader/library.json`; dry-run never creates the marker. If an unmarked destination contains post folders from any creator, every download mode stops before network requests, sample configuration or log writes. Keep the old destination while it contains posts that Boosty no longer serves. Existing downloads are not migrated or adopted automatically.
+
+`--cache-dir` does not move the new records; `clean-cache` only removes a legacy SQLite cache and does not reset saved posts or remove media.
+
 ## 🛡️ When downloads fail
 
-One bad link never costs you the whole run:
+- Connection errors, HTTP 5xx and rate limits get transport retries with growing pauses. The post has up to 5 attempts; an expired media link can trigger one API refresh.
+- Each finished media piece is saved to the record immediately. A failed attachment does not make another completed attachment or video download again.
+- At the end of the post's attempts, `post.html` is built from the complete saved record. Failed, unavailable and not-yet-downloaded media retain their places with a status message. A later successful run updates those places.
+- A selected external video that is deleted, private or blocked is checked once per run. It does not prevent retries for another piece with a temporary failure, and an unavailable video alone does not count toward the failure streak.
+- Media downloads use private temporary output and take their final names only when complete. A later run can recover a completed file published before its record update; an interrupted transfer is not accepted as a finished file. Existing unrelated files are not overwritten.
+- Cancellation preserves finished pieces. A forced interruption may leave the previous HTML page until the next run rebuilds it.
+- A page-rendering failure does not discard downloaded media. The post remains unsuccessful so that another run can rebuild the page.
+- Download failures are recorded in `failed_downloads.log` inside the creator's folder, and the run ends with a summary.
+- After 5 failed posts in a row, the downloader stops. Add `--skip-all-failures` to continue despite a failure streak.
+- `download --post-url` uses the same retry and recovery behavior for one post.
 
-- A failed download is retried up to 5 times with growing pauses; a link that expired mid-way is refreshed from the API once.
-- A post with one dead link keeps everything else: the parts that finished are remembered right away, and only the failed part is fetched again.
-- `post.html` is written anyway: a picture, video or audio track that did not download leaves a note at its place with the reason, so the post stays readable. The note goes away once a retry or a later run brings the piece.
-- A post that still fails is skipped, and the run continues.
-- A YouTube or Vimeo video that is gone (deleted, private, blocked) is not retried at all: the post is skipped right away with the site's reason, the rest of it is saved, and the run goes on.
-- Every skipped post is written to `failed_downloads.log` next to your downloads.
-- At the end, a summary lists everything that was skipped and why.
-- If 5 posts in a row fail, the downloader stops early: a streak like this means the problem is not in the posts - check your disk, folder permissions, or network.
-- Prefer to finish the pass no matter what? Add `--skip-all-failures` - the run never stops on a failure streak.
-- `download --post-url` gets the same retries and the same refresh as the full run.
+After fixing the cause, run the same command again. The downloader reads the records and local files and fetches only the selected pieces still eligible for download.
 
-Downloaded posts are cached. After you fix the cause, run the same command again - finished posts are skipped in seconds, and the download continues where it stopped.
-
-Can't tell what's breaking? Re-run with `--debug`: it writes `boosty-downloader-debug.log` with every request and full error details, safe to attach to a [GitHub issue](https://github.com/Glitchy-Sheep/boosty-downloader/issues) - download links are logged without their signed keys.
+For diagnostics, use `--debug` before the command name. Ordinary runs write `boosty-downloader-debug.log` with request details and error tracebacks; signed download keys are removed from request URLs. With `download --dry-run`, diagnostics go to the console, and an existing debug log is left unchanged. Include the relevant diagnostics in a [GitHub issue](https://github.com/Glitchy-Sheep/boosty-downloader/issues).
 
 ## 💖 Contributing
 

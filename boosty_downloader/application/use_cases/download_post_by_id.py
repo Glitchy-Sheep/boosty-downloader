@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from boosty_downloader.application.author_sync import refresh_author
 from boosty_downloader.application.filtering import has_excluded_tag
 from boosty_downloader.application.post_retry import (
     PostDownloadRetrier,
@@ -63,6 +64,7 @@ class DownloadPostByIdUseCase:
 
     async def execute(self) -> PostOutcome:
         """Find and download the post; the caller turns the outcome into an exit code."""
+        await refresh_author(self.boosty_api, self.context)
         self.context.progress_reporter.info(
             f'Requesting the post with UUID: {self.post_id}...'
         )
@@ -89,6 +91,14 @@ class DownloadPostByIdUseCase:
                 f'Please report this at {GITHUB_ISSUES_URL} '
                 'so the client can be updated.'
             )
+            return PostOutcome.failed
+
+        failed_posts: list[str] = []
+        if not await self._post_retrier.observe_access(post, failed_posts):
+            self.context.run_statistics.posts_failed += 1
+            summary = format_run_summary([], set(), failed_posts)
+            if summary:
+                self.context.progress_reporter.warn(summary)
             return PostOutcome.failed
 
         if has_excluded_tag(

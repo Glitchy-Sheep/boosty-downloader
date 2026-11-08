@@ -25,18 +25,23 @@ from boosty_downloader.infrastructure.external_videos_downloader.external_videos
     ExtVideoInfoError,
     ExtVideoUnavailableError,
 )
+from boosty_downloader.infrastructure.media_transfer import MediaTarget
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
     from pathlib import Path
+
+    from boosty_downloader.infrastructure.media_transfer import ReserveMediaPath
 
 URL = 'https://www.youtube.com/watch?v=gone'
 
 
 def _download_error(original: BaseException) -> DownloadError:
     """Wrap an exception the way yt-dlp does: the original travels in exc_info."""
-    exc_info = (type(original), original, original.__traceback__)
-    return DownloadError(f'ERROR: {original}', exc_info)
+    with pytest.raises(type(original)) as caught:
+        raise original
+    error = caught.value
+    assert error.__traceback__ is not None
+    return DownloadError(f'ERROR: {error}', (type(error), error, error.__traceback__))
 
 
 def _http_error(status: int, reason: str) -> HTTPError:
@@ -72,13 +77,24 @@ def _fake_yt_dlp(
                 raise probe_error
             return {'title': 'clip', 'ext': 'mp4'}
 
-        def download(self, urls: Iterable[str]) -> int:
-            del urls
+        def add_post_processor(self, processor: object, when: str) -> None:
+            del processor, when
+
+        def process_ie_result(self, information: object, *, download: bool) -> None:
+            del information, download
             if download_error is not None:
                 raise download_error
-            return 0
 
     monkeypatch.setattr(module, 'YoutubeDL', _FakeYoutubeDL)
+
+
+def _reserve(root: Path) -> ReserveMediaPath:
+    def reserve(name: str) -> MediaTarget:
+        return MediaTarget(
+            root, 'author/post', f'external_videos/{name}', f'external_video:{URL}'
+        )
+
+    return reserve
 
 
 GONE = [
@@ -108,30 +124,34 @@ TRANSIENT = [
 
 
 @pytest.mark.parametrize(('original', 'reason'), GONE)
-def test_a_gone_video_is_reported_with_the_site_reason(
+async def test_a_gone_video_is_reported_with_the_site_reason(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     original: BaseException,
     reason: str,
 ) -> None:
-    """Five attempts on a deleted video were the whole of issue #76."""
+    """Unavailable media keeps the original site reason for the retry policy."""
     _fake_yt_dlp(monkeypatch, probe_error=_download_error(original))
 
     with pytest.raises(ExtVideoUnavailableError) as info:
-        ExternalVideosDownloader().download_video(URL, tmp_path)
+        await ExternalVideosDownloader().download_reserved_video(
+            URL, _reserve(tmp_path)
+        )
 
     assert info.value.reason == reason
     assert info.value.video_url == URL
 
 
 @pytest.mark.parametrize('original', TRANSIENT)
-def test_a_passing_failure_stays_retryable(
+async def test_a_passing_failure_stays_retryable(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, original: BaseException
 ) -> None:
     _fake_yt_dlp(monkeypatch, probe_error=_download_error(original))
 
     with pytest.raises(ExtVideoInfoError):
-        ExternalVideosDownloader().download_video(URL, tmp_path)
+        await ExternalVideosDownloader().download_reserved_video(
+            URL, _reserve(tmp_path)
+        )
 
 
 @pytest.mark.parametrize(
@@ -149,7 +169,7 @@ def test_a_passing_failure_stays_retryable(
         ),
     ],
 )
-def test_the_download_phase_tells_the_two_apart_as_well(
+async def test_the_download_phase_tells_the_two_apart_as_well(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     original: BaseException,
@@ -158,4 +178,6 @@ def test_the_download_phase_tells_the_two_apart_as_well(
     _fake_yt_dlp(monkeypatch, download_error=_download_error(original))
 
     with pytest.raises(expected):
-        ExternalVideosDownloader().download_video(URL, tmp_path)
+        await ExternalVideosDownloader().download_reserved_video(
+            URL, _reserve(tmp_path)
+        )
