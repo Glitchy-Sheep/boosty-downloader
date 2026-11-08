@@ -245,3 +245,23 @@ async def test_locked_only_post_becomes_saved_or_leaves_index_when_excluded(
     else:
         assert _indexed_access(index) == 'open'
         _assert_saved(root)
+
+
+async def test_download_reports_rebuilding_a_damaged_index_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    root = tmp_path / 'library'
+    _write_config(tmp_path)
+    remote = _RemoteAuthor(post=_download_payload())
+    index = LibraryIndex(root)
+    async with TestServer(remote.app()) as server:
+        _local_network(monkeypatch, server, root)
+        await _invoke(_command(root))
+        index.path.write_bytes(b'Damaged disposable index')
+        output = await _invoke(_command(root))
+
+    assert output.count('Rebuilt damaged library index') == 1
+    assert WARNING not in output
+    assert _indexed_access(index) == 'open'
+    _assert_saved(root)

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, TypeVar
 
 from sqlalchemy.exc import SQLAlchemyError
 
+from boosty_downloader.infrastructure.library.index import IndexStatus
 from boosty_downloader.infrastructure.library.index_projection import (
     project_author,
     project_post,
@@ -55,7 +56,11 @@ class LibraryIndexWriter:
         if self._prepared:
             return
         self._prepared = True
-        self._attempt(self._index.ensure)
+        status = self._attempt(self._index.ensure)
+        if status is IndexStatus.corrupt:
+            self._warn(
+                f'Rebuilt damaged library index at {self._index.configured_path}.'
+            )
 
     def capture_locked(self, author: str) -> SourceFingerprint | None:
         """Capture the canonical access version without changing any source."""
