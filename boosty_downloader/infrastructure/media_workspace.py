@@ -1,4 +1,4 @@
-"""Own temporary media outputs without claiming unrelated partial files."""
+"""Own temporary outputs without claiming unrelated partial files."""
 
 from __future__ import annotations
 
@@ -52,13 +52,27 @@ def temporary_media_workspace(
 
     The caller persists the final reservation before entry and closes files and stops workers before exit. All files inside this private directory belong to the transfer. Existing workspaces are left alone; cleanup of stopped attempts is explicit.
     """
-    marker = _owner_marker(media_id)
+    _require_owner_id(media_id)
     destination = create_media_parent(library_root, post_folder, relative_path)
+    with temporary_owned_workspace(destination.parent, owner_id=media_id) as directory:
+        yield MediaWorkspace(directory=directory, destination=destination)
+
+
+@contextmanager
+def temporary_owned_workspace(
+    parent: Path, *, owner_id: str
+) -> Generator[Path, None, None]:
+    """
+    Create private output beside a validated destination and clean it on exit.
+
+    The parent already exists. The caller closes files and stops workers before exit; all files inside the private directory belong to the transfer.
+    """
+    marker = _owner_marker(owner_id)
     directory = Path(
         mkdtemp(
             prefix=_WORKSPACE_PREFIX,
             suffix=_WORKSPACE_SUFFIX,
-            dir=destination.parent,
+            dir=parent,
         )
     )
     identity = directory.lstat()
@@ -66,7 +80,7 @@ def temporary_media_workspace(
     try:
         _write_marker(directory, marker)
         marker_written = True
-        yield MediaWorkspace(directory=directory, destination=destination)
+        yield directory
     finally:
         _cleanup_current(directory, identity, marker if marker_written else None)
 
@@ -83,19 +97,33 @@ def cleanup_media_workspaces(
 
     The caller excludes concurrent writers of this piece and waits for the previous worker to stop. A marker proves ownership, not inactivity. Unknown or incomplete markers remain untouched; filesystem errors propagate.
     """
-    marker = _owner_marker(media_id)
+    _require_owner_id(media_id)
     destination = resolve_media_destination(library_root, post_folder, relative_path)
-    for directory in _workspace_candidates(destination.parent):
+    cleanup_owned_workspaces(destination.parent, owner_id=media_id)
+
+
+def cleanup_owned_workspaces(parent: Path, *, owner_id: str) -> None:
+    """
+    Remove this owner's stopped transfers, retaining unknown or incomplete markers.
+
+    The caller validates the parent and excludes concurrent writers for this owner. A marker proves ownership, not inactivity.
+    """
+    marker = _owner_marker(owner_id)
+    for directory in _workspace_candidates(parent):
         identity = _directory_identity(directory)
         if identity is not None:
             _remove_workspace(directory, identity, marker)
 
 
-def _owner_marker(media_id: str) -> bytes:
-    if not media_id:
+def _owner_marker(owner_id: str) -> bytes:
+    _require_owner_id(owner_id)
+    return _OWNER_FORMAT + sha256(owner_id.encode('utf-8')).hexdigest().encode() + b'\n'
+
+
+def _require_owner_id(owner_id: str) -> None:
+    if not owner_id:
         message = 'Temporary media ownership requires a nonempty media ID'
         raise ValueError(message)
-    return _OWNER_FORMAT + sha256(media_id.encode('utf-8')).hexdigest().encode() + b'\n'
 
 
 def _write_marker(directory: Path, marker: bytes) -> None:

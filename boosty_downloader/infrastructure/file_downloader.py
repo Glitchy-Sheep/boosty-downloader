@@ -6,10 +6,10 @@ import http
 import mimetypes
 from asyncio import CancelledError
 from asyncio import TimeoutError as AsyncioTimeoutError
-from contextlib import AsyncExitStack, contextmanager
+from contextlib import AsyncExitStack, asynccontextmanager, contextmanager
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from aiohttp import ClientConnectionError, ClientPayloadError
 
@@ -24,7 +24,7 @@ from boosty_downloader.infrastructure.path_sanitizer import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Generator
+    from collections.abc import AsyncGenerator, Awaitable, Callable, Generator
     from pathlib import Path
 
     from aiohttp import ClientResponse
@@ -36,6 +36,9 @@ if TYPE_CHECKING:
         ReserveMediaPath,
     )
     from boosty_downloader.infrastructure.media_workspace import MediaWorkspace
+
+
+_DEFAULT_CHUNK_SIZE_BYTES: Final = 2097152
 
 
 @dataclass
@@ -62,7 +65,7 @@ class ReservedDownloadFileConfig:
     reserve: ReserveMediaPath
     on_status_update: Callable[[DownloadingStatus], None] = lambda _: None
     guess_extension: bool = True
-    chunk_size_bytes: int = 2097152
+    chunk_size_bytes: int = _DEFAULT_CHUNK_SIZE_BYTES
 
     def __post_init__(self) -> None:
         """Reject chunk sizes that cannot consume the response body."""
@@ -183,13 +186,25 @@ async def download_reserved_file(config: ReservedDownloadFileConfig) -> Publishe
 
     The owner stops any earlier writer of this piece before calling. Reservation failures propagate unchanged. Transfer errors never identify a final file for deletion.
     """
-    async with AsyncExitStack() as stack:
-        with _download_errors(config.url):
-            response = await stack.enter_async_context(config.session.get(config.url))
-        _require_success(response, config.url)
-        target = config.reserve(_response_filename(response, config))
-        with _download_errors(config.url):
+    async with open_download_response(config.session, config.url) as response:
+        filename = response_filename(
+            response, config.filename, guess_extension=config.guess_extension
+        )
+        target = config.reserve(filename)
+        with download_errors(config.url):
             return await _transfer_reserved_response(response, config, target)
+
+
+@asynccontextmanager
+async def open_download_response(
+    session: RetryClient, url: str
+) -> AsyncGenerator[ClientResponse, None]:
+    """Acquire an accepted HTTP response without translating errors from its consumer."""
+    async with AsyncExitStack() as stack:
+        with download_errors(url):
+            response = await stack.enter_async_context(session.get(url))
+            _require_success(response, url)
+        yield response
 
 
 def _require_success(response: ClientResponse, url: str) -> None:
@@ -201,26 +216,33 @@ def _require_success(response: ClientResponse, url: str) -> None:
         )
 
 
-def _response_filename(
-    response: ClientResponse, config: ReservedDownloadFileConfig
+def response_filename(
+    response: ClientResponse, filename: str, *, guess_extension: bool = True
 ) -> str:
-    if config.guess_extension:
+    """Resolve a portable basename using the response type for app-built names."""
+    if guess_extension:
         return _app_built_filename(
-            config.filename, _extension_to_append(response.content_type)
+            filename, _extension_to_append(response.content_type)
         )
-    return _author_filename(config.filename)
+    return _author_filename(filename)
 
 
-async def _copy_response(
+async def copy_download_response(
     response: ClientResponse,
     write: Callable[[bytes], Awaitable[object]],
-    config: ReservedDownloadFileConfig,
+    *,
     filename: str,
+    on_status_update: Callable[[DownloadingStatus], None] = lambda _: None,
+    chunk_size_bytes: int = _DEFAULT_CHUNK_SIZE_BYTES,
 ) -> None:
+    """Stream bounded chunks into a writer and report consumed response bytes."""
+    if chunk_size_bytes <= 0:
+        message = 'HTTP media chunks must have a positive byte size'
+        raise ValueError(message)
     total_downloaded = 0
-    async for chunk in response.content.iter_chunked(config.chunk_size_bytes):
+    async for chunk in response.content.iter_chunked(chunk_size_bytes):
         total_downloaded += len(chunk)
-        config.on_status_update(
+        on_status_update(
             DownloadingStatus(
                 name=filename,
                 total_bytes=response.content_length,
@@ -256,12 +278,19 @@ async def _write_reserved_response(
 ) -> PublishedFile:
     source = workspace.directory / 'download.tmp'
     async with open_media_writer(source) as writer:
-        await _copy_response(response, writer.write, config, workspace.destination.name)
+        await copy_download_response(
+            response,
+            writer.write,
+            filename=workspace.destination.name,
+            on_status_update=config.on_status_update,
+            chunk_size_bytes=config.chunk_size_bytes,
+        )
     return publish_completed_file(source, workspace.destination)
 
 
 @contextmanager
-def _download_errors(url: str) -> Generator[None, None, None]:
+def download_errors(url: str) -> Generator[None, None, None]:
+    """Translate HTTP and output failures while preserving their original causes."""
     try:
         yield
     except (CancelledError, KeyboardInterrupt) as error:
