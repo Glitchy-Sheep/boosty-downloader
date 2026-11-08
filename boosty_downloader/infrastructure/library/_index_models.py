@@ -103,6 +103,7 @@ class IndexPost(IndexBase):
     post_price_rub: Mapped[float | None]
     likes: Mapped[int]
     comments: Mapped[int]
+    tags: Mapped[list[str]] = mapped_column(JSON)
     content_counters: Mapped[dict[str, int]] = mapped_column(JSON)
     current_counts: Mapped[dict[str, int]] = mapped_column(JSON)
     downloaded_counts: Mapped[dict[str, int]] = mapped_column(JSON)

@@ -23,6 +23,10 @@ from boosty_downloader.infrastructure.library._index_observations import (
     write_access_update,
     write_author_metadata,
 )
+from boosty_downloader.infrastructure.library._index_sync import (
+    IndexSyncCounts,
+    synchronize,
+)
 from boosty_downloader.infrastructure.library._index_writes import (
     delete_post,
     refresh_author_counts,
@@ -53,7 +57,7 @@ if TYPE_CHECKING:
     from boosty_downloader.infrastructure.library.index_sources import SourceFingerprint
 
 INDEX_FILENAME: Final = 'index.db'
-INDEX_SCHEMA_VERSION: Final = 2
+INDEX_SCHEMA_VERSION: Final = 3
 _POST_BATCH_SIZE: Final = 100
 _META_ROW_ID: Final = 1
 _SQLITE_PRIMARY_CODE_MASK: Final = 0xFF
@@ -139,6 +143,17 @@ class LibraryIndex:
         if status is not IndexStatus.current:
             self._rebuild(location, status)
         return status
+
+    def synchronize(self) -> IndexSyncCounts:
+        """Prepare the index and atomically refresh changed canonical sources."""
+        location = self._location()
+        status = _read_status(location)
+        if status is not IndexStatus.current:
+            self._rebuild(location, status)
+            return IndexSyncCounts(rebuilt=True)
+        with _connection(location.database, writable=True) as connection:
+            _require_current_metadata(connection, location.root)
+            return synchronize(connection, location.root)
 
     def rebuild(self) -> IndexBuildCounts:
         """Project every canonical record in one atomic database transaction."""

@@ -42,7 +42,7 @@ from boosty_downloader.infrastructure.library.json_store import POST_RECORD_FILE
 from boosty_downloader.infrastructure.library.post_marks import VIEWER_RECORD_FILENAME
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Mapping
     from os import stat_result
     from pathlib import Path
 
@@ -132,7 +132,26 @@ def read_post_source(
     root: Path, folder: str, *, locked_post: LockedPost | None = None
 ) -> PostSource | None:
     """Read one known post folder with fresh viewing marks and an access overlay."""
+    source = read_post_source_with_observations(
+        root, folder, {locked_post.post.id: locked_post} if locked_post else {}
+    )
+    if source is not None and locked_post is not None:
+        _check_overlay_identity(source, locked_post)
+    return source
+
+
+def read_post_source_with_observations(
+    root: Path, folder: str, observations: Mapping[str, LockedPost]
+) -> PostSource | None:
+    """Select an access overlay by the decoded record's full identity."""
     root = root.resolve()
+    target = _known_post_folder(root, folder)
+    if not _source_directory(root, target):
+        return None
+    return _read_post(root, target, observations)
+
+
+def _known_post_folder(root: Path, folder: str) -> Path:
     relative = PurePosixPath(folder)
     if (
         len(relative.parts) != _POST_FOLDER_DEPTH
@@ -144,15 +163,7 @@ def read_post_source(
         message = f'Invalid relative post folder: {folder!r}'
         raise ValueError(message)
     validate_author_name(relative.parts[0])
-    target = root / folder
-    if not _source_directory(root, target):
-        return None
-    source = _read_post(
-        root, target, {locked_post.post.id: locked_post} if locked_post else {}
-    )
-    if source is not None and locked_post is not None:
-        _check_overlay_identity(source, locked_post)
-    return source
+    return root / folder
 
 
 def _check_overlay_identity(source: PostSource, locked: LockedPost) -> None:
@@ -228,20 +239,24 @@ def scan_posts(root: Path, author: AuthorSource) -> Iterator[PostSource]:
             message = f'Multiple post folders for {author.author}/{post_id}'
             raise AmbiguousPostFolderError(message)
         seen.add(post_id)
+        remaining_locked.pop(post_id, None)
         yield source
     for locked in remaining_locked.values():
         yield locked_post_source(root, locked)
 
 
 def _read_post(
-    root: Path, folder: Path, locked: dict[str, LockedPost]
+    root: Path, folder: Path, locked: Mapping[str, LockedPost]
 ) -> PostSource | None:
     source = _read_source(root, folder / POST_RECORD_FILENAME)
     if source is None:
         return None
     record = decode_post_record(source.data)
     _validate_post_folder(folder, record)
-    observation = locked.pop(record.post.id, None)
+    observation = locked.get(record.post.id)
+    if observation is not None and observation.post.author != record.post.author:
+        message = 'Access observation belongs to another post'
+        raise InvalidPostRecordError(message)
     post = _library_post(root, folder, record, observation)
     marks = _read_source(root, folder / VIEWER_RECORD_FILENAME)
     return PostSource(
