@@ -6,6 +6,7 @@ import http
 import mimetypes
 from asyncio import CancelledError
 from asyncio import TimeoutError as AsyncioTimeoutError
+from contextlib import AsyncExitStack, contextmanager
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
@@ -13,15 +14,29 @@ from typing import TYPE_CHECKING
 import aiofiles
 from aiohttp import ClientConnectionError, ClientPayloadError
 
+from boosty_downloader.infrastructure.media_publication import publish_completed_file
+from boosty_downloader.infrastructure.media_workspace import (
+    cleanup_media_workspaces,
+    temporary_media_workspace,
+)
+from boosty_downloader.infrastructure.media_writer import open_media_writer
 from boosty_downloader.infrastructure.path_sanitizer import (
     compose_filename,
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Awaitable, Callable, Generator
     from pathlib import Path
 
+    from aiohttp import ClientResponse
     from aiohttp_retry import RetryClient
+
+    from boosty_downloader.infrastructure.media_publication import PublishedFile
+    from boosty_downloader.infrastructure.media_transfer import (
+        MediaTarget,
+        ReserveMediaPath,
+    )
+    from boosty_downloader.infrastructure.media_workspace import MediaWorkspace
 
 
 @dataclass
@@ -56,6 +71,25 @@ class DownloadFileConfig:
     # 2 MiB: on fast channels the old 512 KiB meant 4x more per-chunk
     # bookkeeping (progress callback + write) for no benefit.
     chunk_size_bytes: int = 2097152
+
+
+@dataclass
+class ReservedDownloadFileConfig:
+    """HTTP media whose concrete destination is persisted before writing bytes."""
+
+    session: RetryClient
+    url: str
+    filename: str
+    reserve: ReserveMediaPath
+    on_status_update: Callable[[DownloadingStatus], None] = lambda _: None
+    guess_extension: bool = True
+    chunk_size_bytes: int = 2097152
+
+    def __post_init__(self) -> None:
+        """Reject chunk sizes that cannot consume the response body."""
+        if self.chunk_size_bytes <= 0:
+            message = 'HTTP media chunks must have a positive byte size'
+            raise ValueError(message)
 
 
 class DownloadError(Exception):
@@ -169,63 +203,112 @@ async def download_file(
 ) -> Path:
     """Download files and report the downloading process via callback"""
     async with dl_config.session.get(dl_config.url) as response:
-        if response.status != http.HTTPStatus.OK:
-            raise DownloadUnexpectedStatusError(
-                resource_url=dl_config.url,
-                status=response.status,
-                response_message=response.reason or 'No reason provided',
-            )
-
-        if dl_config.guess_extension:
-            filename = _app_built_filename(
-                dl_config.filename, _extension_to_append(response.content_type)
-            )
-        else:
-            filename = _author_filename(dl_config.filename)
+        _require_success(response, dl_config.url)
+        filename = _response_filename(response, dl_config)
         file_path = dl_config.destination / filename
-
-        total_downloaded = 0
-
         async with aiofiles.open(file_path, mode='wb') as file:
-            total_size = response.content_length
-
-            try:
-                async for chunk in response.content.iter_chunked(
-                    dl_config.chunk_size_bytes
-                ):
-                    total_downloaded += len(chunk)
-                    dl_config.on_status_update(
-                        DownloadingStatus(
-                            name=filename,
-                            total_bytes=total_size,
-                            total_downloaded_bytes=total_downloaded,
-                            downloaded_bytes=len(chunk),
-                        ),
-                    )
-                    await file.write(chunk)
-            except (CancelledError, KeyboardInterrupt) as e:
-                raise DownloadCancelledError(
-                    file=file_path, resource_url=dl_config.url
-                ) from e
-            # Must precede the connection branch: aiohttp's read-timeout
-            # errors inherit from both families, and "the server went
-            # quiet" is the diagnosis the user can act on.
-            except (TimeoutError, AsyncioTimeoutError) as e:
-                raise DownloadTimeoutError(
-                    file=file_path, resource_url=dl_config.url
-                ) from e
-            except (
-                ConnectionResetError,
-                BrokenPipeError,
-                ClientConnectionError,
-                ClientPayloadError,
-            ) as e:
-                raise DownloadConnectionError(
-                    file=file_path, resource_url=dl_config.url
-                ) from e
-            except OSError as e:
-                raise DownloadIOFailureError(
-                    file=file_path, resource_url=dl_config.url
-                ) from e
-
+            with _download_errors(dl_config.url, file_path):
+                await _copy_response(response, file.write, dl_config, filename)
         return file_path
+
+
+async def download_reserved_file(config: ReservedDownloadFileConfig) -> PublishedFile:
+    """
+    Reserve a concrete HTTP filename, then publish only its completed output.
+
+    The owner stops any earlier writer of this piece before calling. Reservation failures propagate unchanged. Transfer errors never identify a final file for deletion.
+    """
+    async with AsyncExitStack() as stack:
+        with _download_errors(config.url):
+            response = await stack.enter_async_context(config.session.get(config.url))
+        _require_success(response, config.url)
+        target = config.reserve(_response_filename(response, config))
+        with _download_errors(config.url):
+            return await _transfer_reserved_response(response, config, target)
+
+
+def _require_success(response: ClientResponse, url: str) -> None:
+    if response.status != http.HTTPStatus.OK:
+        raise DownloadUnexpectedStatusError(
+            resource_url=url,
+            status=response.status,
+            response_message=response.reason or 'No reason provided',
+        )
+
+
+def _response_filename(
+    response: ClientResponse, config: DownloadFileConfig | ReservedDownloadFileConfig
+) -> str:
+    if config.guess_extension:
+        return _app_built_filename(
+            config.filename, _extension_to_append(response.content_type)
+        )
+    return _author_filename(config.filename)
+
+
+async def _copy_response(
+    response: ClientResponse,
+    write: Callable[[bytes], Awaitable[object]],
+    config: DownloadFileConfig | ReservedDownloadFileConfig,
+    filename: str,
+) -> None:
+    total_downloaded = 0
+    async for chunk in response.content.iter_chunked(config.chunk_size_bytes):
+        total_downloaded += len(chunk)
+        config.on_status_update(
+            DownloadingStatus(
+                name=filename,
+                total_bytes=response.content_length,
+                total_downloaded_bytes=total_downloaded,
+                downloaded_bytes=len(chunk),
+            )
+        )
+        await write(chunk)
+
+
+async def _transfer_reserved_response(
+    response: ClientResponse, config: ReservedDownloadFileConfig, target: MediaTarget
+) -> PublishedFile:
+    cleanup_media_workspaces(
+        target.library_root,
+        target.post_folder,
+        target.relative_path,
+        media_id=target.media_id,
+    )
+    with temporary_media_workspace(
+        target.library_root,
+        target.post_folder,
+        target.relative_path,
+        media_id=target.media_id,
+    ) as workspace:
+        return await _write_reserved_response(response, config, workspace)
+
+
+async def _write_reserved_response(
+    response: ClientResponse,
+    config: ReservedDownloadFileConfig,
+    workspace: MediaWorkspace,
+) -> PublishedFile:
+    source = workspace.directory / 'download.tmp'
+    async with open_media_writer(source) as writer:
+        await _copy_response(response, writer.write, config, workspace.destination.name)
+    return publish_completed_file(source, workspace.destination)
+
+
+@contextmanager
+def _download_errors(url: str, file: Path | None = None) -> Generator[None, None, None]:
+    try:
+        yield
+    except (CancelledError, KeyboardInterrupt) as error:
+        raise DownloadCancelledError(resource_url=url, file=file) from error
+    except (TimeoutError, AsyncioTimeoutError) as error:
+        raise DownloadTimeoutError(resource_url=url, file=file) from error
+    except (
+        ConnectionResetError,
+        BrokenPipeError,
+        ClientConnectionError,
+        ClientPayloadError,
+    ) as error:
+        raise DownloadConnectionError(resource_url=url, file=file) from error
+    except OSError as error:
+        raise DownloadIOFailureError(resource_url=url, file=file) from error
