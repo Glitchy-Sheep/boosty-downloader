@@ -18,6 +18,8 @@ The scanner reads recognized author and post records directly, with their existi
 
 Rebuilding writes only index files. Canonical records, marks, pages and media stay unchanged. Database and SQLite sidecar paths must be ordinary unshared files. Library compatibility is checked before index operations.
 
+Offline `render` reads canonical post records directly and never opens the index. A damaged or unwritable index cannot prevent page generation. Rendering refreshes local file observations and the successful page-template version; the next index synchronization picks up changed records.
+
 ## Integration status
 
 Actual downloads prepare the index once and update it after successful canonical saves. The adapter indexes post records, author information and access observations, preserving saved body and viewing marks across access changes. An index or projection failure warns once and disables further index attempts for the run. Canonical saves continue; their own errors still fail normally. Dry-run and `check` do not open the index.

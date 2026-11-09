@@ -2,6 +2,8 @@
 
 ### Added
 
+- `render [AUTHOR]` rebuilds saved post pages offline from complete records and current local media. It works without credentials or a search index and preserves media files and viewing marks.
+
 - Downloads update a disposable library search index after saving records. Index failures warn once per run and do not interrupt downloads; `--cache-dir` places the index on a separate local disk.
 
 - Downloads save Boosty video previews and locked-post teasers independently of content-type filters. Existing images are reused; missing ones are fetched again. Library cover selection follows the current post order and excludes removed media.
