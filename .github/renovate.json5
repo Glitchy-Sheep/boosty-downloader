@@ -63,6 +63,28 @@
       automerge: true,
     },
     {
+      // Viewer package versions stay exact; Node engine ranges stay ranges.
+      matchManagers: ['npm'],
+      matchFileNames: ['viewer-ui/package.json'],
+      matchDepTypes: ['dependencies', 'devDependencies'],
+      rangeStrategy: 'pin',
+    },
+    {
+      matchManagers: ['npm'],
+      matchPackageNames: ['@tanstack/**'],
+      groupName: 'TanStack',
+    },
+    {
+      matchManagers: ['npm'],
+      matchPackageNames: ['radix-ui', '@radix-ui/**', 'shadcn'],
+      groupName: 'Radix and shadcn',
+    },
+    {
+      matchManagers: ['npm'],
+      matchPackageNames: ['vite', '@vitejs/**', '@tailwindcss/vite'],
+      groupName: 'Vite and plugins',
+    },
+    {
       // Majors (including dev tools and the yt-dlp year rollover) don't even
       // open a PR until a checkbox is ticked in the dashboard issue.
       matchUpdateTypes: ['major'],

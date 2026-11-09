@@ -75,6 +75,33 @@ jobs:
           fi
         timeout-minutes: 5
 
+  ui:
+    name: 🎨 Viewer
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: viewer-ui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Install Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: viewer-ui/package-lock.json
+      - name: Install locked dependencies
+        run: npm ci
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm run test
+      - name: Build viewer assets
+        run: npm run build
+
   # Builds distributions with the renderer templates and offline viewer assets.
   build:
     name: 📦 Build
