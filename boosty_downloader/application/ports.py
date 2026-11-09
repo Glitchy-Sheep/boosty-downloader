@@ -1,12 +1,13 @@
 """
 Ports of the application layer: what the use cases need from the outside.
 
-Implementations live in cli and infrastructure. They match structurally, without importing this module; conformance is checked where the app is put together. Shared argument and result types live in domain.
+Ports describe dependencies without selecting their implementations. Conformance is checked where the app is put together. Shared argument and result types live in domain.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Protocol, TypeAlias
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -14,10 +15,11 @@ if TYPE_CHECKING:
 
     from boosty_downloader.domain.library import (
         LibraryAuthor,
-        LibraryPost,
+        LibraryPostDetails,
         LocatedPost,
         PostFilters,
         PostList,
+        SavedPage,
         SavedPost,
         TagCount,
     )
@@ -145,11 +147,24 @@ class StoredPostCollection(Protocol):
         ...
 
 
+MediaUrl: TypeAlias = Callable[[str], str]
+
+
+class PostBodyRenderer(Protocol):
+    """Render a saved body with URLs for its post-relative media paths."""
+
+    def render(self, record: StoredPost, *, media_url: MediaUrl) -> str:
+        """Return the shared post body without changing records or writing a page."""
+        ...
+
+
 class LibraryReader(Protocol):
     """
     Library queries and user marks for one library root.
 
     Posts are identified by author and full post ID. Results and saved mark inputs are independent snapshots, including nested mutable values. Content updates belong to PostStore.
+
+    Read methods raise domain LibraryReadError when storage cannot provide valid data. Missing resources return None or empty collections; corrupt records remain errors.
     """
 
     def authors(self) -> list[LibraryAuthor]:
@@ -172,8 +187,12 @@ class LibraryReader(Protocol):
         """Query indexed rows and totals without loading full bodies."""
         ...
 
-    def post(self, author: str, post_id: str) -> LibraryPost | None:
-        """Return current access and any saved body, or None for an unknown post."""
+    def post(self, author: str, post_id: str) -> LibraryPostDetails | None:
+        """Read fresh content, access, marks and cover, or None for an unknown post."""
+        ...
+
+    def saved_page(self, author: str, author_relative_path: str) -> SavedPage | None:
+        """Confirm a generated page's stored ownership without granting file access."""
         ...
 
     def get_marks(self, author: str, post_id: str) -> PostMarks | None:

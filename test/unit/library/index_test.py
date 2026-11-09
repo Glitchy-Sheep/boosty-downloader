@@ -702,3 +702,25 @@ def test_prior_search_projection_rebuilds_without_changing_canonical_records(
         ).one() == ('a b', 'a b')
         assert connection.scalar(select(IndexPost.title)) == original
     assert _canonical_snapshot(library.root) == before
+
+
+def test_prior_page_lookup_schema_rebuilds_folder_index(
+    library: LibraryFixture,
+) -> None:
+    index = LibraryIndex(library.root)
+    index.ensure()
+    before = _canonical_snapshot(library.root)
+    with closing(sqlite3.connect(index.path)) as connection, connection:
+        connection.execute('UPDATE meta SET schema_version=4')
+        connection.execute('DROP INDEX ix_posts_author_folder')
+    assert index.ensure() is IndexStatus.incompatible
+    with index.connect() as connection:
+        names = (
+            connection.execute(
+                text("SELECT name FROM sqlite_master WHERE type='index'")
+            )
+            .scalars()
+            .all()
+        )
+    assert 'ix_posts_author_folder' in names
+    assert _canonical_snapshot(library.root) == before

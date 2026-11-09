@@ -57,7 +57,7 @@ if TYPE_CHECKING:
     from boosty_downloader.infrastructure.library.index_sources import SourceFingerprint
 
 INDEX_FILENAME: Final = 'index.db'
-INDEX_SCHEMA_VERSION: Final = 4
+INDEX_SCHEMA_VERSION: Final = 5
 _POST_BATCH_SIZE: Final = 100
 _META_ROW_ID: Final = 1
 _SQLITE_PRIMARY_CODE_MASK: Final = 0xFF

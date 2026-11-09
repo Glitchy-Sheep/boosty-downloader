@@ -83,6 +83,7 @@ class IndexPost(IndexBase):
         UniqueConstraint('author', 'post_id'),
         Index('ix_posts_author_created', 'author', 'created_at'),
         Index('ix_posts_author_access', 'author', 'access'),
+        Index('ix_posts_author_folder', 'author', 'folder'),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

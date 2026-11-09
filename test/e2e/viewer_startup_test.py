@@ -218,7 +218,7 @@ def test_path_only_configuration_and_cli_overrides_select_one_index(
     assert reader is not None
     post = reader.post('alpha', POST_ID)
     assert post is not None
-    assert post.overview.post.title == selected_root.name
+    assert post.content.overview.post.title == selected_root.name
     assert (
         LibraryIndex(selected_root, index_path=selected_cache / 'index.db').status()
         is IndexStatus.current

@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Final, Literal
 
+from boosty_downloader.domain.library_summary import latest_media_added_at
 from boosty_downloader.domain.stored_post import (
     LineBreak,
     ListBlock,
@@ -116,7 +117,7 @@ def project_post(source: PostSource) -> PostProjection:
         title_folded=fold_search_text(title),
         text_folded=fold_search_text(text),
         excerpt=' '.join(text.split())[:_EXCERPT_LENGTH],
-        pieces_added_at=_pieces_added_at(media),
+        pieces_added_at=latest_media_added_at(item.entry for item in media),
         marks=_copy_marks(source.marks),
         current_counts=_current_counts(media, downloaded_only=False),
         downloaded_counts=_current_counts(media, downloaded_only=True),
@@ -201,18 +202,6 @@ def _thumbnail_path(folder: str, entry: MediaEntry) -> str | None:
         case _:
             path = None
     return (PurePosixPath(folder) / path).as_posix() if path is not None else None
-
-
-def _pieces_added_at(media: tuple[MediaProjection, ...]) -> datetime | None:
-    return max(
-        (
-            item.entry.added_at
-            for item in media
-            if item.entry.removed_at is None
-            or item.entry.status is MediaStatus.downloaded
-        ),
-        default=None,
-    )
 
 
 def _current_counts(

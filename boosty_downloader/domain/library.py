@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 
+from boosty_downloader.domain.library_marks import PostMarks
 from boosty_downloader.domain.stored_post import AuthorInfo, PostMetadata, StoredPost
 
 
@@ -25,6 +26,14 @@ class SavedPost:
 
     folder: str
     record: StoredPost
+
+
+@dataclass(frozen=True, slots=True)
+class SavedPage:
+    """A rendered page's recorded ownership, with library-relative folder and path."""
+
+    folder: str
+    path: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,3 +188,12 @@ class LibraryPost:
     record: StoredPost | None = None
     folder: str | None = None
     teaser_path: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class LibraryPostDetails:
+    """Fresh content and marks from one source read; cover is library-relative."""
+
+    content: LibraryPost
+    marks: PostMarks
+    cover_path: str | None

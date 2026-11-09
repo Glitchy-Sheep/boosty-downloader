@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
+from errno import EACCES, ELOOP, ENOTSUP, EPERM
 from pathlib import Path
 from shutil import copytree
+from sqlite3 import OperationalError as SQLiteError
 from unittest.mock import Mock
 
 import pytest
@@ -13,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 
 from boosty_downloader.domain.library import LibraryContentKind, PostAccess, PostFilters
+from boosty_downloader.domain.library_errors import LibraryReadError
 from boosty_downloader.domain.library_marks import PlaybackPosition, PostMarks
 from boosty_downloader.domain.post_data_chunks import PostDataChunkText
 from boosty_downloader.domain.stored_post import (
@@ -28,6 +31,7 @@ from boosty_downloader.domain.stored_post import (
     TextBlock,
 )
 from boosty_downloader.infrastructure.library import index_sources
+from boosty_downloader.infrastructure.library import reader as reader_module
 from boosty_downloader.infrastructure.library._index_models import IndexMedia, IndexPost
 from boosty_downloader.infrastructure.library.errors import (
     InvalidPostRecordError,
@@ -209,6 +213,17 @@ def test_list_snapshots_preserve_metadata_and_nested_independence(
     assert reader.authors()[0].info == library.store.load_author('writer')
 
 
+@pytest.mark.parametrize('query', ['шейд', 'search'])
+def test_search_preserves_the_browsing_snapshot(
+    reader: JsonLibraryReader, query: str
+) -> None:
+    reader.save_marks('writer', POST_ID, PostMarks(seen_at=NOW, favorite=True))
+    listing = reader.list_posts('writer', PostFilters()).rows[0]
+    searching = reader.list_posts('writer', PostFilters(text=query)).rows[0]
+    assert searching.match is not None
+    assert replace(searching, match=None) == listing
+
+
 def test_default_order_uses_creation_time_then_full_id(root: Path) -> None:
     store = JsonPostStore(root)
     for post_id in ['abcdefgh-a', 'abcdefgh-z', 'ijklmnop-new']:
@@ -353,14 +368,14 @@ def test_detail_keeps_locked_overview_separate_from_saved_body(
     reader.prepare()
     detail = reader.post('writer', POST_ID)
     assert detail is not None
-    assert detail.overview.access is PostAccess.locked
-    assert detail.overview.post == locked.post
-    assert detail.record == library.record
-    assert detail.folder == library.folder
-    assert detail.teaser_path == locked.teaser_path
-    detail.overview.post.tags.clear()
-    assert detail.record is not None
-    assert detail.record.post.tags == library.record.post.tags
+    assert detail.content.overview.access is PostAccess.locked
+    assert detail.content.overview.post == locked.post
+    assert detail.content.record == library.record
+    assert detail.content.folder == library.folder
+    assert detail.content.teaser_path == locked.teaser_path
+    detail.content.overview.post.tags.clear()
+    assert detail.content.record is not None
+    assert detail.content.record.post.tags == library.record.post.tags
     assert reader.post('writer', 'missing') is None
     assert reader.post('missing', POST_ID) is None
 
@@ -372,8 +387,152 @@ def test_detail_rejects_replaced_full_identity(
         library.record, post=replace(library.record.post, id='abcdefgh-replaced')
     )
     write_post_record(library.root / library.folder, replacement)
-    with pytest.raises(InvalidPostRecordError):
+    with pytest.raises(LibraryReadError) as failure:
         reader.post('writer', POST_ID)
+    assert isinstance(failure.value.__cause__, InvalidPostRecordError)
+
+
+def test_detail_reads_fresh_content_marks_and_cover_once(
+    library: LibraryFixture, reader: JsonLibraryReader, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    image = library.root / library.folder / 'images' / 'cover.jpg'
+    image.parent.mkdir()
+    image.write_bytes(b'cover')
+    library.record.media['image:cover'] = MediaEntry(
+        MediaKind.image,
+        MediaStatus.downloaded,
+        LATER,
+        1,
+        path='images/cover.jpg',
+        size=5,
+    )
+    library.record.blocks.append(MediaBlock('image:cover'))
+    library.record.post.title = 'Fresh saved body'
+    library.store.save_post(library.folder, library.record)
+    locked = LockedPost(
+        replace(library.record.post, title='Fresh locked overview'), LATER
+    )
+    library.store.save_locked_post(locked)
+    marks = PostMarks(favorite=True, positions={AUDIO_ID: PlaybackPosition(9.5)})
+    JsonPostMarks(library.root).save_marks('writer', POST_ID, marks)
+    source_read = Mock(wraps=reader_module.read_post_source)
+    monkeypatch.setattr(reader_module, 'read_post_source', source_read)
+    monkeypatch.setattr(
+        reader, 'get_marks', Mock(side_effect=AssertionError('Extra read'))
+    )
+    monkeypatch.setattr(
+        reader, 'list_posts', Mock(side_effect=AssertionError('List scan'))
+    )
+
+    detail = reader.post('writer', POST_ID)
+
+    assert detail is not None
+    assert detail.content.overview.post == locked.post
+    assert detail.content.record == library.record
+    assert detail.marks == marks
+    assert detail.cover_path == f'{library.folder}/images/cover.jpg'
+    source_read.assert_called_once()
+    detail.marks.positions[AUDIO_ID].seconds = 99
+    second = reader.post('writer', POST_ID)
+    assert second is not None
+    assert second.marks == marks
+
+
+def test_locked_only_detail_has_fresh_teaser_and_empty_marks(root: Path) -> None:
+    store = JsonPostStore(root)
+    locked = LockedPost(_record(POST_ID).post, NOW, 'teasers/cover.jpg')
+    store.save_locked_post(locked)
+    reader = JsonLibraryReader(root)
+    reader.prepare()
+    image = root / 'writer' / 'teasers' / 'cover.jpg'
+    image.parent.mkdir()
+    image.write_bytes(b'cover')
+    locked.post.title = 'Fresh locked title'
+    store.save_locked_post(locked)
+
+    detail = reader.post('writer', POST_ID)
+
+    assert detail is not None
+    assert detail.content.record is None
+    assert detail.content.folder is None
+    assert detail.content.overview.post == locked.post
+    assert detail.marks == PostMarks()
+    assert detail.cover_path == 'writer/teasers/cover.jpg'
+
+
+@pytest.mark.parametrize('filename', ['post.json', 'viewer.json', 'locked.json'])
+def test_detail_translates_corrupt_canonical_records(
+    library: LibraryFixture, reader: JsonLibraryReader, filename: str
+) -> None:
+    folder = library.root / library.folder
+    if filename == 'locked.json':
+        folder = library.root / 'writer' / '.boosty-downloader'
+    (folder / filename).write_bytes(b'{broken')
+
+    with pytest.raises(LibraryReadError) as failure:
+        reader.post('writer', POST_ID)
+
+    assert isinstance(failure.value.__cause__, ValueError)
+    assert str(library.root) not in str(failure.value)
+
+
+def test_reader_translates_missing_index(tmp_path: Path) -> None:
+    reader = JsonLibraryReader(tmp_path)
+    with pytest.raises(LibraryReadError) as failure:
+        reader.authors()
+    assert isinstance(failure.value.__cause__, OperationalError)
+
+
+def test_reader_translates_filesystem_failure(
+    reader: JsonLibraryReader, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    expected = PermissionError('Private absolute source path')
+    monkeypatch.setattr(Path, 'read_bytes', Mock(side_effect=expected))
+    with pytest.raises(LibraryReadError) as failure:
+        reader.post('writer', POST_ID)
+    assert failure.value.__cause__ is expected
+    assert 'Private' not in str(failure.value)
+
+
+@pytest.mark.parametrize(
+    'expected', [TypeError('Programmer error'), RuntimeError('Programmer error')]
+)
+def test_reader_does_not_mask_programming_errors(
+    reader: JsonLibraryReader, monkeypatch: pytest.MonkeyPatch, expected: Exception
+) -> None:
+    monkeypatch.setattr(reader_module, 'read_posts', Mock(side_effect=expected))
+    with pytest.raises(type(expected)) as failure:
+        reader.list_posts('writer', PostFilters())
+    assert failure.value is expected
+
+
+def test_reader_translates_canonical_symlink_loop(
+    library: LibraryFixture, reader: JsonLibraryReader
+) -> None:
+    path = library.root / library.folder / 'post.json'
+    path.unlink()
+    try:
+        path.symlink_to(path.name)
+    except NotImplementedError:
+        pytest.skip('Symlinks unavailable')
+    except OSError as error:
+        if error.errno in {EPERM, EACCES, ENOTSUP}:
+            pytest.skip('Symlinks unavailable')
+        raise
+    with pytest.raises(LibraryReadError) as failure:
+        reader.post('writer', POST_ID)
+    assert isinstance(failure.value.__cause__, OSError)
+    assert failure.value.__cause__.errno == ELOOP
+
+
+def test_reader_translates_native_search_tokenizer_failure(
+    reader: JsonLibraryReader, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    expected = SQLiteError('Unable to tokenize search input')
+    monkeypatch.setattr(reader_module, 'read_posts', Mock(side_effect=expected))
+    with pytest.raises(LibraryReadError) as failure:
+        reader.list_posts('writer', PostFilters(text='search'))
+    assert failure.value.__cause__ is expected
 
 
 @pytest.mark.parametrize('is_locked', [False, True])
@@ -387,9 +546,9 @@ def test_vanished_record_returns_no_body(
     detail = reader.post('writer', POST_ID)
     if is_locked:
         assert detail is not None
-        assert detail.overview.access is PostAccess.locked
-        assert detail.record is None
-        assert detail.folder is None
+        assert detail.content.overview.access is PostAccess.locked
+        assert detail.content.record is None
+        assert detail.content.folder is None
     else:
         assert detail is None
 
@@ -476,13 +635,13 @@ def test_detail_returns_independent_body_and_overview_snapshots(
     second = reader.post('writer', POST_ID)
     assert first is not None
     assert second is not None
-    assert first.record is not None
-    assert second.record is not None
-    first.record.media[AUDIO_ID].title = 'Mutated media'
-    first.record.post.tags.clear()
-    first.overview.post.content_counters.clear()
-    assert second.record == library.record
-    assert second.overview.post == library.record.post
+    assert first.content.record is not None
+    assert second.content.record is not None
+    first.content.record.media[AUDIO_ID].title = 'Mutated media'
+    first.content.record.post.tags.clear()
+    first.content.overview.post.content_counters.clear()
+    assert second.content.record == library.record
+    assert second.content.overview.post == library.record.post
     assert reader.post('writer', POST_ID) == second
 
 

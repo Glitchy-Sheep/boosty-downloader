@@ -235,5 +235,7 @@ def test_nul_before_body_hit_preserves_unmatched_words_and_canonical_body(
     assert _matched(match.text) == ['needle']
     detail = reader.post('writer', 'abcdefgh-one')
     assert detail is not None
-    assert detail.record is not None
-    assert detail.record.blocks == [TextBlock([PostDataChunkText.TextFragment(body)])]
+    assert detail.content.record is not None
+    assert detail.content.record.blocks == [
+        TextBlock([PostDataChunkText.TextFragment(body)])
+    ]

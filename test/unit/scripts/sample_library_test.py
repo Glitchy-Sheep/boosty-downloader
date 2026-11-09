@@ -91,20 +91,20 @@ def test_generated_library_is_readable_without_source_assets_api(sample: Path) -
         for row in rows:
             detail = reader.post(author.author, row.overview.post.id)
             assert detail is not None
-            if detail.record is None:
+            if detail.content.record is None:
                 locked_only += 1
-                assert detail.folder is None
-                assert detail.overview.access == PostAccess.locked
+                assert detail.content.folder is None
+                assert detail.content.overview.access == PostAccess.locked
                 continue
             saved += 1
-            retained_locked += detail.overview.access == PostAccess.locked
-            assert detail.folder is not None
+            retained_locked += detail.content.overview.access == PostAccess.locked
+            assert detail.content.folder is not None
             assert reader.get_marks(author.author, row.overview.post.id) is not None
-            for entry in detail.record.media.values():
+            for entry in detail.content.record.media.values():
                 statuses.add(entry.status)
                 kinds.add(entry.kind)
                 assert entry.path is not None
-                path = sample / detail.folder / entry.path
+                path = sample / detail.content.folder / entry.path
                 assert path.is_file() == (entry.status == MediaStatus.downloaded)
                 if path.is_file():
                     assert path.stat().st_size > 0

@@ -63,7 +63,7 @@ def _validate_workload(reader: JsonLibraryReader) -> str:
         raise ValueError(message)
     post_id = posts.rows[0].overview.post.id
     detail = reader.post(_AUTHOR, post_id)
-    if detail is None or detail.record is None:
+    if detail is None or detail.content.record is None:
         message = 'The detail workload requires a complete saved post body'
         raise ValueError(message)
     return post_id
