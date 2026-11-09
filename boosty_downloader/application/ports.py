@@ -159,12 +159,27 @@ class StoredPostCollection(Protocol):
 
 
 MediaUrl: TypeAlias = Callable[[str], str]
+LinkUrl: TypeAlias = Callable[[str], str]
+
+
+class LinkResolver(Protocol):
+    """Locate an eligible saved target by author and full post identity."""
+
+    def post_folder(self, author: str, post_id: str) -> str | None:
+        """Return its portable library-relative folder, or None if unavailable."""
+        ...
 
 
 class PostBodyRenderer(Protocol):
     """Render a saved body with URLs for its post-relative media paths."""
 
-    def render(self, record: StoredPost, *, media_url: MediaUrl) -> str:
+    def render(
+        self,
+        record: StoredPost,
+        *,
+        media_url: MediaUrl,
+        link_url: LinkUrl | None = None,
+    ) -> str:
         """Return the shared post body without changing records or writing a page."""
         ...
 

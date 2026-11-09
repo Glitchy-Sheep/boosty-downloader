@@ -273,20 +273,22 @@ def test_list_items_use_the_same_paragraph_rules_at_every_depth(
 def test_output_fragments_and_styles_are_independent_of_input_and_other_calls():
     shared_style = TextStyle(bold=True, italic=True, underline=True)
     fragments: list[TextFragment | LineBreak] = [
-        TextFragment('first', style=shared_style),
+        TextFragment('first', link_url='https://example.com/post', style=shared_style),
         TextFragment('second', style=shared_style),
     ]
     content = [TextBlock(fragments)]
     original = deepcopy(content)
-    first = build_text_blocks(content)
+    first = build_text_blocks(content, link_url=lambda _url: '/local/post')
     second = build_text_blocks(content)
     expected_second = deepcopy(second)
     first_fragment = first[0].fragments[0]
     sibling_fragment = first[0].fragments[1]
     assert isinstance(first_fragment, HtmlTextFragment)
     assert isinstance(sibling_fragment, HtmlTextFragment)
+    assert first_fragment.link_url == '/local/post'
 
     first_fragment.text = 'edited'
+    first_fragment.link_url = '/edited'
     first_fragment.style.bold = False
     first[0].fragments.append(HtmlLineBreak())
 
