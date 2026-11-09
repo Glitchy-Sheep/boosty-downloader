@@ -8,10 +8,14 @@ from typing import TYPE_CHECKING
 
 import typer
 from aiohttp.client_exceptions import ClientConnectorDNSError, ClientError
+from rich.markup import escape
 
 from boosty_downloader.infrastructure.library.errors import (
     AmbiguousPostFolderError,
     InvalidPostRecordError,
+)
+from boosty_downloader.infrastructure.library.library_format import (
+    LibraryCompatibilityError,
 )
 from boosty_downloader.infrastructure.loggers import logger_instances
 from boosty_downloader.infrastructure.loggers.debug_file import (
@@ -63,6 +67,9 @@ def report_command_errors(*, read_only: bool = False) -> Generator[None]:
     """Render expected failures while the command's diagnostic sink is open."""
     try:
         yield
+    except LibraryCompatibilityError as error:
+        logger_instances.downloader_logger.error(escape(str(error)))
+        raise typer.Exit(1) from error
     except ClientError as error:
         report_network_error(error, read_only=read_only)
         raise typer.Exit(1) from error

@@ -277,8 +277,9 @@ def test_root_help_names_the_env_var() -> None:
     [[], ['--dry-run'], ['--post-url', 'https://boosty.to/someone/posts/p1']],
 )
 def test_exclude_tag_options_reach_the_download_handler(
-    monkeypatch: pytest.MonkeyPatch, extra: list[str]
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, extra: list[str]
 ) -> None:
+    monkeypatch.chdir(tmp_path)
     calls: list[object] = []
 
     async def record_download(**kwargs: object) -> None:

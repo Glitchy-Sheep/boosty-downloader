@@ -33,6 +33,7 @@ from boosty_downloader.infrastructure.boosty_api.models.post.posts_request impor
     PostsResponse,
 )
 from boosty_downloader.infrastructure.html_generator import PAGE_TEMPLATE_VERSION
+from boosty_downloader.infrastructure.library.library_format import initialize_library
 from boosty_downloader.infrastructure.library.post_store import JsonPostStore
 from boosty_downloader.infrastructure.loggers.debug_file import DEBUG_LOG_FILENAME
 from boosty_downloader.main import typer_app
@@ -102,6 +103,7 @@ def _write_config(root: Path) -> Path:
 
 
 def _seed_record(root: Path, post: PostDTO) -> Path:
+    initialize_library(root)
     live = map_post_dto_to_live(post, AUTHOR, BoostyOkVideoType.medium)
     record = prepare_record(None, live, NOW)
     assert record is not None

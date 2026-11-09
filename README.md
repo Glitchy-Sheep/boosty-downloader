@@ -152,7 +152,9 @@ Video previews are saved under each post's `previews/` directory, even when vide
 
 Library cover selection uses the first current downloaded image, then the preview of the first current Boosty video. A locked post uses its teaser. Removed media cannot become the cover. These images and cover rules prepare the saved records for the library viewer; they do not add a new viewer command yet.
 
-This development version uses `post.json` instead of the v4 SQLite cache. Use a fresh destination when trying v5: automatic migration and a guard against selecting a v4 library are not implemented yet. `--cache-dir` does not move the new records; `clean-cache` only removes a legacy SQLite cache and does not reset saved posts or remove media.
+This development version uses `post.json` instead of the v4 SQLite cache. Choose a fresh destination for v5. The first actual download marks it with `.boosty-downloader/library.json`; dry-run never creates the marker. If an unmarked destination contains post folders from any creator, every download mode stops before network requests, sample configuration or log writes. Keep the old destination while it contains posts that Boosty no longer serves. Existing downloads are not migrated or adopted automatically.
+
+`--cache-dir` does not move the new records; `clean-cache` only removes a legacy SQLite cache and does not reset saved posts or remove media.
 
 ## 🛡️ When downloads fail
 
