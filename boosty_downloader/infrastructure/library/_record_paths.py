@@ -24,9 +24,16 @@ def get_author_folder(root: Path, author: str) -> Path:
 
 def check_containment(root: Path, path: Path) -> None:
     """Reject paths that resolve outside an already resolved library root."""
-    if not path.resolve().is_relative_to(root):
+    resolve_contained_path(root, path)
+
+
+def resolve_contained_path(root: Path, path: Path, *, strict: bool = False) -> Path:
+    """Return the resolved path only when it stays within the library root."""
+    resolved = path.resolve(strict=strict)
+    if not resolved.is_relative_to(root):
         msg = f'Path escapes the library root: {path}'
         raise ValueError(msg)
+    return resolved
 
 
 def validate_author_name(author: str) -> None:

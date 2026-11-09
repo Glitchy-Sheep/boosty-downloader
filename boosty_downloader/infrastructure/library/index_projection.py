@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Final, Literal
 
@@ -85,15 +84,13 @@ class PostProjection:
 
 
 _EXCERPT_LENGTH: Final = 240
-_HIT_MARKERS: Final = str.maketrans({'\x02': ' ', '\x03': ' '})
-_RUSSIAN_FOLD: Final = str.maketrans({'ё': 'е', 'Ё': 'Е'})
 
 
 def project_author(source: AuthorSource) -> AuthorProjection:
     """Retain author display metadata without sharing its mutable value objects."""
     return AuthorProjection(
         source.author,
-        deepcopy(source.info),
+        replace(source.info) if source.info is not None else None,
         source.author_fingerprint,
         source.locked_fingerprint,
     )
@@ -103,10 +100,10 @@ def project_post(source: PostSource) -> PostProjection:
     """Build independent query values while retaining canonical media states and sizes."""
     record = source.post.record
     media = _project_media(source)
-    title = source.post.overview.post.title.translate(_HIT_MARKERS)
-    text = _body_text(record).translate(_HIT_MARKERS)
+    title = _remove_hit_markers(source.post.overview.post.title)
+    text = _remove_hit_markers(_body_text(record))
     return PostProjection(
-        metadata=deepcopy(source.post.overview.post),
+        metadata=_copy_metadata(source.post.overview.post),
         access=source.post.overview.access,
         folder=source.post.folder,
         teaser_path=source.post.teaser_path,
@@ -120,16 +117,39 @@ def project_post(source: PostSource) -> PostProjection:
         text_folded=fold_search_text(text),
         excerpt=' '.join(text.split())[:_EXCERPT_LENGTH],
         pieces_added_at=_pieces_added_at(media),
-        marks=deepcopy(source.marks),
+        marks=_copy_marks(source.marks),
         current_counts=_current_counts(media, downloaded_only=False),
         downloaded_counts=_current_counts(media, downloaded_only=True),
         media=media,
     )
 
 
+def _copy_metadata(metadata: PostMetadata) -> PostMetadata:
+    return replace(
+        metadata,
+        tags=list(metadata.tags),
+        content_counters=dict(metadata.content_counters),
+    )
+
+
+def _copy_marks(marks: PostMarks) -> PostMarks:
+    return replace(
+        marks,
+        positions={key: replace(value) for key, value in marks.positions.items()},
+    )
+
+
+def _copy_playback(playback: PlaybackPosition | None) -> PlaybackPosition | None:
+    return replace(playback) if playback is not None else None
+
+
+def _remove_hit_markers(text: str) -> str:
+    return text.replace('\x02', ' ').replace('\x03', ' ')
+
+
 def fold_search_text(text: str) -> str:
     """Fold Russian yo without changing offsets; FTS handles case and Latin accents."""
-    return text.translate(_HIT_MARKERS).translate(_RUSSIAN_FOLD)
+    return _remove_hit_markers(text).replace('ё', 'е').replace('Ё', 'Е')
 
 
 def _project_media(source: PostSource) -> tuple[MediaProjection, ...]:
@@ -143,10 +163,10 @@ def _project_media(source: PostSource) -> tuple[MediaProjection, ...]:
     return tuple(
         MediaProjection(
             media_id,
-            deepcopy(record.media[media_id]),
+            replace(record.media[media_id]),
             position,
             _thumbnail_path(folder, record.media[media_id]),
-            deepcopy(source.marks.positions.get(media_id)),
+            _copy_playback(source.marks.positions.get(media_id)),
         )
         for position, media_id in enumerate(_ordered_media_ids(record))
     )
