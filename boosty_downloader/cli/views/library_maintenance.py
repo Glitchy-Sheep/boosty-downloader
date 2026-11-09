@@ -27,3 +27,13 @@ def render_reindex_failure(*, path: Path, reason: str) -> str:
         'Check the saved records and cache directory permissions, or use '
         '--cache-dir with a writable local folder.'
     )
+
+
+def render_index_failure(reason: str) -> str:
+    """Explain recovery of a disposable index without touching saved content."""
+    return (
+        f'Library index error: {escape(reason)}. '
+        'Fix the index location or permissions, then run [bold]reindex[/bold] '
+        'with the same library and cache options. Saved post records and media '
+        'are preserved.'
+    )
