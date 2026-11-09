@@ -99,7 +99,9 @@ async def test_foreign_host_gets_json_refusal(
 ):
     response = await guard_client.get('/', headers={'Host': 'foreign.example'})
     assert response.status == 421
-    assert await response.json() == {'error': 'This Host is not allowed.'}
+    assert await response.json() == {
+        'error': {'code': 'host_not_allowed', 'message': 'This Host is not allowed.'}
+    }
     assert response.headers['X-Content-Type-Options'] == 'nosniff'
     assert response.headers['Referrer-Policy'] == 'no-referrer'
     assert response.headers['X-Frame-Options'] == 'DENY'
@@ -126,6 +128,12 @@ async def test_writes_require_json(
 ):
     response = await guard_client.request(method, '/', data='{}')
     assert response.status == 403
+    assert await response.json() == {
+        'error': {'code': 'write_not_allowed', 'message': 'This write is not allowed.'}
+    }
+    assert response.headers['X-Content-Type-Options'] == 'nosniff'
+    assert response.headers['Referrer-Policy'] == 'no-referrer'
+    assert response.headers['X-Frame-Options'] == 'DENY'
 
 
 @pytest.mark.parametrize(

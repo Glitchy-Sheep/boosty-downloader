@@ -38,6 +38,10 @@ async def test_library_notice_replaces_the_ui_and_escapes_data(tmp_path: Path):
         assert response.headers['X-Frame-Options'] == 'DENY'
         unknown = await client.get('/api/authors')
         assert unknown.status == 404
+        assert await unknown.json() == {
+            'error': {'code': 'not_found', 'message': 'Not found.'}
+        }
+        assert unknown.headers['X-Content-Type-Options'] == 'nosniff'
 
 
 async def test_unexpected_error_retains_response_security_headers(

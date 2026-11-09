@@ -10,6 +10,12 @@ from urllib.parse import urlsplit
 
 from aiohttp import web
 
+from boosty_downloader.viewer.api_models import (
+    ERROR_HOST_NOT_ALLOWED,
+    ERROR_WRITE_NOT_ALLOWED,
+    ErrorBody,
+    ErrorResponse,
+)
 from boosty_downloader.viewer.pages import LibraryNotice, notice_page
 
 if TYPE_CHECKING:
@@ -154,7 +160,12 @@ def _wrong_host(request: web.Request) -> web.Response:
             content_type='text/html',
             headers={'Cache-Control': 'no-store'},
         )
-    return web.json_response({'error': 'This Host is not allowed.'}, status=421)
+    body = ErrorResponse(
+        error=ErrorBody(
+            code=ERROR_HOST_NOT_ALLOWED, message='This Host is not allowed.'
+        )
+    )
+    return web.json_response(body.model_dump(mode='json'), status=421)
 
 
 @web.middleware
@@ -166,7 +177,12 @@ async def guard_requests(
     if not is_host_allowed(request):
         return _wrong_host(request)
     if request.method in _WRITE_METHODS and not is_write_allowed(request):
-        return web.json_response({'error': 'This write is not allowed.'}, status=403)
+        body = ErrorResponse(
+            error=ErrorBody(
+                code=ERROR_WRITE_NOT_ALLOWED, message='This write is not allowed.'
+            )
+        )
+        return web.json_response(body.model_dump(mode='json'), status=403)
     return await handler(request)
 
 

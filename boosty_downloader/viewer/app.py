@@ -7,6 +7,11 @@ from typing import TYPE_CHECKING
 
 from aiohttp import web
 
+from boosty_downloader.viewer.api_models import (
+    ERROR_NOT_FOUND,
+    ErrorBody,
+    ErrorResponse,
+)
 from boosty_downloader.viewer.compression import compress_json_responses
 from boosty_downloader.viewer.guard import guard_requests, secure_response
 from boosty_downloader.viewer.pages import LibraryNotice
@@ -22,7 +27,8 @@ __all__ = ['LIBRARY_READER', 'LibraryNotice', 'create_app']
 
 async def _not_found(request: web.Request) -> web.Response:
     del request
-    return web.json_response({'error': 'Not found.'}, status=404)
+    body = ErrorResponse(error=ErrorBody(code=ERROR_NOT_FOUND, message='Not found.'))
+    return web.json_response(body.model_dump(mode='json'), status=404)
 
 
 def create_app(

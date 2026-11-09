@@ -85,6 +85,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+      - name: Install Task, uv, Python and the dependencies
+        uses: ./.github/actions/setup
       - name: Install Node
         uses: actions/setup-node@v7
         with:
@@ -93,6 +95,13 @@ jobs:
           cache-dependency-path: viewer-ui/package-lock.json
       - name: Install locked dependencies
         run: npm ci
+      - name: Check generated API types
+        working-directory: .
+        run: |
+          git ls-files --error-unmatch viewer-ui/src/lib/api.gen.ts
+          test -f viewer-ui/src/lib/api.gen.ts
+          task ui:types
+          git diff --exit-code -- viewer-ui/src/lib/api.gen.ts
       - name: TypeScript
         run: npm run typecheck
       - name: Lint
