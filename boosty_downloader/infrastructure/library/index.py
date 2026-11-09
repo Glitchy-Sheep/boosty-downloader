@@ -19,6 +19,10 @@ from boosty_downloader.infrastructure.library._index_engine import (
     validate_index_path,
 )
 from boosty_downloader.infrastructure.library._index_models import IndexBase, IndexMeta
+from boosty_downloader.infrastructure.library._index_observations import (
+    write_access_update,
+    write_author_metadata,
+)
 from boosty_downloader.infrastructure.library._index_writes import (
     delete_post,
     refresh_author_counts,
@@ -46,9 +50,10 @@ if TYPE_CHECKING:
         AuthorProjection,
         PostProjection,
     )
+    from boosty_downloader.infrastructure.library.index_sources import SourceFingerprint
 
 INDEX_FILENAME: Final = 'index.db'
-INDEX_SCHEMA_VERSION: Final = 1
+INDEX_SCHEMA_VERSION: Final = 2
 _POST_BATCH_SIZE: Final = 100
 _META_ROW_ID: Final = 1
 _SQLITE_PRIMARY_CODE_MASK: Final = 0xFF
@@ -111,6 +116,11 @@ class LibraryIndex:
         self._index_path = index_path
 
     @property
+    def configured_path(self) -> Path:
+        """Configured database name without filesystem inspection."""
+        return self._index_path or self._root / '.boosty-downloader' / INDEX_FILENAME
+
+    @property
     def path(self) -> Path:
         """Resolved database location without following the database itself."""
         if self._index_path is not None:
@@ -149,9 +159,32 @@ class LibraryIndex:
             yield connection
 
     def upsert_author(self, author: AuthorProjection) -> None:
-        """Update one author after its canonical record has been saved."""
+        """Write author metadata after all of its access rows are synchronized."""
         with self._write_connection() as connection:
             write_author(connection, author)
+
+    def upsert_author_metadata(self, author: AuthorProjection) -> None:
+        """Refresh author details without claiming access rows were synchronized."""
+        with self._write_connection() as connection:
+            write_author_metadata(connection, author)
+
+    def update_access(
+        self,
+        author: AuthorProjection,
+        post_id: str,
+        post: PostProjection | None,
+        *,
+        previous_locked_fingerprint: SourceFingerprint | None,
+    ) -> None:
+        """Commit one access observation and its source version atomically."""
+        with self._write_connection() as connection:
+            write_access_update(
+                connection,
+                author,
+                post_id,
+                post,
+                previous_locked_fingerprint=previous_locked_fingerprint,
+            )
 
     def upsert_post(self, post: PostProjection) -> None:
         """Atomically update one post, including media, tags and search text."""

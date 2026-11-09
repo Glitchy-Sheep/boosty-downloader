@@ -100,7 +100,7 @@ CacheDirectoryOption = Annotated[
     Path | None,
     typer.Option(
         '--cache-dir',
-        help='Legacy cache location for clean-cache; downloads use records in the destination library',
+        help='Directory for the library search index; clean-cache uses its legacy per-author cache here',
         dir_okay=True,
         file_okay=False,
         resolve_path=True,

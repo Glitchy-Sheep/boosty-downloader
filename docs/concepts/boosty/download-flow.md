@@ -6,7 +6,7 @@ Boosty Downloader saves each accessible post as a complete `post.json` record, i
 
 ```text
 CLI: validate arguments and check library compatibility without writes
-  -> config, initialize new library marker, filters, JsonPostStore
+  -> config, initialize new library marker, filters, indexed JSON store
   -> separate API and media sessions
   -> DownloadAllPostUseCase / DownloadPostByIdUseCase
   -> refresh_author: blog details and owned avatar/cover images
@@ -24,9 +24,9 @@ CLI: validate arguments and check library compatibility without writes
 ```
 
 1. **Fetch.** Each real run refreshes blog details once and updates the author's avatar and cover. Optional metadata/image failures warn and preserve saved data. `BoostyAPIClient` validates listing and single-post responses as `PostDTO` objects. The API session carries credentials; a separate session downloads media without account tokens or cookies.
-2. **Observe access and select posts.** Locked overviews are saved before tag filtering, without creating post folders. Confirmed access clears the stale locked observation. `--exclude-tag TAG` matches whole tag names, ignoring case and surrounding whitespace. Repeated options exclude multiple tags. Exclusions happen before post-record lookup, content preparation or downloading; they leave saved post content unchanged. Posts without access retain any saved content, page and viewing marks.
+2. **Observe access and select posts.** Locked overviews are saved before tag filtering, without creating post folders. Confirmed access clears the stale locked observation. `--exclude-tag TAG` matches whole tag names, ignoring case and surrounding whitespace. Repeated options exclude multiple tags. Exclusions prevent content preparation and downloading, leaving saved post content unchanged. Access observations may still read the saved record to refresh its index row before filtering. Posts without access retain any saved content, page and viewing marks.
 3. **Prepare.** `PostPreparer` maps the complete live body, locates the saved record and observes actual local file names and sizes. `reconcile` computes the updated record and individual media IDs eligible under the filters. Preparation also identifies missing video previews independently of those filters. `--restore-missing` also selects locally deleted pieces that are still in the current post and match the content filters. The preparation step only reads. A post's existing folder remains stable when its title changes.
-4. **Persist.** `PostDownloadState` owns the record during an attempt. It saves the updated content, reserves each destination before transfer, and saves each success or failure separately. Finished peers cannot lose their state when another piece fails.
+4. **Persist.** `PostDownloadState` owns the record during an attempt. It saves the updated content, reserves each destination before transfer, and saves each success or failure separately. Finished peers cannot lose their state when another piece fails. After each canonical save, the storage adapter updates the disposable library index. An index failure warns once and disables indexing for the rest of that run; it does not undo the JSON save or fail the download.
 5. **Download.** `PostMediaDownloader` uses aiohttp for images, attachments, audio and Boosty videos, and yt-dlp for external videos. At most four pieces of a post transfer concurrently. Media is published under its final name only after completion; existing files are not overwritten.
 6. **Retry and render.** Each retry prepares against saved progress and current files. After the final attempt outcome, `build_post_page` assembles a complete page from the saved record. Successful rendering records the current page template version. An unchanged post with a current page needs neither media transfers nor a page rewrite.
 
@@ -79,11 +79,11 @@ Media links from listing responses expire after 24 hours. The download walk uses
 
 ## Storage boundary and remaining v5 work
 
-Download state lives in `<destination>/<author>/<post folder>/post.json`. Author information, avatar/cover images and locked-post observations live under `<destination>/<author>/.boosty-downloader/`. `author.json` uses author-relative image paths; `locked.json` retains observations of posts not encountered during a partial run. Dry-run and `check` do not update these files. The downloader no longer opens SQLite. `--cache-dir` is only relevant to the legacy `clean-cache` command, which removes an old database without resetting records or removing media.
+Download state lives in `<destination>/<author>/<post folder>/post.json`. Author information, avatar/cover images and locked-post observations live under `<destination>/<author>/.boosty-downloader/`. `author.json` uses author-relative image paths; `locked.json` retains observations of posts not encountered during a partial run. Dry-run and `check` do not update these files. Downloads update a disposable SQLite search index, separate from canonical download state. Its default location is `<destination>/.boosty-downloader/index.db`; `--cache-dir PATH` moves only the index to `PATH/index.db`. The legacy `clean-cache` command still removes an old per-author database without resetting records or removing media. See [the library index](../library-index.md) for rebuild and failure behavior.
 
 The first actual download creates the immutable `<destination>/.boosty-downloader/library.json` marker with `format_version: 5`. Dry-run checks compatibility without creating it. Before sample-config creation, debug-file setup or any network request, every download form checks an unmarked destination for recognized post folders under every author. If it finds one, the command names the destination, asks for another folder and explains why older downloads should be kept. It never reads the old post contents or SQLite cache. A malformed, unsupported or unsafe marker is an error rather than an invitation to overwrite it.
 
-There is no automatic migration or adoption of older downloads. Library indexing, standalone page rebuilding and the library viewer belong to later stages; each will use the same compatibility boundary when connected to the CLI.
+There is no automatic migration or adoption of older downloads. Index query APIs, standalone page rebuilding and the library viewer belong to later stages; each will use the same compatibility boundary when connected to the CLI.
 
 ## Layers
 

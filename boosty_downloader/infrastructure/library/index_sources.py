@@ -5,8 +5,9 @@ from __future__ import annotations
 import os
 from copy import deepcopy
 from dataclasses import dataclass, field
+from pathlib import PurePosixPath
 from stat import S_ISDIR, S_ISREG
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from boosty_downloader.domain.library import LibraryPost, PostAccess, PostOverview
 from boosty_downloader.domain.library_marks import PostMarks
@@ -46,6 +47,9 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from boosty_downloader.domain.stored_post import AuthorInfo, StoredPost
+
+
+_POST_FOLDER_DEPTH: Final = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,6 +108,73 @@ def scan_authors(root: Path) -> Iterator[AuthorSource]:
             yield source
 
 
+def read_author_source(root: Path, author: str) -> AuthorSource:
+    """Read one author's records directly, without scanning post folders."""
+    root = root.resolve()
+    validate_author_name(author)
+    folder = root / author
+    _source_directory(root, folder)
+    return _read_author(root, folder)
+
+
+def read_locked_fingerprint(root: Path, author: str) -> SourceFingerprint | None:
+    """Capture the access file version before a canonical observation changes."""
+    root = root.resolve()
+    validate_author_name(author)
+    service = root / author / AUTHOR_SERVICE_FOLDER
+    if not _source_directory(root, service):
+        return None
+    source = _read_source(root, service / LOCKED_RECORD_FILENAME)
+    return source.fingerprint if source else None
+
+
+def read_post_source(
+    root: Path, folder: str, *, locked_post: LockedPost | None = None
+) -> PostSource | None:
+    """Read one known post folder with fresh viewing marks and an access overlay."""
+    root = root.resolve()
+    relative = PurePosixPath(folder)
+    if (
+        len(relative.parts) != _POST_FOLDER_DEPTH
+        or relative.as_posix() != folder
+        or relative.is_absolute()
+        or '..' in relative.parts
+        or parse_post_folder_id(relative.name) is None
+    ):
+        message = f'Invalid relative post folder: {folder!r}'
+        raise ValueError(message)
+    validate_author_name(relative.parts[0])
+    target = root / folder
+    if not _source_directory(root, target):
+        return None
+    source = _read_post(
+        root, target, {locked_post.post.id: locked_post} if locked_post else {}
+    )
+    if source is not None and locked_post is not None:
+        _check_overlay_identity(source, locked_post)
+    return source
+
+
+def _check_overlay_identity(source: PostSource, locked: LockedPost) -> None:
+    record = source.post.record
+    if (
+        record is None
+        or record.post.author != locked.post.author
+        or record.post.id != locked.post.id
+    ):
+        message = 'Access observation belongs to another post'
+        raise InvalidPostRecordError(message)
+
+
+def locked_post_source(root: Path, locked: LockedPost) -> PostSource:
+    """Project an access observation that has no saved post body."""
+    post = LibraryPost(
+        PostOverview(deepcopy(locked.post), PostAccess.locked),
+        teaser_path=locked.teaser_path,
+    )
+    return PostSource(post=post, cover_path=find_cover_path(root.resolve(), post))
+
+
 def _read_author(root: Path, folder: Path) -> AuthorSource:
     service = folder / AUTHOR_SERVICE_FOLDER
     if not _source_directory(root, service):
@@ -159,11 +230,7 @@ def scan_posts(root: Path, author: AuthorSource) -> Iterator[PostSource]:
         seen.add(post_id)
         yield source
     for locked in remaining_locked.values():
-        post = LibraryPost(
-            PostOverview(deepcopy(locked.post), PostAccess.locked),
-            teaser_path=locked.teaser_path,
-        )
-        yield PostSource(post=post, cover_path=find_cover_path(root, post))
+        yield locked_post_source(root, locked)
 
 
 def _read_post(

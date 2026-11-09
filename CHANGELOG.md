@@ -2,6 +2,8 @@
 
 ### Added
 
+- Downloads update a disposable library search index after saving records. Index failures warn once per run and do not interrupt downloads; `--cache-dir` places the index on a separate local disk.
+
 - Downloads save Boosty video previews and locked-post teasers independently of content-type filters. Existing images are reused; missing ones are fetched again. Library cover selection follows the current post order and excludes removed media.
 
 - `download --restore-missing` restores locally deleted media still present in the creator's posts, respecting content filters. It works with single-post downloads and dry-run; the run summary reports remaining deleted media.
