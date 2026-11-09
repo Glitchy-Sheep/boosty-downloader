@@ -13,6 +13,17 @@ from unittest.mock import Mock
 
 import pytest
 from sqlalchemy import select
+from support.viewer_read_library import (
+    AUDIO_ID,
+    EARLIER,
+    LOCKED_ID,
+    NOW,
+    OLD_ID,
+    POST_ID,
+    TEXT_ID,
+    ReadLibrary,
+    make_library,
+)
 
 from boosty_downloader.domain.library import PostAccess, PostFilters, PostOrder
 from boosty_downloader.domain.library_errors import (
@@ -31,17 +42,6 @@ from boosty_downloader.infrastructure.library.json_store import write_post_recor
 from boosty_downloader.infrastructure.library.post_marks import JsonPostMarks
 from boosty_downloader.infrastructure.library.post_records import JsonPostRecords
 from boosty_downloader.infrastructure.library.reader import JsonLibraryReader
-from test.support.viewer_read_library import (
-    AUDIO_ID,
-    EARLIER,
-    LOCKED_ID,
-    NOW,
-    OLD_ID,
-    POST_ID,
-    TEXT_ID,
-    ReadLibrary,
-    make_library,
-)
 
 if TYPE_CHECKING:
     from pathlib import Path
