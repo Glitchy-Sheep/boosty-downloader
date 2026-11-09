@@ -77,15 +77,17 @@ The summary counts remaining deleted media still present in the accessible, non-
 
 Media links from listing responses expire after 24 hours. The download walk uses pages of five posts to limit the time between fetching a signed URL and using it. Metadata-only walks for `check` and dry-run use pages of 100 because no media downloads occur between pages. If links expire during a long post download, the retrier fetches fresh post metadata once and preserves already completed media.
 
-## Storage boundary and remaining v5 work
+## Storage and offline commands
 
-Download state lives in `<destination>/<author>/<post folder>/post.json`. Author information, avatar/cover images and locked-post observations live under `<destination>/<author>/.boosty-downloader/`. `author.json` uses author-relative image paths; `locked.json` retains observations of posts not encountered during a partial run. Dry-run and `check` do not update these files. Downloads update a disposable SQLite search index, separate from canonical download state. Its default location is `<destination>/.boosty-downloader/index.db`; `--cache-dir PATH` moves only the index to `PATH/index.db`. `reindex` rebuilds the index from saved records without credentials or network access. The legacy `clean-cache` command has been removed; index maintenance preserves canonical records, viewing marks, pages and media. See [the library index](../library-index.md) for rebuild and failure behavior.
+Download state lives in `<destination>/<author>/<post folder>/post.json`. Author information, avatar/cover images and locked-post observations live under `<destination>/<author>/.boosty-downloader/`. `author.json` uses author-relative image paths; `locked.json` retains observations of posts not encountered during a partial run. Dry-run and `check` do not update these files. Downloads update a disposable SQLite search index, separate from canonical download state. Its default location is `<destination>/.boosty-downloader/index.db`; `--cache-dir PATH` moves only the index to `PATH/index.db`. `reindex` rebuilds the index from saved records without credentials or network access. The legacy `clean-cache` command has been removed; index maintenance preserves canonical records, viewing marks, pages and media. See [library storage](../library-storage.md) for the file layout, ownership, media states and common commands, and [the library index](../library-index.md) for rebuild and failure behavior.
 
 The first actual download creates the immutable `<destination>/.boosty-downloader/library.json` marker with `format_version: 5`. Dry-run checks compatibility without creating it. Before sample-config creation, debug-file setup or any network request, every download form checks an unmarked destination for recognized post folders under every author. If it finds one, the command names the destination, asks for another folder and explains why older downloads should be kept. It never reads the old post contents or SQLite cache. A malformed, unsupported or unsafe marker is an error rather than an invitation to overwrite it.
 
-There is no automatic migration or adoption of older downloads. `render` and `reindex` use the same compatibility boundary before startup writes. `render` rebuilds complete pages from canonical records and current local files without using the index or contacting Boosty. The library viewer remains a later integration step.
+There is no automatic migration or adoption of older downloads. `render` and `reindex` use the same compatibility boundary before startup writes. `render` rebuilds complete pages from canonical records and current local files without using the index or contacting Boosty. The `view` command prepares the reader and serves the packaged viewer shell and compatibility or empty-library pages. Its `/api` and `/media` routes currently return 404; connected browsing, search, playback and mark editing are still future work. See the [viewer server foundation](../library-storage.md#viewer-server-foundation) for its command options.
 
-## Layers
+## Download layers
+
+These layers describe the download workflow:
 
 - `cli/`: Typer commands, concrete dependency composition and console output.
 - `application/`: use cases, mapping, shared preparation, reconciliation and post execution.
