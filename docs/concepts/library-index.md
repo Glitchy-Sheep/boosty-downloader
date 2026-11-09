@@ -44,8 +44,14 @@ Synchronization compares file sizes and modification times for post records, mar
 
 Viewing marks are read fresh from `viewer.json`. Saving marks writes canonical data before refreshing its index projection and preserves the timestamps supplied by the caller. Reader errors are reported to its caller; if the index update fails after a successful marks save, the canonical marks remain durable and a later synchronization can recover the projection.
 
+The viewer's seen, favorite and position operations read and update marks under a shared reader lock, so concurrent requests preserve each other's fields. These operations repair the index even when the requested canonical mark already matches. A failed index update returns an error without rolling back durable marks. Bulk selection captures its filtered identities before changing them and reports progress while writing. This coordination is local to one reader instance; it does not lock out another viewer process.
+
 ## Measuring complete viewer queries
 
 Create the deterministic sample with `uv run python scripts/sample_library.py --posts 5912 --out .sample/viewer-queries`, then run `uv run python scripts/benchmark_viewer_queries.py`. The sample has exactly 5,000 posts for its primary author. The benchmark validates that workload, including a search matching almost every post, before timing fully materialized lists, search snippets and canonical post details. It reports the first measured call and every warm sample, plus the warm median and range. The workload check already reads these queries, so the first measured call is not a cold-cache measurement.
 
 The command fails if a warm median reaches 300 ms for either list or 150 ms for detail. Use `--root` for another copy of the same sample and `--samples` to change the number of warm measurements. Preparation may rebuild the disposable index; canonical content stays unchanged. These end-to-end budgets differ from the SQL-only timings in `scripts/benchmark_library.py`. The script is a local acceptance benchmark, not a machine-independent timing assertion in the unit suite.
+
+Measure mark writes with `uv run python scripts/benchmark_viewer_marks.py`. It creates and removes its own temporary sample, with 1,198 identities across three authors and exactly 1,000 accessible posts for the measured author. `--temporary-parent /path/to/disk` selects an existing directory on the disk to measure; no existing library is modified.
+
+After generation and an untimed reset, the command measures 1,000 seen changes, an identical no-op repeat and 1,000 unseen changes separately. Each result includes the full canonical-write/index-refresh duration, actual changed count and progress observations. Fixture generation is excluded, filesystem caches are already warm, and the no-op run still verifies or repairs index state. These are local measurements, not a hardware-independent one-second guarantee.
