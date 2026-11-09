@@ -86,10 +86,10 @@ def test_generated_library_is_readable_without_source_assets_api(sample: Path) -
     kinds: set[MediaKind] = set()
     saved = locked_only = retained_locked = 0
     for author in reader.authors():
-        rows = reader.list_posts(author.author, PostFilters())
+        rows = reader.list_posts(author.author, PostFilters()).rows
         assert len(rows) == 8
         for row in rows:
-            detail = reader.post(author.author, row.post.id)
+            detail = reader.post(author.author, row.overview.post.id)
             assert detail is not None
             if detail.record is None:
                 locked_only += 1
@@ -99,7 +99,7 @@ def test_generated_library_is_readable_without_source_assets_api(sample: Path) -
             saved += 1
             retained_locked += detail.overview.access == PostAccess.locked
             assert detail.folder is not None
-            assert reader.get_marks(author.author, row.post.id) is not None
+            assert reader.get_marks(author.author, row.overview.post.id) is not None
             for entry in detail.record.media.values():
                 statuses.add(entry.status)
                 kinds.add(entry.kind)

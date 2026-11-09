@@ -30,7 +30,7 @@ Compatibility is checked before opening diagnostic logs or creating index files.
 
 Actual downloads prepare the index once and update it after successful canonical saves. The adapter indexes post records, author information and access observations, preserving saved body and viewing marks across access changes. An index or projection failure warns once and disables further index attempts for the run. Canonical saves continue; their own errors still fail normally. Dry-run and `check` do not open the index.
 
-The index defaults to `.boosty-downloader/index.db` under the library root. The CLI `--cache-dir` value overrides `downloading_settings.cache_directory` from YAML and places it at `<cache-directory>/index.db`, without an author subdirectory. The `JsonLibraryReader` adapter prepares the index and synchronizes canonical changes when opened by its caller. `reindex` rebuilds the complete index explicitly. The `view` command remains a subsequent integration step.
+The index defaults to `.boosty-downloader/index.db` under the library root. The CLI `--cache-dir` value overrides `downloading_settings.cache_directory` from YAML and places it at `<cache-directory>/index.db`, without an author subdirectory. The `JsonLibraryReader` adapter prepares the index and synchronizes canonical changes when opened by its caller. `reindex` rebuilds the complete index explicitly. `view` prepares and synchronizes the index on startup.
 
 ## Reading a library
 
