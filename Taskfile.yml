@@ -56,6 +56,12 @@ tasks:
     cmds:
       - npm ci
 
+  ui:types:
+    desc: Generate TypeScript contracts from the viewer API models
+    deps: [ui:install]
+    cmds:
+      - node viewer-ui/scripts/generate-api-types.mjs
+
   ui:dev:
     desc: Run the localhost viewer dev server with a local backend proxy
     dir: viewer-ui
