@@ -679,3 +679,26 @@ def test_incremental_counts_leave_other_authors_untouched(
             )
             == 0
         )
+
+
+def test_prior_search_projection_rebuilds_without_changing_canonical_records(
+    library: LibraryFixture,
+) -> None:
+    original = 'a\x00b'
+    library.record.post.title = original
+    library.store.save_post(library.folder, library.record)
+    index = LibraryIndex(library.root)
+    index.ensure()
+    before = _canonical_snapshot(library.root)
+    with closing(sqlite3.connect(index.path)) as connection, connection:
+        connection.execute('UPDATE meta SET schema_version=3')
+        connection.execute(
+            'UPDATE posts_fts SET title=?, original_title=?', (original, original)
+        )
+    assert index.ensure() is IndexStatus.incompatible
+    with index.connect() as connection:
+        assert connection.execute(
+            text('SELECT title, original_title FROM posts_fts')
+        ).one() == ('a b', 'a b')
+        assert connection.scalar(select(IndexPost.title)) == original
+    assert _canonical_snapshot(library.root) == before

@@ -208,3 +208,6 @@ viewer-ui/coverage/
 viewer-ui/*.tsbuildinfo
 boosty_downloader/viewer/static/app/
 !viewer-ui/src/lib/
+
+# Generated viewer development library
+/.sample/

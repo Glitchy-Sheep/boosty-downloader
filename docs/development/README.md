@@ -11,6 +11,7 @@ Start here, then follow the documents in order - each builds on the previous:
 3. **[CI Pipeline](03-ci.md)** - understand what happens when you open a PR
 4. **[Releasing](04-releasing.md)** - how versions get published (maintainers)
 5. **[Library Benchmark](05-library-benchmark.md)** - reproduce index performance budgets
+6. **[Viewer sample library](06-viewer-sample.md)** - generate local posts and media for UI development
 
 ## Project Structure
 

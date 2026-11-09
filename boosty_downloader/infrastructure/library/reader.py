@@ -5,10 +5,15 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from boosty_downloader.domain.library import LibraryPost, PostAccess, PostOverview
-from boosty_downloader.infrastructure.library._reader_queries import (
+from boosty_downloader.infrastructure.library._reader_authors import (
+    has_author,
+    read_author,
     read_authors,
-    read_overviews,
+    read_tags,
+)
+from boosty_downloader.infrastructure.library._reader_queries import (
     read_post_location,
+    read_posts,
 )
 from boosty_downloader.infrastructure.library.author_records import read_locked_posts
 from boosty_downloader.infrastructure.library.errors import InvalidPostRecordError
@@ -21,7 +26,12 @@ from boosty_downloader.infrastructure.library.post_records import JsonPostRecord
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from boosty_downloader.domain.library import LibraryAuthor, PostFilters
+    from boosty_downloader.domain.library import (
+        LibraryAuthor,
+        PostFilters,
+        PostList,
+        TagCount,
+    )
     from boosty_downloader.domain.library_marks import PostMarks
     from boosty_downloader.infrastructure.library.index import IndexSyncCounts
     from boosty_downloader.infrastructure.library.index_sources import PostSource
@@ -43,10 +53,25 @@ class JsonLibraryReader:
         with self._index.connect() as connection:
             return read_authors(connection)
 
-    def list_posts(self, author: str, filters: PostFilters) -> list[PostOverview]:
-        """Return filtered metadata snapshots without opening post JSON files."""
+    def author(self, author: str) -> LibraryAuthor | None:
+        """Return one author's metadata, post counts and recorded media bytes."""
         with self._index.connect() as connection:
-            return read_overviews(connection, author, filters)
+            return read_author(connection, author)
+
+    def has_author(self, author: str) -> bool:
+        """Check the indexed author identity without querying its posts or media."""
+        with self._index.connect() as connection:
+            return has_author(connection, author)
+
+    def tags(self, author: str) -> list[TagCount]:
+        """Count distinct indexed posts for every exact tag of one author."""
+        with self._index.connect() as connection:
+            return read_tags(connection, author)
+
+    def list_posts(self, author: str, filters: PostFilters) -> PostList:
+        """Return filtered browsing snapshots without opening canonical JSON files."""
+        with self._index.connect() as connection:
+            return read_posts(connection, author, filters)
 
     def post(self, author: str, post_id: str) -> LibraryPost | None:
         """Open the known folder and validate its full identity against current access."""

@@ -100,8 +100,8 @@ def project_post(source: PostSource) -> PostProjection:
     """Build independent query values while retaining canonical media states and sizes."""
     record = source.post.record
     media = _project_media(source)
-    title = _remove_hit_markers(source.post.overview.post.title)
-    text = _remove_hit_markers(_body_text(record))
+    title = _replace_search_controls(source.post.overview.post.title)
+    text = _replace_search_controls(_body_text(record))
     return PostProjection(
         metadata=_copy_metadata(source.post.overview.post),
         access=source.post.overview.access,
@@ -143,13 +143,14 @@ def _copy_playback(playback: PlaybackPosition | None) -> PlaybackPosition | None
     return replace(playback) if playback is not None else None
 
 
-def _remove_hit_markers(text: str) -> str:
-    return text.replace('\x02', ' ').replace('\x03', ' ')
+def _replace_search_controls(text: str) -> str:
+    # NUL truncates SQLite highlights; marker controls are reserved for search hits.
+    return text.replace('\x00', ' ').replace('\x02', ' ').replace('\x03', ' ')
 
 
 def fold_search_text(text: str) -> str:
     """Fold Russian yo without changing offsets; FTS handles case and Latin accents."""
-    return _remove_hit_markers(text).replace('ё', 'е').replace('Ё', 'Е')
+    return _replace_search_controls(text).replace('ё', 'е').replace('Ё', 'Е')
 
 
 def _project_media(source: PostSource) -> tuple[MediaProjection, ...]:

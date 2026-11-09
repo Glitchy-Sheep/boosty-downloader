@@ -25,6 +25,7 @@ from boosty_downloader.cli.commands import (
     reindex,
     render,
     show_auth_script,
+    view,
 )
 from boosty_downloader.cli.error_reporting import report_network_error
 from boosty_downloader.cli.views.library_maintenance import render_index_failure
@@ -45,7 +46,7 @@ from boosty_downloader.infrastructure.yaml_configuration.config import (
     DEFAULT_CONFIG_PATH,
 )
 
-_DEFERRED_DEBUG_COMMANDS: Final = frozenset({'download', 'reindex', 'render'})
+_DEFERRED_DEBUG_COMMANDS: Final = frozenset({'download', 'reindex', 'render', 'view'})
 
 typer_app = typer.Typer(
     add_completion=False,
@@ -80,6 +81,7 @@ render.register(typer_app)
 check.register(typer_app)
 reindex.register(typer_app)
 show_auth_script.register(typer_app)
+view.register(typer_app)
 
 
 def entry_point() -> None:

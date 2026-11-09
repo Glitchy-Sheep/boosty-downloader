@@ -13,9 +13,9 @@ from boosty_downloader.domain.library import LibraryContentKind, PostAccess, Pos
 from boosty_downloader.domain.stored_post import MediaKind, MediaStatus
 from boosty_downloader.infrastructure.library._index_models import IndexMedia, IndexPost
 from boosty_downloader.infrastructure.library._reader_queries import (
-    _posts_query,  # pyright: ignore[reportPrivateUsage] - benchmark actual filter SQL
-    _search_expression,  # pyright: ignore[reportPrivateUsage] - identical query literals
+    posts_query,
 )
+from boosty_downloader.infrastructure.library._reader_search import search_expression
 from library_benchmark.fixture import (
     BENCHMARK_TAG,
     SEARCH_QUERY,
@@ -135,7 +135,7 @@ def build_queries(config: FixtureConfig) -> tuple[QueryCase, ...]:
 def _post_list(author: str, posts: list[_ExpectedPost]) -> QueryCase:
     return QueryCase(
         'sql_posts_by_date',
-        _posts_query(author, PostFilters()),
+        posts_query(author, PostFilters()),
         ('author', 'post_id'),
         tuple((post.author, post.post_id) for post in posts),
     )
@@ -147,7 +147,7 @@ def _filtered_list(author: str, posts: list[_ExpectedPost]) -> QueryCase:
     )
     return QueryCase(
         'sql_video_unseen_tag',
-        _posts_query(author, filters),
+        posts_query(author, filters),
         ('author', 'post_id'),
         tuple(
             (post.author, post.post_id)
@@ -199,7 +199,7 @@ def _search(posts: tuple[_ExpectedPost, ...]) -> QueryCase:
             'WHERE posts_fts MATCH :expression '
             'ORDER BY posts.author, posts.post_id LIMIT :limit'
         )
-        .bindparams(expression=_search_expression(SEARCH_QUERY), limit=_SEARCH_LIMIT)
+        .bindparams(expression=search_expression(SEARCH_QUERY), limit=_SEARCH_LIMIT)
         .columns(author=String, post_id=String)
     )
     rows = sorted((post.author, post.post_id) for post in posts if post.matches_text)

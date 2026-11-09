@@ -174,6 +174,22 @@ boosty-downloader render YOUR_CREATOR_NAME -o ./v5-downloads
 
 Omit the creator to render the whole library. The command needs no credentials or search index. It uses the complete saved body and the files currently on disk, including retained media removed by the creator. Local media observations and the successful page-template version are saved in `post.json`; API synchronization timestamps, media files and viewing marks are preserved. Posts with no saved body have no page to rebuild. A previously saved body remains usable after losing access to the remote post.
 
+## Browse the local library
+
+Start the local viewer server for a v5 library:
+
+```bash
+boosty-downloader view -o ./downloads
+boosty-downloader view -o ./downloads --no-open --port 8314
+boosty-downloader view -o ./downloads --lan
+```
+
+The viewer needs no Boosty credentials. Global `--config` selects the settings file; `view --cache-dir` overrides the disposable index location. By default it listens on localhost at port 8314, choosing the next available port if needed; an explicit busy `--port` fails. `--lan` also permits devices on your local network and prints their addresses. Stop it with Ctrl+C.
+
+After the viewer stops, the operating system can keep a fixed port temporarily unavailable while connections close. The default mode chooses another free port; with `--port`, wait or choose another value.
+
+An empty library prints a download command. Older or unmarked downloads show an explanatory page without creating an index or changing their files; choose a separate destination for v5.
+
 ## 🛡️ When downloads fail
 
 - Connection errors, HTTP 5xx and rate limits get transport retries with growing pauses. The post has up to 5 attempts; an expired media link can trigger one API refresh.
