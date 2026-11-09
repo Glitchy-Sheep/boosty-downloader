@@ -9,9 +9,9 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from boosty_downloader.application.mappers.live_post import LiveMedia, LivePost
-from boosty_downloader.application.media_paths import DiskSnapshot
 from boosty_downloader.application.reconcile import reconcile
 from boosty_downloader.domain.content_types import DownloadContentTypeFilter
+from boosty_downloader.domain.disk_snapshot import DiskSnapshot
 from boosty_downloader.domain.post_data_chunks import (
     PostDataChunkAudio,
     PostDataChunkBoostyVideo,
