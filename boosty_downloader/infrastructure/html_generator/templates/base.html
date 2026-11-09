@@ -8,8 +8,14 @@
 
     <script>
         (function () {
-            const theme = localStorage.getItem('theme') || 'light';
-            document.documentElement.classList.add(theme);
+            function readTheme() {
+                try {
+                    return localStorage.getItem('theme') === 'dark' ? 'dark' : 'light';
+                } catch {
+                    return 'light';
+                }
+            }
+            document.documentElement.classList.add(readTheme());
         })();
     </script>
 
@@ -284,9 +290,12 @@
 
             html.classList.remove(current);
             html.classList.add(next);
-            localStorage.setItem('theme', next);
-
             this.textContent = next === 'dark' ? '🌙' : '☀';
+            try {
+                localStorage.setItem('theme', next);
+            } catch {
+                // Sandboxed pages keep theme changes within the current page.
+            }
         };
     </script>
 </body>
