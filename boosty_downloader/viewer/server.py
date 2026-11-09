@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import socket
 import webbrowser
-from contextlib import asynccontextmanager, suppress
+from contextlib import ExitStack, asynccontextmanager, suppress
 from dataclasses import dataclass
 from errno import EADDRINUSE
 from typing import TYPE_CHECKING, Final
@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 DEFAULT_PORT: Final = 8314
 MAX_PORT: Final = 65535
+_WSAEACCES: Final = 10013
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,22 +74,75 @@ def _addresses(port: int, *, lan: bool) -> ServerAddresses:
     return ServerAddresses(port=port, network=tuple(network))
 
 
+def _configure_listener(listener: socket.socket) -> None:
+    """Require exclusive binding on Windows and disable address reuse."""
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
+    if exclusive := getattr(socket, 'SO_EXCLUSIVEADDRUSE', None):
+        listener.setsockopt(socket.SOL_SOCKET, exclusive, 1)
+
+
+def _bind_candidate(
+    listener: socket.socket, host: str, port: int, *, allow_fallback: bool
+) -> bool:
+    try:
+        listener.bind((host, port))
+    except OSError as error:
+        # Winsock also reports exclusive collisions and reserved ports as access denied.
+        unavailable = (
+            error.errno == EADDRINUSE or getattr(error, 'winerror', None) == _WSAEACCES
+        )
+        if not allow_fallback or not unavailable:
+            raise
+        return False
+    return True
+
+
+async def _finish_startup(site: web.SockSite) -> asyncio.CancelledError | None:
+    """Defer caller cancellation until aiohttp owns the registered listener."""
+    startup = asyncio.create_task(site.start())
+    cancellation: asyncio.CancelledError | None = None
+    while not startup.done():
+        try:
+            await asyncio.shield(startup)
+        except asyncio.CancelledError as error:  # noqa: PERF203 - every cancellation must wait for socket ownership
+            if cancellation is None:
+                cancellation = error
+    startup.result()
+    return cancellation
+
+
+async def _start_site(
+    runner: web.AppRunner, host: str, port: int, *, allow_fallback: bool
+) -> bool:
+    with ExitStack() as cleanup:
+        listener = cleanup.enter_context(
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        )
+        _configure_listener(listener)
+        if not _bind_candidate(listener, host, port, allow_fallback=allow_fallback):
+            return False
+        site = web.SockSite(runner, listener)
+        cancellation = await _finish_startup(site)
+        # Successful startup transfers socket ownership to aiohttp.
+        cleanup.pop_all()
+        if cancellation is not None:
+            raise cancellation
+        return True
+
+
 async def _bind(runner: web.AppRunner, options: ServerOptions) -> int:
     host = '0.0.0.0' if options.lan else '127.0.0.1'  # noqa: S104 - --lan is explicit
     port = options.port if options.port is not None else DEFAULT_PORT
     while port <= MAX_PORT:
-        # The reported localhost URL must reach this listener, including with --lan.
-        site = web.TCPSite(runner, host, port, reuse_address=False)
         try:
-            await site.start()
+            if await _start_site(
+                runner, host, port, allow_fallback=options.port is None
+            ):
+                return port
         except OSError as error:
-            await site.stop()
-            if options.port is not None or error.errno != EADDRINUSE:
-                message = f'Cannot start viewer on {host}:{port}: {error}'
-                raise ViewerStartupError(message) from error
-            port += 1
-        else:
-            return port
+            message = f'Cannot start viewer on {host}:{port}: {error}'
+            raise ViewerStartupError(message) from error
+        port += 1
     message = f'No free viewer port from {DEFAULT_PORT} through {MAX_PORT}'
     raise ViewerStartupError(message)
 

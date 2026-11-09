@@ -37,7 +37,7 @@ task ui:dev
 
 The dev page is at `http://127.0.0.1:5174`. It binds localhost only and proxies `/api/` and `/media/` to `http://127.0.0.1:8314`, rewriting Host and Origin for the backend's request guards. To use another backend port, set `BOOSTY_VIEWER_BACKEND` to the matching URL when starting `task ui:dev`. Use an explicit `view --port` so a busy default port cannot move the backend away from the proxy target. The read APIs and data screens are added by subsequent viewer stages.
 
-After Ctrl+C, a fixed port can remain temporarily unavailable while the OS closes prior connections. Wait, or choose another `--port` and update `BOOSTY_VIEWER_BACKEND` to match. Exclusive binding prevents the viewer from sharing a port with another local listener.
+After Ctrl+C, a fixed port can remain temporarily unavailable while the OS closes prior connections. Wait, or choose another `--port` and update `BOOSTY_VIEWER_BACKEND` to match.
 
 ## Ruff (lint + format)
 

@@ -168,7 +168,7 @@ boosty-downloader view -o ./downloads --lan
 
 The viewer needs no Boosty credentials. Global `--config` selects the settings file; `view --cache-dir` overrides the disposable index location. By default it listens on localhost at port 8314, choosing the next available port if needed; an explicit busy `--port` fails. `--lan` also permits devices on your local network and prints their addresses. Stop it with Ctrl+C.
 
-The viewer reserves its port exclusively. After shutdown, the operating system can keep a fixed port temporarily unavailable while connections close. The default mode chooses another free port; with `--port`, wait or choose another value.
+After the viewer stops, the operating system can keep a fixed port temporarily unavailable while connections close. The default mode chooses another free port; with `--port`, wait or choose another value.
 
 An empty library prints a download command. Older or unmarked downloads show an explanatory page without creating an index or changing their files; choose a separate destination for v5.
 
