@@ -11,6 +11,7 @@ from boosty_downloader.application.filtering import MEDIA_KIND_TO_FILTER
 from boosty_downloader.application.media_paths import (
     find_media_file,
     find_recorded_file,
+    get_media_path_reservations,
     get_preferred_media_path,
 )
 from boosty_downloader.domain.stored_post import (
@@ -27,8 +28,9 @@ if TYPE_CHECKING:
     from datetime import datetime
 
     from boosty_downloader.application.mappers.live_post import LiveMedia, LivePost
-    from boosty_downloader.application.media_paths import DiskSnapshot, FileMatch
+    from boosty_downloader.application.media_paths import FileMatch
     from boosty_downloader.domain.content_types import DownloadContentTypeFilter
+    from boosty_downloader.domain.disk_snapshot import DiskSnapshot
 
 
 @dataclass(frozen=True, slots=True)
@@ -228,11 +230,7 @@ def recover_media_files(
     The caller supplies an accessible post. Files must be nonempty and match the live size when known. Without live metadata, only the recorded path is considered.
     """
     recovered = deepcopy(record)
-    reservations = {
-        media_id: entry.path
-        for media_id, entry in recovered.media.items()
-        if entry.path is not None
-    }
+    reservations = get_media_path_reservations(recovered)
     order = sorted(
         recovered.media, key=lambda media_id: recovered.media[media_id].position
     )

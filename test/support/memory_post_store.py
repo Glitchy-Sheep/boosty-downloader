@@ -46,9 +46,17 @@ class MemoryPostStore:
         self._check_folder(key, folder)
         self._posts[key] = LocatedPost(folder, deepcopy(record))
 
+    def load_author(self, author: str) -> AuthorInfo | None:
+        """Return an independent snapshot of the author's information, if saved."""
+        return deepcopy(self._authors.get(author))
+
     def save_author(self, author: AuthorInfo) -> None:
         """Keep an independent copy of the author's information."""
         self._authors[author.author] = deepcopy(author)
+
+    def load_locked_post(self, author: str, post_id: str) -> LockedPost | None:
+        """Return an independent snapshot of the saved access observation."""
+        return deepcopy(self._locked_posts.get(_PostKey(author, post_id)))
 
     def save_locked_post(self, post: LockedPost) -> None:
         """Record lack of access without changing the saved body or its folder."""

@@ -13,6 +13,32 @@
 
 Python itself comes from uv: `.python-version` pins the dev version, and uv downloads that exact standalone CPython on the first `uv sync`.
 
+## Viewer development
+
+The React viewer uses Node 24 LTS, pinned in `.nvmrc`. With nvm installed, run `nvm install` and `nvm use` in the repository. Node is needed for viewer tasks, `task build` and `task ci`. Python dependency installation, checks and tests remain independent of it; an editable `uv sync` does not need Node or built viewer assets.
+
+- `task ui:install` installs the exact npm lockfile in `viewer-ui/`.
+- `task ui:check` runs TypeScript, oxlint and Vitest.
+- `task ui:build` writes static assets and Brotli/gzip copies of JavaScript and CSS to `boosty_downloader/viewer/static/app/`.
+- `task build` builds the viewer first, then the wheel and source distribution. Both include the offline assets.
+
+Commit `viewer-ui/package-lock.json` with dependency changes. Generated assets and `node_modules` are ignored. The source under `viewer-ui/src/lib/` is tracked despite the repository's general Python `lib/` ignore rule.
+
+A standard wheel build without `viewer/static/app/index.html` fails with a `task ui:build` hint. Direct `uv build` therefore requires that frontend step first; use `task build` for the complete pipeline. The generated UI also travels in the source distribution, so building a wheel from a released source archive does not need Node. Installing a published wheel does not need Node either.
+
+The current frontend provides the approved shell and theme through the `view` server. Library APIs and data screens are connected in subsequent stages.
+
+Start the Python backend on an explicit port and the Vite dev server in another terminal:
+
+```bash
+uv run python -m boosty_downloader.main view -o .sample/library --port 8314 --no-open
+task ui:dev
+```
+
+The dev page is at `http://127.0.0.1:5174`. It binds localhost only and proxies `/api/` and `/media/` to `http://127.0.0.1:8314`, rewriting Host and Origin for the backend's request guards. To use another backend port, set `BOOSTY_VIEWER_BACKEND` to the matching URL when starting `task ui:dev`. Use an explicit `view --port` so a busy default port cannot move the backend away from the proxy target. The read APIs and data screens are added by subsequent viewer stages.
+
+After Ctrl+C, a fixed port can remain temporarily unavailable while the OS closes prior connections. Wait, or choose another `--port` and update `BOOSTY_VIEWER_BACKEND` to match.
+
 ## Ruff (lint + format)
 
 [Ruff](https://docs.astral.sh/ruff/) handles both linting and formatting. Configuration: `ruff.toml`.
@@ -92,4 +118,4 @@ uv is one binary that manages Python itself, the venv, the lockfile and builds.
 - Don't activate the venv by habit: a stale `VIRTUAL_ENV` makes tools fail in confusing ways, and `uv run` / `task` never need activation.
 - `uv sync` removes packages installed into `.venv` by hand - declare everything in `pyproject.toml`.
 - The lockfile is `uv.lock` - commit it with every dependency change.
-- The build backend stays `poetry-core`: the `[tool.poetry] packages` block in `pyproject.toml` is required for packaging, keep it.
+- The build backend is `hatchling`; package inclusion is configured under `[tool.hatch.build.targets]` in `pyproject.toml`.

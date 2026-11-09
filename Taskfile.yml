@@ -45,6 +45,38 @@ tasks:
     cmds:
       - uv sync
 
+  ui:install:
+    desc: Install the locked viewer dependencies (Node 24)
+    dir: viewer-ui
+    sources:
+      - package.json
+      - package-lock.json
+    generates:
+      - node_modules/.package-lock.json
+    cmds:
+      - npm ci
+
+  ui:dev:
+    desc: Run the localhost viewer dev server with a local backend proxy
+    dir: viewer-ui
+    deps: [ui:install]
+    cmds:
+      - npm run dev -- {{.CLI_ARGS}}
+
+  ui:check:
+    desc: Type-check, lint and test the viewer
+    dir: viewer-ui
+    deps: [ui:install]
+    cmds:
+      - npm run check
+
+  ui:build:
+    desc: Build the viewer's static assets
+    dir: viewer-ui
+    deps: [ui:install]
+    cmds:
+      - npm run build
+
   fix:
     desc: Auto-fix lint and formatting, then type check
     cmds:
@@ -142,9 +174,11 @@ tasks:
       - uv run pytest {{.CLI_ARGS}} test/canary/
 
   build:
-    desc: Build wheel and source distribution
+    desc: Build viewer assets, wheel and source distribution
     cmds:
+      - task: ui:build
       - uv build
+      - uv run python scripts/check_distribution.py
       - echo "Build complete at ./dist/"
 
   build:install:

@@ -23,6 +23,7 @@ from boosty_downloader.cli.commands import (
     clean_cache,
     download,
     show_auth_script,
+    view,
 )
 from boosty_downloader.cli.error_reporting import report_network_error
 from boosty_downloader.infrastructure.boosty_api.core.client import (
@@ -37,9 +38,12 @@ from boosty_downloader.infrastructure.boosty_api.utils.validation_errors import 
     format_validation_errors,
 )
 from boosty_downloader.infrastructure.loggers import logger_instances
+from boosty_downloader.infrastructure.loggers.debug_file import debug_logging
 from boosty_downloader.infrastructure.yaml_configuration.config import (
     DEFAULT_CONFIG_PATH,
 )
+
+_DEFERRED_DEBUG_COMMANDS = frozenset({'download', 'view'})
 
 typer_app = typer.Typer(
     add_completion=False,
@@ -60,10 +64,12 @@ def _app_callback(  # pyright: ignore[reportUnusedFunction]
 
     Run [bold]boosty-downloader COMMAND --help[/bold] to see details about a specific command.
     """
-    ctx.obj = GlobalOptions(config_path=config)
+    ctx.obj = GlobalOptions(config_path=config, debug=_debug)
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
         raise typer.Exit
+    if ctx.invoked_subcommand not in _DEFERRED_DEBUG_COMMANDS:
+        ctx.with_resource(debug_logging(enabled=_debug))
 
 
 # Register all CLI commands
@@ -71,6 +77,7 @@ download.register(typer_app)
 check.register(typer_app)
 clean_cache.register(typer_app)
 show_auth_script.register(typer_app)
+view.register(typer_app)
 
 
 def entry_point() -> None:

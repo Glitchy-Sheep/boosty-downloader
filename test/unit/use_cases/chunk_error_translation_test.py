@@ -1,187 +1,173 @@
-"""A failed media download must become an application error, never a traceback.
-
-The media downloader is faked; the use case's translation is real: the
-failure lands in failed_downloads.log, the retrier gets a typed error,
-cancellation keeps its own type.
-"""
+"""Media failures persist per piece and reach the retrier without losing causes."""
 
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
+from unittest.mock import AsyncMock, Mock, patch
+from uuid import uuid4
 
 import pytest
+from support.synthetic_post import FILE_ID, POST_ID, file_chunk, synthetic_post
 
+from boosty_downloader.application.download_context import DownloadContext
 from boosty_downloader.application.exceptions.application_errors import (
     ApplicationCancelledError,
     ApplicationFailedDownloadError,
 )
+from boosty_downloader.application.filtering import BoostyOkVideoType
+from boosty_downloader.application.ports import FailureLog, ProgressReporter
 from boosty_downloader.application.use_cases.download_single_post import (
     DownloadSinglePostUseCase,
 )
 from boosty_downloader.domain.content_types import DownloadContentTypeFilter
-from boosty_downloader.domain.post import Post
-from boosty_downloader.domain.post_data_chunks import PostDataChunkFile
+from boosty_downloader.domain.stored_post import MediaStatus
+from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
 from boosty_downloader.infrastructure.file_downloader import (
     DownloadUnexpectedStatusError,
     is_expired_link_error,
 )
+from boosty_downloader.infrastructure.library.post_store import JsonPostStore
 from boosty_downloader.infrastructure.post_media_downloader import (
     MediaDownloadError,
+    PostMediaDownloader,
 )
 
 if TYPE_CHECKING:
-    from uuid import UUID
+    from aiohttp_retry import RetryClient
 
-    from boosty_downloader.application.download_context import DownloadContext
-    from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
-    from boosty_downloader.infrastructure.post_media_downloader import (
-        PostMediaDownloader,
-        ProgressCallback,
+    from boosty_downloader.domain.stored_post import MediaEntry
+    from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
+        ExternalVideosDownloader,
     )
 
-NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 RESOURCE = 'https://cdn.example/file'
 
 
-class _FakeFailedLogger:
-    def __init__(self) -> None:
-        self.entries: list[tuple[str, str]] = []
-
-    async def add_error(self, error_id: str, message: str) -> None:
-        self.entries.append((error_id, message))
-
-
-class _QuietReporter:
-    def create_task(self, *args: object, **kwargs: object) -> UUID:
-        del args, kwargs
-        from uuid import uuid4  # noqa: PLC0415 - keeps the fake to its one job
-
-        return uuid4()
-
-    def update_task(self, *args: object, **kwargs: object) -> None:
-        del args, kwargs
-
-    def complete_task(self, *args: object, **kwargs: object) -> None:
-        del args, kwargs
-
-
-class _Context:
-    """Only the fields the chunk path touches."""
-
-    def __init__(self) -> None:
-        self.author_name = 'author'
-        self.failed_logger = _FakeFailedLogger()
-        self.progress_reporter = _QuietReporter()
-
-
-class _FailingMedia:
-    def __init__(self, error: BaseException) -> None:
-        self._error = error
-
-    async def download_file(
-        self, file: PostDataChunkFile, on_progress: ProgressCallback
-    ) -> Path:
-        del file, on_progress
-        raise self._error
-
-
-def _post() -> Post:
-    return Post(
-        uuid='p1',
-        title='post',
-        created_at=NOW,
-        updated_at=NOW,
-        has_access=True,
-        signed_query='',
-        post_data_chunks=[],
+def _use_case(root: Path, error: BaseException) -> DownloadSinglePostUseCase:
+    payload = synthetic_post()
+    payload['data'] = [{**file_chunk(), 'url': RESOURCE}]
+    reporter = Mock(spec=ProgressReporter)
+    reporter.create_task.return_value = uuid4()
+    context = DownloadContext(
+        author_name='author',
+        downloader_session=cast('RetryClient', None),
+        external_videos_downloader=cast('ExternalVideosDownloader', None),
+        post_store=JsonPostStore(root),
+        library_root=root,
+        filters=[DownloadContentTypeFilter.files],
+        preferred_video_quality=BoostyOkVideoType.medium,
+        progress_reporter=reporter,
+        failed_logger=AsyncMock(spec=FailureLog),
     )
+    media = Mock(spec=PostMediaDownloader)
+    media.download_file = AsyncMock(side_effect=error)
+    with patch(
+        'boosty_downloader.application.use_cases.download_single_post.PostMediaDownloader',
+        return_value=media,
+    ):
+        return DownloadSinglePostUseCase(root, PostDTO.model_validate(payload), context)
 
 
-def _use_case(media: _FailingMedia) -> tuple[DownloadSinglePostUseCase, _Context]:
-    context = _Context()
-    use_case = DownloadSinglePostUseCase(
-        destination=Path('unused'),
-        post_dto=cast('PostDTO', None),
-        download_context=cast('DownloadContext', context),
-    )
-    # cached_property: the instance value wins over the lazily built downloader.
-    use_case._media = cast('PostMediaDownloader', media)
-    return use_case, context
-
-
-async def _process_file_chunk(use_case: DownloadSinglePostUseCase) -> None:
-    await use_case._safely_process_chunk(
-        PostDataChunkFile(id='f1', url=RESOURCE, filename='a.zip'),
-        [DownloadContentTypeFilter.files],
-        _post(),
-    )
+def _entry(use_case: DownloadSinglePostUseCase) -> MediaEntry:
+    located = use_case.context.post_store.find_post('author', POST_ID)
+    assert located is not None
+    assert located.record is not None
+    return located.record.media[f'file:{FILE_ID}']
 
 
 @pytest.mark.parametrize(
-    ('file', 'expected_resource'),
-    [(Path('files/a.zip'), 'a.zip'), (None, RESOURCE)],
-    ids=['with-file', 'without-file'],
+    'file', [Path('files/a.zip'), None], ids=['with-file', 'without-file']
 )
-async def test_media_error_becomes_an_application_error_and_is_logged(
-    file: Path | None, expected_resource: str
+async def test_media_error_is_saved_logged_and_translated(
+    tmp_path: Path, file: Path | None
 ) -> None:
-    """The retrier decides on typed errors; the log tells the user what and why."""
-    use_case, context = _use_case(
-        _FailingMedia(MediaDownloadError('gone', resource_url=RESOURCE, file=file))
-    )
+    media_error = MediaDownloadError('gone', resource_url=RESOURCE, file=file)
+    use_case = _use_case(tmp_path, media_error)
 
     with pytest.raises(ApplicationFailedDownloadError) as info:
-        await _process_file_chunk(use_case)
+        await use_case.execute()
 
-    assert info.value.post_uuid == 'p1'
-    assert info.value.resource == expected_resource
+    assert info.value.post_uuid == POST_ID
+    assert info.value.resource == RESOURCE
     assert 'gone' in info.value.message
-    assert context.failed_logger.entries == [
-        (
-            f'https://boosty.to/author/posts/p1 - {RESOURCE}',
-            f'Failed to download {expected_resource}: gone',
-        )
-    ]
+    assert info.value.__cause__ is media_error
+    logger = cast('AsyncMock', use_case.context.failed_logger)
+    logger.add_error.assert_awaited_once_with(
+        f'https://boosty.to/author/posts/{POST_ID} - {RESOURCE}', 'gone'
+    )
+    entry = _entry(use_case)
+    assert entry.status is MediaStatus.failed
+    assert entry.error == 'gone'
 
 
 @pytest.mark.parametrize('retryable', [True, False], ids=['retryable', 'gone'])
-async def test_the_retry_flag_reaches_the_application_error(retryable: bool) -> None:  # noqa: FBT001 - parametrized flag
-    """The retrier reads the flag from the application error, not from the cause chain."""
-    use_case, _ = _use_case(
-        _FailingMedia(
-            MediaDownloadError('gone', resource_url=RESOURCE, retryable=retryable)
-        )
+async def test_retry_flag_controls_the_application_error_and_saved_status(
+    tmp_path: Path, *, retryable: bool
+) -> None:
+    use_case = _use_case(
+        tmp_path,
+        MediaDownloadError('gone', resource_url=RESOURCE, retryable=retryable),
     )
 
     with pytest.raises(ApplicationFailedDownloadError) as info:
-        await _process_file_chunk(use_case)
+        await use_case.execute()
 
     assert info.value.retryable is retryable
+    expected = MediaStatus.failed if retryable else MediaStatus.unavailable
+    assert _entry(use_case).status is expected
+    assert (
+        f'file:{FILE_ID}' in use_case.run_progress.checked_unavailable_ids
+    ) is not retryable
 
 
-async def test_expired_link_stays_detectable_through_the_cause_chain() -> None:
-    """The retrier refreshes the post only if it can still see the 400 underneath."""
+async def test_expired_link_stays_detectable_through_cause_chain(
+    tmp_path: Path,
+) -> None:
     expired = DownloadUnexpectedStatusError(
         status=400, response_message='Bad Request', resource_url=RESOURCE
     )
     media_error = MediaDownloadError(expired.message, resource_url=RESOURCE)
     media_error.__cause__ = expired
-    use_case, _ = _use_case(_FailingMedia(media_error))
+    use_case = _use_case(tmp_path, media_error)
 
     with pytest.raises(ApplicationFailedDownloadError) as info:
-        await _process_file_chunk(use_case)
+        await use_case.execute()
 
     assert is_expired_link_error(info.value)
+    assert _entry(use_case).status is MediaStatus.failed
 
 
-async def test_cancellation_keeps_its_own_type() -> None:
-    """Ctrl+C must not be reported as a failed download: the 130 exit code depends on it."""
-    use_case, context = _use_case(_FailingMedia(asyncio.CancelledError()))
+async def test_cancellation_is_neither_logged_nor_recorded_as_media_failure(
+    tmp_path: Path,
+) -> None:
+    use_case = _use_case(tmp_path, asyncio.CancelledError())
 
     with pytest.raises(ApplicationCancelledError):
-        await _process_file_chunk(use_case)
+        await use_case.execute()
 
-    assert context.failed_logger.entries == []
+    cast('AsyncMock', use_case.context.failed_logger).add_error.assert_not_awaited()
+    entry = _entry(use_case)
+    assert entry.status is MediaStatus.pending
+    assert entry.error is None
+
+
+async def test_failure_log_error_keeps_original_media_error_and_saved_outcome(
+    tmp_path: Path,
+) -> None:
+    media_error = MediaDownloadError('gone', RESOURCE, retryable=False)
+    use_case = _use_case(tmp_path, media_error)
+    cast('AsyncMock', use_case.context.failed_logger).add_error.side_effect = OSError(
+        'log denied'
+    )
+
+    with pytest.raises(ApplicationFailedDownloadError) as info:
+        await use_case.execute()
+
+    assert info.value.__cause__ is media_error
+    assert not info.value.retryable
+    assert _entry(use_case).status is MediaStatus.unavailable
+    cast('Mock', use_case.context.progress_reporter).warn.assert_called_once_with(
+        'Could not write failure log: log denied'
+    )
