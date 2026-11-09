@@ -70,6 +70,11 @@ tasks:
     cmds:
       - npm run build
 
+  viewer:sample:
+    desc: Generate a synthetic local library for viewer development
+    cmds:
+      - uv run python scripts/sample_library.py {{.CLI_ARGS}}
+
   fix:
     desc: Auto-fix lint and formatting, then type check
     cmds:

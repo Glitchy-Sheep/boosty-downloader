@@ -10,6 +10,7 @@ Start here, then follow the documents in order - each builds on the previous:
 2. **[Testing](02-testing.md)** - run and write tests
 3. **[CI Pipeline](03-ci.md)** - understand what happens when you open a PR
 4. **[Releasing](04-releasing.md)** - how versions get published (maintainers)
+5. **[Viewer sample library](06-viewer-sample.md)** - generate local posts and media for UI development
 
 ## Project Structure
 
