@@ -110,7 +110,7 @@ boosty-downloader view -o LIBRARY
 
 `view` prepares the library reader and serves the packaged application shell, with pages for an empty or incompatible library. It needs no Boosty credentials. By default it binds to the local machine on port 8314, tries the next free port if needed and opens the browser. `--port` chooses an exact port, `--no-open` suppresses the browser launch, and `--lan` enables the local-network listener.
 
-At this stage, `/api` and `/media` routes return 404. Browsing saved content, search, media playback and mark editing are not connected to the shell yet. The independent `viewer.json` storage is available; the browser controls for those marks remain future work. Saved `post.html` pages can be opened directly while the viewer is being completed.
+Read APIs provide authors, filtered post lists, tags and complete post bodies. Local media support seeking, while author-supplied HTML and SVG download and generated post pages run in an opaque sandbox. The packaged UI still shows the shell; data screens and mark controls follow. Saved `post.html` pages can also be opened directly. See the [read API contract](../development/07-viewer-api.md).
 
 ## Moving from v4
 

@@ -12,6 +12,7 @@ Start here, then follow the documents in order - each builds on the previous:
 4. **[Releasing](04-releasing.md)** - how versions get published (maintainers)
 5. **[Library Benchmark](05-library-benchmark.md)** - reproduce index performance budgets
 6. **[Viewer sample library](06-viewer-sample.md)** - generate local posts and media for UI development
+7. **[Viewer read API](07-viewer-api.md)** - query the library and serve saved content
 
 ## Project Structure
 

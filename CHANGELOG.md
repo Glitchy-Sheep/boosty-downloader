@@ -2,7 +2,7 @@
 
 ### Added
 
-- `view` starts the local viewer server with the packaged shell, optional LAN access, and empty-library or compatibility pages. The `/api` and `/media` routes currently return 404; browsing, search, playback and mark editing are not connected yet.
+- `view` starts the local viewer server with the packaged shell, optional LAN access, and empty-library or compatibility pages. Read APIs expose authors, filtered posts, search context and complete post bodies; local media support seeking with Range requests. Data screens and mark editing are not connected to the shell yet.
 
 - `render [AUTHOR]` rebuilds saved post pages offline from complete records and current local media. It works without credentials or a search index and preserves media files and viewing marks.
 
@@ -31,6 +31,8 @@
 - Dry-run creates or changes no local files, including config samples, caches, failure logs and debug logs. A missing config is an error; `--debug` prints preview diagnostics on the console and keeps any existing log file unchanged
 
 ### Fixed
+
+- Saved post pages and viewer body fragments discard unsafe link schemes while preserving their text. HTML and SVG attachments download through the viewer; confirmed generated post pages run in an opaque sandbox.
 
 - On Windows, saving a library record tolerates brief reader locks while preserving complete old or new contents
 - A failed media piece no longer causes completed pieces of the same type to download again. Each completion is saved separately, and an unavailable external video does not prevent retries for a different transient failure
