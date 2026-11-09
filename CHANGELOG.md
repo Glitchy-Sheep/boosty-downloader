@@ -27,6 +27,8 @@
 
 ### Changed
 
+- Saved video players show the stored preview when available and request metadata preload. The viewer body uses the same video markup.
+
 - Saved post pages use consistent spacing between paragraphs, including text inside lists. Line breaks within a paragraph remain distinct from paragraph boundaries.
 
 - Rebuilding the library search index is faster for large libraries.

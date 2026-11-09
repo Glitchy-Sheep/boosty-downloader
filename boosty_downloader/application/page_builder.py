@@ -149,7 +149,8 @@ def _build_saved_media(
         case MediaKind.audio:
             return convert_audio_to_html(src, title=label)
         case MediaKind.boosty_video | MediaKind.external_video:
-            return convert_video_to_html(src, title=label)
+            poster_url = media_url(entry.preview_path) if entry.preview_path else None
+            return convert_video_to_html(src, title=label, poster_url=poster_url)
 
 
 def _build_removed_media(record: StoredPost, media_url: MediaUrl) -> list[HtmlGenMedia]:

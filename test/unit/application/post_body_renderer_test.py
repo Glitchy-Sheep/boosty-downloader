@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 from urllib.parse import quote
 
+import pytest
+
 from boosty_downloader.application.page_builder import build_post_page
 from boosty_downloader.application.post_body_renderer import StoredPostBodyRenderer
 from boosty_downloader.domain.post_data_chunks import PostDataChunkText
@@ -104,6 +106,46 @@ def test_relative_callback_matches_default_saved_page_body() -> None:
     body = renderer.render(record, media_url=lambda path: quote(path, safe='/'))
 
     assert body == render_html_body(build_post_page(record))
+
+
+@pytest.mark.parametrize('kind', [MediaKind.boosty_video, MediaKind.external_video])
+@pytest.mark.parametrize('removed', [False, True], ids=['current', 'removed'])
+def test_video_and_poster_urls_are_encoded_once_in_the_shared_body(
+    kind: MediaKind, *, removed: bool
+) -> None:
+    video_path = 'videos/Видео 100% #2?.mp4'
+    preview_path = 'previews/Обложка 100% #1?.jpg'
+    media_id = f'{kind.value}:saved'
+    record = replace(
+        _record(),
+        blocks=[] if removed else [MediaBlock(media_id)],
+        media={
+            media_id: MediaEntry(
+                kind,
+                MediaStatus.downloaded,
+                _NOW,
+                0,
+                path=video_path,
+                preview_path=preview_path,
+                removed_at=_NOW if removed else None,
+            )
+        },
+    )
+    before = deepcopy(record)
+    calls: list[str] = []
+
+    def media_url(path: str) -> str:
+        calls.append(path)
+        return _PREFIX + quote(path, safe='/')
+
+    body = StoredPostBodyRenderer().render(record, media_url=media_url)
+
+    assert calls == [video_path, preview_path]
+    assert f'src="{_PREFIX}{quote(video_path, safe="/")}"' in body
+    assert f'poster="{_PREFIX}{quote(preview_path, safe="/")}"' in body
+    assert 'preload="metadata"' in body
+    assert body.replace(_PREFIX, '') == render_html_body(build_post_page(record))
+    assert record == before
 
 
 def _paragraph_record() -> StoredPost:
