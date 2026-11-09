@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from typing import Final
 
 import typer
 from aiohttp.client_exceptions import ClientError
@@ -22,6 +23,7 @@ from boosty_downloader.cli.commands import (
     check,
     clean_cache,
     download,
+    reindex,
     show_auth_script,
 )
 from boosty_downloader.cli.error_reporting import report_network_error
@@ -41,6 +43,8 @@ from boosty_downloader.infrastructure.loggers.debug_file import debug_logging
 from boosty_downloader.infrastructure.yaml_configuration.config import (
     DEFAULT_CONFIG_PATH,
 )
+
+_DEFERRED_DEBUG_COMMANDS: Final = frozenset({'download', 'reindex'})
 
 typer_app = typer.Typer(
     add_completion=False,
@@ -65,7 +69,7 @@ def _app_callback(  # pyright: ignore[reportUnusedFunction]
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
         raise typer.Exit
-    if ctx.invoked_subcommand != 'download':
+    if ctx.invoked_subcommand not in _DEFERRED_DEBUG_COMMANDS:
         ctx.with_resource(debug_logging(enabled=_debug))
 
 
@@ -73,6 +77,7 @@ def _app_callback(  # pyright: ignore[reportUnusedFunction]
 download.register(typer_app)
 check.register(typer_app)
 clean_cache.register(typer_app)
+reindex.register(typer_app)
 show_auth_script.register(typer_app)
 
 
