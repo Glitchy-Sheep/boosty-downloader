@@ -114,6 +114,7 @@ def _post_values(post: PostProjection) -> SqlValues:
         'post_price_rub': metadata.post_price_rub,
         'likes': metadata.likes,
         'comments': metadata.comments,
+        'tags': list(metadata.tags),
         'content_counters': metadata.content_counters,
         'current_counts': {
             kind.value: count for kind, count in post.current_counts.items()
@@ -252,3 +253,12 @@ def delete_post(connection: Connection, author: str, post_id: str) -> None:
     if row_id is not None:
         _clear_post_children(connection, (row_id,))
         connection.execute(delete(IndexPost).where(IndexPost.id == row_id))
+
+
+def delete_posts(connection: Connection, identifiers: Sequence[int]) -> None:
+    """Remove known post rows and their FTS entries in bounded batches."""
+    batch_size = 200
+    for offset in range(0, len(identifiers), batch_size):
+        batch = identifiers[offset : offset + batch_size]
+        _clear_post_children(connection, batch)
+        connection.execute(delete(IndexPost).where(IndexPost.id.in_(batch)))
