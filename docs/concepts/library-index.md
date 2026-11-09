@@ -18,11 +18,17 @@ The scanner reads recognized author and post records directly, with their existi
 
 Rebuilding writes only index files. Canonical records, marks, pages and media stay unchanged. Database and SQLite sidecar paths must be ordinary unshared files. Library compatibility is checked before index operations.
 
+## Rebuild from the command line
+
+Run `boosty-downloader reindex -o /path/to/library` to rebuild all authors and posts. Add `--cache-dir /path/to/local/cache` to keep `index.db` off a network share. CLI paths override the YAML download settings; the global `--config` option chooses the settings file. The command reads only path settings, requires no credentials and makes no network requests.
+
+Compatibility is checked before opening diagnostic logs or creating index files. An unmarked folder containing older post folders is rejected without adopting its contents. The command reports its index path and counts on success; source or index failures return a nonzero exit status. A readable index is replaced transactionally, so an invalid source leaves its previous projection available. Canonical records, viewing marks, pages and media are preserved.
+
 ## Integration status
 
 Actual downloads prepare the index once and update it after successful canonical saves. The adapter indexes post records, author information and access observations, preserving saved body and viewing marks across access changes. An index or projection failure warns once and disables further index attempts for the run. Canonical saves continue; their own errors still fail normally. Dry-run and `check` do not open the index.
 
-The index defaults to `.boosty-downloader/index.db` under the library root. The CLI `--cache-dir` value overrides `downloading_settings.cache_directory` from YAML and places it at `<cache-directory>/index.db`, without an author subdirectory. The `JsonLibraryReader` adapter prepares the index and synchronizes canonical changes when opened by its caller. The `view` and `reindex` commands remain subsequent integration steps.
+The index defaults to `.boosty-downloader/index.db` under the library root. The CLI `--cache-dir` value overrides `downloading_settings.cache_directory` from YAML and places it at `<cache-directory>/index.db`, without an author subdirectory. The `JsonLibraryReader` adapter prepares the index and synchronizes canonical changes when opened by its caller. `reindex` rebuilds the complete index explicitly. The `view` command remains a subsequent integration step.
 
 ## Reading a library
 
