@@ -10,6 +10,7 @@ Start here, then follow the documents in order - each builds on the previous:
 2. **[Testing](02-testing.md)** - run and write tests
 3. **[CI Pipeline](03-ci.md)** - understand what happens when you open a PR
 4. **[Releasing](04-releasing.md)** - how versions get published (maintainers)
+5. **[Library Benchmark](05-library-benchmark.md)** - reproduce index performance budgets
 
 ## Project Structure
 

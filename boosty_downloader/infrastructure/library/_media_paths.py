@@ -4,7 +4,9 @@ from os import stat_result
 from pathlib import Path
 from stat import FILE_ATTRIBUTE_REPARSE_POINT, S_ISLNK
 
-from boosty_downloader.infrastructure.library._record_paths import check_containment
+from boosty_downloader.infrastructure.library._record_paths import (
+    resolve_contained_path,
+)
 from boosty_downloader.infrastructure.library._record_validation import (
     validate_relative_file_path,
 )
@@ -15,8 +17,7 @@ def resolve_post_folder(library_root: Path, post_folder: str) -> Path:
     validate_relative_file_path(post_folder, 'post folder')
     root = library_root.resolve()
     folder = root / post_folder
-    check_containment(root, folder)
-    return folder.resolve()
+    return resolve_contained_path(root, folder)
 
 
 def is_link(info: stat_result) -> bool:

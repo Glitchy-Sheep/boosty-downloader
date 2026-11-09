@@ -45,14 +45,19 @@ boosty-downloader = "boosty_downloader.main:entry_point"
 requires = ["hatchling>=1.27,<2"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build]
+artifacts = ["boosty_downloader/viewer/static/app/**"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["boosty_downloader"]
 
+[tool.hatch.build.targets.wheel.hooks.custom]
+
 # Explicit allowlist: by default hatchling packs every non-vcs-ignored file
-# into the sdist, including untracked local notes. Only the package ships;
-# pyproject.toml, README and LICENSE are added automatically.
+# into the sdist, including untracked local notes. The package and wheel
+# build hook ship; pyproject.toml, README and LICENSE are added automatically.
 [tool.hatch.build.targets.sdist]
-only-include = ["boosty_downloader"]
+only-include = ["boosty_downloader", "hatch_build.py"]
 
 [dependency-groups]
 dev = [
