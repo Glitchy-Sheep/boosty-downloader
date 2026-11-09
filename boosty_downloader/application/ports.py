@@ -210,6 +210,14 @@ class LibraryReader(Protocol):
         """Read fresh content, access, marks and cover, or None for an unknown post."""
         ...
 
+    def media_path(self, author: str, identity: MediaIdentity) -> str | None:
+        """Return a downloaded piece's recorded library-relative path, or None."""
+        ...
+
+    def post_folder(self, author: str, post_id: str) -> str | None:
+        """Return a post's recorded library-relative folder, or None if unsaved."""
+        ...
+
     def saved_page(self, author: str, author_relative_path: str) -> SavedPage | None:
         """Confirm a generated page's stored ownership without granting file access."""
         ...

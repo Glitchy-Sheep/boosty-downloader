@@ -24,6 +24,10 @@ from boosty_downloader.infrastructure.library._reader_mutations import (
     current_time,
     writing_marks,
 )
+from boosty_downloader.infrastructure.library._reader_paths import (
+    read_media_path,
+    read_post_folder,
+)
 from boosty_downloader.infrastructure.library._reader_queries import (
     read_post_id_by_folder,
     read_post_location,
@@ -134,6 +138,16 @@ class JsonLibraryReader:
             if indexed is None:
                 return None
             return _read_details(self._root, author, post_id, indexed.folder)
+
+    def media_path(self, author: str, identity: MediaIdentity) -> str | None:
+        """Read a recorded downloaded path without checking the physical file."""
+        with _reading_library(), self._index.connect() as connection:
+            return read_media_path(connection, author, identity)
+
+    def post_folder(self, author: str, post_id: str) -> str | None:
+        """Read a recorded post folder without checking the physical directory."""
+        with _reading_library(), self._index.connect() as connection:
+            return read_post_folder(connection, author, post_id)
 
     def saved_page(self, author: str, author_relative_path: str) -> SavedPage | None:
         """Prove rendered-page ownership from one indexed folder and fresh record."""
