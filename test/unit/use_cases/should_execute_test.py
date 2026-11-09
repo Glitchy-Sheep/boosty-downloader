@@ -22,6 +22,7 @@ from support.synthetic_post import (
 from boosty_downloader.application.download_context import DownloadContext
 from boosty_downloader.application.filtering import BoostyOkVideoType
 from boosty_downloader.application.ports import FailureLog, ProgressReporter
+from boosty_downloader.application.post_download_state import PostRunProgress
 from boosty_downloader.application.use_cases import (
     download_single_post as use_case_module,
 )
@@ -87,6 +88,8 @@ def _use_case(
     root: Path,
     chunks: list[dict[str, object]],
     filters: list[DownloadContentTypeFilter],
+    *,
+    restore_missing: bool = False,
 ) -> DownloadSinglePostUseCase:
     payload = synthetic_post()
     payload['data'] = chunks
@@ -102,6 +105,7 @@ def _use_case(
         preferred_video_quality=BoostyOkVideoType.medium,
         progress_reporter=reporter,
         failed_logger=AsyncMock(spec=FailureLog),
+        restore_missing=restore_missing,
     )
     return DownloadSinglePostUseCase(root, PostDTO.model_validate(payload), context)
 
@@ -274,3 +278,128 @@ async def test_stream_only_video_warns_with_display_title_without_download(
     assert 'not downloaded' in (use_case.destination / 'post.html').read_text(
         encoding='utf-8'
     )
+
+
+async def _save_then_delete_media(
+    root: Path, chunks: list[dict[str, object]]
+) -> DownloadSinglePostUseCase:
+    use_case = _use_case(root, chunks, list(DownloadContentTypeFilter))
+    await use_case.execute()
+    use_case.finalize()
+    for entry in _record(use_case).media.values():
+        assert entry.path is not None
+        (use_case.destination / entry.path).unlink()
+    return use_case
+
+
+@pytest.mark.parametrize('restore_missing', [False, True])
+async def test_deleted_media_is_restored_only_when_requested_and_selected(
+    tmp_path: Path, media: Mock, *, restore_missing: bool
+) -> None:
+    chunks = [file_chunk(), audio_chunk()]
+    await _save_then_delete_media(tmp_path, chunks)
+    media.reset_mock()
+    use_case = _use_case(
+        tmp_path,
+        chunks,
+        [DownloadContentTypeFilter.files],
+        restore_missing=restore_missing,
+    )
+
+    await use_case.execute()
+    use_case.finalize()
+
+    assert media.download_file.await_count == int(restore_missing)
+    media.download_audio.assert_not_awaited()
+    assert use_case.context.run_statistics.media_deleted == (
+        1 if restore_missing else 2
+    )
+    record = _record(use_case)
+    expected_file_status = (
+        MediaStatus.downloaded if restore_missing else MediaStatus.deleted
+    )
+    assert record.media[f'file:{FILE_ID}'].status is expected_file_status
+    assert record.media[f'audio:{AUDIO_ID}'].status is MediaStatus.deleted
+
+
+async def test_deleted_count_is_preserved_on_unchanged_retries_and_replaced_on_refresh(
+    tmp_path: Path, media: Mock
+) -> None:
+    chunks = [file_chunk(), audio_chunk()]
+    await _save_then_delete_media(tmp_path, chunks)
+    media.reset_mock()
+    use_case = _use_case(tmp_path, chunks, [])
+    assert use_case.context.restore_missing is False
+    await use_case.execute()
+    use_case.finalize()
+    assert use_case.context.run_statistics.media_deleted == 2
+
+    retry = DownloadSinglePostUseCase(
+        tmp_path,
+        use_case.post_dto,
+        use_case.context,
+        run_progress=use_case.run_progress,
+    )
+    await retry.execute()
+    retry.finalize()
+    retry.record_success()
+    assert use_case.context.run_statistics.media_deleted == 2
+    assert use_case.context.run_statistics.posts_cached == 1
+
+    payload = synthetic_post()
+    payload['data'] = [audio_chunk()]
+    refreshed = DownloadSinglePostUseCase(
+        tmp_path,
+        PostDTO.model_validate(payload),
+        use_case.context,
+        run_progress=use_case.run_progress,
+    )
+    await refreshed.execute()
+    refreshed.finalize()
+
+    assert use_case.context.run_statistics.media_deleted == 1
+    assert media.mock_calls == []
+    assert _record(refreshed).media[f'file:{FILE_ID}'].removed_at is not None
+
+
+async def test_failed_peer_does_not_hide_or_duplicate_deleted_media(
+    tmp_path: Path, media: Mock
+) -> None:
+    await _save_then_delete_media(tmp_path, [audio_chunk()])
+    use_case = _use_case(
+        tmp_path, [audio_chunk(), file_chunk()], [DownloadContentTypeFilter.files]
+    )
+    media.download_file.side_effect = OSError('disk failure')
+    for _ in range(2):
+        with pytest.raises(OSError, match='disk failure'):
+            await use_case.execute()
+        assert use_case.context.run_statistics.media_deleted == 1
+
+
+async def test_deleted_counts_add_for_independent_posts_in_the_same_run(
+    tmp_path: Path, media: Mock
+) -> None:
+    first = await _save_then_delete_media(tmp_path, [file_chunk()])
+    payload = synthetic_post()
+    payload.update(id='90000000-0000-4000-8000-000000000001', data=[file_chunk()])
+    post = PostDTO.model_validate(payload)
+    other = DownloadSinglePostUseCase(tmp_path, post, first.context)
+    await other.execute()
+    other.finalize()
+    located = first.context.post_store.find_post('author', post.id)
+    assert located is not None
+    assert located.record is not None
+    entry = located.record.media[f'file:{FILE_ID}']
+    assert entry.path is not None
+    (tmp_path / located.folder / entry.path).unlink()
+    media.reset_mock()
+    use_case = _use_case(tmp_path, [file_chunk()], [])
+    await use_case.execute()
+    assert use_case.context.run_statistics.media_deleted == 1
+    second = DownloadSinglePostUseCase(
+        tmp_path, post, use_case.context, run_progress=PostRunProgress()
+    )
+    await second.execute()
+
+    assert use_case.context.run_statistics.media_deleted == 2
+    assert media.mock_calls == []

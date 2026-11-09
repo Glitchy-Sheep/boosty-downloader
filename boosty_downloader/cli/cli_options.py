@@ -129,6 +129,16 @@ DryRunOption = Annotated[
 ]
 
 
+RestoreMissingOption = Annotated[
+    bool,
+    typer.Option(
+        '--restore-missing',
+        help='Download selected media deleted locally if it is still present in the post',
+        rich_help_panel=HelpPanels.actions,
+    ),
+]
+
+
 SkipAllFailuresOption = Annotated[
     bool,
     typer.Option(

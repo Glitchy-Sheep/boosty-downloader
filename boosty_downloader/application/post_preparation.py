@@ -87,6 +87,7 @@ class PostPreparer:
     store: PostStore
     author: str
     preferred_video_quality: BoostyOkVideoType
+    restore_missing: bool = False
 
     def prepare(
         self,
@@ -109,6 +110,7 @@ class PostPreparer:
             disk,
             filters,
             now,
+            restore_missing=self.restore_missing,
             checked_unavailable_ids=checked_unavailable_ids,
         )
         return _prepared_post(live, located, disk, result)

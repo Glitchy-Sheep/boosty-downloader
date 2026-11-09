@@ -33,6 +33,7 @@ from boosty_downloader.cli.cli_options import (
     PostUrlOption,
     PreferredVideoQualityOption,
     RequestDelaySecondsOption,
+    RestoreMissingOption,
     SkipAllFailuresOption,
     UsernameArgument,
     global_options,
@@ -90,13 +91,14 @@ def _show_start_summary(
         )
 
 
-async def _dry_run_handler(
+async def _dry_run_handler(  # noqa: PLR0913 - independent download options
     app: App,
     *,
     settings: AppSettings,
     content_type_filter: list[DownloadContentTypeFilter],
     preferred_video_quality: VideoQualityOption,
     excluded_tags: tuple[str, ...] = (),
+    restore_missing: bool = False,
 ) -> None:
     """Print the overview and the plan of a would-be run; download nothing."""
     report = await PlanDownloadUseCase(
@@ -108,6 +110,7 @@ async def _dry_run_handler(
             store=app.post_store,
             author=settings.author_name,
             preferred_video_quality=preferred_video_quality.to_ok_video_type(),
+            restore_missing=restore_missing,
         ),
         filters=content_type_filter,
         excluded_tags=excluded_tags,
@@ -151,6 +154,7 @@ async def _download_handler(  # noqa: PLR0913
     skip_all_failures: bool,
     dry_run: bool,
     excluded_tags: tuple[str, ...] = (),
+    restore_missing: bool = False,
 ) -> None:
     logger = logger_instances.downloader_logger
     settings = load_settings(
@@ -172,6 +176,7 @@ async def _download_handler(  # noqa: PLR0913
                 content_type_filter=content_type_filter,
                 preferred_video_quality=preferred_video_quality,
                 excluded_tags=excluded_tags,
+                restore_missing=restore_missing,
             )
             return
 
@@ -181,6 +186,7 @@ async def _download_handler(  # noqa: PLR0913
             external_videos_downloader=ExternalVideosDownloader(),
             filters=content_type_filter,
             excluded_tags=excluded_tags,
+            restore_missing=restore_missing,
             post_store=app.post_store,
             library_root=settings.library_root,
             preferred_video_quality=preferred_video_quality.to_ok_video_type(),
@@ -243,6 +249,7 @@ def register(app: typer.Typer) -> None:
         cache_directory: CacheDirectoryOption = None,
         skip_all_failures: SkipAllFailuresOption = False,
         dry_run: DryRunOption = False,
+        restore_missing: RestoreMissingOption = False,
         exclude_tag: ExcludeTagOption = None,
     ) -> None:
         """
@@ -277,7 +284,8 @@ def register(app: typer.Typer) -> None:
             - Saved post records in the destination library track content and downloaded media.
             - A later run reuses saved media, adds newly selected media and retries failed downloads.
             - Updated text and metadata refresh the page without downloading unchanged media.
-            - Files you remove locally stay removed.
+            - Files you remove locally stay removed unless you use --restore-missing.
+            - --restore-missing restores selected missing media still present in the post; combine it with --dry-run to preview.
             - The legacy --cache-dir option does not control these records.
 
         """
@@ -311,5 +319,6 @@ def register(app: typer.Typer) -> None:
                     cache_directory=cache_directory,
                     skip_all_failures=skip_all_failures,
                     dry_run=dry_run,
+                    restore_missing=restore_missing,
                 ),
             )

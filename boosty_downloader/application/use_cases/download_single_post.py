@@ -53,6 +53,7 @@ if TYPE_CHECKING:
         DownloadableMediaChunk,
         LiveMedia,
     )
+    from boosty_downloader.domain.stored_post import StoredPost
     from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
     from boosty_downloader.infrastructure.media_publication import PublishedFile
     from boosty_downloader.infrastructure.media_transfer import ReserveMediaPath
@@ -125,6 +126,7 @@ class DownloadSinglePostUseCase:
             self.context.post_store,
             self.context.author_name,
             self.context.preferred_video_quality,
+            restore_missing=self.context.restore_missing,
         )
         prepared = preparer.prepare(
             self.post_dto,
@@ -140,6 +142,7 @@ class DownloadSinglePostUseCase:
             self.run_progress,
         )
         self._state = state
+        self._record_deleted_media(state.record)
         self._warn_incomplete()
         self._unchanged = not prepared.needs_update
         if prepared.needs_update:
@@ -191,6 +194,16 @@ class DownloadSinglePostUseCase:
         else:
             self.context.run_statistics.posts_downloaded += 1
             self.context.progress_reporter.success('Finished: ' + self.destination.name)
+
+    def _record_deleted_media(self, record: StoredPost) -> None:
+        """Replace this post's contribution when a retry observes changed state."""
+        count = sum(
+            entry.status is MediaStatus.deleted and entry.removed_at is None
+            for entry in record.media.values()
+        )
+        previous = self.run_progress.deleted_media_count
+        self.context.run_statistics.media_deleted += count - previous
+        self.run_progress.deleted_media_count = count
 
     def _warn_incomplete(self) -> None:
         mapped = map_post_dto_to_domain(

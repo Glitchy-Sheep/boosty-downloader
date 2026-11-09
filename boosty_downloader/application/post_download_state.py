@@ -25,10 +25,11 @@ if TYPE_CHECKING:
 
 @dataclass(slots=True)
 class PostRunProgress:
-    """Piece identities counted or checked during this post's entire retry run."""
+    """Media outcomes counted or checked during this post's entire retry run."""
 
     counted_media_ids: set[str] = field(default_factory=set[str])
     checked_unavailable_ids: set[str] = field(default_factory=set[str])
+    deleted_media_count: int = 0
 
 
 class PostDownloadState:

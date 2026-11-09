@@ -2,6 +2,8 @@
 
 ### Added
 
+- `download --restore-missing` restores locally deleted media still present in the creator's posts, respecting content filters. It works with single-post downloads and dry-run; the run summary reports remaining deleted media.
+
 - Downloads refresh the creator's details, avatar and cover in a local author record. Failed optional updates preserve saved data and do not stop post downloads.
 - Downloads record inaccessible posts separately for the library, including posts excluded by tags. Regaining access clears the observation; losing access preserves saved pages, media and viewing marks.
 

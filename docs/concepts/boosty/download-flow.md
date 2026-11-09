@@ -7,8 +7,10 @@ Boosty Downloader saves each accessible post as a complete `post.json` record, i
 ```text
 CLI: config, filters, JsonPostStore, separate API and media sessions
   -> DownloadAllPostUseCase / DownloadPostByIdUseCase
+  -> refresh_author: blog details and owned avatar/cover images
   -> BoostyAPIClient: paginated listing / one post by ID
   -> PostDTO
+  -> access observation: save locked overview or clear confirmed access
   -> PostDownloadRetrier: attempts, backoff, one expired-link refresh
      -> DownloadSinglePostUseCase
         -> PostPreparer: saved record + live post + local file snapshot
@@ -18,9 +20,9 @@ CLI: config, filters, JsonPostStore, separate API and media sessions
      -> final page: build_post_page(StoredPost), then render HTML
 ```
 
-1. **Fetch.** `BoostyAPIClient` validates listing and single-post responses as `PostDTO` objects. The API session carries credentials; a separate session downloads media without account tokens or cookies.
-2. **Select posts.** `--exclude-tag TAG` matches whole tag names, ignoring case and surrounding whitespace. Repeated options exclude multiple tags. Exclusions happen before record lookup, content preparation or downloading; they leave saved files unchanged. Posts without access are skipped without replacing their saved content or page.
-3. **Prepare.** `PostPreparer` maps the complete live body, locates the saved record and observes actual local file names and sizes. `reconcile` computes the updated record and individual media IDs eligible under the filters. The preparation step only reads. A post's existing folder remains stable when its title changes.
+1. **Fetch.** Each real run refreshes blog details once and updates the author's avatar and cover. Optional metadata/image failures warn and preserve saved data. `BoostyAPIClient` validates listing and single-post responses as `PostDTO` objects. The API session carries credentials; a separate session downloads media without account tokens or cookies.
+2. **Observe access and select posts.** Locked overviews are saved before tag filtering, without creating post folders. Confirmed access clears the stale locked observation. `--exclude-tag TAG` matches whole tag names, ignoring case and surrounding whitespace. Repeated options exclude multiple tags. Exclusions happen before post-record lookup, content preparation or downloading; they leave saved post content unchanged. Posts without access retain any saved content, page and viewing marks.
+3. **Prepare.** `PostPreparer` maps the complete live body, locates the saved record and observes actual local file names and sizes. `reconcile` computes the updated record and individual media IDs eligible under the filters. `--restore-missing` also selects locally deleted pieces that are still in the current post and match the content filters. The preparation step only reads. A post's existing folder remains stable when its title changes.
 4. **Persist.** `PostDownloadState` owns the record during an attempt. It saves the updated content, reserves each destination before transfer, and saves each success or failure separately. Finished peers cannot lose their state when another piece fails.
 5. **Download.** `PostMediaDownloader` uses aiohttp for images, attachments, audio and Boosty videos, and yt-dlp for external videos. At most four pieces of a post transfer concurrently. Media is published under its final name only after completion; existing files are not overwritten.
 6. **Retry and render.** Each retry prepares against saved progress and current files. After the final attempt outcome, `build_post_page` assembles a complete page from the saved record. Successful rendering records the current page template version. An unchanged post with a current page needs neither media transfers nor a page rewrite.
@@ -58,15 +60,17 @@ Media transfers use private temporary directories. An incomplete transfer never 
 
 At the terminal post outcome, the page shows the full saved body and the current state of downloaded, failed, unavailable or missing media, including attachments. A rendering failure leaves completed media durable and makes the post unsuccessful. If transfer and rendering both fail, both causes are reported. Cancellation may leave the previous page until a later run rebuilds it.
 
+The summary counts remaining deleted media still present in the accessible, non-excluded posts processed by the run. Content filters restrict restoration, while the count includes deleted pieces of other kinds. Retries replace the post's contribution instead of counting it again.
+
 ## Page size and signed links
 
 Media links from listing responses expire after 24 hours. The download walk uses pages of five posts to limit the time between fetching a signed URL and using it. Metadata-only walks for `check` and dry-run use pages of 100 because no media downloads occur between pages. If links expire during a long post download, the retrier fetches fresh post metadata once and preserves already completed media.
 
 ## Storage boundary and remaining v5 work
 
-Download state lives in `<destination>/<author>/<post folder>/post.json`. The downloader no longer opens SQLite. `--cache-dir` is only relevant to the legacy `clean-cache` command, which removes an old database without resetting records or removing media.
+Download state lives in `<destination>/<author>/<post folder>/post.json`. Author information, avatar/cover images and locked-post observations live under `<destination>/<author>/.boosty-downloader/`. `author.json` uses author-relative image paths; `locked.json` retains observations of posts not encountered during a partial run. Dry-run and `check` do not update these files. The downloader no longer opens SQLite. `--cache-dir` is only relevant to the legacy `clean-cache` command, which removes an old database without resetting records or removing media.
 
-Use a fresh destination for development checks. Migration from the v4 cache and a guard against selecting a v4 library are not implemented. Author information and image updates, complete locked-post observations, the `--restore-missing` CLI option, downloaded previews/teasers, library indexing, standalone page rebuilding and the library viewer belong to later stages. Existing storage or rendering components do not mean those workflows are connected to the CLI yet.
+Use a fresh destination for development checks. Migration from the v4 cache and a guard against selecting a v4 library are not implemented. Downloaded previews/teasers, library indexing, standalone page rebuilding and the library viewer belong to later stages. Existing storage or rendering components do not mean those workflows are connected to the CLI yet.
 
 ## Layers
 

@@ -42,3 +42,4 @@ class DownloadContext:
     # Counters of this run, filled by the use cases and shown at the end.
     run_statistics: RunStatistics = field(default_factory=RunStatistics)
     excluded_tags: tuple[str, ...] = ()
+    restore_missing: bool = False

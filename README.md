@@ -133,7 +133,16 @@ boosty-downloader download YOUR_CREATOR_NAME -o ./v5-downloads
 
 The preview covers the whole blog; `--dry-run` cannot be combined with `--post-url`. `post_content` includes the post's images. Each saved page includes the complete body, downloaded media from earlier runs and placeholders for media that has not been downloaded. The final command adds the remaining selected media to the same pages.
 
-Records and pages live under `<destination>/<creator>/<post folder>/`. Renaming a post on Boosty does not move its saved folder. Files you delete locally are recorded as deleted and are not automatically downloaded again. Media removed by the author stays in the saved history, including any local copy.
+Records and pages live under `<destination>/<creator>/<post folder>/`. Renaming a post on Boosty does not move its saved folder. Files you delete locally are recorded as deleted and stay deleted on an ordinary run. The summary counts remaining deleted media in the accessible, non-excluded posts processed by this run. Media removed by the author stays in the saved history, including any local copy.
+
+To restore deleted files that are still in the creator's posts, preview and run with `--restore-missing`:
+
+```bash
+boosty-downloader download YOUR_CREATOR_NAME --restore-missing --dry-run -o ./v5-downloads
+boosty-downloader download YOUR_CREATOR_NAME --restore-missing -o ./v5-downloads
+```
+
+Content filters also apply to restoration, and the option works with `--post-url`. Files removed from the post by the creator are never restored. A file you edited or re-encoded is kept at its current size. A file you copy back is recognized without another download. Deleting a whole post folder makes it a new download even without this option.
 
 Each real download refreshes the creator's title, description, display name, avatar and cover. Author details and images live in `<destination>/<creator>/.boosty-downloader/`; `author.json` refers to those images with paths relative to the creator's folder. If metadata or an image cannot be fetched, a warning is shown and the saved version remains available.
 
