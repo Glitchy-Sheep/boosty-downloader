@@ -278,15 +278,17 @@ def test_plain_body_preserves_nested_lists_breaks_and_literal_user_markup(
     assert 'lesson.mp4' not in projected.text
 
 
-def test_reserved_hit_markers_become_spaces_without_merging_words(
+@pytest.mark.parametrize('control', ['\x00', '\x02', '\x03'])
+def test_search_controls_become_spaces_without_merging_words(
     saved_post: StoredPost,
+    control: str,
 ) -> None:
-    saved_post.post.title = 'one\x02two\x03three'
-    saved_post.blocks = [_text('ёлка\x02сосна\x03кедр')]
+    saved_post.post.title = f'one{control}two{control}three'
+    saved_post.blocks = [_text(f'ёлка{control}сосна{control}кедр')]
 
     projected = project_post(_source(saved_post))
 
-    assert projected.metadata.title == 'one\x02two\x03three'
+    assert projected.metadata.title == f'one{control}two{control}three'
     assert projected.title == projected.title_folded == 'one two three'
     assert projected.text == 'ёлка сосна кедр'
     assert projected.text_folded == 'елка сосна кедр'

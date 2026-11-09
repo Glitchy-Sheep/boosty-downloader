@@ -2,6 +2,10 @@
 
 ### Added
 
+- `render [AUTHOR]` rebuilds saved post pages offline from complete records and current local media. It works without credentials or a search index and preserves media files and viewing marks.
+
+- `reindex` rebuilds the library search index from saved records without network access or credentials. It preserves posts, media and viewing marks, and supports `--cache-dir`.
+
 - Add `view` to run the packaged library viewer locally, with an optional LAN listener, path-only configuration and a read-only compatibility page for older downloads.
 
 - Downloads update a disposable library search index after saving records. Index failures warn once per run and do not interrupt downloads; `--cache-dir` places the index on a separate local disk.
@@ -17,8 +21,12 @@
 
 ### Changed
 
+- Rebuilding the library search index is faster for large libraries.
+
 - BREAKING: v5 marks new libraries and refuses unmarked destinations containing older post folders before any download request or startup write. Choose a separate destination and keep older downloads for posts no longer available on Boosty
-- BREAKING: Downloads use a `post.json` record in each post folder instead of the legacy SQLite cache. `--cache-dir` no longer controls download state, and `clean-cache` only removes the old SQLite cache without resetting saved records or media. Existing v4 cache records are not migrated; use a fresh destination for this development version
+- BREAKING: Downloads use a `post.json` record in each post folder instead of the legacy SQLite cache. Existing v4 cache records are not migrated; use a fresh destination for this development version
+- BREAKING: Remove `clean-cache`. Use `reindex` to rebuild the disposable search index; saved post records, viewing marks and media are preserved
+- BREAKING: `--cache-dir PATH` now places one library-wide search index at `PATH/index.db`, without an author subdirectory. It no longer controls download state
 - Every saved `post.html` is built from the complete post record, including media saved on earlier runs and placeholders for media not downloaded yet. Content filters select media transfers, and changing filters on a later run adds to the same page
 - `download --dry-run` shares preparation with real downloads: it reports new records, existing posts to update, unchanged posts, tag exclusions and the exact selected media work. Known bytes use current API sizes; videos with unknown sizes remain explicit
 - Dry-run creates or changes no local files, including config samples, caches, failure logs and debug logs. A missing config is an error; `--debug` prints preview diagnostics on the console and keeps any existing log file unchanged

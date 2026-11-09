@@ -152,9 +152,27 @@ Video previews are saved under each post's `previews/` directory, even when vide
 
 Library cover selection uses the first current downloaded image, then the preview of the first current Boosty video. A locked post uses its teaser. Removed media cannot become the cover. These images and cover rules prepare the saved records for the library viewer; they do not add a new viewer command yet.
 
-This development version uses `post.json` instead of the v4 SQLite cache. Choose a fresh destination for v5. The first actual download marks it with `.boosty-downloader/library.json`; dry-run never creates the marker. If an unmarked destination contains post folders from any creator, every download mode stops before network requests, sample configuration or log writes. Keep the old destination while it contains posts that Boosty no longer serves. Existing downloads are not migrated or adopted automatically.
+This development version uses `post.json` instead of the v4 SQLite cache. Choose a fresh destination for v5. The first actual download marks it with `.boosty-downloader/library.json`; dry-run never creates the marker. If an unmarked destination contains post folders from any creator, `download` in every mode, `render` and `reindex` stop before network requests, sample configuration or log writes. Keep the old destination while it contains posts that Boosty no longer serves. Existing downloads are not migrated or adopted automatically.
 
-Downloads also update a disposable search index at `<destination>/.boosty-downloader/index.db`. `--cache-dir PATH` places it at `PATH/index.db`, which is useful when downloads live on a network share. Canonical records and media stay in the destination. If indexing fails, the run warns once and continues saving downloads; the index can be rebuilt from the records. `clean-cache` still only removes a legacy SQLite cache and does not reset saved posts or remove media.
+Downloads also update a disposable search index at `<destination>/.boosty-downloader/index.db`. `--cache-dir PATH` places it at `PATH/index.db`, which is useful when downloads live on a network share. Canonical records and media stay in the destination. If indexing fails, the run warns once and continues saving downloads; run `reindex` after fixing the cache location to rebuild it from the records. The legacy `clean-cache` command has been removed; saved records and media are never reset by index maintenance.
+
+Rebuild the search index for the entire saved library without contacting Boosty:
+
+```bash
+boosty-downloader reindex -o ./v5-downloads
+boosty-downloader reindex -o ./v5-downloads --cache-dir ~/.cache/boosty-v5
+```
+
+The command reports the author and post counts and the index location. It uses the destination and cache paths from YAML unless overridden on the command line; credentials are not required. Saved records, viewing marks, HTML pages and media remain unchanged. It does not migrate older downloads.
+
+Rebuild saved HTML pages without contacting Boosty:
+
+```bash
+boosty-downloader render -o ./v5-downloads
+boosty-downloader render YOUR_CREATOR_NAME -o ./v5-downloads
+```
+
+Omit the creator to render the whole library. The command needs no credentials or search index. It uses the complete saved body and the files currently on disk, including retained media removed by the creator. Local media observations and the successful page-template version are saved in `post.json`; API synchronization timestamps, media files and viewing marks are preserved. Posts with no saved body have no page to rebuild. A previously saved body remains usable after losing access to the remote post.
 
 ## Browse the local library
 
@@ -168,7 +186,7 @@ boosty-downloader view -o ./downloads --lan
 
 The viewer needs no Boosty credentials. Global `--config` selects the settings file; `view --cache-dir` overrides the disposable index location. By default it listens on localhost at port 8314, choosing the next available port if needed; an explicit busy `--port` fails. `--lan` also permits devices on your local network and prints their addresses. Stop it with Ctrl+C.
 
-The viewer reserves its port exclusively. After shutdown, the operating system can keep a fixed port temporarily unavailable while connections close. The default mode chooses another free port; with `--port`, wait or choose another value.
+After the viewer stops, the operating system can keep a fixed port temporarily unavailable while connections close. The default mode chooses another free port; with `--port`, wait or choose another value.
 
 An empty library prints a download command. Older or unmarked downloads show an explanatory page without creating an index or changing their files; choose a separate destination for v5.
 

@@ -100,7 +100,7 @@ CacheDirectoryOption = Annotated[
     Path | None,
     typer.Option(
         '--cache-dir',
-        help='Directory for the library search index; clean-cache uses its legacy per-author cache here',
+        help='Directory for the disposable library search index (PATH/index.db)',
         dir_okay=True,
         file_okay=False,
         resolve_path=True,
@@ -145,16 +145,6 @@ SkipAllFailuresOption = Annotated[
         '--skip-all-failures',
         help='Skip failed posts without limit '
         'instead of stopping after 5 failures in a row',
-        rich_help_panel=HelpPanels.actions,
-    ),
-]
-
-YesOption = Annotated[
-    bool,
-    typer.Option(
-        '--yes',
-        '-y',
-        help='Do not ask for confirmation',
         rich_help_panel=HelpPanels.actions,
     ),
 ]

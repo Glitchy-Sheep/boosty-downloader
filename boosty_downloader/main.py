@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from typing import Final
 
 import typer
 from aiohttp.client_exceptions import ClientError
@@ -20,12 +21,14 @@ from boosty_downloader.cli.cli_options import (
 )
 from boosty_downloader.cli.commands import (
     check,
-    clean_cache,
     download,
+    reindex,
+    render,
     show_auth_script,
     view,
 )
 from boosty_downloader.cli.error_reporting import report_network_error
+from boosty_downloader.cli.views.library_maintenance import render_index_failure
 from boosty_downloader.infrastructure.boosty_api.core.client import (
     BoostyAPIInvalidUsernameError,
     BoostyAPINoUsernameError,
@@ -43,7 +46,7 @@ from boosty_downloader.infrastructure.yaml_configuration.config import (
     DEFAULT_CONFIG_PATH,
 )
 
-_DEFERRED_DEBUG_COMMANDS = frozenset({'download', 'view'})
+_DEFERRED_DEBUG_COMMANDS: Final = frozenset({'download', 'reindex', 'render', 'view'})
 
 typer_app = typer.Typer(
     add_completion=False,
@@ -74,8 +77,9 @@ def _app_callback(  # pyright: ignore[reportUnusedFunction]
 
 # Register all CLI commands
 download.register(typer_app)
+render.register(typer_app)
 check.register(typer_app)
-clean_cache.register(typer_app)
+reindex.register(typer_app)
 show_auth_script.register(typer_app)
 view.register(typer_app)
 
@@ -137,17 +141,7 @@ def entry_point() -> None:
         DatabaseError,
         IntegrityError,
     ) as e:
-        logger_instances.downloader_logger.error('⚠️  Cache Error!\n' + str(e))
-        logger_instances.downloader_logger.warning(
-            'Cache format may be outdated after application update.'
-        )
-        logger_instances.downloader_logger.info(
-            '👉 You can clean outdated cache with the [bold]clean-cache[/bold] command'
-        )
-        logger_instances.downloader_logger.info(
-            '👉 If this will still happen - please report it at GitHub issues:'
-        )
-        logger_instances.downloader_logger.info(f'👉 {GITHUB_ISSUES_URL}')
+        logger_instances.downloader_logger.error(render_index_failure(str(e)))
         sys.exit(1)
 
 

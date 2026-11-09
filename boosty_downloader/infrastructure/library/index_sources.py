@@ -24,7 +24,7 @@ from boosty_downloader.infrastructure.library._index_cover import find_cover_pat
 from boosty_downloader.infrastructure.library._media_paths import is_link
 from boosty_downloader.infrastructure.library._post_json import decode_post_record
 from boosty_downloader.infrastructure.library._record_paths import (
-    check_containment,
+    resolve_contained_path,
     validate_author_name,
 )
 from boosty_downloader.infrastructure.library._viewer_json import decode_viewer_record
@@ -80,6 +80,12 @@ class PostSource:
     record_fingerprint: SourceFingerprint | None = None
     marks_fingerprint: SourceFingerprint | None = None
     cover_path: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class _ResolvedSource:
+    path: Path
+    info: stat_result
 
 
 @dataclass(frozen=True, slots=True)
@@ -312,22 +318,31 @@ def _ordinary_directory(root: Path, path: Path) -> bool:
 
 
 def _source_stat(root: Path, path: Path) -> stat_result | None:
-    check_containment(root, path)
+    source = _resolve_source(root, path)
+    return source.info if source is not None else None
+
+
+def _resolve_source(root: Path, path: Path) -> _ResolvedSource | None:
+    resolved = resolve_contained_path(root, path)
     info = _optional_lstat(path)
-    if info is not None and is_link(info):
-        return path.resolve(strict=True).stat()
-    return info
+    if info is None:
+        return None
+    if is_link(info):
+        resolved = resolve_contained_path(root, path, strict=True)
+        info = resolved.stat()
+    return _ResolvedSource(resolved, info)
 
 
 def _read_source(root: Path, path: Path) -> _SourceFile | None:
-    expected = _source_stat(root, path)
-    if expected is None:
+    resolved = _resolve_source(root, path)
+    if resolved is None:
         return None
+    expected = resolved.info
     if not S_ISREG(expected.st_mode):
         message = f'Library source must be an ordinary file: {path}'
         raise ValueError(message)
     flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0)
-    descriptor = os.open(path.resolve(strict=True), flags)
+    descriptor = os.open(resolved.path, flags)
     with os.fdopen(descriptor, 'rb') as source:
         actual = os.fstat(source.fileno())
         if not S_ISREG(actual.st_mode) or not os.path.samestat(expected, actual):

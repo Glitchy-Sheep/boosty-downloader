@@ -54,7 +54,7 @@ def _posts_line(stats: RunStatistics) -> str:
     """Only the buckets that happened: a clean run reads as one short phrase."""
     parts = [f'[bold]{stats.posts_downloaded}[/bold] downloaded']
     if stats.posts_cached:
-        parts.append(f'{stats.posts_cached} already cached')
+        parts.append(f'{stats.posts_cached} unchanged')
     if stats.posts_without_content:
         parts.append(f'{stats.posts_without_content} skipped by filters')
     if stats.posts_failed:

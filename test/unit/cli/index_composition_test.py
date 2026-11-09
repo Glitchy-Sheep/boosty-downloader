@@ -12,7 +12,7 @@ from boosty_downloader.cli.composition_root import (
     AppSettings,
     load_settings,
     open_app,
-    resolve_cache_dir,
+    resolve_index_path,
 )
 from boosty_downloader.cli.console_progress_reporter import ConsoleProgressReporter
 from boosty_downloader.infrastructure.library.index import IndexStatus, LibraryIndex
@@ -33,7 +33,7 @@ from boosty_downloader.infrastructure.loggers.base import RichLogger
         ('configured-cache', 'cli-cache', 'cli-cache'),
     ],
 )
-def test_index_directory_precedence_preserves_legacy_cache_layout(
+def test_index_directory_precedence_selects_one_library_index(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     configured_cache: str | None,
@@ -64,19 +64,13 @@ def test_index_directory_precedence_preserves_legacy_cache_layout(
     )
 
     assert settings.library_root == tmp_path / 'selected-library'
-    if selected_cache is None:
-        assert settings.index_path is None
-        assert settings.cache_dir == tmp_path / 'selected-library' / 'writer'
-        legacy_cache = tmp_path / 'configured-library' / 'writer'
-    else:
-        assert settings.index_path == tmp_path / selected_cache / 'index.db'
-        assert settings.cache_dir == tmp_path / selected_cache / 'writer'
-        legacy_cache = settings.cache_dir
+    expected_index = (
+        tmp_path / selected_cache / 'index.db' if selected_cache is not None else None
+    )
+    assert settings.index_path == expected_index
     assert (
-        resolve_cache_dir(
-            username='writer', config_path=config, cache_directory=cli_directory
-        )
-        == legacy_cache
+        resolve_index_path(config_path=config, cache_directory=cli_directory)
+        == expected_index
     )
     assert list(tmp_path.iterdir()) == [config]
 
@@ -85,7 +79,6 @@ def _settings(root: Path, *, index_path: Path | None) -> AppSettings:
     return AppSettings(
         author_name='writer',
         destination_dir=root / 'writer',
-        cache_dir=root / 'writer',
         auth_header='Bearer test',
         cookie='session=test',
         index_path=index_path,

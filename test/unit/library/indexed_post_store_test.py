@@ -220,7 +220,7 @@ def test_failed_index_update_warns_once_and_stops_later_attempts(
     assert library.warnings[0].startswith('Library index update failed')
     assert str(library.index.path) in library.warnings[0]
     assert '--cache-dir' in library.warnings[0]
-    assert 'reindex' not in library.warnings[0]
+    assert 'reindex' in library.warnings[0]
     assert 'unused' not in library.warnings[0]
 
 

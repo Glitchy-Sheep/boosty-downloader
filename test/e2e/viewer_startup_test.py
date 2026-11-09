@@ -160,9 +160,9 @@ def test_view_opens_saved_library_without_credentials_or_config(
     reader = captured[0].app[LIBRARY_READER]
     assert reader is not None
     assert [author.author for author in reader.authors()] == ['alpha']
-    assert [row.post.id for row in reader.list_posts('alpha', PostFilters())] == [
-        POST_ID
-    ]
+    assert [
+        row.overview.post.id for row in reader.list_posts('alpha', PostFilters()).rows
+    ] == [POST_ID]
     assert LibraryIndex(library).status() is IndexStatus.current
     after = _snapshot(library)
     assert {path: after[path] for path in before} == before

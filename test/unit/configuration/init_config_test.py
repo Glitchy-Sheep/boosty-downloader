@@ -46,7 +46,7 @@ def test_the_folders_are_readable_without_credentials(tmp_path: Path) -> None:
 def test_the_folders_default_without_a_config_and_leave_no_sample(
     tmp_path: Path,
 ) -> None:
-    """clean-cache in an empty folder must not create a config file as a side effect."""
+    """Path-only offline commands must not create a sample configuration."""
     config = tmp_path / 'config.yaml'
 
     paths = read_download_settings(config)
