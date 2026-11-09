@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, TypeAlias, cast
 
 from sqlalchemy import bindparam, delete, func, select, text, update
@@ -17,7 +17,7 @@ from boosty_downloader.infrastructure.library._index_models import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
     from sqlalchemy import Connection
 
@@ -88,12 +88,7 @@ def write_posts(connection: Connection, posts: Sequence[PostProjection]) -> None
         for row in rows
     }
     _clear_post_children(connection, tuple(identifiers.values()))
-    for post in posts:
-        _write_post_children(
-            connection,
-            identifiers[PostIdentity(post.metadata.author, post.metadata.id)],
-            post,
-        )
+    _write_post_children(connection, identifiers, posts)
 
 
 def _post_values(post: PostProjection) -> SqlValues:
@@ -155,31 +150,54 @@ def _clear_post_children(connection: Connection, identifiers: Sequence[int]) -> 
     connection.execute(statement, {'identifiers': identifiers})
 
 
+@dataclass(frozen=True, slots=True)
+class _PostChildren:
+    tags: list[SqlValues] = field(default_factory=list[SqlValues])
+    media: list[SqlValues] = field(default_factory=list[SqlValues])
+    search: list[SqlValues] = field(default_factory=list[SqlValues])
+
+
+def _collect_post_children(
+    identifiers: Mapping[PostIdentity, int], posts: Sequence[PostProjection]
+) -> _PostChildren:
+    rows = _PostChildren()
+    for post in posts:
+        row_id = identifiers[PostIdentity(post.metadata.author, post.metadata.id)]
+        rows.tags.extend(
+            {'post_row_id': row_id, 'tag': tag}
+            for tag in dict.fromkeys(post.metadata.tags)
+        )
+        rows.media.extend(_media_values(row_id, post, media) for media in post.media)
+        rows.search.append(_search_values(row_id, post))
+    return rows
+
+
 def _write_post_children(
-    connection: Connection, row_id: int, post: PostProjection
+    connection: Connection,
+    identifiers: Mapping[PostIdentity, int],
+    posts: Sequence[PostProjection],
 ) -> None:
-    tags = list(dict.fromkeys(post.metadata.tags))
-    if tags:
-        connection.execute(
-            insert(IndexPostTag), [{'post_row_id': row_id, 'tag': tag} for tag in tags]
-        )
-    if post.media:
-        connection.execute(
-            insert(IndexMedia),
-            [_media_values(row_id, post, media) for media in post.media],
-        )
+    rows = _collect_post_children(identifiers, posts)
+    if rows.tags:
+        connection.execute(insert(IndexPostTag), rows.tags)
+    if rows.media:
+        connection.execute(insert(IndexMedia), rows.media)
     connection.execute(
         text(
             'INSERT INTO posts_fts(rowid, title, body, original_title, original_body) VALUES (:rowid, :title, :body, :original_title, :original_body)'
         ),
-        {
-            'rowid': row_id,
-            'title': post.title_folded,
-            'body': post.text_folded,
-            'original_title': post.title,
-            'original_body': post.text,
-        },
+        rows.search,
     )
+
+
+def _search_values(row_id: int, post: PostProjection) -> SqlValues:
+    return {
+        'rowid': row_id,
+        'title': post.title_folded,
+        'body': post.text_folded,
+        'original_title': post.title,
+        'original_body': post.text,
+    }
 
 
 def _media_values(

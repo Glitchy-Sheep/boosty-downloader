@@ -263,3 +263,8 @@ tasks:
       PYTHONPATH: scripts
     cmds:
       - uv run python -m api_schema changes {{.CLI_ARGS}}
+
+  benchmark:library:
+    desc: "Measure the production library index: task benchmark:library -- /tmp/boosty-benchmark"
+    cmds:
+      - uv run python scripts/benchmark_library.py {{.CLI_ARGS}}
