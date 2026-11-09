@@ -18,6 +18,7 @@ from boosty_downloader.infrastructure.library._index_engine import (
     make_index_engine,
     validate_index_path,
 )
+from boosty_downloader.infrastructure.library._index_marks import write_marks_if_current
 from boosty_downloader.infrastructure.library._index_models import IndexBase, IndexMeta
 from boosty_downloader.infrastructure.library._index_observations import (
     write_access_update,
@@ -54,7 +55,10 @@ if TYPE_CHECKING:
         AuthorProjection,
         PostProjection,
     )
-    from boosty_downloader.infrastructure.library.index_sources import SourceFingerprint
+    from boosty_downloader.infrastructure.library.index_sources import (
+        PostSource,
+        SourceFingerprint,
+    )
 
 INDEX_FILENAME: Final = 'index.db'
 INDEX_SCHEMA_VERSION: Final = 5
@@ -206,6 +210,14 @@ class LibraryIndex:
         with self._write_connection() as connection:
             write_posts(connection, [post])
             refresh_author_counts(connection, author=post.metadata.author)
+
+    def update_marks(self, source: PostSource) -> None:
+        """Refresh durable marks, with a full projection for changed content or access."""
+        with self._write_connection() as connection:
+            if not write_marks_if_current(connection, source):
+                post = project_post(source)
+                write_posts(connection, [post])
+                refresh_author_counts(connection, author=post.metadata.author)
 
     def remove_post(self, author: str, post_id: str) -> None:
         """Remove a vanished post from the disposable projection only."""

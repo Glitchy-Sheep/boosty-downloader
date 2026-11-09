@@ -24,6 +24,12 @@ if TYPE_CHECKING:
         TagCount,
     )
     from boosty_downloader.domain.library_marks import PostMarks
+    from boosty_downloader.domain.library_mutations import (
+        BulkMarkProgress,
+        LibraryMediaItem,
+        MediaIdentity,
+        PostMarkResult,
+    )
     from boosty_downloader.domain.stored_post import (
         AuthorInfo,
         LockedPost,
@@ -165,6 +171,8 @@ class LibraryReader(Protocol):
     Posts are identified by author and full post ID. Results and saved mark inputs are independent snapshots, including nested mutable values. Content updates belong to PostStore.
 
     Read methods raise domain LibraryReadError when storage cannot provide valid data. Missing resources return None or empty collections; corrupt records remain errors.
+
+    Mutation methods raise LibraryWriteError on failed persistence or projection, and LibraryMarkConflictError when the saved state forbids a change. A durable canonical mark can survive a failed projection; repeating the request repairs it.
     """
 
     def authors(self) -> list[LibraryAuthor]:
@@ -209,4 +217,37 @@ class LibraryReader(Protocol):
             LookupError: The post has no confirmed saved folder.
 
         """
+        ...
+
+    def set_seen(
+        self, author: str, post_id: str, *, seen: bool
+    ) -> PostMarkResult | None:
+        """Acknowledge or clear seen content; unknown posts return None."""
+        ...
+
+    def set_favorite(
+        self, author: str, post_id: str, *, favorite: bool
+    ) -> PostMarkResult | None:
+        """Change only favorite state; unknown posts return None."""
+        ...
+
+    def set_seen_many(
+        self,
+        author: str,
+        filters: PostFilters,
+        *,
+        seen: bool,
+        progress: Callable[[BulkMarkProgress], None] | None = None,
+    ) -> int | None:
+        """Mark a fixed selection, reporting changes; unknown authors return None."""
+        ...
+
+    def set_position(
+        self,
+        author: str,
+        identity: MediaIdentity,
+        seconds: float,
+        duration: float,
+    ) -> LibraryMediaItem | None:
+        """Update retained playable media; unknown posts or pieces return None."""
         ...
