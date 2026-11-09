@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 from urllib.parse import quote
@@ -11,18 +12,23 @@ from boosty_downloader.application.page_builder import build_post_page
 from boosty_downloader.application.post_body_renderer import StoredPostBodyRenderer
 from boosty_downloader.domain.post_data_chunks import PostDataChunkText
 from boosty_downloader.domain.stored_post import (
+    LineBreak,
     ListBlock,
     ListItem,
     MediaBlock,
     MediaEntry,
     MediaKind,
     MediaStatus,
+    ParagraphBreak,
     PostMetadata,
     PostSync,
     StoredPost,
     TextBlock,
 )
-from boosty_downloader.infrastructure.html_generator.renderer import render_html_body
+from boosty_downloader.infrastructure.html_generator.renderer import (
+    render_html,
+    render_html_body,
+)
 
 if TYPE_CHECKING:
     from boosty_downloader.application.ports import PostBodyRenderer
@@ -98,3 +104,39 @@ def test_relative_callback_matches_default_saved_page_body() -> None:
     body = renderer.render(record, media_url=lambda path: quote(path, safe='/'))
 
     assert body == render_html_body(build_post_page(record))
+
+
+def _paragraph_record() -> StoredPost:
+    return replace(
+        _record(),
+        blocks=[
+            TextBlock([PostDataChunkText.TextFragment('First paragraph.')]),
+            ParagraphBreak(),
+            TextBlock(
+                [
+                    PostDataChunkText.TextFragment('Second paragraph.'),
+                    LineBreak(),
+                    PostDataChunkText.TextFragment('Still the second paragraph.'),
+                ]
+            ),
+            ParagraphBreak(),
+            TextBlock([PostDataChunkText.TextFragment('Third paragraph.')]),
+        ],
+        media={},
+    )
+
+
+def test_three_paragraphs_match_in_the_saved_page_and_viewer_body() -> None:
+    record = _paragraph_record()
+    expected = (
+        '<p>First paragraph.</p>\n'
+        '<p>Second paragraph.<br>Still the second paragraph.</p>\n'
+        '<p>Third paragraph.</p>'
+    )
+
+    body = StoredPostBodyRenderer().render(record, media_url=lambda path: path)
+    page = render_html(build_post_page(record), page_title=record.post.title)
+    page_body = page.partition('<div class="content">')[2].partition('</div>')[0]
+
+    assert body == expected
+    assert page_body.strip() == expected
