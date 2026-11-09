@@ -41,3 +41,16 @@ uv run python -m boosty_downloader.main render -o .sample/render-copy
 ```
 
 `render` observes actual local files and records their physical sizes on the copy. It leaves media and viewing marks intact, and requires neither credentials nor a search index. Do not use hard links to copy canonical JSON files for this check.
+
+## Measuring viewer queries
+
+Generate the larger acceptance sample with 5,912 identities across its three authors, then measure with other tests and builds stopped:
+
+```bash
+task viewer:sample -- --out .sample/viewer-queries --posts 5912 --seed 7
+uv run python scripts/benchmark_viewer_queries.py --root .sample/viewer-queries --samples 5 > /tmp/viewer-query-results.json
+```
+
+The benchmark validates the primary author's 5,000 posts and complete downloaded inventory: 10,532 items in All and 5,125 in Files, including 654 retained removed copies across these views. It measures fully materialized post, search and media queries. Each list's warm median must be below 300 ms; post detail must be below 150 ms. Invalid workloads or failed budgets produce a nonzero exit status.
+
+The JSON report includes environment, first and warm timings, current mark-dependent selection sizes, uncompressed bytes and gzip bytes. Response mapping, mapping plus JSON, and mapping plus JSON plus gzip are measured separately from reader calls. They exclude HTTP transport; measure the running CLI separately when checking browser response time. Preparation and workload validation run before timings, so the first reported operation is not a cold-cache measurement. Changing viewing marks is allowed for measurements and is reported; the benchmark never resets them.
