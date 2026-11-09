@@ -288,13 +288,13 @@ def test_changed_or_unsafe_samples_are_rejected_without_writes(
     manifest_path = root / MANIFEST_NAME
     match change:
         case 'extra-file':
-            (root / 'extra').write_text('user data')
+            (root / 'extra').write_text('user data', encoding='utf-8')
         case 'extra-directory':
             (root / 'empty').mkdir()
         case 'missing':
             marker.unlink()
         case 'modified':
-            marker.write_text('changed')
+            marker.write_text('changed', encoding='utf-8')
         case 'index-directory':
             (root / '.boosty-downloader/index.db').unlink()
             (root / '.boosty-downloader/index.db').mkdir()
@@ -334,7 +334,7 @@ def test_arbitrary_output_is_not_adopted(tmp_path: Path, existing: str) -> None:
     root = tmp_path / 'output'
     match existing:
         case 'file':
-            root.write_text('user file')
+            root.write_text('user file', encoding='utf-8')
         case 'symlink':
             _symlink(root, tmp_path)
         case _:
@@ -397,7 +397,7 @@ def test_generation_failure_leaves_no_complete_manifest(
 
 
 def _tamper_manifest(path: Path, change: str) -> None:
-    document = json.loads(path.read_text())
+    document = json.loads(path.read_text(encoding='utf-8'))
     match change:
         case 'manifest-key':
             document['unknown'] = True
@@ -411,7 +411,7 @@ def _tamper_manifest(path: Path, change: str) -> None:
             document['inventory']['files']['../outside'] = next(
                 iter(document['inventory']['files'].values())
             )
-    path.write_text(json.dumps(document))
+    path.write_text(json.dumps(document), encoding='utf-8')
 
 
 def test_increasing_count_never_removes_an_existing_identity(
