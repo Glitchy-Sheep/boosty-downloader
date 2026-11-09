@@ -54,6 +54,10 @@ class MemoryPostStore:
         """Keep an independent copy of the author's information."""
         self._authors[author.author] = deepcopy(author)
 
+    def load_locked_post(self, author: str, post_id: str) -> LockedPost | None:
+        """Return an independent snapshot of the saved access observation."""
+        return deepcopy(self._locked_posts.get(_PostKey(author, post_id)))
+
     def save_locked_post(self, post: LockedPost) -> None:
         """Record lack of access without changing the saved body or its folder."""
         key = _PostKey(post.post.author, post.post.id)

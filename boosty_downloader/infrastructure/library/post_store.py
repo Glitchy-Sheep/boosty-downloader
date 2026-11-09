@@ -46,6 +46,10 @@ class JsonPostStore:
         """Save one author's complete information snapshot."""
         author_records.write_author_record(self._root, author)
 
+    def load_locked_post(self, author: str, post_id: str) -> LockedPost | None:
+        """Read one saved access observation without creating a library."""
+        return author_records.read_locked_posts(self._root, author).get(post_id)
+
     def save_locked_post(self, post: LockedPost) -> None:
         """Record lack of access while keeping saved content and viewing marks."""
         author_records.save_locked_post(self._root, post)

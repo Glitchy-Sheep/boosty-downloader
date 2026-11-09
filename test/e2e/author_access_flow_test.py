@@ -230,7 +230,12 @@ async def test_locked_post_is_observed_without_creating_a_post_folder(
     locked = read_locked_posts(tmp_path, AUTHOR)
     assert set(locked) == {POST_ID}
     assert locked[POST_ID].post.title == remote.post['title']
-    assert locked[POST_ID].teaser_path is None
+    teaser = locked[POST_ID].teaser_path
+    if excluded:
+        assert teaser is None
+    else:
+        assert teaser is not None
+        assert (tmp_path / AUTHOR / teaser).is_file()
     assert not (tmp_path / AUTHOR / POST_DIR_NAME).exists()
 
 

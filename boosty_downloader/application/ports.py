@@ -136,6 +136,15 @@ class PostStore(Protocol):
         """Save one author's information, preserving all other authors."""
         ...
 
+    def load_locked_post(self, author: str, post_id: str) -> LockedPost | None:
+        """
+        Read an independent access observation without changing the library.
+
+        Return None for an unknown post.
+        Invalid or unreadable records raise their error.
+        """
+        ...
+
     def save_locked_post(self, post: LockedPost) -> None:
         """
         Record current lack of access while retaining any saved content and marks.

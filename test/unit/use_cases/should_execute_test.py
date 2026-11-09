@@ -56,11 +56,15 @@ class MediaCase:
     method: str
 
 
+def _video_chunk() -> dict[str, object]:
+    return {**ok_video_chunk(), 'preview': ''}
+
+
 MEDIA_CASES = [
     MediaCase(file_chunk(), DownloadContentTypeFilter.files, 'download_file'),
     MediaCase(audio_chunk(), DownloadContentTypeFilter.audio, 'download_audio'),
     MediaCase(
-        ok_video_chunk(),
+        _video_chunk(),
         DownloadContentTypeFilter.boosty_videos,
         'download_boosty_video',
     ),
@@ -93,6 +97,7 @@ def _use_case(
 ) -> DownloadSinglePostUseCase:
     payload = synthetic_post()
     payload['data'] = chunks
+    payload['teaser'] = []
     reporter = Mock(spec=ProgressReporter)
     reporter.create_task.return_value = uuid4()
     context = DownloadContext(
@@ -229,7 +234,7 @@ async def test_later_audio_filter_adds_audio_without_redownloading_saved_file(
 
 @pytest.mark.parametrize(
     'chunk',
-    [file_chunk(), audio_chunk(), ok_video_chunk()],
+    [file_chunk(), audio_chunk(), _video_chunk()],
     ids=['file', 'audio', 'video'],
 )
 async def test_unfinished_upload_warns_and_keeps_a_pending_placeholder(
@@ -260,7 +265,7 @@ async def test_stream_only_video_warns_with_display_title_without_download(
     tmp_path: Path, title: str, media: Mock
 ) -> None:
     chunk: dict[str, object] = {
-        **ok_video_chunk(),
+        **_video_chunk(),
         'title': title,
         'playerUrls': [{'type': 'hls', 'url': 'https://video.example/stream.m3u8'}],
     }

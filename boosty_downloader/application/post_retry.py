@@ -79,7 +79,9 @@ class PostDownloadRetrier:
     async def observe_access(self, post: PostDTO, failed_posts: list[str]) -> bool:
         """Contain an observation failure like any other failure of this post."""
         try:
-            observe_post_access(self.context.post_store, self.author_name, post)
+            await observe_post_access(self.context, post)
+        except ApplicationCancelledError:
+            raise
         except Exception as error:  # noqa: BLE001 - per-post storage failure boundary
             folder = compose_post_directory_name(post.title, post.created_at, post.id)
             await self._skip_unexpected(folder, post.id, failed_posts, error)

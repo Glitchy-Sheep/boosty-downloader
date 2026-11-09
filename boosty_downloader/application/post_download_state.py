@@ -5,10 +5,15 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from pathlib import PurePosixPath
+from stat import S_ISREG
 from typing import TYPE_CHECKING
 
-from boosty_downloader.application.media_paths import reserve_media_path
+from boosty_downloader.application.media_paths import (
+    get_media_path_reservations,
+    reserve_media_path,
+)
 from boosty_downloader.domain.stored_post import MediaKind, MediaStatus
+from boosty_downloader.infrastructure.library._media_paths import is_link
 from boosty_downloader.infrastructure.media_output_paths import (
     resolve_media_destination,
 )
@@ -56,6 +61,7 @@ class PostDownloadState:
         self._record = deepcopy(prepared.reconciliation.record)
         self._disk = prepared.disk
         self._download_ids = frozenset(prepared.reconciliation.download_ids)
+        self._preview_ids = frozenset(prepared.preview_download_ids)
 
     @property
     def record(self) -> StoredPost:
@@ -78,11 +84,7 @@ class PostDownloadState:
         """Save a concrete pending destination before any media bytes are written."""
         entry = self._download_entry(media_id)
         preferred = _preferred_path(entry, filename)
-        reservations = {
-            owner: media.path
-            for owner, media in self._record.media.items()
-            if media.path is not None
-        }
+        reservations = get_media_path_reservations(self._record)
         path = reserve_media_path(preferred, media_id, self._disk, reservations)
         resolve_media_destination(self._root, self.folder, path)
         self._save_entry(
@@ -105,6 +107,27 @@ class PostDownloadState:
         first_completion = media_id not in self._progress.counted_media_ids
         self._progress.counted_media_ids.add(media_id)
         return first_completion
+
+    def preview_path_reservations(self, media_id: str) -> frozenset[str]:
+        """Protect every primary path and other previews during an image transfer."""
+        reservations = get_media_path_reservations(
+            self._record, exclude_preview_for=media_id
+        )
+        return frozenset(reservations.values())
+
+    def complete_preview(self, media_id: str, path: str) -> None:
+        """Save a published preview path without changing its video's download state."""
+        if media_id not in self._preview_ids:
+            message = 'The video preview was not selected for this attempt'
+            raise ValueError(message)
+        destination = resolve_media_destination(self._root, self.folder, path)
+        info = destination.lstat()
+        if not S_ISREG(info.st_mode) or is_link(info) or info.st_size <= 0:
+            message = 'A published video preview must be a nonempty regular file'
+            raise ValueError(message)
+        entry = self._record.media[media_id]
+        self._save_entry(media_id, replace(entry, preview_path=path))
+        self._disk = replace(self._disk, files={**self._disk.files, path: info.st_size})
 
     def fail(self, media_id: str, error: str, *, unavailable: bool = False) -> None:
         """Persist failure before any asynchronous logging or next retry."""

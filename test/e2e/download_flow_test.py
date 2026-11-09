@@ -116,7 +116,7 @@ class _QuietReporter:
 
 def _blob_body(path: str) -> web.Response:
     """A few bytes of the right media type for every fixture link."""
-    if '/image/' in path:
+    if any(part in path for part in ('/image/', '/preview/', '/teaser/')):
         return web.Response(body=b'png bytes', content_type='image/png')
     if path.endswith('.mp4'):
         return web.Response(body=b'mp4 bytes', content_type='video/mp4')
@@ -195,6 +195,8 @@ def _build_app(  # noqa: PLR0913 - independent fake-server failure modes
     app.router.add_get(f'/v1/blog/{AUTHOR}/post/', listing)
     app.router.add_get(f'/v1/blog/{AUTHOR}/post/{POST_ID}', single_post)
     app.router.add_get('/blog/{tail:.*}', _author_asset)
+    app.router.add_get('/preview/{tail:.*}', _author_asset)
+    app.router.add_get('/teaser/{tail:.*}', _author_asset)
     app.router.add_get('/{tail:.*}', blob)
     return app
 

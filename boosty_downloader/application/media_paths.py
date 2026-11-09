@@ -30,9 +30,11 @@ from boosty_downloader.infrastructure.path_sanitizer import (
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Iterator, Mapping
+    from collections.abc import Set as AbstractSet
 
     from boosty_downloader.application.mappers.live_post import LiveMedia
     from boosty_downloader.domain.disk_snapshot import DiskSnapshot
+    from boosty_downloader.domain.stored_post import StoredPost
 
 
 @dataclass(frozen=True)
@@ -161,6 +163,30 @@ def _candidate_alias_queries(
     return queries
 
 
+def get_media_path_reservations(
+    record: StoredPost, *, exclude_preview_for: str | None = None
+) -> dict[str, str]:
+    """Reserve retained primary and preview paths, including missing/removed files."""
+    reservations = {
+        media_id: entry.path
+        for media_id, entry in record.media.items()
+        if entry.path is not None
+    }
+    reservations.update(
+        {
+            _preview_owner_id(media_id): entry.preview_path
+            for media_id, entry in record.media.items()
+            if entry.preview_path is not None and media_id != exclude_preview_for
+        }
+    )
+    return reservations
+
+
+def _preview_owner_id(media_id: str) -> str:
+    """Keep preview ownership separate from kind-prefixed primary media IDs."""
+    return f'preview:{media_id}'
+
+
 def reserve_media_path(
     preferred_path: str,
     media_id: str,
@@ -175,9 +201,13 @@ def reserve_media_path(
     occupied = {
         _path_key(path) for path in (*disk.files, *disk.occupied, *disk.aliases)
     }
-    occupied.update(
+    retained_paths = {
         _path_key(path) for owner, path in reservations.items() if owner != media_id
-    )
+    }
+    if _has_reserved_parent(preferred_path, retained_paths):
+        message = 'A retained media file reserves the output directory'
+        raise ValueError(message)
+    occupied.update(_include_parent_paths(retained_paths))
     hint = MediaPathHint(preferred_path)
     token = _identity_token(media_id)
     number = 0
@@ -198,17 +228,20 @@ def find_media_file(  # noqa: PLR0913 - discovery needs both stored and live fil
     expected_size: int | None = None,
 ) -> FileMatch | None:
     """Find a plausible unclaimed file, including numbered names after gaps."""
-    blocked = {
+    retained_paths = {
         _path_key(spelling)
         for owner, path in reservations.items()
         if owner != media_id
         for spelling in (path, disk.aliases.get(path, path))
     }
-    if recorded_path is not None and _path_key(recorded_path) not in blocked:
+    blocked = _include_parent_paths(retained_paths)
+    if recorded_path is not None and not _is_path_reserved(
+        recorded_path, retained_paths, blocked
+    ):
         recorded = find_recorded_file(recorded_path, disk)
         if (
             recorded is not None
-            and _path_key(recorded.path) not in blocked
+            and not _is_path_reserved(recorded.path, retained_paths, blocked)
             and _is_plausible(recorded.size, expected_size)
         ):
             return recorded
@@ -221,8 +254,8 @@ def find_media_file(  # noqa: PLR0913 - discovery needs both stored and live fil
         if found is None:
             continue
         if (
-            _path_key(path) in blocked
-            or _path_key(found.path) in blocked
+            _is_path_reserved(path, retained_paths, blocked)
+            or _is_path_reserved(found.path, retained_paths, blocked)
             or not _is_plausible(found.size, expected_size)
         ):
             continue
@@ -293,6 +326,28 @@ def _identity_token(media_id: str) -> str:
     if kind_value == MediaKind.external_video.value:
         return sha256(source_id.encode('utf-8')).hexdigest()[:8]
     return source_id[:8]
+
+
+def _include_parent_paths(paths: AbstractSet[str]) -> set[str]:
+    """Reserve each retained file's required directories against file publication."""
+    parents = {parent for path in paths for parent in _parent_paths(path)}
+    return set(paths) | parents
+
+
+def _has_reserved_parent(path: str, reservations: AbstractSet[str]) -> bool:
+    return any(parent in reservations for parent in _parent_paths(path))
+
+
+def _is_path_reserved(
+    path: str, reservations: AbstractSet[str], blocked: AbstractSet[str]
+) -> bool:
+    return _path_key(path) in blocked or _has_reserved_parent(path, reservations)
+
+
+def _parent_paths(path: str) -> Iterator[str]:
+    for parent in PurePosixPath(_path_key(path)).parents:
+        if parent.parts:
+            yield str(parent)
 
 
 def _path_key(path: str) -> str:

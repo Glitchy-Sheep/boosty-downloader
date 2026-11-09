@@ -570,3 +570,102 @@ def test_alias_queries_preserve_input_ownership() -> None:
     queries.clear()
 
     assert (hints, disk) == original
+
+
+@pytest.mark.parametrize(
+    'retained',
+    [
+        'files/Café.zip/retained-preview.png',
+        'FILES/Cafe\u0301.ZIP/retained-preview.png',
+    ],
+)
+def test_allocator_keeps_required_directories_for_retained_media(retained: str):
+    assert (
+        reserve_media_path(
+            'files/Café.zip', MEDIA_ID, DiskSnapshot({}), {OTHER_ID: retained}
+        )
+        == 'files/Café (abcdefgh).zip'
+    )
+
+
+@pytest.mark.parametrize('retained', ['files/Café.zip', 'FILES/Cafe\u0301.ZIP'])
+def test_allocator_rejects_a_reserved_file_in_the_output_parent(retained: str):
+    with pytest.raises(ValueError, match='reserves the output directory'):
+        reserve_media_path(
+            'files/Café.zip/image.png',
+            MEDIA_ID,
+            DiskSnapshot({}),
+            {OTHER_ID: retained},
+        )
+
+
+def test_parent_reservations_respect_complete_path_components():
+    preferred = 'files/archive.zip'
+    reservations = {OTHER_ID: 'files/archive.zip-copy/retained-preview.png'}
+
+    assert reserve_media_path(preferred, MEDIA_ID, DiskSnapshot({}), reservations) == (
+        preferred
+    )
+    assert find_media_file(
+        MEDIA_ID, DiskSnapshot({preferred: 12}), reservations, recorded_path=preferred
+    ) == FileMatch(path=preferred, size=12)
+
+
+@pytest.mark.parametrize('use_recorded', [False, True])
+@pytest.mark.parametrize(
+    'retained',
+    [
+        'files/Café.zip/retained-preview.png',
+        'FILES/Cafe\u0301.ZIP/retained-preview.png',
+    ],
+)
+def test_recovery_cannot_adopt_a_file_that_blocks_a_reserved_descendant(
+    retained: str, *, use_recorded: bool
+):
+    candidate = 'files/Café.zip'
+    recorded = candidate if use_recorded else None
+
+    assert (
+        find_media_file(
+            MEDIA_ID,
+            DiskSnapshot({candidate: 12}),
+            {OTHER_ID: retained},
+            recorded_path=recorded,
+            preferred=MediaPathHint(candidate),
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize('use_recorded', [False, True])
+def test_recovery_cannot_adopt_a_file_below_a_reserved_parent(*, use_recorded: bool):
+    candidate = 'files/Café.zip/image.png'
+    recorded = candidate if use_recorded else None
+
+    assert (
+        find_media_file(
+            MEDIA_ID,
+            DiskSnapshot({candidate: 12}),
+            {OTHER_ID: 'FILES/Cafe\u0301.ZIP'},
+            recorded_path=recorded,
+            preferred=MediaPathHint(candidate),
+        )
+        is None
+    )
+
+
+def test_recovery_checks_parent_conflicts_through_a_confirmed_alias():
+    actual = 'files/Café.zip'
+    alias = 'FILES/Cafe\u0301.ZIP'
+    disk = DiskSnapshot({actual: 12}, aliases={alias: actual})
+
+    assert (
+        find_media_file(
+            MEDIA_ID,
+            disk,
+            {OTHER_ID: f'{alias}/retained-preview.png'},
+            recorded_path=alias,
+            preferred=MediaPathHint(alias),
+        )
+        is None
+    )

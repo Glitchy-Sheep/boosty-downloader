@@ -2,6 +2,8 @@
 
 ### Added
 
+- Downloads save Boosty video previews and locked-post teasers independently of content-type filters. Existing images are reused; missing ones are fetched again. Library cover selection follows the current post order and excludes removed media.
+
 - `download --restore-missing` restores locally deleted media still present in the creator's posts, respecting content filters. It works with single-post downloads and dry-run; the run summary reports remaining deleted media.
 
 - Downloads refresh the creator's details, avatar and cover in a local author record. Failed optional updates preserve saved data and do not stop post downloads.
@@ -18,6 +20,7 @@
 
 ### Fixed
 
+- On Windows, saving a library record tolerates brief reader locks while preserving complete old or new contents
 - A failed media piece no longer causes completed pieces of the same type to download again. Each completion is saved separately, and an unavailable external video does not prevent retries for a different transient failure
 - Interrupted media transfers no longer leave incomplete files under their final names. Completed files can be recovered after interruption before the record update; filename collisions preserve existing files
 - Renaming a post on Boosty keeps its saved folder. Locally deleted media stays deleted, and author-removed media retains its saved history and local copies
