@@ -162,7 +162,8 @@ def _scan_directory(
     for entry in children:
         path = Path(entry.path)
         relative = path.relative_to(root).as_posix()
-        info = entry.stat(follow_symlinks=False)
+        # Windows directory entries omit the identity needed to detect replacement.
+        info = path.lstat()
         if is_link(info):
             _reject_special(path)
         if S_ISDIR(info.st_mode):

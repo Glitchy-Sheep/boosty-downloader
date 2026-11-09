@@ -3,18 +3,33 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from collections import Counter
-from dataclasses import replace
-from typing import TYPE_CHECKING
+from contextlib import contextmanager
+from dataclasses import dataclass, replace
+from stat import (
+    FILE_ATTRIBUTE_ARCHIVE,
+    FILE_ATTRIBUTE_DIRECTORY,
+    FILE_ATTRIBUTE_REPARSE_POINT,
+)
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, cast
 
 import pytest
+from library_sample import manifest
 from library_sample.asset_models import AssetBackend, AttachmentType
 from library_sample.assets import create_assets
 from library_sample.content import AUTHORS, author_counts, iter_posts, post_id
 from library_sample.generator import prepare_sample
 from library_sample.manifest import MANIFEST_NAME
-from library_sample.models import AuthorName, SampleConfig, SamplePost, Scenario
+from library_sample.models import (
+    AuthorName,
+    SampleConfig,
+    SampleDescription,
+    SamplePost,
+    Scenario,
+)
 
 from boosty_downloader.domain.library import PostAccess, PostFilters
 from boosty_downloader.domain.post_data_chunks import PostDataChunkText
@@ -27,6 +42,8 @@ from boosty_downloader.domain.stored_post import (
 from boosty_downloader.infrastructure.library.reader import JsonLibraryReader
 
 if TYPE_CHECKING:
+    from collections.abc import Generator, Iterator
+    from os import stat_result
     from pathlib import Path
 
     from library_sample.asset_models import AssetCatalog
@@ -418,3 +435,145 @@ def _symlink(link: Path, target: Path) -> None:
         if getattr(error, 'winerror', None) == 1314:
             pytest.skip('Windows account cannot create symbolic links')
         raise
+
+
+@dataclass(frozen=True, slots=True)
+class _WindowsDirectoryEntry:
+    """Directory enumeration without the identity fields Windows omits."""
+
+    name: str
+    path: str
+    info: stat_result
+
+    def stat(self, *, follow_symlinks: bool = True) -> stat_result:
+        del follow_symlinks
+        return cast(
+            'stat_result',
+            SimpleNamespace(
+                st_mode=self.info.st_mode,
+                st_size=self.info.st_size,
+                st_ino=0,
+                st_dev=0,
+                st_nlink=0,
+                st_file_attributes=FILE_ATTRIBUTE_ARCHIVE,
+            ),
+        )
+
+
+def test_manifest_refreshes_windows_directory_entry_identity(
+    sample: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scandir = os.scandir
+
+    @contextmanager
+    def windows_scandir(
+        folder: Path,
+    ) -> Generator[Iterator[_WindowsDirectoryEntry], None, None]:
+        with scandir(folder) as entries:
+            rows = [
+                _WindowsDirectoryEntry(
+                    entry.name, entry.path, entry.stat(follow_symlinks=False)
+                )
+                for entry in entries
+            ]
+        yield iter(rows)
+
+    monkeypatch.setattr(manifest.os, 'scandir', windows_scandir)
+    result = manifest.inspect_sample(
+        sample, SampleConfig(posts=24), AssetBackend.fallback
+    )
+    assert result is not None
+    assert result.posts == 24
+
+
+def _minimal_description(root: Path) -> SampleDescription:
+    return SampleDescription(
+        root=root,
+        config=SampleConfig(posts=1),
+        backend=AssetBackend.fallback,
+        authors=1,
+        posts=1,
+        saved_posts=1,
+        locked_posts=0,
+        media=0,
+    )
+
+
+@pytest.mark.parametrize(
+    ('directory', 'attributes', 'rejected'),
+    [
+        (False, FILE_ATTRIBUTE_ARCHIVE, False),
+        (True, FILE_ATTRIBUTE_DIRECTORY, False),
+        (False, FILE_ATTRIBUTE_ARCHIVE | FILE_ATTRIBUTE_REPARSE_POINT, True),
+        (True, FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT, True),
+    ],
+)
+def test_manifest_preserves_windows_attribute_checks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    directory: bool,
+    attributes: int,
+    rejected: bool,
+) -> None:
+    root = tmp_path / 'library'
+    root.mkdir()
+    target = root / 'target'
+    if directory:
+        target.mkdir()
+        (target / 'piece.bin').write_bytes(b'ordinary bytes')
+    else:
+        target.write_bytes(b'ordinary bytes')
+    path_type = type(target)
+    lstat = path_type.lstat
+
+    def windows_lstat(path: Path) -> stat_result:
+        info = lstat(path)
+        if path != target:
+            return info
+        return cast(
+            'stat_result',
+            SimpleNamespace(
+                st_mode=info.st_mode,
+                st_size=info.st_size,
+                st_ino=info.st_ino,
+                st_dev=info.st_dev,
+                st_file_attributes=attributes,
+            ),
+        )
+
+    monkeypatch.setattr(path_type, 'lstat', windows_lstat)
+    if rejected:
+        with pytest.raises(ValueError, match='symlink or unexpected file type'):
+            manifest.publish_manifest(_minimal_description(root))
+        assert not (root / MANIFEST_NAME).exists()
+    else:
+        manifest.publish_manifest(_minimal_description(root))
+        assert (
+            manifest.inspect_sample(root, SampleConfig(posts=1), AssetBackend.fallback)
+            is not None
+        )
+
+
+def test_manifest_still_rejects_replacement_after_lstat(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / 'library'
+    root.mkdir()
+    target = root / 'piece.bin'
+    target.write_bytes(b'original')
+    replacement = tmp_path / 'replacement.bin'
+    replacement.write_bytes(b'replaced')
+    original_open = os.open
+
+    def replace_before_open(
+        path: Path, flags: int, mode: int = 0o777, *, dir_fd: int | None = None
+    ) -> int:
+        if path == target:
+            replacement.replace(target)
+        return original_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(manifest.os, 'open', replace_before_open)
+    with pytest.raises(ValueError, match='symlink or unexpected file type'):
+        manifest.publish_manifest(_minimal_description(root))
+    assert not (root / MANIFEST_NAME).exists()
