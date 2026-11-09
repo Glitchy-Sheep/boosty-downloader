@@ -121,7 +121,8 @@ def _add_media(record: StoredPost, kind: MediaKind, media_id: str) -> None:
 
 def _ids(reader: JsonLibraryReader, filters: PostFilters | None = None) -> list[str]:
     return [
-        item.post.id for item in reader.list_posts('writer', filters or PostFilters())
+        item.overview.post.id
+        for item in reader.list_posts('writer', filters or PostFilters()).rows
     ]
 
 
@@ -137,9 +138,15 @@ def test_prepare_reads_external_changes_explicitly(
 ) -> None:
     library.record.post.title = 'Changed title'
     library.store.save_post(library.folder, library.record)
-    assert reader.list_posts('writer', PostFilters())[0].post.title == 'Всё о шейдерах'
+    assert (
+        reader.list_posts('writer', PostFilters()).rows[0].overview.post.title
+        == 'Всё о шейдерах'
+    )
     reader.prepare()
-    assert reader.list_posts('writer', PostFilters())[0].post.title == 'Changed title'
+    assert (
+        reader.list_posts('writer', PostFilters()).rows[0].overview.post.title
+        == 'Changed title'
+    )
 
 
 def test_authors_include_metadata_post_only_and_locked_only(root: Path) -> None:
@@ -155,7 +162,7 @@ def test_authors_include_metadata_post_only_and_locked_only(root: Path) -> None:
     assert authors[0].info is None
     assert authors[1].info == AuthorInfo('metadata', NOW, title='Metadata only')
     assert authors[2].info is None
-    assert reader.list_posts('missing', PostFilters()) == []
+    assert reader.list_posts('missing', PostFilters()).rows == []
 
 
 def test_lists_read_no_canonical_json(
@@ -185,14 +192,17 @@ def test_lists_read_no_canonical_json(
 def test_list_snapshots_preserve_metadata_and_nested_independence(
     library: LibraryFixture, reader: JsonLibraryReader
 ) -> None:
-    first = reader.list_posts('writer', PostFilters())[0]
-    second = reader.list_posts('writer', PostFilters())[0]
+    first = reader.list_posts('writer', PostFilters()).rows[0].overview
+    second = reader.list_posts('writer', PostFilters()).rows[0].overview
     assert first.post == second.post == library.record.post
     assert first.post.tags == ['second', 'first', 'second']
     first.post.tags.clear()
     first.post.content_counters['audio'] = 99
     assert second.post == library.record.post
-    assert reader.list_posts('writer', PostFilters())[0].post == library.record.post
+    assert (
+        reader.list_posts('writer', PostFilters()).rows[0].overview.post
+        == library.record.post
+    )
     author = reader.authors()[0]
     assert author.info is not None
     author.info.title = 'Mutated'
@@ -482,13 +492,16 @@ def test_marks_refresh_uses_current_access_observation(
     locked = LockedPost(replace(library.record.post, title='Fresh locked title'), LATER)
     library.store.save_locked_post(locked)
     reader.save_marks('writer', POST_ID, PostMarks(favorite=True))
-    overview = reader.list_posts('writer', PostFilters())[0]
+    overview = reader.list_posts('writer', PostFilters()).rows[0].overview
     assert overview.access is PostAccess.locked
     assert overview.post.title == locked.post.title
     assert _ids(reader, PostFilters(unseen_only=True)) == []
     library.store.clear_locked_post('writer', POST_ID)
     reader.save_marks('writer', POST_ID, PostMarks())
-    assert reader.list_posts('writer', PostFilters())[0].access is PostAccess.open
+    assert (
+        reader.list_posts('writer', PostFilters()).rows[0].overview.access
+        is PostAccess.open
+    )
     assert _ids(reader, PostFilters(unseen_only=True)) == [POST_ID]
 
 

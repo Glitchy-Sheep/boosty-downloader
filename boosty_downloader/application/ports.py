@@ -17,8 +17,9 @@ if TYPE_CHECKING:
         LibraryPost,
         LocatedPost,
         PostFilters,
-        PostOverview,
+        PostList,
         SavedPost,
+        TagCount,
     )
     from boosty_downloader.domain.library_marks import PostMarks
     from boosty_downloader.domain.stored_post import (
@@ -155,8 +156,20 @@ class LibraryReader(Protocol):
         """List authors, including those whose posts have no saved blog information."""
         ...
 
-    def list_posts(self, author: str, filters: PostFilters) -> list[PostOverview]:
-        """Query one author's post overviews without loading full bodies."""
+    def author(self, author: str) -> LibraryAuthor | None:
+        """Read one author's details and totals, or None for an unknown author."""
+        ...
+
+    def has_author(self, author: str) -> bool:
+        """Check whether the author belongs to this library without loading totals."""
+        ...
+
+    def tags(self, author: str) -> list[TagCount]:
+        """List exact tags and distinct post counts for one author."""
+        ...
+
+    def list_posts(self, author: str, filters: PostFilters) -> PostList:
+        """Query indexed rows and totals without loading full bodies."""
         ...
 
     def post(self, author: str, post_id: str) -> LibraryPost | None:
