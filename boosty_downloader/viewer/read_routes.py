@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from boosty_downloader.application.ports import LibraryReader, PostBodyRenderer
     from boosty_downloader.domain.library import PostFilters
     from boosty_downloader.domain.library_media import LibraryMediaView, MediaFilters
+    from boosty_downloader.viewer.saved_page_media import SavedMediaAccess
 
 
 def _author_name(request: web.Request) -> str:
@@ -45,6 +46,7 @@ class ReadRoutes:
     reader: LibraryReader
     root: Path
     renderer: PostBodyRenderer
+    media_access: SavedMediaAccess
 
     def register(self, app: web.Application) -> None:
         app.router.add_get('/api/authors', self.authors)
@@ -131,4 +133,9 @@ class ReadRoutes:
         return model_response(body)
 
     async def media(self, request: web.Request) -> web.StreamResponse:
-        return await serve_media(request, reader=self.reader, library_root=self.root)
+        return await serve_media(
+            request,
+            reader=self.reader,
+            library_root=self.root,
+            access=self.media_access,
+        )

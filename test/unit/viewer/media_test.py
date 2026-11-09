@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import threading
 from dataclasses import dataclass, field
 from errno import EACCES, ENOSYS, EPERM
+from html import unescape
 from typing import TYPE_CHECKING, cast
 from urllib.parse import quote
 
@@ -23,6 +25,7 @@ from boosty_downloader.viewer.media_paths import (
     resolve_author_directory,
     resolve_author_path,
 )
+from boosty_downloader.viewer.saved_page_media import SavedMediaAccess
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -63,6 +66,7 @@ class _MediaFixture:
     root: Path
     reader: _Reader
     client: TestClient[web.Request, web.Application]
+    access: SavedMediaAccess
 
 
 @pytest.fixture
@@ -73,17 +77,21 @@ async def media(tmp_path: Path) -> AsyncIterator[_MediaFixture]:
     (root / 'alpha/post/files').mkdir(parents=True)
     (root / 'alpha/post/movie.mp4').write_bytes(_FILE)
     reader = _Reader()
+    access = SavedMediaAccess()
 
     async def handle(request: web.Request) -> web.StreamResponse:
         return await serve_media(
-            request, reader=cast('LibraryReader', reader), library_root=root
+            request,
+            reader=cast('LibraryReader', reader),
+            library_root=root,
+            access=access,
         )
 
     app = web.Application(middlewares=[compress_json_responses, guard_requests])
     app.on_response_prepare.append(secure_response)
     app.router.add_get('/media/{author}/{path:.+}', handle)
     async with TestClient(TestServer(app), auto_decompress=False) as client:
-        yield _MediaFixture(root, reader, client)
+        yield _MediaFixture(root, reader, client, access)
 
 
 def _assert_boundary(response: ClientResponse) -> None:
@@ -101,6 +109,155 @@ def _assert_attachment(response: ClientResponse) -> None:
     assert "sandbox; default-src 'none'" in headers['Content-Security-Policy']
     assert 'allow-scripts' not in headers['Content-Security-Policy']
     assert 'X-Frame-Options' not in headers
+
+
+def _embed_url(media: _MediaFixture, relative: str) -> str:
+    token = media.access.token_for('alpha', relative)
+    return f'/media/alpha/{quote(relative, safe="/")}?embed={token}'
+
+
+def _assert_embed_boundary(response: ClientResponse) -> None:
+    assert response.headers['Cross-Origin-Resource-Policy'] == 'cross-origin'
+    assert response.headers['Cache-Control'] == 'no-store'
+    assert response.headers['X-Content-Type-Options'] == 'nosniff'
+    assert not any(
+        name.lower().startswith('access-control-') for name in response.headers
+    )
+
+
+async def test_saved_page_adapts_only_http_media_urls(media: _MediaFixture) -> None:
+    html = (
+        '<script>const text = "<img src=untouched>";</script>\r\n'
+        '<video poster="preview.png"><source src="movie.mp4"></video>\r\n'
+        '<a href="../other/post.html">Next</a>'
+    )
+    path = media.root / 'alpha/post/post.html'
+    path.write_bytes(html.encode('utf-8'))
+    original_bytes = path.read_bytes()
+    original_modified = path.stat().st_mtime_ns
+    (path.parent / 'preview.png').write_bytes(b'poster')
+    media.reader.pages['alpha/post/post.html'] = SavedPage(
+        'alpha/post', 'alpha/post/post.html'
+    )
+
+    response = await media.client.get('/media/alpha/post/post.html')
+    body = await response.text()
+
+    assert response.status == 200
+    assert '<a href="../other/post.html">Next</a>' in body
+    assert '<script>const text = "<img src=untouched>";</script>' in body
+    assert body.count('\r\n') == 2
+    assert path.read_bytes() == original_bytes
+    assert path.stat().st_mtime_ns == original_modified
+    assert response.headers['Cache-Control'] == 'no-store'
+    assert 'ETag' not in response.headers
+    assert 'Last-Modified' not in response.headers
+    assert int(response.headers['Content-Length']) == len(body.encode('utf-8'))
+    urls = [unescape(value) for value in re.findall(r'(?:src|poster)="([^"]+)"', body)]
+    assert len(urls) == 2
+    for url in urls:
+        item = await media.client.get(url)
+        assert item.status == 200
+        _assert_embed_boundary(item)
+    head = await media.client.head(
+        '/media/alpha/post/post.html',
+        headers={'If-None-Match': '*', 'Range': 'bytes=0-3'},
+    )
+    assert head.status == 200
+    assert await head.read() == b''
+    assert head.headers['Content-Length'] == response.headers['Content-Length']
+    assert 'ETag' not in head.headers
+
+
+@pytest.mark.parametrize(
+    'relative', ['post/Фото 100% #1.png', 'post/track.mp3', 'post/movie.mp4']
+)
+async def test_valid_capability_keeps_exact_media_and_has_no_cors(
+    media: _MediaFixture, relative: str
+) -> None:
+    (media.root / 'alpha' / relative).write_bytes(_FILE)
+    response = await media.client.get(_embed_url(media, relative))
+    assert response.status == 200
+    assert await response.read() == _FILE
+    _assert_embed_boundary(response)
+
+
+async def test_capability_preserves_range_head_and_conditionals(
+    media: _MediaFixture,
+) -> None:
+    url = _embed_url(media, 'post/movie.mp4')
+    first = await media.client.get(url)
+    await first.read()
+    head = await media.client.head(url)
+    assert head.status == 200
+    assert await head.read() == b''
+    assert head.headers['Content-Length'] == str(len(_FILE))
+    _assert_embed_boundary(head)
+    cached = await media.client.get(
+        url, headers={'If-None-Match': first.headers['ETag']}
+    )
+    assert cached.status == 304
+    assert await cached.read() == b''
+    _assert_embed_boundary(cached)
+    partial = await media.client.get(url, headers={'Range': 'bytes=3-8'})
+    assert partial.status == 206
+    assert await partial.read() == _FILE[3:9]
+    assert partial.headers['Content-Range'] == f'bytes 3-8/{len(_FILE)}'
+    _assert_embed_boundary(partial)
+    invalid = await media.client.get(url, headers={'Range': 'bytes=999-1000'})
+    assert invalid.status == 416
+    assert invalid.headers['Content-Range'] == f'bytes */{len(_FILE)}'
+    _assert_boundary(invalid)
+
+
+@pytest.mark.parametrize('query', ['', 'embed=', 'embed=wrong', 'embed=a&embed=b'])
+async def test_missing_or_invalid_capability_never_enables_embedding(
+    media: _MediaFixture, query: str
+) -> None:
+    response = await media.client.get('/media/alpha/post/movie.mp4?' + query)
+    assert response.status == (200 if not query else 403)
+    _assert_boundary(response)
+
+
+async def test_capability_is_bound_to_path_and_application_key(
+    media: _MediaFixture,
+) -> None:
+    token = media.access.token_for('alpha', 'post/other.mp4')
+    foreign = SavedMediaAccess().token_for('alpha', 'post/movie.mp4')
+    for invalid in (token, foreign):
+        response = await media.client.get(
+            '/media/alpha/post/movie.mp4?embed=' + invalid
+        )
+        assert response.status == 403
+        _assert_boundary(response)
+
+
+@pytest.mark.parametrize(
+    'name',
+    ['page.html', 'image.svg', 'script.js', 'archive.zip', 'document.pdf', 'post.html'],
+)
+async def test_capability_does_not_authorize_non_media_types(
+    media: _MediaFixture, name: str
+) -> None:
+    (media.root / 'alpha/post' / name).write_bytes(_HTML)
+    media.reader.pages['alpha/post/post.html'] = SavedPage(
+        'alpha/post', 'alpha/post/post.html'
+    )
+    response = await media.client.get(_embed_url(media, 'post/' + name))
+    assert response.status == 403
+    _assert_boundary(response)
+
+
+@pytest.mark.parametrize('target_name', ['page.html', 'image.svg', 'document.pdf'])
+async def test_capability_checks_the_resolved_alias_type(
+    media: _MediaFixture, target_name: str
+) -> None:
+    target = media.root / 'alpha/post/files' / target_name
+    target.write_bytes(_HTML)
+    _symlink(media.root / 'alpha/post/alias.png', target)
+    response = await media.client.get(_embed_url(media, 'post/alias.png'))
+    assert response.status == 403
+    _assert_boundary(response)
 
 
 @pytest.mark.parametrize('encoding', ['', 'gzip, br', 'br', '*'])
