@@ -158,6 +158,31 @@ def test_downloaded_media_uses_the_saved_path_and_author_metadata(case: _MediaCa
 
 
 @pytest.mark.parametrize('case', _MEDIA_CASES, ids=lambda case: case.kind.value)
+def test_media_url_callback_covers_current_and_removed_pieces(case: _MediaCase):
+    removed_path = f'retained/{case.path}'
+    record = _record(
+        {
+            case.media_id: _entry(case),
+            'removed': replace(
+                _entry(case), removed_at=_NOW, position=1, path=removed_path
+            ),
+        },
+        [case.media_id],
+    )
+    calls: list[str] = []
+
+    def media_url(path: str) -> str:
+        calls.append(path)
+        return f'/library/{path}'
+
+    assert build_post_page(record, media_url=media_url) == [
+        replace(case.expected, url=f'/library/{case.path}'),
+        HtmlGenRemovedMedia([replace(case.expected, url=f'/library/{removed_path}')]),
+    ]
+    assert calls == [case.path, removed_path]
+
+
+@pytest.mark.parametrize('case', _MEDIA_CASES, ids=lambda case: case.kind.value)
 def test_pending_reserved_paths_are_cards_instead_of_local_media(case: _MediaCase):
     entry = _entry(case, MediaStatus.pending)
     record = _record({case.media_id: entry}, [case.media_id])

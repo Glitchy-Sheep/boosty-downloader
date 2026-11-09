@@ -19,7 +19,7 @@ from .models import (
     HtmlTextStyle,
     UnavailableKind,
 )
-from .renderer import PAGE_TEMPLATE_VERSION, render_html_to_file
+from .renderer import PAGE_TEMPLATE_VERSION, render_html_body, render_html_to_file
 
 __all__ = [
     'PAGE_TEMPLATE_VERSION',
@@ -40,5 +40,6 @@ __all__ = [
     'HtmlTextFragment',
     'HtmlTextStyle',
     'UnavailableKind',
+    'render_html_body',
     'render_html_to_file',
 ]
