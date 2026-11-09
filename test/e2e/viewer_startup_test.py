@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -32,6 +33,7 @@ from boosty_downloader.infrastructure.library.post_store import JsonPostStore
 from boosty_downloader.infrastructure.loggers.debug_file import DEBUG_LOG_FILENAME
 from boosty_downloader.main import typer_app
 from boosty_downloader.viewer.app import LIBRARY_READER
+from boosty_downloader.viewer.opener import RECORD_ENV
 from boosty_downloader.viewer.server import (
     ServerAddresses,
     ServerOptions,
@@ -105,6 +107,7 @@ def _create_library(root: Path) -> Path:
 def offline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv('BOOSTY_DOWNLOADER_CONFIG', raising=False)
+    monkeypatch.delenv(RECORD_ENV, raising=False)
 
     def forbidden(*_args: object, **_kwargs: object) -> None:
         pytest.fail(
@@ -140,6 +143,42 @@ def captured(monkeypatch: pytest.MonkeyPatch) -> list[_StartedServer]:
 @pytest.fixture
 def library(tmp_path: Path) -> Path:
     return _create_library(tmp_path / 'library')
+
+
+def _saved_folder(root: Path) -> Path:
+    return next(root.glob('alpha/*/post.json')).parent.resolve()
+
+
+async def test_recording_hook_is_announced_and_injected_into_file_actions(
+    tmp_path: Path,
+    library: Path,
+    captured: list[_StartedServer],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    log_path = tmp_path / 'Записи [bold], actions.jsonl'
+    monkeypatch.setenv(RECORD_ENV, str(log_path))
+    monkeypatch.setenv('SSH_CONNECTION', 'recording-only test')
+    result = _invoke(['view', '-o', str(library), '--no-open'])
+    assert result.exit_code == 0, result.output
+    assert 'File actions are recorded to' in _plain(result.output)
+    assert 'no files are opened.' in _plain(result.output)
+    assert not log_path.exists()
+    root = await asyncio.to_thread(library.resolve)
+    async with TestClient(TestServer(captured[0].app)) as client:
+        capabilities = await client.get('/api/opener')
+        body = await capabilities.json()
+        assert body['folders']
+        assert body['root'] == str(root)
+        response = await client.post(
+            f'/api/authors/alpha/posts/{POST_ID}/open',
+            json={},
+            headers={'Origin': str(client.make_url('/')).rstrip('/')},
+        )
+        assert response.status == 204, await response.text()
+    content = await asyncio.to_thread(log_path.read_text, encoding='utf-8')
+    events = [json.loads(line) for line in content.splitlines()]
+    folder = await asyncio.to_thread(_saved_folder, library)
+    assert events == [{'action': 'open', 'path': str(folder)}]
 
 
 def test_view_opens_saved_library_without_credentials_or_config(
