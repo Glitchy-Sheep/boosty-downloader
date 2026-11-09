@@ -24,10 +24,15 @@ if TYPE_CHECKING:
         TagCount,
     )
     from boosty_downloader.domain.library_marks import PostMarks
+    from boosty_downloader.domain.library_media import (
+        LibraryMediaItem,
+        LibraryMediaPage,
+        LibraryMediaView,
+        MediaFilters,
+        MediaIdentity,
+    )
     from boosty_downloader.domain.library_mutations import (
         BulkMarkProgress,
-        LibraryMediaItem,
-        MediaIdentity,
         PostMarkResult,
     )
     from boosty_downloader.domain.stored_post import (
@@ -193,6 +198,12 @@ class LibraryReader(Protocol):
 
     def list_posts(self, author: str, filters: PostFilters) -> PostList:
         """Query indexed rows and totals without loading full bodies."""
+        ...
+
+    def list_media(
+        self, author: str, view: LibraryMediaView, filters: MediaFilters
+    ) -> LibraryMediaPage:
+        """Query downloaded pieces, shared posts and filtered totals from one snapshot."""
         ...
 
     def post(self, author: str, post_id: str) -> LibraryPostDetails | None:

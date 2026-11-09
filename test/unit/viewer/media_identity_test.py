@@ -4,7 +4,7 @@ import base64
 
 import pytest
 
-from boosty_downloader.domain.library_mutations import MediaIdentity
+from boosty_downloader.domain.library_media import MediaIdentity
 from boosty_downloader.viewer.media_identity import (
     decode_media_identity,
     media_identity,

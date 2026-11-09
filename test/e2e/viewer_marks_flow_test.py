@@ -22,7 +22,7 @@ from support.synthetic_post import POST_ID, VIDEO_ID, ok_video_chunk, text_chunk
 from typer.testing import CliRunner
 
 from boosty_downloader.domain.library import PostFilters
-from boosty_downloader.domain.library_mutations import MediaIdentity
+from boosty_downloader.domain.library_media import MediaIdentity
 from boosty_downloader.infrastructure.library.reader import JsonLibraryReader
 from boosty_downloader.main import typer_app
 

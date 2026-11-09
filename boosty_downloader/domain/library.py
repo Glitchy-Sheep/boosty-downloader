@@ -38,7 +38,7 @@ class SavedPage:
 
 @dataclass(frozen=True, slots=True)
 class MediaCounts:
-    """Counts of current media, with both video sources combined."""
+    """Media counts for a selection, with both video sources combined."""
 
     images: int = 0
     videos: int = 0

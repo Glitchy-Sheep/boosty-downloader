@@ -18,6 +18,7 @@ from boosty_downloader.infrastructure.library._reader_authors import (
     read_authors,
     read_tags,
 )
+from boosty_downloader.infrastructure.library._reader_media import read_media
 from boosty_downloader.infrastructure.library._reader_mutations import (
     JsonMarkMutations,
     current_time,
@@ -54,10 +55,15 @@ if TYPE_CHECKING:
         TagCount,
     )
     from boosty_downloader.domain.library_marks import PostMarks
+    from boosty_downloader.domain.library_media import (
+        LibraryMediaItem,
+        LibraryMediaPage,
+        LibraryMediaView,
+        MediaFilters,
+        MediaIdentity,
+    )
     from boosty_downloader.domain.library_mutations import (
         BulkMarkProgress,
-        LibraryMediaItem,
-        MediaIdentity,
         PostMarkResult,
     )
     from boosty_downloader.domain.stored_post import StoredPost
@@ -112,6 +118,13 @@ class JsonLibraryReader:
         """Return filtered browsing snapshots without opening canonical JSON files."""
         with _reading_library(), self._index.connect() as connection:
             return read_posts(connection, author, filters)
+
+    def list_media(
+        self, author: str, view: LibraryMediaView, filters: MediaFilters
+    ) -> LibraryMediaPage:
+        """Read recorded media and totals without inspecting canonical files."""
+        with _reading_library(), self._index.connect() as connection:
+            return read_media(connection, author, view, filters)
 
     def post(self, author: str, post_id: str) -> LibraryPostDetails | None:
         """Open the known folder and validate its full identity against current access."""

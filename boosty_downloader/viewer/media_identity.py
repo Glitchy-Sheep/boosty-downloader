@@ -7,7 +7,7 @@ from re import fullmatch
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from boosty_downloader.domain.library_mutations import MediaIdentity
+from boosty_downloader.domain.library_media import MediaIdentity
 from boosty_downloader.viewer.requests import InvalidRequestError
 
 
