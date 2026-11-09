@@ -154,7 +154,7 @@ Library cover selection uses the first current downloaded image, then the previe
 
 This development version uses `post.json` instead of the v4 SQLite cache. Choose a fresh destination for v5. The first actual download marks it with `.boosty-downloader/library.json`; dry-run never creates the marker. If an unmarked destination contains post folders from any creator, `download` in every mode, `render` and `reindex` stop before network requests, sample configuration or log writes. Keep the old destination while it contains posts that Boosty no longer serves. Existing downloads are not migrated or adopted automatically.
 
-Downloads also update a disposable search index at `<destination>/.boosty-downloader/index.db`. `--cache-dir PATH` places it at `PATH/index.db`, which is useful when downloads live on a network share. Canonical records and media stay in the destination. If indexing fails, the run warns once and continues saving downloads; run `reindex` after fixing the cache location to rebuild it from the records. `clean-cache` still only removes a legacy SQLite cache and does not reset saved posts or remove media.
+Downloads also update a disposable search index at `<destination>/.boosty-downloader/index.db`. `--cache-dir PATH` places it at `PATH/index.db`, which is useful when downloads live on a network share. Canonical records and media stay in the destination. If indexing fails, the run warns once and continues saving downloads; run `reindex` after fixing the cache location to rebuild it from the records. The legacy `clean-cache` command has been removed; saved records and media are never reset by index maintenance.
 
 Rebuild the search index for the entire saved library without contacting Boosty:
 

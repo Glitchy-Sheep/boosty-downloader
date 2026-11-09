@@ -7,7 +7,7 @@ The project uses [pytest](https://docs.pytest.org/) with [pytest-asyncio](https:
 | Folder | What runs there | Needs | Command |
 |--------|-----------------|-------|---------|
 | `test/unit/` | Unit tests, one folder per domain (`boosty_api`, `mappers`, `use_cases`, `cli/views`, ...) | nothing | `task test` |
-| `test/e2e/` | Whole download runs against a local Boosty-shaped server: the real client, downloader, cache and renderer | nothing | `task test` |
+| `test/e2e/` | Whole download runs against a local Boosty-shaped server: the real client, downloader, saved records, search index and renderer | nothing | `task test` |
 | `test/integration/` | The live Boosty API with your credentials | `./.env` | `task test:api` |
 | `test/canary/` | The live Boosty API without credentials: does the client still understand the answer | `CANARY_AUTHOR` | `task test:canary` |
 | `test/support/` | Shared helpers: the synthetic Boosty post | - | - |

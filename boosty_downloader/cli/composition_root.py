@@ -58,15 +58,12 @@ class AppSettings:
     """
     Resolved once from config.yaml and the CLI overrides on top of it.
 
-    Plain values only: the aiohttp objects built from them need a running
-    event loop, and sync commands (clean-cache) load settings without one.
+    Plain values only; the HTTP sessions and storage adapters are opened separately.
     """
 
     author_name: str
     # <target>/<author>: where the posts of this creator land.
     destination_dir: Path
-    # <cache or target>/<author>: where the legacy post cache lives.
-    cache_dir: Path
     auth_header: str
     cookie: str
     # None keeps the disposable index inside the library.
@@ -76,19 +73,6 @@ class AppSettings:
     def library_root(self) -> Path:
         """Library containing creator folders and their saved post records."""
         return self.destination_dir.parent
-
-
-def _cache_dir(
-    paths: DownloadSettings,
-    *,
-    username: str,
-    destination_directory: Path | None,
-    cache_directory: Path | None,
-) -> Path:
-    """<cache or target>/<author>; a CLI directory wins over the config value."""
-    target = destination_directory or paths.target_directory
-    cache_root = cache_directory or paths.cache_directory
-    return (cache_root or target).absolute() / username
 
 
 def _index_path(
@@ -116,12 +100,6 @@ def load_settings(
     return AppSettings(
         author_name=username,
         destination_dir=target.absolute() / username,
-        cache_dir=_cache_dir(
-            paths,
-            username=username,
-            destination_directory=destination_directory,
-            cache_directory=cache_directory,
-        ),
         auth_header=config.auth.auth_header,
         cookie=config.auth.cookie,
         index_path=_index_path(paths, cache_directory=cache_directory),
@@ -160,21 +138,6 @@ def resolve_index_path(
         source = cache_directory if cache_directory is not None else config_path
         message = f'Cannot determine library index from {source}: {error}'
         raise LibraryCompatibilityError(message) from error
-
-
-def resolve_cache_dir(
-    *,
-    username: str,
-    config_path: Path = DEFAULT_CONFIG_PATH,
-    cache_directory: Path | None = None,
-) -> Path:
-    """Where the creator's cache lives; no credentials needed to find it."""
-    return _cache_dir(
-        read_download_settings(config_path),
-        username=username,
-        destination_directory=None,
-        cache_directory=cache_directory,
-    )
 
 
 @dataclass(frozen=True, slots=True)

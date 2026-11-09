@@ -10,10 +10,8 @@ from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-    from datetime import datetime
     from uuid import UUID
 
-    from boosty_downloader.domain.content_types import DownloadContentTypeFilter
     from boosty_downloader.domain.library import (
         LibraryAuthor,
         LibraryPost,
@@ -59,40 +57,10 @@ class ProgressReporter(Protocol):
     def notice(self, message: str) -> None: ...
 
 
-class PostCache(Protocol):
-    """Which parts of a post an earlier run already saved."""
-
-    def has_post(self, post_uuid: str) -> bool: ...
-
-    def get_post_missing_parts(
-        self,
-        post_uuid: str,
-        updated_at: datetime,
-        required: list[DownloadContentTypeFilter],
-    ) -> list[DownloadContentTypeFilter]: ...
-
-    def cache_post(
-        self,
-        post_uuid: str,
-        updated_at: datetime,
-        was_downloaded: list[DownloadContentTypeFilter],
-    ) -> None: ...
-
-    def commit(self) -> None: ...
-
-
 class FailureLog(Protocol):
     """Where failed downloads are recorded for the user to act on later."""
 
     async def add_error(self, error_id: str, message: str) -> None: ...
-
-
-class CacheStorage(Protocol):
-    """The cache of one creator as it sits on disk, without opening it."""
-
-    def exists(self) -> bool: ...
-
-    def remove(self) -> None: ...
 
 
 class PostStore(Protocol):
