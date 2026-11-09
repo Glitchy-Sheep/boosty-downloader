@@ -338,7 +338,7 @@ def test_malformed_source_fails_without_changing_previous_index_or_records(
 
 
 def test_unusable_cache_reports_literal_path_and_remedy(
-    tmp_path: Path, library: _Library
+    tmp_path: Path, library: _Library, caplog: pytest.LogCaptureFixture
 ) -> None:
     cache = tmp_path / 'cache[red]'
     index_path = cache / 'index.db'
@@ -351,7 +351,8 @@ def test_unusable_cache_reports_literal_path_and_remedy(
 
     assert result.exit_code == 1
     output = _plain(result.output)
-    assert 'cache[red]' in output
+    message = '\n'.join(record.getMessage() for record in caplog.records)
+    assert 'cache[red]' in Text.from_markup(message).plain
     assert '--cache-dir' in output
     assert 'clean-cache' not in output
     assert _snapshot(tmp_path) == before
