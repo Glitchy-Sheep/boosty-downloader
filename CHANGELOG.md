@@ -2,6 +2,8 @@
 
 ### Added
 
+- Add `view` to run the packaged library viewer locally, with an optional LAN listener, path-only configuration and a read-only compatibility page for older downloads.
+
 - Downloads update a disposable library search index after saving records. Index failures warn once per run and do not interrupt downloads; `--cache-dir` places the index on a separate local disk.
 
 - Downloads save Boosty video previews and locked-post teasers independently of content-type filters. Existing images are reused; missing ones are fetched again. Library cover selection follows the current post order and excludes removed media.

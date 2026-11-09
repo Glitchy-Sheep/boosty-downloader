@@ -56,6 +56,13 @@ tasks:
     cmds:
       - npm ci
 
+  ui:dev:
+    desc: Run the localhost viewer dev server with a local backend proxy
+    dir: viewer-ui
+    deps: [ui:install]
+    cmds:
+      - npm run dev -- {{.CLI_ARGS}}
+
   ui:check:
     desc: Type-check, lint and test the viewer
     dir: viewer-ui

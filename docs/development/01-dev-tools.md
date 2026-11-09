@@ -26,7 +26,18 @@ Commit `viewer-ui/package-lock.json` with dependency changes. Generated assets a
 
 A standard wheel build without `viewer/static/app/index.html` fails with a `task ui:build` hint. Direct `uv build` therefore requires that frontend step first; use `task build` for the complete pipeline. The generated UI also travels in the source distribution, so building a wheel from a released source archive does not need Node. Installing a published wheel does not need Node either.
 
-The current frontend provides the approved shell and theme. The `view` command and library data are connected in later stages.
+The current frontend provides the approved shell and theme through the `view` server. Library APIs and data screens are connected in subsequent stages.
+
+Start the Python backend on an explicit port and the Vite dev server in another terminal:
+
+```bash
+uv run python -m boosty_downloader.main view -o .sample/library --port 8314 --no-open
+task ui:dev
+```
+
+The dev page is at `http://127.0.0.1:5174`. It binds localhost only and proxies `/api/` and `/media/` to `http://127.0.0.1:8314`, rewriting Host and Origin for the backend's request guards. To use another backend port, set `BOOSTY_VIEWER_BACKEND` to the matching URL when starting `task ui:dev`. Use an explicit `view --port` so a busy default port cannot move the backend away from the proxy target. The read APIs and data screens are added by subsequent viewer stages.
+
+After Ctrl+C, a fixed port can remain temporarily unavailable while the OS closes prior connections. Wait, or choose another `--port` and update `BOOSTY_VIEWER_BACKEND` to match. Exclusive binding prevents the viewer from sharing a port with another local listener.
 
 ## Ruff (lint + format)
 
