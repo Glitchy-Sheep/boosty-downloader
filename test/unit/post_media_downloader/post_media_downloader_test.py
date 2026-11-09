@@ -1,14 +1,10 @@
-"""PostMediaDownloader: one folder per media kind, one progress and error shape.
-
-The transport is faked at the module seam (`download_file`, the yt-dlp
-wrapper); the layout, the naming policy and the error contract are real.
-"""
+"""The post facade preserves reserved results, progress and transport failures."""
 
 from __future__ import annotations
 
 import asyncio
 import threading
-import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -33,11 +29,13 @@ from boosty_downloader.infrastructure.external_videos_downloader.external_videos
 from boosty_downloader.infrastructure.file_downloader import (
     DownloadCancelledError,
     DownloadError,
-    DownloadFileConfig,
     DownloadingStatus,
     DownloadIOFailureError,
     DownloadUnexpectedStatusError,
+    ReservedDownloadFileConfig,
 )
+from boosty_downloader.infrastructure.media_publication import PublishedFile
+from boosty_downloader.infrastructure.media_transfer import MediaTarget
 from boosty_downloader.infrastructure.post_media_downloader import (
     MediaDownloadError,
     MediaProgress,
@@ -48,32 +46,45 @@ if TYPE_CHECKING:
     from aiohttp_retry import RetryClient
 
     from boosty_downloader.infrastructure.external_videos_downloader.external_videos_downloader import (
+        ExternalVideoDownloadProgressHook,
         ExternalVideosDownloader,
     )
+    from boosty_downloader.infrastructure.media_transfer import ReserveMediaPath
 
 RESOURCE = 'https://cdn.example/file'
+POST_FOLDER = 'author/post'
 
 
-def _downloader(post_dir: Path, external: object = None) -> PostMediaDownloader:
+def _downloader(external: object = None) -> PostMediaDownloader:
     return PostMediaDownloader(
         http=cast('RetryClient', None),
         external_videos=cast('ExternalVideosDownloader', external),
-        post_dir=post_dir,
     )
 
 
-def _noop(progress: MediaProgress) -> None:
-    del progress
+def _reserve(
+    root: Path, folder: str = 'files', media_id: str = 'file:f1'
+) -> ReserveMediaPath:
+    def reserve(name: str) -> MediaTarget:
+        return MediaTarget(root, POST_FOLDER, f'{folder}/{name}', media_id)
+
+    return reserve
+
+
+def _noop(_progress: MediaProgress) -> None:
+    pass
 
 
 def _fake_transport(
     monkeypatch: pytest.MonkeyPatch, error: DownloadError | None = None
-) -> list[DownloadFileConfig]:
-    """Replace `download_file`: record the config, report one chunk, save or fail."""
-    configs: list[DownloadFileConfig] = []
+) -> list[ReservedDownloadFileConfig]:
+    configs: list[ReservedDownloadFileConfig] = []
 
-    async def fake_download_file(config: DownloadFileConfig) -> Path:
+    async def fake_download(config: ReservedDownloadFileConfig) -> PublishedFile:
         configs.append(config)
+        if error is not None:
+            raise error
+        target = config.reserve(config.filename)
         config.on_status_update(
             DownloadingStatus(
                 name=config.filename,
@@ -82,61 +93,68 @@ def _fake_transport(
                 downloaded_bytes=40,
             )
         )
-        if error is not None:
-            raise error
-        # The fake saves the name as given: no extension guessing here.
-        return config.destination / config.filename
+        return PublishedFile(
+            path=target.library_root / target.post_folder / target.relative_path,
+            size=40,
+        )
 
-    monkeypatch.setattr(module, 'download_file', fake_download_file)
+    monkeypatch.setattr(module, 'download_reserved_file', fake_download)
     return configs
 
 
-async def _download_every_kind(media: PostMediaDownloader) -> list[Path]:
+async def _download_every_kind(
+    media: PostMediaDownloader, root: Path
+) -> list[PublishedFile]:
     return [
         await media.download_image(
-            PostDataChunkImage(id='i1', url='https://cdn/image/40f9e868'), _noop
+            PostDataChunkImage(id='i1', url='https://cdn/image/40f9e868'),
+            _noop,
+            reserve=_reserve(root, 'images', 'image:i1'),
         ),
         await media.download_file(
-            PostDataChunkFile(id='f1', url='u', filename='any.appimage'), _noop
+            PostDataChunkFile(id='f1', url='u', filename='any.appimage'),
+            _noop,
+            reserve=_reserve(root),
         ),
         await media.download_audio(
-            PostDataChunkAudio(id='a1', url='u', title='song.mp3'), _noop
+            PostDataChunkAudio(id='a1', url='u', title='song.mp3'),
+            _noop,
+            reserve=_reserve(root, 'audio', 'audio:a1'),
         ),
         await media.download_boosty_video(
             PostDataChunkBoostyVideo(
                 id='a2dd6942-7297', title='Update v1.2', url='u', quality='medium'
             ),
             _noop,
+            reserve=_reserve(root, 'boosty_videos', 'boosty_video:a2dd6942-7297'),
         ),
     ]
 
 
-async def test_each_kind_lands_in_its_own_folder_relative_to_the_post(
+async def test_success_keeps_the_transports_reserved_paths_and_sizes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The layout on disk and the relative paths in post.html are the user contract."""
     _fake_transport(monkeypatch)
 
-    saved = await _download_every_kind(_downloader(tmp_path))
+    saved = await _download_every_kind(_downloader(), tmp_path)
 
-    assert saved == [
+    assert [result.path.relative_to(tmp_path / POST_FOLDER) for result in saved] == [
         Path('images/40f9e868'),
         Path('files/any.appimage'),
         Path('audio/song.mp3'),
         Path('boosty_videos/Update v1.2 (a2dd6942)'),
     ]
-    assert all((tmp_path / path.parent).is_dir() for path in saved)
+    assert all(result.size == 40 for result in saved)
 
 
 async def test_extension_policy_follows_the_name_origin(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """#75: author names (files, audio) are never touched; app-built names ask for one."""
     configs = _fake_transport(monkeypatch)
 
-    await _download_every_kind(_downloader(tmp_path))
+    await _download_every_kind(_downloader(), tmp_path)
 
-    assert {c.filename: c.guess_extension for c in configs} == {
+    assert {config.filename: config.guess_extension for config in configs} == {
         '40f9e868': True,
         'any.appimage': False,
         'song.mp3': False,
@@ -150,8 +168,10 @@ async def test_file_progress_comes_out_in_one_shape(
     _fake_transport(monkeypatch)
     seen: list[MediaProgress] = []
 
-    await _downloader(tmp_path).download_file(
-        PostDataChunkFile(id='f1', url='u', filename='a.zip'), seen.append
+    await _downloader().download_file(
+        PostDataChunkFile(id='f1', url='u', filename='a.zip'),
+        seen.append,
+        reserve=_reserve(tmp_path),
     )
 
     assert seen == [MediaProgress(downloaded_bytes=40, total_bytes=100, delta_bytes=40)]
@@ -167,48 +187,65 @@ async def test_file_progress_comes_out_in_one_shape(
     ],
     ids=['status', 'io'],
 )
-async def test_transport_failure_becomes_a_media_error_with_the_cause_kept(
+async def test_transport_failure_keeps_its_cause_and_never_deletes_a_reported_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error: DownloadError
 ) -> None:
-    """The expired-link check walks __cause__: the transport error must stay reachable."""
     if error.file is not None:
-        error.file = tmp_path / 'files' / error.file
-        error.file.parent.mkdir()
-        error.file.write_bytes(b'partial')
+        error.file = tmp_path / error.file
+        error.file.write_bytes(b'user file')
     _fake_transport(monkeypatch, error)
 
-    with pytest.raises(MediaDownloadError) as info:
-        await _downloader(tmp_path).download_file(
-            PostDataChunkFile(id='f1', url=RESOURCE, filename='a.zip'), _noop
+    with pytest.raises(MediaDownloadError) as caught:
+        await _downloader().download_file(
+            PostDataChunkFile(id='f1', url=RESOURCE, filename='a.zip'),
+            _noop,
+            reserve=_reserve(tmp_path),
         )
 
-    assert info.value.__cause__ is error
-    assert info.value.resource_url == RESOURCE
-    assert info.value.message == error.message
+    assert caught.value.__cause__ is error
+    assert caught.value.resource_url == RESOURCE
+    assert caught.value.message == error.message
+    assert caught.value.file is None
     if error.file is not None:
-        assert not error.file.exists(), 'a partial file must not survive'
+        assert error.file.read_bytes() == b'user file'
 
 
-async def test_cancelled_transfer_is_a_cancellation_without_the_partial_file(
+async def test_cancelled_transfer_is_a_cancellation_and_preserves_foreign_output(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    partial = tmp_path / 'files' / 'a.zip'
-    partial.parent.mkdir()
-    partial.write_bytes(b'partial')
-    _fake_transport(
-        monkeypatch, DownloadCancelledError(resource_url=RESOURCE, file=partial)
-    )
+    occupied = tmp_path / 'a.zip'
+    occupied.write_bytes(b'user file')
+    failure = DownloadCancelledError(resource_url=RESOURCE, file=occupied)
+    _fake_transport(monkeypatch, failure)
 
-    with pytest.raises(asyncio.CancelledError):
-        await _downloader(tmp_path).download_file(
-            PostDataChunkFile(id='f1', url=RESOURCE, filename='a.zip'), _noop
+    with pytest.raises(asyncio.CancelledError) as caught:
+        await _downloader().download_file(
+            PostDataChunkFile(id='f1', url=RESOURCE, filename='a.zip'),
+            _noop,
+            reserve=_reserve(tmp_path),
         )
 
-    assert not partial.exists()
+    assert caught.value.__cause__ is failure
+    assert occupied.read_bytes() == b'user file'
 
 
-# ------------------------------------------------------------------------------
-# External videos: yt-dlp must run off the loop, stay cancellable, report safely.
+async def test_reservation_failure_is_not_reclassified_as_a_media_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failure = OSError('Saving reservation failed')
+    _fake_transport(monkeypatch)
+
+    def reserve(_name: str) -> MediaTarget:
+        raise failure
+
+    with pytest.raises(OSError, match='Saving reservation failed') as caught:
+        await _downloader().download_file(
+            PostDataChunkFile(id='f1', url=RESOURCE, filename='a.zip'),
+            _noop,
+            reserve=reserve,
+        )
+
+    assert caught.value is failure
 
 
 def _status() -> ExternalVideoDownloadStatus:
@@ -222,73 +259,89 @@ def _status() -> ExternalVideoDownloadStatus:
     )
 
 
-async def test_external_video_runs_off_the_loop_and_progress_lands_on_it(
+class _ExternalAdapter:
+    def __init__(self, error: ExtVideoError | None = None) -> None:
+        self.error = error
+
+    async def download_reserved_video(
+        self,
+        url: str,
+        reserve: ReserveMediaPath,
+        *,
+        progress_hook: ExternalVideoDownloadProgressHook | None = None,
+    ) -> PublishedFile:
+        del url
+        if self.error is not None:
+            raise self.error
+        target = reserve('video.mp4')
+        if progress_hook is not None:
+            progress_hook(_status())
+        return PublishedFile(
+            target.library_root / target.post_folder / target.relative_path, 100
+        )
+
+
+@dataclass(frozen=True)
+class _ObservedProgress:
+    thread_id: int
+    progress: MediaProgress
+
+
+async def test_external_progress_stays_on_the_adapters_event_loop(
     tmp_path: Path,
 ) -> None:
-    """The loop thread must stay free; the progress display is touched only from it."""
-    loop_thread = threading.get_ident()
-    seen: dict[str, int] = {}
-    progress: list[tuple[int, MediaProgress]] = []
+    seen: list[_ObservedProgress] = []
 
-    class _FakeDownloader:
-        def download_video(
-            self, *, url: str, destination_directory: Path, progress_hook: object
-        ) -> Path:
-            del url
-            seen['download_thread'] = threading.get_ident()
-            cast('object', progress_hook)(_status())  # type: ignore[operator]
-            return destination_directory / 'v.mp4'
+    def progress(step: MediaProgress) -> None:
+        seen.append(_ObservedProgress(threading.get_ident(), step))
 
-    def on_progress(step: MediaProgress) -> None:
-        progress.append((threading.get_ident(), step))
-
-    result = await _downloader(tmp_path, _FakeDownloader()).download_external_video(
-        PostDataChunkExternalVideo(url='https://y/1'), on_progress
+    result = await _downloader(_ExternalAdapter()).download_external_video(
+        PostDataChunkExternalVideo(url='https://y/1'),
+        progress,
+        reserve=_reserve(tmp_path, 'external_videos', 'external_video:https://y/1'),
     )
-    await asyncio.sleep(0.05)  # let call_soon_threadsafe deliver the update
 
-    assert seen['download_thread'] != loop_thread, 'yt-dlp must not run on the loop'
-    assert progress == [
-        (
-            loop_thread,
+    assert seen == [
+        _ObservedProgress(
+            threading.get_ident(),
             MediaProgress(downloaded_bytes=10, total_bytes=100, delta_bytes=10),
         )
     ]
-    assert result == Path('external_videos/v.mp4')
+    assert result == PublishedFile(
+        tmp_path / POST_FOLDER / 'external_videos/video.mp4', 100
+    )
 
 
-async def test_cancellation_aborts_the_worker_thread(tmp_path: Path) -> None:
-    """Ctrl+C must stop yt-dlp, not leave it downloading in a zombie thread."""
-    started = threading.Event()
-    aborted = threading.Event()
+async def test_cancellation_waits_for_the_external_adapter_to_exit(
+    tmp_path: Path,
+) -> None:
+    started = asyncio.Event()
+    stopped = asyncio.Event()
 
-    class _LoopingDownloader:
-        def download_video(
-            self, *, url: str, destination_directory: Path, progress_hook: object
-        ) -> Path:
-            del url, destination_directory
+    class _WaitingAdapter:
+        async def download_reserved_video(
+            self, *_args: object, **_kwargs: object
+        ) -> PublishedFile:
             started.set()
             try:
-                while True:
-                    time.sleep(0.01)
-                    cast('object', progress_hook)(_status())  # type: ignore[operator]
-            except KeyboardInterrupt:
-                aborted.set()
-                raise ExtVideoInterruptedByUserError from None
+                await asyncio.Future[None]()
+            finally:
+                stopped.set()
+            pytest.fail('The adapter must be cancelled')
 
     task = asyncio.create_task(
-        _downloader(tmp_path, _LoopingDownloader()).download_external_video(
-            PostDataChunkExternalVideo(url='https://y/1'), _noop
+        _downloader(_WaitingAdapter()).download_external_video(
+            PostDataChunkExternalVideo(url='https://y/1'),
+            _noop,
+            reserve=_reserve(tmp_path),
         )
     )
-    await asyncio.to_thread(started.wait, 2)
+    await asyncio.wait_for(started.wait(), timeout=2)
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
-        await task
+        await asyncio.wait_for(task, timeout=2)
 
-    assert await asyncio.to_thread(aborted.wait, 2), (
-        'the worker must abort via KeyboardInterrupt shortly after the cancel'
-    )
+    assert stopped.is_set()
 
 
 @pytest.mark.parametrize(
@@ -304,53 +357,46 @@ async def test_cancellation_aborts_the_worker_thread(tmp_path: Path) -> None:
 async def test_every_ext_video_error_becomes_a_media_error(
     tmp_path: Path, error: ExtVideoError
 ) -> None:
-    """A removed or restricted video is a failed download, never a raw traceback."""
-
-    class _FailingDownloader:
-        def download_video(self, **kwargs: object) -> Path:
-            del kwargs
-            raise error
-
-    with pytest.raises(MediaDownloadError) as info:
-        await _downloader(tmp_path, _FailingDownloader()).download_external_video(
-            PostDataChunkExternalVideo(url='https://youtube/watch'), _noop
+    with pytest.raises(MediaDownloadError) as caught:
+        await _downloader(_ExternalAdapter(error)).download_external_video(
+            PostDataChunkExternalVideo(url='https://youtube/watch'),
+            _noop,
+            reserve=_reserve(tmp_path),
         )
 
-    assert info.value.__cause__ is error
-    assert info.value.resource_url == 'https://youtube/watch'
-    assert info.value.retryable is True
+    assert caught.value.__cause__ is error
+    assert caught.value.resource_url == 'https://youtube/watch'
+    assert caught.value.retryable is True
 
 
 async def test_a_gone_video_is_a_media_error_that_says_not_to_retry(
     tmp_path: Path,
 ) -> None:
-    """The retrier spent 5 attempts on a deleted video; the reason must travel with the flag."""
     gone = ExtVideoUnavailableError(
         'https://youtube/watch', 'This video is unavailable'
     )
 
-    class _GoneDownloader:
-        def download_video(self, **kwargs: object) -> Path:
-            del kwargs
-            raise gone
-
-    with pytest.raises(MediaDownloadError) as info:
-        await _downloader(tmp_path, _GoneDownloader()).download_external_video(
-            PostDataChunkExternalVideo(url='https://youtube/watch'), _noop
+    with pytest.raises(MediaDownloadError) as caught:
+        await _downloader(_ExternalAdapter(gone)).download_external_video(
+            PostDataChunkExternalVideo(url='https://youtube/watch'),
+            _noop,
+            reserve=_reserve(tmp_path),
         )
 
-    assert info.value.retryable is False
-    assert info.value.message == 'External video unavailable: This video is unavailable'
-    assert info.value.resource_url == 'https://youtube/watch'
+    assert caught.value.retryable is False
+    assert (
+        caught.value.message == 'External video unavailable: This video is unavailable'
+    )
+    assert caught.value.resource_url == 'https://youtube/watch'
 
 
 async def test_worker_interrupt_is_a_cancellation(tmp_path: Path) -> None:
-    class _InterruptedDownloader:
-        def download_video(self, **kwargs: object) -> Path:
-            del kwargs
-            raise ExtVideoInterruptedByUserError
-
-    with pytest.raises(asyncio.CancelledError):
-        await _downloader(tmp_path, _InterruptedDownloader()).download_external_video(
-            PostDataChunkExternalVideo(url='https://y/1'), _noop
+    interrupted = ExtVideoInterruptedByUserError()
+    with pytest.raises(asyncio.CancelledError) as caught:
+        await _downloader(_ExternalAdapter(interrupted)).download_external_video(
+            PostDataChunkExternalVideo(url='https://y/1'),
+            _noop,
+            reserve=_reserve(tmp_path),
         )
+
+    assert caught.value.__cause__ is interrupted

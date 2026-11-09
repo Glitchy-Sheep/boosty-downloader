@@ -9,13 +9,14 @@ from pathlib import PurePosixPath
 import pytest
 
 from boosty_downloader.application.media_paths import (
-    DiskSnapshot,
     FileMatch,
     MediaPathHint,
     find_media_file,
     find_recorded_file,
+    get_media_alias_queries,
     reserve_media_path,
 )
+from boosty_downloader.domain.disk_snapshot import DiskSnapshot
 from boosty_downloader.infrastructure.path_sanitizer import MAX_NAME_BYTES
 
 MEDIA_ID = 'file:abcdefgh-first'
@@ -230,12 +231,20 @@ def test_response_suffix_matching_finds_a_numbered_existing_file():
     ('path', 'expected'),
     [
         ('.file.part', None),
+        ('files/.boosty-attempt.part/archive.zip', None),
+        ('videos/.boosty-attempt.part/fragments/clip.mp4', None),
         ('file.part', FileMatch(path='file.part', size=12)),
         ('.cover', FileMatch(path='.cover', size=12)),
     ],
-    ids=['download-temporary', 'ordinary-part-attachment', 'ordinary-dotfile'],
+    ids=[
+        'download-temporary',
+        'workspace-output',
+        'nested-workspace-output',
+        'ordinary-part-attachment',
+        'ordinary-dotfile',
+    ],
 )
-def test_only_hidden_part_files_are_temporary(
+def test_hidden_part_files_and_their_contents_are_temporary(
     path: str,
     expected: FileMatch | None,
 ):
@@ -430,6 +439,233 @@ def test_an_observer_alias_cannot_adopt_another_owners_file():
             recorded_path=alias,
             preferred=MediaPathHint(alias),
             expected_size=12,
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    ('media_id', 'hint', 'observed', 'queried'),
+    [
+        (
+            MEDIA_ID,
+            MediaPathHint('files/Archive.zip'),
+            'FILES/archive.ZIP',
+            'files/Archive.zip',
+        ),
+        (
+            MEDIA_ID,
+            MediaPathHint('Données/Café.zip'),
+            'Donne\u0301es/Cafe\u0301.ZIP',
+            'Données/Café.zip',
+        ),
+        (
+            MEDIA_ID,
+            MediaPathHint('files/strasse.zip'),
+            'files/straße.zip',
+            'files/strasse.zip',
+        ),
+        (
+            'file:AbCdEfGh-first',
+            MediaPathHint('files/Report.zip'),
+            'FILES/report (aBcDeFgH-7).ZIP',
+            'files/Report (AbCdEfGh-7).zip',
+        ),
+        (
+            'file:ébcdefgh-first',
+            MediaPathHint('files/Report.zip'),
+            'files/report (e\u0301bcdefgh-9).zip',
+            'files/Report (ébcdefgh-9).zip',
+        ),
+        (
+            'boosty_video:abcdefgh-first',
+            MediaPathHint('videos/Lecture.v1', suffix_from_response=True),
+            'VIDEOS/LECTURE.V1 (ABCDEFGH-4).MP4',
+            'videos/Lecture.v1 (abcdefgh-4).MP4',
+        ),
+        (
+            'boosty_video:abcdefgh-first',
+            MediaPathHint('videos/Lecture.v1', suffix_from_response=True),
+            'VIDEOS/LECTURE.V1',
+            'videos/Lecture.v1',
+        ),
+        (
+            MEDIA_ID,
+            MediaPathHint('files/report (abcdefgh).zip'),
+            'FILES/REPORT (ABCDEFGH) (ABCDEFGH-3).ZIP',
+            'files/report (abcdefgh) (abcdefgh-3).zip',
+        ),
+    ],
+    ids=[
+        'case',
+        'unicode',
+        'casefold-lookalike',
+        'token-case',
+        'token-unicode',
+        'response-suffix',
+        'suffixless-response',
+        'marker-in-title',
+    ],
+)
+def test_alias_queries_need_confirmation_before_recovery(
+    media_id: str, hint: MediaPathHint, observed: str, queried: str
+) -> None:
+    disk = DiskSnapshot({observed: 12})
+
+    assert get_media_alias_queries({media_id: hint}, disk) == {queried}
+    assert find_media_file(media_id, disk, {}, preferred=hint) is None
+    assert disk.aliases == {}
+
+
+@pytest.mark.parametrize(
+    'preferred',
+    [f'files/{"я" * 300}.zip', f'files/report.{"я" * 150}'],
+    ids=['long-stem', 'long-extension'],
+)
+def test_alias_queries_preserve_generated_collision_name_truncation(
+    preferred: str,
+) -> None:
+    first = reserve_media_path(preferred, MEDIA_ID, DiskSnapshot({}), {})
+    second = reserve_media_path(preferred, MEDIA_ID, DiskSnapshot({first: 12}), {})
+    disk = DiskSnapshot({second.upper(): 12})
+
+    assert get_media_alias_queries({MEDIA_ID: MediaPathHint(preferred)}, disk) == {
+        second
+    }
+
+
+def test_alias_queries_skip_exact_unrelated_temporary_and_external_names() -> None:
+    hints = {
+        MEDIA_ID: MediaPathHint('files/archive.zip'),
+        'file:partial': MediaPathHint('files/.archive.part'),
+        'external_video:https://video.example/lesson': MediaPathHint(
+            'videos/title.mp4'
+        ),
+    }
+    disk = DiskSnapshot(
+        {
+            'files/archive.zip': 12,
+            'files/archive.zip.backup': 12,
+            'files/.archive.part': 12,
+            'files/.ARCHIVE.PART': 12,
+            'elsewhere/ARCHIVE.zip': 12,
+            'videos/TITLE.mp4': 12,
+        },
+        occupied={'files/ARCHIVE.zip'},
+    )
+
+    assert get_media_alias_queries(hints, disk) == set()
+
+
+def test_alias_queries_preserve_input_ownership() -> None:
+    hints = {MEDIA_ID: MediaPathHint('files/Archive.zip')}
+    disk = DiskSnapshot(
+        {'files/ARCHIVE.ZIP': 12},
+        occupied={'files/other'},
+        aliases={'files/old-spelling.zip': 'files/ARCHIVE.ZIP'},
+    )
+    original = deepcopy((hints, disk))
+
+    queries = get_media_alias_queries(hints, disk)
+    queries.clear()
+
+    assert (hints, disk) == original
+
+
+@pytest.mark.parametrize(
+    'retained',
+    [
+        'files/Café.zip/retained-preview.png',
+        'FILES/Cafe\u0301.ZIP/retained-preview.png',
+    ],
+)
+def test_allocator_keeps_required_directories_for_retained_media(retained: str):
+    assert (
+        reserve_media_path(
+            'files/Café.zip', MEDIA_ID, DiskSnapshot({}), {OTHER_ID: retained}
+        )
+        == 'files/Café (abcdefgh).zip'
+    )
+
+
+@pytest.mark.parametrize('retained', ['files/Café.zip', 'FILES/Cafe\u0301.ZIP'])
+def test_allocator_rejects_a_reserved_file_in_the_output_parent(retained: str):
+    with pytest.raises(ValueError, match='reserves the output directory'):
+        reserve_media_path(
+            'files/Café.zip/image.png',
+            MEDIA_ID,
+            DiskSnapshot({}),
+            {OTHER_ID: retained},
+        )
+
+
+def test_parent_reservations_respect_complete_path_components():
+    preferred = 'files/archive.zip'
+    reservations = {OTHER_ID: 'files/archive.zip-copy/retained-preview.png'}
+
+    assert reserve_media_path(preferred, MEDIA_ID, DiskSnapshot({}), reservations) == (
+        preferred
+    )
+    assert find_media_file(
+        MEDIA_ID, DiskSnapshot({preferred: 12}), reservations, recorded_path=preferred
+    ) == FileMatch(path=preferred, size=12)
+
+
+@pytest.mark.parametrize('use_recorded', [False, True])
+@pytest.mark.parametrize(
+    'retained',
+    [
+        'files/Café.zip/retained-preview.png',
+        'FILES/Cafe\u0301.ZIP/retained-preview.png',
+    ],
+)
+def test_recovery_cannot_adopt_a_file_that_blocks_a_reserved_descendant(
+    retained: str, *, use_recorded: bool
+):
+    candidate = 'files/Café.zip'
+    recorded = candidate if use_recorded else None
+
+    assert (
+        find_media_file(
+            MEDIA_ID,
+            DiskSnapshot({candidate: 12}),
+            {OTHER_ID: retained},
+            recorded_path=recorded,
+            preferred=MediaPathHint(candidate),
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize('use_recorded', [False, True])
+def test_recovery_cannot_adopt_a_file_below_a_reserved_parent(*, use_recorded: bool):
+    candidate = 'files/Café.zip/image.png'
+    recorded = candidate if use_recorded else None
+
+    assert (
+        find_media_file(
+            MEDIA_ID,
+            DiskSnapshot({candidate: 12}),
+            {OTHER_ID: 'FILES/Cafe\u0301.ZIP'},
+            recorded_path=recorded,
+            preferred=MediaPathHint(candidate),
+        )
+        is None
+    )
+
+
+def test_recovery_checks_parent_conflicts_through_a_confirmed_alias():
+    actual = 'files/Café.zip'
+    alias = 'FILES/Cafe\u0301.ZIP'
+    disk = DiskSnapshot({actual: 12}, aliases={alias: actual})
+
+    assert (
+        find_media_file(
+            MEDIA_ID,
+            disk,
+            {OTHER_ID: f'{alias}/retained-preview.png'},
+            recorded_path=alias,
+            preferred=MediaPathHint(alias),
         )
         is None
     )

@@ -12,9 +12,6 @@ from boosty_downloader.application.filtering import (
 )
 from boosty_downloader.cli.help_panels import HelpPanels
 from boosty_downloader.domain.content_types import DownloadContentTypeFilter
-from boosty_downloader.infrastructure.loggers.debug_file import (
-    enable_debug_file_log,
-)
 
 UsernameArgument = Annotated[
     str,
@@ -42,7 +39,7 @@ ContentTypeFilterOption = Annotated[
     typer.Option(
         '--content-type-filter',
         '-f',
-        help='Choose what content you want to download\n\n(default: ALL SET)',
+        help='Choose media to download; saved post pages always describe the complete post\n\n(default: ALL SET)',
         metavar='Available options:\n- files\n- post_content\n- boosty_videos\n- external_videos\n- audio\n',
         show_default=False,
         rich_help_panel=HelpPanels.filtering,
@@ -103,7 +100,7 @@ CacheDirectoryOption = Annotated[
     Path | None,
     typer.Option(
         '--cache-dir',
-        help='Custom directory for cache database (useful when downloading to network storage), cache dir will have subdirectory for each author',
+        help='Directory for the disposable library search index (PATH/index.db)',
         dir_okay=True,
         file_okay=False,
         resolve_path=True,
@@ -126,7 +123,17 @@ DryRunOption = Annotated[
     bool,
     typer.Option(
         '--dry-run',
-        help='Show what a download run would fetch and exit without downloading',
+        help='Preview selected downloads from current records without creating or changing files',
+        rich_help_panel=HelpPanels.actions,
+    ),
+]
+
+
+RestoreMissingOption = Annotated[
+    bool,
+    typer.Option(
+        '--restore-missing',
+        help='Download selected media deleted locally if it is still present in the post',
         rich_help_panel=HelpPanels.actions,
     ),
 ]
@@ -142,26 +149,11 @@ SkipAllFailuresOption = Annotated[
     ),
 ]
 
-YesOption = Annotated[
-    bool,
-    typer.Option(
-        '--yes',
-        '-y',
-        help='Do not ask for confirmation',
-        rich_help_panel=HelpPanels.actions,
-    ),
-]
-
 
 def _print_version(value: bool) -> None:  # noqa: FBT001 - typer callback contract
     if value:
         typer.echo(importlib.metadata.version('boosty-downloader'))
         raise typer.Exit
-
-
-def _enable_debug(value: bool) -> None:  # noqa: FBT001 - typer callback contract
-    if value:
-        enable_debug_file_log()
 
 
 VersionOption = Annotated[
@@ -179,9 +171,7 @@ DebugOption = Annotated[
     bool,
     typer.Option(
         '--debug',
-        help='Write a detailed log file for bug reports',
-        callback=_enable_debug,
-        is_eager=True,
+        help='Write diagnostics to a log file; dry-run shows them on the console only',
     ),
 ]
 
@@ -202,6 +192,7 @@ class GlobalOptions:
     """Options given before the command name; the app callback sets them."""
 
     config_path: Path
+    debug: bool = False
 
 
 def global_options(ctx: typer.Context) -> GlobalOptions:

@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, TypeAlias
 
 from boosty_downloader.application import mappers
 from boosty_downloader.application.mappers.list import to_domain_list_style
+from boosty_downloader.application.mappers.post_metadata import map_post_metadata
 from boosty_downloader.domain.post_data_chunks import (
     PostDataChunkAudio,
     PostDataChunkBoostyVideo,
@@ -112,7 +113,7 @@ def map_post_dto_to_live(
     preferred_video_quality: BoostyOkVideoType,
 ) -> LivePost:
     """Keep every supported piece, including those without a download yet."""
-    live = LivePost(_map_metadata(post_dto, author), post_dto.has_access, [], {})
+    live = LivePost(map_post_metadata(post_dto, author), post_dto.has_access, [], {})
     for chunk in post_dto.data:
         match chunk:
             case (
@@ -150,32 +151,6 @@ def map_post_dto_to_live(
                 # Unsupported chunks are reported from the API response.
                 pass
     return live
-
-
-def _map_metadata(post: PostDTO, author: str) -> PostMetadata:
-    tier = post.subscription_level
-    return PostMetadata(
-        id=post.id,
-        author=author,
-        url=f'https://boosty.to/{author}/posts/{post.id}',
-        title=post.title,
-        created_at=post.created_at,
-        updated_at=post.updated_at,
-        published_at=post.publish_time,
-        tags=[tag.title for tag in post.tags or []],
-        tier=tier.name if tier else None,
-        tier_price_rub=_rub_price(tier.currency_prices) if tier else None,
-        post_price_rub=_rub_price(post.currency_prices),
-        likes=post.count.likes if post.count else 0,
-        comments=post.count.comments if post.count else 0,
-        content_counters={
-            item.type: item.count for item in post.content_counters or []
-        },
-    )
-
-
-def _rub_price(prices: dict[str, float] | None) -> float | None:
-    return prices.get('RUB') if prices is not None else None
 
 
 def _to_text_block(fragments: list[PostDataChunkText.TextFragment]) -> TextBlock:

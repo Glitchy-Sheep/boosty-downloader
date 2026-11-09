@@ -14,7 +14,7 @@ class RunStatistics:
 
     started_at: float = field(default_factory=time.monotonic)
     posts_downloaded: int = 0
-    # Skipped: cached and up to date.
+    # No content or local state change is needed under the selected filters.
     posts_cached: int = 0
     # Skipped: nothing under the chosen filters.
     posts_without_content: int = 0
@@ -23,6 +23,7 @@ class RunStatistics:
     posts_locked: int = 0
     media: MediaCounts = field(default_factory=MediaCounts)
     downloaded_bytes: int = 0
+    media_deleted: int = 0
 
     def add_media(self, media: MediaCounts, downloaded_bytes: int) -> None:
         """Count one finished media download."""

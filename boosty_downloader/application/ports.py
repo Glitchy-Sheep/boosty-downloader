@@ -1,24 +1,27 @@
 """
 Ports of the application layer: what the use cases need from the outside.
 
-Implementations live in cli and infrastructure. They match structurally, without importing this module; conformance is checked where the app is put together. Shared argument and result types live in domain.
+Ports describe dependencies without selecting their implementations. Conformance is checked where the app is put together. Shared argument and result types live in domain.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Protocol, TypeAlias
 
 if TYPE_CHECKING:
-    from datetime import datetime
+    from collections.abc import Iterator
     from uuid import UUID
 
-    from boosty_downloader.domain.content_types import DownloadContentTypeFilter
     from boosty_downloader.domain.library import (
         LibraryAuthor,
-        LibraryPost,
+        LibraryPostDetails,
         LocatedPost,
         PostFilters,
-        PostOverview,
+        PostList,
+        SavedPage,
+        SavedPost,
+        TagCount,
     )
     from boosty_downloader.domain.library_marks import PostMarks
     from boosty_downloader.domain.stored_post import (
@@ -57,40 +60,10 @@ class ProgressReporter(Protocol):
     def notice(self, message: str) -> None: ...
 
 
-class PostCache(Protocol):
-    """Which parts of a post an earlier run already saved."""
-
-    def has_post(self, post_uuid: str) -> bool: ...
-
-    def get_post_missing_parts(
-        self,
-        post_uuid: str,
-        updated_at: datetime,
-        required: list[DownloadContentTypeFilter],
-    ) -> list[DownloadContentTypeFilter]: ...
-
-    def cache_post(
-        self,
-        post_uuid: str,
-        updated_at: datetime,
-        was_downloaded: list[DownloadContentTypeFilter],
-    ) -> None: ...
-
-    def commit(self) -> None: ...
-
-
 class FailureLog(Protocol):
     """Where failed downloads are recorded for the user to act on later."""
 
     async def add_error(self, error_id: str, message: str) -> None: ...
-
-
-class CacheStorage(Protocol):
-    """The cache of one creator as it sits on disk, without opening it."""
-
-    def exists(self) -> bool: ...
-
-    def remove(self) -> None: ...
 
 
 class PostStore(Protocol):
@@ -124,8 +97,25 @@ class PostStore(Protocol):
         """
         ...
 
+    def load_author(self, author: str) -> AuthorInfo | None:
+        """
+        Load an independent author snapshot without persistent writes.
+
+        Return None when no author record exists. Unreadable records raise an error.
+        """
+        ...
+
     def save_author(self, author: AuthorInfo) -> None:
         """Save one author's information, preserving all other authors."""
+        ...
+
+    def load_locked_post(self, author: str, post_id: str) -> LockedPost | None:
+        """
+        Read an independent access observation without changing the library.
+
+        Return None for an unknown post.
+        Invalid or unreadable records raise their error.
+        """
         ...
 
     def save_locked_post(self, post: LockedPost) -> None:
@@ -145,23 +135,64 @@ class PostStore(Protocol):
         ...
 
 
+class StoredPostCollection(Protocol):
+    """Enumerate and save canonical records independently of the browsing index."""
+
+    def iter_saved_posts(self, author: str | None = None) -> Iterator[SavedPost]:
+        """Read fresh independent records for one author or the entire library."""
+        ...
+
+    def save_post(self, folder: str, record: StoredPost) -> None:
+        """Atomically save a record in its confirmed folder, preserving other files."""
+        ...
+
+
+MediaUrl: TypeAlias = Callable[[str], str]
+
+
+class PostBodyRenderer(Protocol):
+    """Render a saved body with URLs for its post-relative media paths."""
+
+    def render(self, record: StoredPost, *, media_url: MediaUrl) -> str:
+        """Return the shared post body without changing records or writing a page."""
+        ...
+
+
 class LibraryReader(Protocol):
     """
     Library queries and user marks for one library root.
 
     Posts are identified by author and full post ID. Results and saved mark inputs are independent snapshots, including nested mutable values. Content updates belong to PostStore.
+
+    Read methods raise domain LibraryReadError when storage cannot provide valid data. Missing resources return None or empty collections; corrupt records remain errors.
     """
 
     def authors(self) -> list[LibraryAuthor]:
         """List authors, including those whose posts have no saved blog information."""
         ...
 
-    def list_posts(self, author: str, filters: PostFilters) -> list[PostOverview]:
-        """Query one author's post overviews without loading full bodies."""
+    def author(self, author: str) -> LibraryAuthor | None:
+        """Read one author's details and totals, or None for an unknown author."""
         ...
 
-    def post(self, author: str, post_id: str) -> LibraryPost | None:
-        """Return current access and any saved body, or None for an unknown post."""
+    def has_author(self, author: str) -> bool:
+        """Check whether the author belongs to this library without loading totals."""
+        ...
+
+    def tags(self, author: str) -> list[TagCount]:
+        """List exact tags and distinct post counts for one author."""
+        ...
+
+    def list_posts(self, author: str, filters: PostFilters) -> PostList:
+        """Query indexed rows and totals without loading full bodies."""
+        ...
+
+    def post(self, author: str, post_id: str) -> LibraryPostDetails | None:
+        """Read fresh content, access, marks and cover, or None for an unknown post."""
+        ...
+
+    def saved_page(self, author: str, author_relative_path: str) -> SavedPage | None:
+        """Confirm a generated page's stored ownership without granting file access."""
         ...
 
     def get_marks(self, author: str, post_id: str) -> PostMarks | None:

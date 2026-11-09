@@ -16,6 +16,7 @@ from typing import Final
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
+from boosty_downloader.infrastructure.html_generator.links import safe_href
 from boosty_downloader.infrastructure.html_generator.models import (
     HtmlGenAudio,
     HtmlGenChunk,
@@ -38,9 +39,11 @@ from boosty_downloader.infrastructure.html_generator.models import (
 from boosty_downloader.infrastructure.human_readable_filesize import (
     human_readable_size,
 )
+from boosty_downloader.infrastructure.library._atomic_write import write_atomically
+from boosty_downloader.infrastructure.library._media_paths import is_link
 
 # Bump when the generated page structure or styling changes.
-PAGE_TEMPLATE_VERSION: Final[int] = 1
+PAGE_TEMPLATE_VERSION: Final[int] = 2
 
 
 # Load all templates as a package files
@@ -201,12 +204,14 @@ def _render_missing_media(
                 item=item,
                 title=_unavailable_title(item),
                 duration=_format_duration(item.duration),
+                safe_href=safe_href,
             )
         case HtmlGenNotDownloaded():
             return env.get_template('not_downloaded.html').render(
                 item=item,
                 kind=item.kind.value.capitalize(),
                 duration=_format_duration(item.duration),
+                safe_href=safe_href,
             )
         case HtmlGenDeleted():
             return env.get_template('deleted.html').render(
@@ -220,7 +225,7 @@ def _is_line_break(fragment: HtmlInline) -> bool:
 
 def _render_structured_text(block: HtmlGenParagraph | HtmlGenHeading, tag: str) -> str:
     return env.get_template('structured_text.html').render(
-        block=block, tag=tag, is_line_break=_is_line_break
+        block=block, tag=tag, is_line_break=_is_line_break, safe_href=safe_href
     )
 
 
@@ -256,7 +261,7 @@ def render_html_chunk(chunk: HtmlGenChunk) -> str:  # noqa: PLR0911 - one templa
     """Render a single HtmlGenChunk to its HTML representation."""
     match chunk:
         case HtmlGenText():
-            return env.get_template('text.html').render(text=chunk)
+            return env.get_template('text.html').render(text=chunk, safe_href=safe_href)
         case HtmlGenParagraph():
             return _render_structured_text(chunk, 'p')
         case HtmlGenHeading():
@@ -287,10 +292,15 @@ def _render_chunks(chunks: Iterable[HtmlGenChunk]) -> str:
     return '\n'.join(parts)
 
 
+def render_html_body(chunks: Iterable[HtmlGenChunk]) -> str:
+    """Render post content without a document wrapper or the page's theme script."""
+    return _render_chunks(chunks)
+
+
 def render_html(chunks: list[HtmlGenChunk], page_title: str) -> str:
     """Render a list of HTML chunks to a full HTML page."""
     return env.get_template('base.html').render(
-        content=_render_chunks(chunks),
+        content=render_html_body(chunks),
         title=page_title,
         page_template_version=PAGE_TEMPLATE_VERSION,
     )
@@ -302,4 +312,15 @@ def render_html_to_file(
     """Render HTML chunks to HTML file."""
     html = render_html(chunks, page_title)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(html, encoding='utf-8')
+    _check_page_destination(out_path)
+    write_atomically(out_path, html.encode('utf-8'))
+
+
+def _check_page_destination(path: Path) -> None:
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return
+    if is_link(info):
+        message = f'Post page destination is a link: {path}'
+        raise ValueError(message)

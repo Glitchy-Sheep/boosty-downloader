@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import pytest
+from rich.text import Text
+from sqlalchemy.exc import OperationalError
 
 from boosty_downloader import main as main_module
 from boosty_downloader.application.exceptions.application_errors import (
@@ -62,3 +64,26 @@ def test_clean_run_exits_quietly(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(main_module, 'typer_app', lambda: None)
 
     main_module.entry_point()
+
+
+def test_index_failure_reports_reindex_and_preserves_literal_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reason = 'index[red]/index.db is unavailable'
+    error = OperationalError(None, None, OSError(reason))
+    messages: list[str] = []
+    monkeypatch.setattr(main_module, 'typer_app', _raising_app(error))
+    monkeypatch.setattr(
+        main_module.logger_instances.downloader_logger, 'error', messages.append
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        main_module.entry_point()
+
+    assert exc_info.value.code == 1
+    message = Text.from_markup(' '.join(messages)).plain
+    assert 'Library index error' in message
+    assert reason in message
+    assert 'reindex' in message
+    assert 'Saved post records and media are preserved' in message
+    assert 'clean-cache' not in message

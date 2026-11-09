@@ -5,6 +5,11 @@
 {% if duration is not none %}
         <span class="unavailable-reason" data-page-generated="true">Duration: {{ duration }}</span>
 {% endif %}
-        <a class="unavailable-link" href="{{ item.post_url }}" data-page-generated="true">Open the post on Boosty</a>
+{% set href = safe_href(item.post_url) %}
+{% if href %}
+        <a class="unavailable-link" href="{{ href }}" data-page-generated="true">Open the post on Boosty</a>
+{% else %}
+        <span class="unavailable-reason" data-page-generated="true">Open the post on Boosty</span>
+{% endif %}
     </span>
 </div>
