@@ -1,16 +1,12 @@
 """
-Media of one post on disk: images, files, audio, Boosty and external videos.
+Adapt media names, progress and transport errors for the post executor.
 
-Owns the folder layout under the post directory and the filename policy of
-every media kind. Whatever the transport, progress comes out as
-MediaProgress and a failure as MediaDownloadError; cancellation propagates
-as CancelledError with the partial file removed.
+The post owner persists destinations. Each transport owns temporary output and publishes only completed files.
 """
 
 from __future__ import annotations
 
-import threading
-from asyncio import CancelledError, get_running_loop, to_thread
+from asyncio import CancelledError
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -26,8 +22,8 @@ from boosty_downloader.infrastructure.external_videos_downloader.external_videos
 from boosty_downloader.infrastructure.file_downloader import (
     DownloadCancelledError,
     DownloadError,
-    DownloadFileConfig,
-    download_file,
+    ReservedDownloadFileConfig,
+    download_reserved_file,
 )
 from boosty_downloader.infrastructure.media_filenames import boosty_video_filename
 
@@ -48,6 +44,8 @@ if TYPE_CHECKING:
         ExternalVideosDownloader,
     )
     from boosty_downloader.infrastructure.file_downloader import DownloadingStatus
+    from boosty_downloader.infrastructure.media_publication import PublishedFile
+    from boosty_downloader.infrastructure.media_transfer import ReserveMediaPath
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,7 +76,7 @@ class MediaDownloadError(Exception):
         super().__init__(message)
         self.message = message
         self.resource_url = resource_url
-        # Where the file would have been; already removed when set.
+        # Optional resource path for reporting; this error never owns cleanup.
         self.file = file
         # False when the piece is gone for good: another attempt cannot help.
         self.retryable = retryable
@@ -91,108 +89,103 @@ _EXT_VIDEO_DOWNLOAD_FAILED = 'External video download failed'
 _EXT_VIDEO_UNAVAILABLE = 'External video unavailable'
 
 
-def _remove_partial(file: Path | None) -> None:
-    if file is not None:
-        file.unlink(missing_ok=True)
-
-
 class PostMediaDownloader:
-    """Saves the media of one post under its directory, one subfolder per kind."""
+    """Download post media into destinations reserved by its record owner."""
 
     def __init__(
         self,
         http: RetryClient,
         external_videos: ExternalVideosDownloader,
-        post_dir: Path,
     ) -> None:
         self._http = http
         self._external_videos = external_videos
-        self._post_dir = post_dir
 
     async def download_image(
-        self, image: PostDataChunkImage, on_progress: ProgressCallback
-    ) -> Path:
+        self,
+        image: PostDataChunkImage,
+        on_progress: ProgressCallback,
+        *,
+        reserve: ReserveMediaPath,
+    ) -> PublishedFile:
         """Save an image. The name is a bare uuid: Content-Type gives the extension."""
         return await self._download(
             url=image.url,
             filename=URL(image.url).name,
-            subdir='images',
+            reserve=reserve,
             guess_extension=True,
             on_progress=on_progress,
         )
 
     async def download_file(
-        self, file: PostDataChunkFile, on_progress: ProgressCallback
-    ) -> Path:
+        self,
+        file: PostDataChunkFile,
+        on_progress: ProgressCallback,
+        *,
+        reserve: ReserveMediaPath,
+    ) -> PublishedFile:
         """Save an attachment under the author's filename, extension included."""
         return await self._download(
             url=file.url,
             filename=file.filename,
-            subdir='files',
+            reserve=reserve,
             guess_extension=False,
             on_progress=on_progress,
         )
 
     async def download_audio(
-        self, audio: PostDataChunkAudio, on_progress: ProgressCallback
-    ) -> Path:
+        self,
+        audio: PostDataChunkAudio,
+        on_progress: ProgressCallback,
+        *,
+        reserve: ReserveMediaPath,
+    ) -> PublishedFile:
         """Save an audio track under its title, which already carries the extension."""
         return await self._download(
             url=audio.url,
             filename=audio.title,
-            subdir='audio',
+            reserve=reserve,
             guess_extension=False,
             on_progress=on_progress,
         )
 
     async def download_boosty_video(
-        self, video: PostDataChunkBoostyVideo, on_progress: ProgressCallback
-    ) -> Path:
+        self,
+        video: PostDataChunkBoostyVideo,
+        on_progress: ProgressCallback,
+        *,
+        reserve: ReserveMediaPath,
+    ) -> PublishedFile:
         """Save a Boosty video as 'Title (id8)' plus the extension Content-Type gives."""
         return await self._download(
             url=video.url,
             filename=boosty_video_filename(video.title, video.id),
-            subdir='boosty_videos',
+            reserve=reserve,
             guess_extension=True,
             on_progress=on_progress,
         )
 
     async def download_external_video(
-        self, video: PostDataChunkExternalVideo, on_progress: ProgressCallback
-    ) -> Path:
+        self,
+        video: PostDataChunkExternalVideo,
+        on_progress: ProgressCallback,
+        *,
+        reserve: ReserveMediaPath,
+    ) -> PublishedFile:
         """Save a YouTube/Vimeo video through yt-dlp, off the event loop."""
-        destination = self._post_dir / 'external_videos'
-        await to_thread(destination.mkdir, parents=True, exist_ok=True)
-
-        loop = get_running_loop()
-        cancel_requested = threading.Event()
 
         def relay(status: ExternalVideoDownloadStatus) -> None:
-            # KeyboardInterrupt is yt-dlp's own abort path: raising it inside
-            # the worker thread stops the download shortly after Ctrl+C.
-            if cancel_requested.is_set():
-                raise KeyboardInterrupt
-            progress = MediaProgress(
-                downloaded_bytes=status.downloaded_bytes or 0,
-                total_bytes=status.total_bytes,
-                delta_bytes=status.delta_bytes,
+            on_progress(
+                MediaProgress(
+                    downloaded_bytes=status.downloaded_bytes or 0,
+                    total_bytes=status.total_bytes,
+                    delta_bytes=status.delta_bytes,
+                )
             )
-            # yt-dlp calls the hook from its worker thread; the caller's
-            # progress display must be touched only from the event loop.
-            loop.call_soon_threadsafe(on_progress, progress)
 
         try:
-            # yt-dlp is fully blocking: run it off the loop, or it freezes
-            # every parallel download and the progress display.
-            path = await to_thread(
-                self._external_videos.download_video,
-                url=video.url,
-                destination_directory=destination,
-                progress_hook=relay,
+            return await self._external_videos.download_reserved_video(
+                video.url, reserve, progress_hook=relay
             )
-        except CancelledError:
-            cancel_requested.set()
-            raise
         except ExtVideoInterruptedByUserError as e:
             raise CancelledError from e
         except ExtVideoUnavailableError as e:
@@ -211,20 +204,16 @@ class PostMediaDownloader:
             raise MediaDownloadError(
                 _EXT_VIDEO_DOWNLOAD_FAILED, resource_url=e.video_url or video.url
             ) from e
-        return path.relative_to(self._post_dir)
 
     async def _download(
         self,
         *,
         url: str,
         filename: str,
-        subdir: str,
+        reserve: ReserveMediaPath,
         guess_extension: bool,
         on_progress: ProgressCallback,
-    ) -> Path:
-        destination = self._post_dir / subdir
-        await to_thread(destination.mkdir, parents=True, exist_ok=True)
-
+    ) -> PublishedFile:
         def relay(status: DownloadingStatus) -> None:
             on_progress(
                 MediaProgress(
@@ -235,22 +224,19 @@ class PostMediaDownloader:
             )
 
         try:
-            path = await download_file(
-                DownloadFileConfig(
+            return await download_reserved_file(
+                ReservedDownloadFileConfig(
                     session=self._http,
                     url=url,
                     filename=filename,
-                    destination=destination,
-                    guess_extension=guess_extension,
+                    reserve=reserve,
                     on_status_update=relay,
+                    guess_extension=guess_extension,
                 )
             )
-        except DownloadCancelledError as e:
-            _remove_partial(e.file)
-            raise CancelledError from e
-        except DownloadError as e:
-            _remove_partial(e.file)
+        except DownloadCancelledError as error:
+            raise CancelledError from error
+        except DownloadError as error:
             raise MediaDownloadError(
-                e.message, resource_url=e.resource_url, file=e.file
-            ) from e
-        return path.relative_to(self._post_dir)
+                error.message, resource_url=error.resource_url
+            ) from error

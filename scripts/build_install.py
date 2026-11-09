@@ -14,7 +14,6 @@ from rich.console import Console
 DIST_DIR = Path('dist')
 PYPROJECT = Path('pyproject.toml')
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 console = Console(force_terminal=True)
 
 
@@ -40,7 +39,7 @@ def main() -> None:
     # --- Step 2: Build -------------------------------------------------------
     console.print('  [dim]2.[/] Building wheel...')
     subprocess.run(
-        ['uv', 'build'],
+        ['task', 'build'],
         check=True,
     )
 
@@ -84,4 +83,5 @@ def main() -> None:
 
 
 if __name__ == '__main__':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
     main()

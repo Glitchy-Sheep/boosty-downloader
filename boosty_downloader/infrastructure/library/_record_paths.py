@@ -9,7 +9,7 @@ _UNSAFE_AUTHOR_CHARACTERS = re.compile(r'[<>:"/\\|?*\x00-\x1f\x7f]')
 
 def get_author_folder(root: Path, author: str) -> Path:
     """Locate an author under a resolved library root without creating folders."""
-    _validate_author(author)
+    validate_author_name(author)
     folder = root / author
     check_containment(root, folder)
     try:
@@ -29,7 +29,8 @@ def check_containment(root: Path, path: Path) -> None:
         raise ValueError(msg)
 
 
-def _validate_author(author: str) -> None:
+def validate_author_name(author: str) -> None:
+    """Require one portable folder component for an author name."""
     if (
         not author
         or author in {'.', '..'}
