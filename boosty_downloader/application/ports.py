@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from datetime import datetime
     from uuid import UUID
 
@@ -19,6 +20,7 @@ if TYPE_CHECKING:
         LocatedPost,
         PostFilters,
         PostOverview,
+        SavedPost,
     )
     from boosty_downloader.domain.library_marks import PostMarks
     from boosty_downloader.domain.stored_post import (
@@ -159,6 +161,18 @@ class PostStore(Protocol):
 
         Preserve saved content and marks. An absent locked observation is a no-op.
         """
+        ...
+
+
+class StoredPostCollection(Protocol):
+    """Enumerate and save canonical records independently of the browsing index."""
+
+    def iter_saved_posts(self, author: str | None = None) -> Iterator[SavedPost]:
+        """Read fresh independent records for one author or the entire library."""
+        ...
+
+    def save_post(self, folder: str, record: StoredPost) -> None:
+        """Atomically save a record in its confirmed folder, preserving other files."""
         ...
 
 

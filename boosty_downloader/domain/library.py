@@ -19,6 +19,14 @@ class LocatedPost:
 
 
 @dataclass(frozen=True, slots=True)
+class SavedPost:
+    """A complete canonical record in its confirmed library-relative folder."""
+
+    folder: str
+    record: StoredPost
+
+
+@dataclass(frozen=True, slots=True)
 class LibraryAuthor:
     """A known author whose blog details may not have been fetched successfully."""
 
