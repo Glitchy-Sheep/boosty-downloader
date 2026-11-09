@@ -9,16 +9,16 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    from datetime import datetime
+    from collections.abc import Iterator
     from uuid import UUID
 
-    from boosty_downloader.domain.content_types import DownloadContentTypeFilter
     from boosty_downloader.domain.library import (
         LibraryAuthor,
         LibraryPost,
         LocatedPost,
         PostFilters,
         PostOverview,
+        SavedPost,
     )
     from boosty_downloader.domain.library_marks import PostMarks
     from boosty_downloader.domain.stored_post import (
@@ -57,40 +57,10 @@ class ProgressReporter(Protocol):
     def notice(self, message: str) -> None: ...
 
 
-class PostCache(Protocol):
-    """Which parts of a post an earlier run already saved."""
-
-    def has_post(self, post_uuid: str) -> bool: ...
-
-    def get_post_missing_parts(
-        self,
-        post_uuid: str,
-        updated_at: datetime,
-        required: list[DownloadContentTypeFilter],
-    ) -> list[DownloadContentTypeFilter]: ...
-
-    def cache_post(
-        self,
-        post_uuid: str,
-        updated_at: datetime,
-        was_downloaded: list[DownloadContentTypeFilter],
-    ) -> None: ...
-
-    def commit(self) -> None: ...
-
-
 class FailureLog(Protocol):
     """Where failed downloads are recorded for the user to act on later."""
 
     async def add_error(self, error_id: str, message: str) -> None: ...
-
-
-class CacheStorage(Protocol):
-    """The cache of one creator as it sits on disk, without opening it."""
-
-    def exists(self) -> bool: ...
-
-    def remove(self) -> None: ...
 
 
 class PostStore(Protocol):
@@ -124,8 +94,25 @@ class PostStore(Protocol):
         """
         ...
 
+    def load_author(self, author: str) -> AuthorInfo | None:
+        """
+        Load an independent author snapshot without persistent writes.
+
+        Return None when no author record exists. Unreadable records raise an error.
+        """
+        ...
+
     def save_author(self, author: AuthorInfo) -> None:
         """Save one author's information, preserving all other authors."""
+        ...
+
+    def load_locked_post(self, author: str, post_id: str) -> LockedPost | None:
+        """
+        Read an independent access observation without changing the library.
+
+        Return None for an unknown post.
+        Invalid or unreadable records raise their error.
+        """
         ...
 
     def save_locked_post(self, post: LockedPost) -> None:
@@ -142,6 +129,18 @@ class PostStore(Protocol):
 
         Preserve saved content and marks. An absent locked observation is a no-op.
         """
+        ...
+
+
+class StoredPostCollection(Protocol):
+    """Enumerate and save canonical records independently of the browsing index."""
+
+    def iter_saved_posts(self, author: str | None = None) -> Iterator[SavedPost]:
+        """Read fresh independent records for one author or the entire library."""
+        ...
+
+    def save_post(self, folder: str, record: StoredPost) -> None:
+        """Atomically save a record in its confirmed folder, preserving other files."""
         ...
 
 

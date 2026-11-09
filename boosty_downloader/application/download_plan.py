@@ -1,153 +1,112 @@
-"""
-What a download run would fetch, computed the way the downloader itself decides.
-
-The plan mirrors the real per-post flow: domain mapping (which drops unfinished
-uploads and stream-only videos), the cache's missing-parts answer and the
-content filters. Nothing here touches the network.
-"""
+"""Preview exact media work from the same saved records as real downloads."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections import Counter
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from boosty_downloader.application.blog_overview import MediaCounts
-from boosty_downloader.application.filtering import (
-    CHUNK_TO_FILTER,
-    has_excluded_tag,
-    post_has_content_for,
-)
-from boosty_downloader.application.mappers.post_mapper import map_post_dto_to_domain
-from boosty_downloader.domain.post_data_chunks import (
-    PostDataChunkAudio,
-    PostDataChunkBoostyVideo,
-    PostDataChunkExternalVideo,
-    PostDataChunkFile,
-    PostDataChunkImage,
-)
+from boosty_downloader.application.filtering import has_excluded_tag
+from boosty_downloader.domain.stored_post import MediaKind
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
-    from boosty_downloader.application.ports import PostCache
-    from boosty_downloader.domain.content_types import DownloadContentTypeFilter
-    from boosty_downloader.domain.post import PostDataAllChunks
-    from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
-    from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types.post_data_ok_video import (
-        BoostyOkVideoType,
+    from boosty_downloader.application.post_preparation import (
+        PostPreparer,
+        PreparedPost,
     )
+    from boosty_downloader.domain.content_types import DownloadContentTypeFilter
+    from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
 
 
 @dataclass(frozen=True, slots=True)
 class DownloadPlan:
-    """Where a download run would spend its time, per the current cache and filters."""
+    """Record changes and selected media work, with no persistent writes."""
 
     new_posts: int
-    # Cached before, but updated by the author or missing some parts.
-    outdated_posts: int
-    # Nothing missing: the run would skip them in seconds.
-    complete_posts: int
-    # Posts skipped by tag or with no missing content under the chosen types.
-    filtered_out_posts: int
-    # Media pieces the run would fetch.
+    updated_posts: int
+    unchanged_posts: int
+    excluded_posts: int
     media: MediaCounts
-    # Bytes the API reports for those pieces (images, files, audio).
     known_bytes: int
-    # Videos to fetch whose size the API does not tell.
     unknown_size_videos: int
+
+
+@dataclass(frozen=True, slots=True)
+class PlannedMedia:
+    """Selected pieces and their current API size estimates."""
+
+    counts: MediaCounts = field(default_factory=MediaCounts)
+    known_bytes: int = 0
+    unknown_size_videos: int = 0
+
+    def __add__(self, other: PlannedMedia) -> PlannedMedia:
+        """Combine counts and estimates from separate posts."""
+        return PlannedMedia(
+            self.counts + other.counts,
+            self.known_bytes + other.known_bytes,
+            self.unknown_size_videos + other.unknown_size_videos,
+        )
 
 
 def build_download_plan(
     posts: Iterable[PostDTO],
     *,
-    post_cache: PostCache,
+    preparer: PostPreparer,
     filters: Sequence[DownloadContentTypeFilter],
-    preferred_video_quality: BoostyOkVideoType,
     excluded_tags: Sequence[str] = (),
+    now: datetime | None = None,
 ) -> DownloadPlan:
-    """Preview a download run. Locked posts are not planned: the run skips them."""
-    new = outdated = complete = filtered_out = 0
-    media = MediaCounts()
-    known_bytes = 0
-    unknown_size_videos = 0
-
-    for post_dto in posts:
-        if has_excluded_tag((tag.title for tag in post_dto.tags or ()), excluded_tags):
-            filtered_out += 1
+    """Observe accessible posts; tag exclusions precede any record lookup."""
+    observed_at = now or datetime.now(timezone.utc)
+    new = updated = unchanged = excluded = 0
+    media = PlannedMedia()
+    for post in posts:
+        if has_excluded_tag((tag.title for tag in post.tags or ()), excluded_tags):
+            excluded += 1
             continue
-        if not post_dto.has_access:
+        if not post.has_access:
             continue
-        mapped = map_post_dto_to_domain(
-            post_dto, preferred_video_quality=preferred_video_quality
-        ).post
-        missing = post_cache.get_post_missing_parts(
-            post_uuid=mapped.uuid,
-            updated_at=mapped.updated_at,
-            required=list(filters),
-        )
-        if not missing:
-            complete += 1
-            continue
-        if not post_has_content_for(mapped, missing):
-            filtered_out += 1
-            continue
-        if post_cache.has_post(mapped.uuid):
-            outdated += 1
-        else:
+        prepared = preparer.prepare(post, filters, observed_at)
+        if prepared.is_new:
             new += 1
-        post_media, post_bytes, post_unknown = _media_to_fetch(
-            mapped.post_data_chunks, missing
-        )
-        media += post_media
-        known_bytes += post_bytes
-        unknown_size_videos += post_unknown
-
+        elif prepared.needs_update:
+            updated += 1
+        else:
+            unchanged += 1
+        media += _planned_media(prepared)
     return DownloadPlan(
         new_posts=new,
-        outdated_posts=outdated,
-        complete_posts=complete,
-        filtered_out_posts=filtered_out,
-        media=media,
+        updated_posts=updated,
+        unchanged_posts=unchanged,
+        excluded_posts=excluded,
+        media=media.counts,
+        known_bytes=media.known_bytes,
+        unknown_size_videos=media.unknown_size_videos,
+    )
+
+
+def _planned_media(prepared: PreparedPost) -> PlannedMedia:
+    counts: Counter[MediaKind] = Counter()
+    known_bytes = unknown_videos = 0
+    for media_id in prepared.reconciliation.download_ids:
+        media = prepared.live.media[media_id]
+        counts[media.kind] += 1
+        if media.expected_size is not None:
+            known_bytes += media.expected_size
+        elif media.kind in {MediaKind.boosty_video, MediaKind.external_video}:
+            unknown_videos += 1
+    return PlannedMedia(
+        counts=MediaCounts(
+            images=counts[MediaKind.image],
+            files=counts[MediaKind.file],
+            boosty_videos=counts[MediaKind.boosty_video],
+            external_videos=counts[MediaKind.external_video],
+            audio=counts[MediaKind.audio],
+        ),
         known_bytes=known_bytes,
-        unknown_size_videos=unknown_size_videos,
+        unknown_size_videos=unknown_videos,
     )
-
-
-def _media_to_fetch(
-    chunks: Sequence[PostDataAllChunks],
-    missing: Sequence[DownloadContentTypeFilter],
-) -> tuple[MediaCounts, int, int]:
-    """Media the run would fetch: counts, known bytes, unknown-size videos."""
-    images = files = boosty_videos = external_videos = audio = 0
-    known_bytes = 0
-    unknown_size_videos = 0
-    for chunk in chunks:
-        if CHUNK_TO_FILTER.get(type(chunk)) not in missing:
-            continue
-        match chunk:
-            case PostDataChunkImage():
-                images += 1
-                known_bytes += chunk.size or 0
-            case PostDataChunkFile():
-                files += 1
-                known_bytes += chunk.size or 0
-            case PostDataChunkAudio():
-                audio += 1
-                known_bytes += chunk.size or 0
-            case PostDataChunkBoostyVideo():
-                boosty_videos += 1
-                unknown_size_videos += 1
-            case PostDataChunkExternalVideo():
-                external_videos += 1
-                unknown_size_videos += 1
-            case _:
-                # Text and lists render into the page; they are not media.
-                pass
-    counts = MediaCounts(
-        images=images,
-        files=files,
-        boosty_videos=boosty_videos,
-        external_videos=external_videos,
-        audio=audio,
-    )
-    return counts, known_bytes, unknown_size_videos

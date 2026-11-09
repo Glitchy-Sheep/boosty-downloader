@@ -8,8 +8,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from boosty_downloader.application.media_paths import DiskSnapshot
 from boosty_downloader.application.reconcile import observe_recorded_files
+from boosty_downloader.domain.disk_snapshot import DiskSnapshot
 from boosty_downloader.domain.post_data_chunks import PostDataChunkText
 from boosty_downloader.domain.stored_post import (
     MediaBlock,
