@@ -15,20 +15,17 @@ from boosty_downloader.application.use_cases.listing_walk import walk_full_listi
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from boosty_downloader.application.ports import PostCache
+    from boosty_downloader.application.post_preparation import PostPreparer
     from boosty_downloader.domain.content_types import DownloadContentTypeFilter
     from boosty_downloader.infrastructure.boosty_api.core.client import (
         BoostyAPIClient,
-    )
-    from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types.post_data_ok_video import (
-        BoostyOkVideoType,
     )
     from boosty_downloader.infrastructure.loggers.base import RichLogger
 
 
 @dataclass(frozen=True, slots=True)
 class DryRunReport:
-    """Blog overview plus the download plan for the current cache and filters."""
+    """Blog overview plus the download plan for the saved records and filters."""
 
     overview: BlogOverview
     plan: DownloadPlan
@@ -40,7 +37,7 @@ class PlanDownloadUseCase:
     """
     Walks the listing and answers "what would a download run do right now".
 
-    Reads the same cache and applies the same filters as the real run;
+    Reads the same records and applies the same filters as the real run;
     downloads nothing and changes nothing.
     """
 
@@ -50,18 +47,16 @@ class PlanDownloadUseCase:
         author_name: str,
         boosty_api: BoostyAPIClient,
         logger: RichLogger,
-        post_cache: PostCache,
+        preparer: PostPreparer,
         filters: Sequence[DownloadContentTypeFilter],
-        preferred_video_quality: BoostyOkVideoType,
         excluded_tags: Sequence[str] = (),
     ) -> None:
         self.author_name = author_name
         self.boosty_api = boosty_api
         self.logger = logger
-        self.post_cache = post_cache
+        self.preparer = preparer
         self.filters = filters
         self.excluded_tags = excluded_tags
-        self.preferred_video_quality = preferred_video_quality
 
     async def execute(self) -> DryRunReport:
         walk = await walk_full_listing(self.boosty_api, self.author_name, self.logger)
@@ -69,10 +64,9 @@ class PlanDownloadUseCase:
             overview=summarize_posts(self.author_name, walk.posts),
             plan=build_download_plan(
                 walk.posts,
-                post_cache=self.post_cache,
+                preparer=self.preparer,
                 filters=self.filters,
                 excluded_tags=self.excluded_tags,
-                preferred_video_quality=self.preferred_video_quality,
             ),
             problems=walk.problems,
         )

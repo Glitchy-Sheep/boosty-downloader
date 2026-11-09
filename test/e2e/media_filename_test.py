@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
@@ -13,13 +14,13 @@ from aiohttp_retry import RetryClient
 
 from boosty_downloader.application.mappers.live_post import LiveMedia
 from boosty_downloader.application.media_paths import (
-    DiskSnapshot,
     FileMatch,
     MediaPathHint,
     find_media_file,
     get_preferred_media_path,
     reserve_media_path,
 )
+from boosty_downloader.domain.disk_snapshot import DiskSnapshot
 from boosty_downloader.domain.post_data_chunks import (
     PostDataChunkAudio,
     PostDataChunkBoostyVideo,
@@ -31,17 +32,22 @@ from boosty_downloader.infrastructure.external_videos_downloader.external_videos
     ExternalVideosDownloader,
 )
 from boosty_downloader.infrastructure.file_downloader import (
-    DownloadFileConfig,
-    download_file,
+    ReservedDownloadFileConfig,
+    download_reserved_file,
 )
+from boosty_downloader.infrastructure.media_transfer import MediaTarget
 from boosty_downloader.infrastructure.path_sanitizer import MAX_NAME_BYTES
 from boosty_downloader.infrastructure.post_media_downloader import PostMediaDownloader
 
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from boosty_downloader.infrastructure.media_publication import PublishedFile
+    from boosty_downloader.infrastructure.media_transfer import ReserveMediaPath
+
 PAYLOAD = b'synthetic media'
 MEDIA_ID = 'file:abcdefgh-first'
+POST_FOLDER = 'author/post'
 
 
 async def _serve_payload(_: web.Request) -> web.Response:
@@ -84,18 +90,24 @@ async def test_reserved_candidate_is_the_downloaded_and_rediscovered_name(
     app = web.Application()
     app.router.add_get('/payload', _serve_payload)
 
+    def reserve(name: str) -> MediaTarget:
+        path = reserve_media_path(name, MEDIA_ID, DiskSnapshot({}), {})
+        return MediaTarget(tmp_path, POST_FOLDER, path, MEDIA_ID)
+
     async with TestServer(app) as server, RetryClient() as session:
-        saved = await download_file(
-            DownloadFileConfig(
+        result = await download_reserved_file(
+            ReservedDownloadFileConfig(
                 session=session,
                 url=str(server.make_url('/payload')),
                 filename=filename,
-                destination=tmp_path,
+                reserve=reserve,
                 guess_extension=guess_extension,
             )
         )
 
+    saved = result.path
     assert saved.name == reserved
+    assert result.size == len(PAYLOAD)
     assert saved.read_bytes() == PAYLOAD
     assert len(saved.name.encode('utf-8')) <= MAX_NAME_BYTES
     assert find_media_file(
@@ -120,18 +132,25 @@ async def _serve_media_payload(request: web.Request) -> web.Response:
 
 
 async def _save_builtin_media(
-    downloader: PostMediaDownloader, media: LiveMedia
-) -> Path:
+    downloader: PostMediaDownloader, media: LiveMedia, reserve: ReserveMediaPath
+) -> PublishedFile:
     match media.download:
         case PostDataChunkImage() as image:
-            return await downloader.download_image(image, lambda _: None)
+            return await downloader.download_image(
+                image, lambda _: None, reserve=reserve
+            )
         case PostDataChunkFile() as file:
-            return await downloader.download_file(file, lambda _: None)
+            return await downloader.download_file(file, lambda _: None, reserve=reserve)
         case PostDataChunkAudio() as audio:
-            return await downloader.download_audio(audio, lambda _: None)
+            return await downloader.download_audio(
+                audio, lambda _: None, reserve=reserve
+            )
         case PostDataChunkBoostyVideo() as video:
-            return await downloader.download_boosty_video(video, lambda _: None)
-    pytest.fail('The fixture needs ready built-in media')
+            return await downloader.download_boosty_video(
+                video, lambda _: None, reserve=reserve
+            )
+        case _:
+            pytest.fail('The fixture needs ready built-in media')
 
 
 @pytest.mark.parametrize(
@@ -226,14 +245,24 @@ async def test_preferred_hint_finds_the_file_saved_by_post_media_downloader(
         ready = replace(
             media, download=replace(chunk, url=str(server.make_url(chunk.url)))
         )
-        downloader = PostMediaDownloader(session, external, tmp_path)
-        relative = await _save_builtin_media(downloader, ready)
+        hint = get_preferred_media_path(media_id, ready)
+        assert hint is not None
+        folder = PurePosixPath(hint.path).parent
 
-    actual = tmp_path / relative
+        def reserve(name: str) -> MediaTarget:
+            path = reserve_media_path(
+                f'{folder}/{name}', media_id, DiskSnapshot({}), {}
+            )
+            return MediaTarget(tmp_path, POST_FOLDER, path, media_id)
+
+        downloader = PostMediaDownloader(session, external)
+        result = await _save_builtin_media(downloader, ready, reserve)
+
+    actual = result.path
+    relative = actual.relative_to(tmp_path / POST_FOLDER)
     assert actual.read_bytes() == PAYLOAD
+    assert result.size == len(PAYLOAD)
     assert len(relative.name.encode('utf-8')) <= MAX_NAME_BYTES
-    hint = get_preferred_media_path(media_id, ready)
-    assert hint is not None
     observed = relative.as_posix()
     assert find_media_file(
         media_id,
@@ -242,4 +271,4 @@ async def test_preferred_hint_finds_the_file_saved_by_post_media_downloader(
         preferred=hint,
         expected_size=len(PAYLOAD),
     ) == FileMatch(path=observed, size=len(PAYLOAD))
-    external.download_video.assert_not_called()
+    external.download_reserved_video.assert_not_called()

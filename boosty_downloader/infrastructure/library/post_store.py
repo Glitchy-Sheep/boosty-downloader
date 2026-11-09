@@ -38,9 +38,17 @@ class JsonPostStore:
         """Save the complete body without clearing a locked observation."""
         self._posts.save_post(folder, record)
 
+    def load_author(self, author: str) -> AuthorInfo | None:
+        """Load the saved author information without creating a library."""
+        return author_records.read_author_record(self._root, author)
+
     def save_author(self, author: AuthorInfo) -> None:
         """Save one author's complete information snapshot."""
         author_records.write_author_record(self._root, author)
+
+    def load_locked_post(self, author: str, post_id: str) -> LockedPost | None:
+        """Read one saved access observation without creating a library."""
+        return author_records.read_locked_posts(self._root, author).get(post_id)
 
     def save_locked_post(self, post: LockedPost) -> None:
         """Record lack of access while keeping saved content and viewing marks."""

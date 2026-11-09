@@ -2,10 +2,33 @@
 
 ### Added
 
+- `reindex` rebuilds the library search index from saved records without network access or credentials. It preserves posts, media and viewing marks, and supports `--cache-dir`.
+
+- Downloads update a disposable library search index after saving records. Index failures warn once per run and do not interrupt downloads; `--cache-dir` places the index on a separate local disk.
+
+- Downloads save Boosty video previews and locked-post teasers independently of content-type filters. Existing images are reused; missing ones are fetched again. Library cover selection follows the current post order and excludes removed media.
+
+- `download --restore-missing` restores locally deleted media still present in the creator's posts, respecting content filters. It works with single-post downloads and dry-run; the run summary reports remaining deleted media.
+
+- Downloads refresh the creator's details, avatar and cover in a local author record. Failed optional updates preserve saved data and do not stop post downloads.
+- Downloads record inaccessible posts separately for the library, including posts excluded by tags. Regaining access clears the observation; losing access preserves saved pages, media and viewing marks.
+
 - `download --exclude-tag TAG` skips posts matching any excluded tag name (case-insensitive); repeat the option for multiple tags. Works with `--post-url` and `--dry-run`
+
+### Changed
+
+- BREAKING: v5 marks new libraries and refuses unmarked destinations containing older post folders before any download request or startup write. Choose a separate destination and keep older downloads for posts no longer available on Boosty
+- BREAKING: Downloads use a `post.json` record in each post folder instead of the legacy SQLite cache. `--cache-dir` no longer controls download state, and `clean-cache` only removes the old SQLite cache without resetting saved records or media. Existing v4 cache records are not migrated; use a fresh destination for this development version
+- Every saved `post.html` is built from the complete post record, including media saved on earlier runs and placeholders for media not downloaded yet. Content filters select media transfers, and changing filters on a later run adds to the same page
+- `download --dry-run` shares preparation with real downloads: it reports new records, existing posts to update, unchanged posts, tag exclusions and the exact selected media work. Known bytes use current API sizes; videos with unknown sizes remain explicit
+- Dry-run creates or changes no local files, including config samples, caches, failure logs and debug logs. A missing config is an error; `--debug` prints preview diagnostics on the console and keeps any existing log file unchanged
 
 ### Fixed
 
+- On Windows, saving a library record tolerates brief reader locks while preserving complete old or new contents
+- A failed media piece no longer causes completed pieces of the same type to download again. Each completion is saved separately, and an unavailable external video does not prevent retries for a different transient failure
+- Interrupted media transfers no longer leave incomplete files under their final names. Completed files can be recovered after interruption before the record update; filename collisions preserve existing files
+- Renaming a post on Boosty keeps its saved folder. Locally deleted media stays deleted, and author-removed media retains its saved history and local copies
 - Post folder names respect the 240-byte limit for long titles beginning with a Windows device name such as `CON.`
 - Attachment filenames use the same cleaning rules on Windows, Linux and macOS, including names with colons or backslashes. Unusually long extensions share the filename length budget
 - On Windows, a `.zip` attachment in `post.html` gets the archive icon like on Linux and macOS. Before, it got the generic file icon because Windows names the zip type differently
