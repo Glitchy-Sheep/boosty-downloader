@@ -188,9 +188,10 @@ async def guard_requests(
 
 async def secure_response(request: web.Request, response: web.StreamResponse) -> None:
     """Set headers at publication time, including errors and streamed files."""
-    del request
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Referrer-Policy'] = 'no-referrer'
+    if request.path == '/media' or request.path.startswith('/media/'):
+        response.headers['Cross-Origin-Resource-Policy'] = 'same-origin'
     if 'Content-Security-Policy' not in response.headers:
         response.headers['Content-Security-Policy'] = _APP_POLICY
         response.headers['X-Frame-Options'] = 'DENY'

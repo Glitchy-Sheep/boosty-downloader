@@ -15,10 +15,12 @@ from boosty_downloader.viewer.api_models import (
 from boosty_downloader.viewer.compression import compress_json_responses
 from boosty_downloader.viewer.guard import guard_requests, secure_response
 from boosty_downloader.viewer.pages import LibraryNotice
+from boosty_downloader.viewer.read_routes import ReadRoutes
+from boosty_downloader.viewer.responses import handle_read_errors
 from boosty_downloader.viewer.static import StaticUI
 
 if TYPE_CHECKING:
-    from boosty_downloader.application.ports import LibraryReader
+    from boosty_downloader.application.ports import LibraryReader, PostBodyRenderer
 
 LIBRARY_READER: web.AppKey[LibraryReader | None] = web.AppKey('library_reader')
 
@@ -34,13 +36,22 @@ async def _not_found(request: web.Request) -> web.Response:
 def create_app(
     *,
     reader: LibraryReader | None,
+    library_root: Path | None = None,
+    body_renderer: PostBodyRenderer | None = None,
     notice: LibraryNotice | None = None,
     static_directory: Path | None = None,
 ) -> web.Application:
     """Build routes without opening storage, networking or library files."""
-    app = web.Application(middlewares=[compress_json_responses, guard_requests])
+    app = web.Application(
+        middlewares=[compress_json_responses, guard_requests, handle_read_errors]
+    )
     app[LIBRARY_READER] = reader
     app.on_response_prepare.append(secure_response)
+    if reader is not None:
+        if library_root is None or body_renderer is None:
+            message = 'A library reader requires its root and body renderer.'
+            raise ValueError(message)
+        ReadRoutes(reader, library_root, body_renderer).register(app)
     for prefix in ('api', 'media'):
         app.router.add_route('*', f'/{prefix}', _not_found)
         app.router.add_route('*', f'/{prefix}/{{path:.*}}', _not_found)

@@ -9,6 +9,7 @@ import typer
 from rich.markup import escape
 from sqlalchemy.exc import SQLAlchemyError
 
+from boosty_downloader.application.post_body_renderer import StoredPostBodyRenderer
 from boosty_downloader.cli.cli_options import (
     CacheDirectoryOption,
     DestinationDirectoryOption,
@@ -88,7 +89,14 @@ def _serve_library(root: Path, index_path: Path | None, server: ServerOptions) -
         logger_instances.downloader_logger.info(escape(message))
         notice = LibraryNotice(title='No library yet', message=message)
     serve(
-        create_app(reader=reader, notice=notice), options=server, on_started=_announce
+        create_app(
+            reader=reader,
+            library_root=root,
+            body_renderer=StoredPostBodyRenderer(),
+            notice=notice,
+        ),
+        options=server,
+        on_started=_announce,
     )
 
 
