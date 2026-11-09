@@ -23,6 +23,7 @@ from boosty_downloader.cli.commands import (
     check,
     clean_cache,
     download,
+    reindex,
     render,
     show_auth_script,
 )
@@ -44,7 +45,7 @@ from boosty_downloader.infrastructure.yaml_configuration.config import (
     DEFAULT_CONFIG_PATH,
 )
 
-_DEFERRED_DEBUG_COMMANDS: Final = frozenset({'download', 'render'})
+_DEFERRED_DEBUG_COMMANDS: Final = frozenset({'download', 'reindex', 'render'})
 
 typer_app = typer.Typer(
     add_completion=False,
@@ -78,6 +79,7 @@ download.register(typer_app)
 render.register(typer_app)
 check.register(typer_app)
 clean_cache.register(typer_app)
+reindex.register(typer_app)
 show_auth_script.register(typer_app)
 
 

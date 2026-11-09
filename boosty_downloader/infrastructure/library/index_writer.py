@@ -135,6 +135,6 @@ class LibraryIndexWriter:
                 f'Library index update failed at {self._index.configured_path} '
                 f'({type(error).__name__}). Downloads will continue without index '
                 'updates. Check the cache directory or use --cache-dir with a '
-                'writable local folder.'
+                'writable local folder, then run reindex for this library.'
             )
             return None

@@ -145,6 +145,23 @@ def resolve_library_root(
         raise LibraryCompatibilityError(message) from error
 
 
+def resolve_index_path(
+    *,
+    config_path: Path = DEFAULT_CONFIG_PATH,
+    cache_directory: Path | None = None,
+) -> Path | None:
+    """Find the library-wide index without credentials or startup writes."""
+    try:
+        paths = DownloadSettings()
+        if cache_directory is None:
+            paths = read_download_settings(config_path)
+        return _index_path(paths, cache_directory=cache_directory)
+    except (OSError, RuntimeError) as error:
+        source = cache_directory if cache_directory is not None else config_path
+        message = f'Cannot determine library index from {source}: {error}'
+        raise LibraryCompatibilityError(message) from error
+
+
 def resolve_cache_dir(
     *,
     username: str,
