@@ -12,8 +12,15 @@ from boosty_downloader.viewer import api_models as api
 from boosty_downloader.viewer.detail import post_detail_response
 from boosty_downloader.viewer.mapping import author_response, posts_response
 from boosty_downloader.viewer.media import serve_media
+from boosty_downloader.viewer.media_mapping import media_page_response
 from boosty_downloader.viewer.media_paths import is_author_component
-from boosty_downloader.viewer.query import library_post_filters, parse_post_filters
+from boosty_downloader.viewer.query import (
+    library_media_filters,
+    library_media_view,
+    library_post_filters,
+    parse_media_filters,
+    parse_post_filters,
+)
 from boosty_downloader.viewer.responses import model_response
 
 if TYPE_CHECKING:
@@ -21,6 +28,7 @@ if TYPE_CHECKING:
 
     from boosty_downloader.application.ports import LibraryReader, PostBodyRenderer
     from boosty_downloader.domain.library import PostFilters
+    from boosty_downloader.domain.library_media import LibraryMediaView, MediaFilters
 
 
 def _author_name(request: web.Request) -> str:
@@ -42,6 +50,7 @@ class ReadRoutes:
         app.router.add_get('/api/authors', self.authors)
         app.router.add_get('/api/authors/{author}', self.author)
         app.router.add_get('/api/authors/{author}/posts', self.posts)
+        app.router.add_get('/api/authors/{author}/media', self.media_list)
         app.router.add_get('/api/authors/{author}/tags', self.tags)
         app.router.add_get('/api/authors/{author}/posts/{post_id}', self.post)
         app.router.add_get('/media/{author}/{path:.*}', self.media)
@@ -75,6 +84,25 @@ class ReadRoutes:
         if not self.reader.has_author(author):
             raise web.HTTPNotFound
         result = posts_response(author, self.reader.list_posts(author, filters))
+        return model_response(result)
+
+    async def media_list(self, request: web.Request) -> web.Response:
+        filters = parse_media_filters(request.query)
+        return await asyncio.to_thread(
+            self._media_list,
+            _author_name(request),
+            library_media_view(filters.view),
+            library_media_filters(filters),
+        )
+
+    def _media_list(
+        self, author: str, view: LibraryMediaView, filters: MediaFilters
+    ) -> web.Response:
+        if not self.reader.has_author(author):
+            raise web.HTTPNotFound
+        result = media_page_response(
+            author, self.reader.list_media(author, view, filters)
+        )
         return model_response(result)
 
     async def tags(self, request: web.Request) -> web.Response:
