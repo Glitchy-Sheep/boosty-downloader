@@ -45,6 +45,9 @@ from boosty_downloader.application.use_cases import (
 from boosty_downloader.application.use_cases.download_all_posts import (
     DownloadAllPostUseCase,
 )
+from boosty_downloader.application.use_cases.download_post_by_id import (
+    DownloadPostByIdUseCase,
+)
 from boosty_downloader.application.use_cases.plan_download import (
     DryRunReport,
     PlanDownloadUseCase,
@@ -56,6 +59,7 @@ from boosty_downloader.infrastructure.external_videos_downloader.external_videos
     ExternalVideosDownloader,
     ExtVideoUnavailableError,
 )
+from boosty_downloader.infrastructure.library.author_records import read_locked_posts
 from boosty_downloader.infrastructure.library.post_store import JsonPostStore
 from boosty_downloader.infrastructure.loggers.base import RichLogger
 from boosty_downloader.infrastructure.loggers.failed_downloads_logger import (
@@ -121,6 +125,10 @@ def _blob_body(path: str) -> web.Response:
     return web.Response(body=b'file bytes', content_type='application/octet-stream')
 
 
+async def _author_asset(request: web.Request) -> web.Response:
+    return _blob_body(request.path)
+
+
 def _local_payload(text: str, host: str) -> dict[str, Any]:
     for source_host in FAKE_HOSTS:
         text = text.replace(source_host, f'http://{host}')
@@ -156,10 +164,11 @@ def _build_app(  # noqa: PLR0913 - independent fake-server failure modes
         )
 
     async def blog_info(request: web.Request) -> web.Response:
-        del request
         if blog_failures:
             return web.Response(status=blog_failures.pop(0))
-        return web.json_response(synthetic_blog())
+        return web.json_response(
+            _local_payload(json.dumps(synthetic_blog()), request.host)
+        )
 
     async def blob(request: web.Request) -> web.Response:
         nonlocal file_failures_left
@@ -185,6 +194,7 @@ def _build_app(  # noqa: PLR0913 - independent fake-server failure modes
     app.router.add_get(f'/v1/blog/{AUTHOR}', blog_info)
     app.router.add_get(f'/v1/blog/{AUTHOR}/post/', listing)
     app.router.add_get(f'/v1/blog/{AUTHOR}/post/{POST_ID}', single_post)
+    app.router.add_get('/blog/{tail:.*}', _author_asset)
     app.router.add_get('/{tail:.*}', blob)
     return app
 
@@ -211,6 +221,7 @@ async def _run_download(  # noqa: PLR0913 - isolated download scenarios
     external_videos: ExternalVideosDownloader | None = None,
     excluded_tags: tuple[str, ...] = (),
     filters: list[DownloadContentTypeFilter] | None = None,
+    post_id: str | None = None,
 ) -> RunStatistics:
     """One full download run wired exactly like the app, minus the console."""
     async with ClientSession() as session:
@@ -235,12 +246,20 @@ async def _run_download(  # noqa: PLR0913 - isolated download scenarios
                 destination / AUTHOR / 'failed_downloads.log'
             ),
         )
-        await DownloadAllPostUseCase(
-            author_name=AUTHOR,
-            boosty_api=boosty_api,
-            destination=destination / AUTHOR,
-            download_context=context,
-        ).execute()
+        if post_id is None:
+            await DownloadAllPostUseCase(
+                author_name=AUTHOR,
+                boosty_api=boosty_api,
+                destination=destination / AUTHOR,
+                download_context=context,
+            ).execute()
+        else:
+            await DownloadPostByIdUseCase(
+                post_id=post_id,
+                boosty_api=boosty_api,
+                destination=destination / AUTHOR,
+                download_context=context,
+            ).execute()
         return context.run_statistics
 
 
@@ -790,6 +809,8 @@ async def test_refresh_losing_access_preserves_saved_body_and_previous_page(
         assert located.record.post.title == 'Fixture post with every content type'
         assert located.record.blocks
         assert located.record.sync.page_template is None
+        observations = read_locked_posts(tmp_path, AUTHOR)
+        assert observations[POST_ID].post.title == locked['title']
 
 
 async def test_author_rename_retains_post_folder(tmp_path: Path) -> None:
@@ -804,7 +825,7 @@ async def test_author_rename_retains_post_folder(tmp_path: Path) -> None:
     assert served == []
     assert stats.posts_downloaded == 1
     folders = [path.name for path in (tmp_path / AUTHOR).iterdir() if path.is_dir()]
-    assert folders == [POST_DIR_NAME]
+    assert set(folders) == {POST_DIR_NAME, '.boosty-downloader'}
     html = (tmp_path / AUTHOR / POST_DIR_NAME / 'post.html').read_text(encoding='utf-8')
     assert '<title>A new author title</title>' in html
 

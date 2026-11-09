@@ -124,6 +124,14 @@ class PostStore(Protocol):
         """
         ...
 
+    def load_author(self, author: str) -> AuthorInfo | None:
+        """
+        Load an independent author snapshot without persistent writes.
+
+        Return None when no author record exists. Unreadable records raise an error.
+        """
+        ...
+
     def save_author(self, author: AuthorInfo) -> None:
         """Save one author's information, preserving all other authors."""
         ...

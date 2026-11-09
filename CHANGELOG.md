@@ -2,6 +2,9 @@
 
 ### Added
 
+- Downloads refresh the creator's details, avatar and cover in a local author record. Failed optional updates preserve saved data and do not stop post downloads.
+- Downloads record inaccessible posts separately for the library, including posts excluded by tags. Regaining access clears the observation; losing access preserves saved pages, media and viewing marks.
+
 - `download --exclude-tag TAG` skips posts matching any excluded tag name (case-insensitive); repeat the option for multiple tags. Works with `--post-url` and `--dry-run`
 
 ### Changed

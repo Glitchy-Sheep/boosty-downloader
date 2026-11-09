@@ -10,6 +10,7 @@ from boosty_downloader.application.exceptions.application_errors import (
     ApplicationCancelledError,
     ApplicationFailedDownloadError,
 )
+from boosty_downloader.application.post_access import observe_post_access
 from boosty_downloader.application.post_download_state import PostRunProgress
 from boosty_downloader.application.use_cases.download_single_post import (
     DownloadSinglePostUseCase,
@@ -74,6 +75,16 @@ class PostDownloadRetrier:
         self.boosty_api = boosty_api
         self.destination = destination
         self.context = download_context
+
+    async def observe_access(self, post: PostDTO, failed_posts: list[str]) -> bool:
+        """Contain an observation failure like any other failure of this post."""
+        try:
+            observe_post_access(self.context.post_store, self.author_name, post)
+        except Exception as error:  # noqa: BLE001 - per-post storage failure boundary
+            folder = compose_post_directory_name(post.title, post.created_at, post.id)
+            await self._skip_unexpected(folder, post.id, failed_posts, error)
+            return False
+        return True
 
     async def download(self, post_dto: PostDTO, failed_posts: list[str]) -> PostOutcome:
         """Run the retry policy; every exit path is an explicit outcome."""
