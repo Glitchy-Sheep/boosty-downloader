@@ -3,26 +3,23 @@
 from __future__ import annotations
 
 from functools import partial
-from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 
 from boosty_downloader.domain.library_errors import LibraryReadError
+from boosty_downloader.domain.library_mutations import LibraryMediaItem
 from boosty_downloader.domain.library_summary import summarize_post
 from boosty_downloader.domain.stored_post import MediaKind, MediaStatus
 from boosty_downloader.viewer import api_models as api
-from boosty_downloader.viewer.file_types import file_type
 from boosty_downloader.viewer.mapping import post_response
-from boosty_downloader.viewer.media_identity import media_identity
+from boosty_downloader.viewer.media_mapping import media_item_response
 from boosty_downloader.viewer.media_paths import has_post_folder
 from boosty_downloader.viewer.urls import media_url, post_media_path
 
 if TYPE_CHECKING:
-    from datetime import timedelta
     from pathlib import Path
 
     from boosty_downloader.application.ports import PostBodyRenderer
     from boosty_downloader.domain.library import LibraryPost, LibraryPostDetails
-    from boosty_downloader.domain.library_marks import PlaybackPosition
     from boosty_downloader.domain.stored_post import MediaEntry
 
 
@@ -82,64 +79,19 @@ def _detail_media(author: str, detail: LibraryPostDetails) -> list[api.MediaItem
     ]
 
 
-def _wire_kind(kind: MediaKind) -> api.MediaKind:
-    match kind:
-        case MediaKind.boosty_video | MediaKind.external_video:
-            return 'videos'
-        case MediaKind.audio:
-            return 'audio'
-        case MediaKind.file:
-            return 'files'
-        case MediaKind.image:
-            return 'images'
-
-
-def _thumbnail(author: str, folder: str, entry: MediaEntry) -> str | None:
-    if entry.preview_path is None:
-        return None
-    return post_media_path(author, folder, entry.preview_path)
-
-
 def _media_item(
     author: str, detail: LibraryPostDetails, key: str, entry: MediaEntry
 ) -> api.MediaItem:
     content = detail.content
-    if content.folder is None or entry.path is None or entry.size is None:
-        message = 'A downloaded media record is incomplete.'
+    if content.folder is None:
+        message = 'A downloaded media record has no folder.'
         raise LibraryReadError(message)
-    playback = detail.marks.positions.get(key)
-    return api.MediaItem(
-        id=media_identity(content.overview.post.id, key),
+    item = LibraryMediaItem(
         post_id=content.overview.post.id,
         created_at=content.overview.post.created_at,
-        kind=_wire_kind(entry.kind),
-        path=post_media_path(author, content.folder, entry.path),
-        thumb_path=_thumbnail(author, content.folder, entry),
-        title=entry.title,
-        filename=PurePosixPath(entry.path).name,
-        artist=entry.artist,
-        size=entry.size,
-        width=entry.width,
-        height=entry.height,
-        duration_s=_duration_seconds(entry.duration),
-        position_s=_playback_seconds(playback),
-        finished=playback is not None and playback.finished_at is not None,
-        file_type=file_type(PurePosixPath(entry.path).name),
-        removed=entry.removed_at is not None,
+        folder=content.folder,
+        media_id=key,
+        entry=entry,
+        playback=detail.marks.positions.get(key),
     )
-
-
-def _duration_seconds(duration: timedelta | None) -> float | None:
-    match duration:
-        case None:
-            return None
-        case _:
-            return duration.total_seconds()
-
-
-def _playback_seconds(playback: PlaybackPosition | None) -> float | None:
-    match playback:
-        case None:
-            return None
-        case _:
-            return playback.seconds
+    return media_item_response(author, item)

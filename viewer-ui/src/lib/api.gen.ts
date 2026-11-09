@@ -10,6 +10,7 @@ export type OpenPostRequest = Record<string, never>
  */
 export interface ViewerAPI {
   Author: Author
+  BulkMarksProgressResponse: BulkMarksProgressResponse
   BulkMarksRequest: BulkMarksRequest
   BulkMarksResult: BulkMarksResult
   ErrorBody: ErrorBody
@@ -60,6 +61,15 @@ export interface MediaStorage {
   files: number
   images: number
   videos: number
+}
+/**
+ * Progress of the active bulk; the POST response reports its final outcome.
+ */
+export interface BulkMarksProgressResponse {
+  active: boolean
+  changed: number
+  completed: number
+  total: number | null
 }
 /**
  * Apply a seen value to all posts selected by normalized filters.

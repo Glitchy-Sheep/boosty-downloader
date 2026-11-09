@@ -14,9 +14,10 @@ from boosty_downloader.viewer.api_models import (
 )
 from boosty_downloader.viewer.compression import compress_json_responses
 from boosty_downloader.viewer.guard import guard_requests, secure_response
+from boosty_downloader.viewer.mark_routes import MarkRoutes
 from boosty_downloader.viewer.pages import LibraryNotice
 from boosty_downloader.viewer.read_routes import ReadRoutes
-from boosty_downloader.viewer.responses import handle_read_errors
+from boosty_downloader.viewer.responses import handle_library_errors
 from boosty_downloader.viewer.static import StaticUI
 
 if TYPE_CHECKING:
@@ -43,7 +44,7 @@ def create_app(
 ) -> web.Application:
     """Build routes without opening storage, networking or library files."""
     app = web.Application(
-        middlewares=[compress_json_responses, guard_requests, handle_read_errors]
+        middlewares=[compress_json_responses, guard_requests, handle_library_errors]
     )
     app[LIBRARY_READER] = reader
     app.on_response_prepare.append(secure_response)
@@ -52,6 +53,7 @@ def create_app(
             message = 'A library reader requires its root and body renderer.'
             raise ValueError(message)
         ReadRoutes(reader, library_root, body_renderer).register(app)
+        MarkRoutes(reader).register(app)
     for prefix in ('api', 'media'):
         app.router.add_route('*', f'/{prefix}', _not_found)
         app.router.add_route('*', f'/{prefix}/{{path:.*}}', _not_found)
