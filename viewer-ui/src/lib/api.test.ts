@@ -1,6 +1,7 @@
 import { afterEach, expect, test, vi } from 'vitest'
 
-import { ApiError, getAuthors } from '@/lib/api'
+import { ApiError, getAuthor, getAuthors, getPost, getPosts, getTags } from '@/lib/api'
+import type { Filters } from '@/lib/filters'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -51,4 +52,34 @@ test('preserves cancellation while reading an HTTP error response body', async (
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response))
 
   await expect(getAuthors(controller.signal)).rejects.toBe(reason)
+})
+
+test('keeps all post filters and literal search text in the API request', async () => {
+  const result = { rows: [], months: [], total: 0 }
+  const request = vi.fn().mockResolvedValue(Response.json(result))
+  vi.stubGlobal('fetch', request)
+  const controller = new AbortController()
+  const filters: Filters = { q: '001.0 + %', tag: 'null', kind: 'images', unseen: 1, fav: 1, locked: 1, incomplete: 1, order: 'oldest' }
+
+  expect(await getPosts('author-name', filters, controller.signal)).toEqual(result)
+  const url = new URL(request.mock.calls[0][0], 'http://localhost')
+  expect(url.pathname).toBe('/api/authors/author-name/posts')
+  expect(Object.fromEntries(url.searchParams)).toEqual({
+    q: '001.0 + %', tag: 'null', kind: 'images', unseen: '1', fav: '1', locked: '1', incomplete: '1', order: 'oldest',
+  })
+  expect(request.mock.calls[0][1].signal).toBe(controller.signal)
+})
+
+test('encodes resource identities once and keeps detail independent of filters', async () => {
+  const request = vi.fn().mockImplementation(async () => Response.json({}))
+  vi.stubGlobal('fetch', request)
+
+  await getAuthor('автор %2F')
+  await getTags('автор %2F')
+  await getPost('автор %2F', 'post #?%')
+
+  const author = '/api/authors/%D0%B0%D0%B2%D1%82%D0%BE%D1%80%20%252F'
+  expect(request.mock.calls.map(call => call[0])).toEqual([
+    author, `${author}/tags`, `${author}/posts/post%20%23%3F%25`,
+  ])
 })

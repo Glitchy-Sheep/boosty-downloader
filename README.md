@@ -186,7 +186,9 @@ boosty-downloader view -o ./downloads --lan
 
 The viewer needs no Boosty credentials. Global `--config` selects the settings file; `view --cache-dir` overrides the disposable index location. By default it listens on localhost at port 8314, choosing the next available port if needed; an explicit busy `--port` fails. `--lan` also permits devices on your local network and prints their addresses. Stop it with Ctrl+C.
 
-The authors page shows saved artwork, post counts and recorded downloaded-media sizes. Bars and labels show videos, photos, audio and files from largest to smallest; retained downloaded copies count too. These totals exclude pages, records and auxiliary images, and do not scan the disk when opening the page. Windows uses 1024 bytes per KB; other devices use 1000, with three significant digits. Author timelines and post screens are still being connected in this development version.
+The authors page shows saved artwork, post counts and recorded downloaded-media sizes. Bars and labels show videos, photos, audio and files from largest to smallest; retained downloaded copies count too. These totals exclude pages, records and auxiliary images, and do not scan the disk when opening the page. Windows uses 1024 bytes per KB; other devices use 1000, with three significant digits.
+
+Opening an author selects its newest post and shows a virtual timeline with month headings and local thumbnails. Search titles and post text, combine filters for media kind, unseen, favorites, tag, locked or incomplete posts, and change the order. The address preserves these choices across reload and browser navigation. A selected post remains available when filters hide it from the list. The post pane currently shows saved metadata; full body reading and playback follow in this development version.
 
 After the viewer stops, the operating system can keep a fixed port temporarily unavailable while connections close. The default mode chooses another free port; with `--port`, wait or choose another value.
 

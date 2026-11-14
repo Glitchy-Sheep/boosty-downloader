@@ -1,4 +1,5 @@
-import type { Author, ErrorBody } from '@/lib/api.gen'
+import type { Author, ErrorBody, PostDetail, PostList, TagCount } from '@/lib/api.gen'
+import { filtersSearchParams, type Filters } from '@/lib/filters'
 
 export class ApiError extends Error {
   readonly status: number
@@ -36,11 +37,37 @@ async function responseError(response: Response, signal?: AbortSignal): Promise<
   )
 }
 
-export async function getAuthors(signal?: AbortSignal): Promise<Author[]> {
-  const response = await fetch('/api/authors', {
+async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(url, {
     headers: { Accept: 'application/json' },
     signal,
   })
   if (!response.ok) throw await responseError(response, signal)
-  return response.json() as Promise<Author[]>
+  return response.json() as Promise<T>
+}
+
+function authorPath(author: string): string {
+  return `/api/authors/${encodeURIComponent(author)}`
+}
+
+export function getAuthors(signal?: AbortSignal): Promise<Author[]> {
+  return getJson('/api/authors', signal)
+}
+
+export function getAuthor(author: string, signal?: AbortSignal): Promise<Author> {
+  return getJson(authorPath(author), signal)
+}
+
+export function getPosts(author: string, filters: Filters, signal?: AbortSignal): Promise<PostList> {
+  const query = filtersSearchParams(filters).toString()
+  const suffix = query ? `?${query}` : ''
+  return getJson(`${authorPath(author)}/posts${suffix}`, signal)
+}
+
+export function getPost(author: string, postId: string, signal?: AbortSignal): Promise<PostDetail> {
+  return getJson(`${authorPath(author)}/posts/${encodeURIComponent(postId)}`, signal)
+}
+
+export function getTags(author: string, signal?: AbortSignal): Promise<TagCount[]> {
+  return getJson(`${authorPath(author)}/tags`, signal)
 }

@@ -9,6 +9,33 @@
   }
 }
 
+@layer components {
+  .post-row {
+    gap: var(--row-gap);
+    padding: 10px var(--row-pad-x);
+  }
+  .post-row-cover {
+    width: var(--cover-w);
+  }
+  .post-row-title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: var(--title-lines);
+    overflow: hidden;
+    font-size: var(--title-size);
+    line-height: var(--title-leading);
+  }
+  .post-row-title-short {
+    -webkit-line-clamp: 2;
+  }
+  mark.search-hit {
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--primary) 30%, transparent);
+    color: inherit;
+    padding: 0 1px;
+  }
+}
+
 @theme inline {
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-heading: var(--font-sans);

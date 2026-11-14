@@ -1,6 +1,6 @@
 # Viewer API
 
-Start `boosty-downloader view -o LIBRARY --no-open`. The server exposes the following read routes without Boosty credentials. The packaged UI consumes the authors endpoint; author timelines, post screens and Media controls are connected in subsequent stages.
+Start `boosty-downloader view -o LIBRARY --no-open`. The server exposes the following read routes without Boosty credentials. The packaged UI consumes authors, filtered post lists, tags and selected-post metadata. Full post reading and Media controls are connected in subsequent stages.
 
 | GET route | Result |
 | --- | --- |
@@ -20,7 +20,7 @@ The posts route accepts `q`, `kind`, `unseen`, `fav`, `tag`, `locked`, `incomple
 
 Search matches are plain text runs with a `matched` flag. Render their text as text, including any literal HTML-looking source content. The post body is HTML from the same renderer as saved pages; it does not add search highlights itself. Unsafe link schemes are discarded in both representations while visible text is retained.
 
-Authored Boosty links to indexed posts with saved bodies use `/a/{author}/p/{full-id}`, retaining their query and fragment. They work independently of whether the target has a generated `post.html`. Missing targets remain remote, and placeholder buttons labelled Open on Boosty keep their remote destination. Standalone saved pages instead use relative `post.html` paths, resolved from canonical records without the index. The application shell does not yet implement the post screen for these routes.
+Authored Boosty links to indexed posts with saved bodies use `/a/{author}/p/{full-id}`, retaining their query and fragment. They work independently of whether the target has a generated `post.html`. Missing targets remain remote, and placeholder buttons labelled Open on Boosty keep their remote destination. Standalone saved pages instead use relative `post.html` paths, resolved from canonical records without the index. Local post routes show the author timeline and selected-post metadata; full body rendering follows in the UI.
 
 ## Media filters
 

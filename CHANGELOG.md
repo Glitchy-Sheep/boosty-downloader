@@ -2,6 +2,8 @@
 
 ### Added
 
+- Author cards open a virtual post timeline with month headings, local thumbnails and access states. Search, media kind, unseen, favorites, tag, locked, incomplete and sort filters stay in the URL, including after reload and browser navigation.
+
 - The viewer shows author cards with saved artwork, post counts and downloaded-media storage by kind, plus a library total. Cards adapt to narrow screens and include descriptions for screen readers.
 
 - Downloads save small thumbnails for post images and locked teasers. Later runs fill missing thumbnails without downloading originals again; thumbnail failures warn once and preserve primary download results. Viewer thumbnail URLs fall back to local originals when needed.
