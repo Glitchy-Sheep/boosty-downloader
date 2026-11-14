@@ -7,10 +7,18 @@ export type PostShortcutOptions = {
   readContext: () => PostShortcutContext | null
   onPost: (target: PostShortcutTarget) => void
   onSearch: () => void
+  onSeen: (postId: string) => void
+  onFavorite: (postId: string) => void
 }
 
 /** Read current navigation state for every key, including synchronous repeated presses. */
-export function usePostShortcuts({ readContext, onPost, onSearch }: PostShortcutOptions): void {
+export function usePostShortcuts({
+  readContext,
+  onPost,
+  onSearch,
+  onSeen,
+  onFavorite,
+}: PostShortcutOptions): void {
   const handle = useEffectEvent((event: KeyboardEvent) => {
     const action = postShortcut(event.code)
     if (!action || !acceptsPostShortcut(event, document)) return
@@ -19,6 +27,13 @@ export function usePostShortcuts({ readContext, onPost, onSearch }: PostShortcut
     if (action === 'search') {
       event.preventDefault()
       onSearch()
+      return
+    }
+    if (action === 'seen' || action === 'favorite') {
+      if (!context.postId) return
+      event.preventDefault()
+      if (action === 'seen') onSeen(context.postId)
+      else onFavorite(context.postId)
       return
     }
     const post = context.neighbours?.[action]

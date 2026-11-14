@@ -1,10 +1,22 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { fireEvent, render as renderUi, screen, waitFor } from '@testing-library/react'
+import type { ReactElement } from 'react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { PostList } from '@/components/post-list'
+import { createQueryClient } from '@/lib/queries'
 import { savedRow } from '@/test/post-fixtures'
 
 const originalScrollTo = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTo')
+
+function render(ui: ReactElement) {
+  const client = createQueryClient()
+  return renderUi(ui, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  })
+}
 
 beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(240)

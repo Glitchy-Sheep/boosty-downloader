@@ -37,6 +37,9 @@ function pageProps(overrides: Partial<PostPageProps> = {}): PostPageProps {
     favoritePending: false,
     favoriteError: null,
     onFavorite: vi.fn(),
+    seenPending: false,
+    seenError: null,
+    onSeen: vi.fn(),
     onTag: vi.fn(),
     onPost: vi.fn(),
     postHref: (id) => `#${id}`,
@@ -58,7 +61,7 @@ describe('PostPage', () => {
     expect(screen.getByText('31 Oct 2026')).toBeVisible()
     expect(screen.getByRole('link', { name: 'Boosty' })).toHaveAttribute('href', post.boosty_url)
     expect(screen.getByRole('link', { name: 'Boosty' })).toHaveAttribute('rel', 'noreferrer')
-    expect(screen.queryByRole('button', { name: /seen/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mark as seen' })).toBeEnabled()
   })
 
   it.each(['javascript:alert(1)', 'data:text/html,hello', '//boosty.to/author', 'broken link'])(
@@ -111,6 +114,28 @@ describe('PostPage', () => {
     rerender(<PostPage {...props} favoriteError="Could not save the favorite." />)
     expect(screen.getByRole('alert')).toHaveTextContent('Could not save the favorite.')
     expect(screen.getByRole('button', { name: 'Add to favorites' })).toBeEnabled()
+  })
+
+  it('acknowledges an updated post as unread and keeps seen failures visible', () => {
+    const onSeen = vi.fn()
+    const props = pageProps({ onSeen, post: { ...post, seen: true, updated: true } })
+    const { rerender } = render(<PostPage {...props} />)
+    const acknowledge = screen.getByRole('button', { name: 'Mark as seen' })
+    expect(screen.getByText('Updated')).toBeVisible()
+    expect(acknowledge).toHaveAttribute('aria-pressed', 'false')
+    expect(acknowledge).toHaveAttribute('aria-keyshortcuts', 's')
+    fireEvent.click(acknowledge)
+    expect(onSeen).toHaveBeenCalledOnce()
+    rerender(<PostPage {...props} post={{ ...post, seen: true }} seenPending />)
+    const seen = screen.getByRole('button', { name: 'Mark as unseen' })
+    expect(screen.queryByText('Updated')).not.toBeInTheDocument()
+    expect(seen).toHaveTextContent('Seen')
+    expect(seen).toHaveAttribute('aria-pressed', 'true')
+    expect(seen).toBeDisabled()
+    fireEvent.click(seen)
+    expect(onSeen).toHaveBeenCalledOnce()
+    rerender(<PostPage {...props} seenError="Could not save the seen mark." />)
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not save the seen mark.')
   })
 
   it.each([true, false])(

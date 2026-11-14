@@ -19,8 +19,8 @@ test.each([
   ['KeyJ', 'next'],
   ['KeyK', 'previous'],
   ['Slash', 'search'],
-  ['KeyS', null],
-  ['KeyF', null],
+  ['KeyS', 'seen'],
+  ['KeyF', 'favorite'],
   ['BracketLeft', null],
   ['Unidentified', null],
 ])('maps physical key %s to %s', (code, expected) => {
@@ -81,6 +81,7 @@ test.each([
   '<dialog open></dialog>',
   '<div role="dialog"></div>',
   '<div role="alertdialog"></div>',
+  '<div role="menu"></div>',
 ])('an open dialog owns shortcuts even when the event target is outside: %s', (html) => {
   document.body.innerHTML = html
   expect(acceptsPostShortcut(keyOn(), document)).toBe(false)

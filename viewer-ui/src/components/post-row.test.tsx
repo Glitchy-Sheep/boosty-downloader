@@ -21,6 +21,52 @@ const post: PostSummary = {
 }
 
 describe('PostRow', () => {
+  it('marks a favorite through a sibling button without opening the post', () => {
+    const favorite = { toggle: vi.fn(), pending: false, error: null }
+    const select = vi.fn()
+    const { rerender } = render(
+      <PostRow
+        author="author"
+        post={post}
+        current={false}
+        href="#post"
+        onSelect={select}
+        favorite={favorite}
+      />,
+    )
+    const heart = screen.getByRole('button', { name: 'Add to favorites' })
+    expect(heart.closest('a')).toBeNull()
+    fireEvent.click(heart)
+    expect(favorite.toggle).toHaveBeenCalledOnce()
+    expect(select).not.toHaveBeenCalled()
+    rerender(
+      <PostRow
+        author="author"
+        post={{ ...post, favorite: true }}
+        current={false}
+        href="#post"
+        onSelect={select}
+        favorite={{ ...favorite, pending: true, error: 'Favorite could not be saved.' }}
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'Remove from favorites' })).toBeDisabled()
+    expect(screen.getByRole('alert')).toHaveTextContent('Favorite could not be saved.')
+  })
+
+  it('describes an updated watched post as unread', () => {
+    render(
+      <PostRow
+        author="author"
+        post={{ ...post, seen: true, updated: true }}
+        current={false}
+        href="#post"
+        onSelect={vi.fn()}
+        favorite={{ toggle: vi.fn(), pending: false, error: null }}
+      />,
+    )
+    expect(screen.getByRole('link')).toHaveAccessibleDescription('Unseen. Updated since seen.')
+    expect(screen.getByText('Updated')).toBeVisible()
+  })
   it('shows safe text highlights and current state using UTC dates', () => {
     const unsafeTitle = '<script>alert(1)</script>'
     const unsafeSnippet = '<img src=x onerror=alert(1)>'
@@ -37,6 +83,7 @@ describe('PostRow', () => {
         }}
         current
         href="#post"
+        favorite={{ toggle: vi.fn(), pending: false, error: null }}
         onSelect={vi.fn()}
       />,
     )
@@ -53,7 +100,16 @@ describe('PostRow', () => {
 
   it('keeps ordinary links for modified clicks and intercepts plain selection', () => {
     const select = vi.fn()
-    render(<PostRow author="author" post={post} current={false} href="#post" onSelect={select} />)
+    render(
+      <PostRow
+        author="author"
+        post={post}
+        current={false}
+        href="#post"
+        favorite={{ toggle: vi.fn(), pending: false, error: null }}
+        onSelect={select}
+      />,
+    )
     const link = screen.getByRole('link', { name: 'First post' })
     const modified = createEvent.click(link, { button: 0, ctrlKey: true })
     fireEvent(link, modified)
@@ -80,6 +136,7 @@ describe('PostRow', () => {
         }}
         current={false}
         href="#post"
+        favorite={{ toggle: vi.fn(), pending: false, error: null }}
         onSelect={vi.fn()}
       />,
     )
@@ -107,6 +164,7 @@ describe('PostRow', () => {
         post={{ ...post, title, match }}
         current={false}
         href="#post"
+        favorite={{ toggle: vi.fn(), pending: false, error: null }}
         onSelect={vi.fn()}
       />,
     )
@@ -121,6 +179,7 @@ describe('PostRow', () => {
         post={{ ...post, match: { title: [], text: null } }}
         current={false}
         href="#post"
+        favorite={{ toggle: vi.fn(), pending: false, error: null }}
         onSelect={vi.fn()}
       />,
     )

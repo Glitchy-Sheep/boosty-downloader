@@ -1,4 +1,4 @@
-export type PostShortcut = 'next' | 'previous' | 'search'
+export type PostShortcut = 'next' | 'previous' | 'search' | 'seen' | 'favorite'
 
 /** Physical positions keep the reading keys available on other keyboard layouts. */
 export function postShortcut(code: string): PostShortcut | null {
@@ -9,6 +9,10 @@ export function postShortcut(code: string): PostShortcut | null {
       return 'previous'
     case 'Slash':
       return 'search'
+    case 'KeyS':
+      return 'seen'
+    case 'KeyF':
+      return 'favorite'
     default:
       return null
   }
@@ -22,9 +26,9 @@ function ownsKeyboard(target: EventTarget | null): boolean {
   return editable !== null && editable.getAttribute('contenteditable')?.toLowerCase() !== 'false'
 }
 
-function isOpenDialog(dialog: Element): boolean {
-  if (dialog.matches('dialog:not([open])')) return false
-  for (let element: Element | null = dialog; element; element = element.parentElement) {
+function isOpenOverlay(overlay: Element): boolean {
+  if (overlay.matches('dialog:not([open])')) return false
+  for (let element: Element | null = overlay; element; element = element.parentElement) {
     if (element.matches('[hidden], [inert], [aria-hidden="true"], [data-state="closed"]'))
       return false
     const style = window.getComputedStyle(element)
@@ -33,7 +37,7 @@ function isOpenDialog(dialog: Element): boolean {
   return true
 }
 
-/** Editors, native playback controls and dialogs retain their own keyboard actions. */
+/** Editors, native playback controls, menus and dialogs retain their own keyboard actions. */
 export function acceptsPostShortcut(event: KeyboardEvent, document: Document): boolean {
   if (
     event.defaultPrevented ||
@@ -46,6 +50,6 @@ export function acceptsPostShortcut(event: KeyboardEvent, document: Document): b
   )
     return false
   return !Array.from(
-    document.querySelectorAll('dialog, [role="dialog"], [role="alertdialog"]'),
-  ).some(isOpenDialog)
+    document.querySelectorAll('dialog, [role="dialog"], [role="alertdialog"], [role="menu"]'),
+  ).some(isOpenOverlay)
 }

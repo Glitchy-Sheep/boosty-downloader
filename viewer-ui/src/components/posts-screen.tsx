@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { PostBody } from '@/components/post-body'
 import { PostPage } from '@/components/post-page'
 import { Sidebar } from '@/components/sidebar'
-import { useFavorite } from '@/hooks/use-favorite'
+import { usePostMarkActions, usePostMarks } from '@/hooks/use-post-marks'
 import { usePostShortcuts } from '@/hooks/use-post-shortcuts'
 import type { SavePosition } from '@/hooks/use-post-playback'
 import { savePlaybackPosition } from '@/lib/api'
@@ -45,6 +45,7 @@ export function PostsScreen() {
   const searchResetRevision = useSearchHistoryReset()
   const client = useQueryClient()
   const searchInput = useRef<HTMLInputElement>(null)
+  const markActions = usePostMarkActions(author)
   const { data: summary } = useSuspenseQuery(authorQuery(author))
   const posts = usePostList(author, filters)
   const tags = useQuery(tagsQuery(author))
@@ -65,6 +66,8 @@ export function PostsScreen() {
       searchInput.current?.focus()
       searchInput.current?.select()
     },
+    onSeen: markActions.toggleSeen,
+    onFavorite: markActions.toggleFavorite,
   })
 
   const changeFilters = (next: Filters, options?: { replace?: boolean }): void => {
@@ -157,7 +160,7 @@ function PostReader({ author, postId }: { author: string; postId: string }) {
   const router = useRouter()
   const { data: post } = useSuspenseQuery(postQuery(author, postId))
   const posts = usePostList(author, filters)
-  const favorite = useFavorite(author, postId)
+  const marks = usePostMarks(author, postId)
   const savePosition = useCallback<SavePosition>(
     async (media, position, options) => {
       const saved = await savePlaybackPosition(author, media.id, position, options.keepalive)
@@ -179,9 +182,12 @@ function PostReader({ author, postId }: { author: string; postId: string }) {
       filters={filters}
       posts={posts.data}
       listPending={posts.isPending || posts.isPlaceholderData || posts.isError}
-      favoritePending={favorite.pending}
-      favoriteError={favorite.error}
-      onFavorite={favorite.toggle}
+      favoritePending={marks.favorite.pending}
+      favoriteError={marks.favorite.error}
+      onFavorite={marks.favorite.toggle}
+      seenPending={marks.seen.pending}
+      seenError={marks.seen.error}
+      onSeen={marks.seen.toggle}
       onTag={(tag) => changeFilters({ tag: filters.tag === tag ? undefined : tag })}
       onPost={(id) => {
         void navigate({

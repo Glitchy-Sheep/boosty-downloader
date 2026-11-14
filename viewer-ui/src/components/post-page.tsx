@@ -17,6 +17,9 @@ export type PostPageProps = {
   favoritePending: boolean
   favoriteError: string | null
   onFavorite: () => void
+  seenPending: boolean
+  seenError: string | null
+  onSeen: () => void
   onTag: (tag: string) => void
   onPost: (id: string) => void
   postHref: (id: string) => string
@@ -32,6 +35,9 @@ export function PostPage({
   favoritePending,
   favoriteError,
   onFavorite,
+  seenPending,
+  seenError,
+  onSeen,
   onTag,
   onPost,
   postHref,
@@ -48,6 +54,9 @@ export function PostPage({
         favoritePending={favoritePending}
         favoriteError={favoriteError}
         onFavorite={onFavorite}
+        seenPending={seenPending}
+        seenError={seenError}
+        onSeen={onSeen}
         onTag={onTag}
       />
       <hr className="my-6 border-border @2xl/main:my-7" />

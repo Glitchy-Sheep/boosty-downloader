@@ -4,7 +4,8 @@ import { SearchX } from 'lucide-react'
 import { useCallback, useLayoutEffect, useMemo, useRef, type CSSProperties } from 'react'
 
 import { MonthScrubber } from '@/components/month-scrubber'
-import { PostRow } from '@/components/post-row'
+import { PostRow, type PostRowProps } from '@/components/post-row'
+import { useFavorite } from '@/hooks/use-favorite'
 import type { PostRow as PostSummary } from '@/lib/api.gen'
 import { rowMetrics } from '@/lib/sidebar'
 import { buildTimeline, type MonthRow, type TimelineRow } from '@/lib/timeline'
@@ -192,7 +193,7 @@ export function PostList({
                 {row.kind === 'month' ? (
                   <MonthHeader row={row} />
                 ) : (
-                  <PostRow
+                  <MarkedPostRow
                     author={author}
                     post={row.post}
                     current={row.post.id === currentId}
@@ -207,6 +208,13 @@ export function PostList({
       </div>
     </>
   )
+}
+
+type MarkedPostRowProps = Omit<PostRowProps, 'favorite'>
+
+function MarkedPostRow(props: MarkedPostRowProps) {
+  const favorite = useFavorite(props.author, props.post.id)
+  return <PostRow {...props} favorite={favorite} />
 }
 
 function MonthHeader({ row }: { row: MonthRow }) {

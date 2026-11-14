@@ -46,6 +46,8 @@ test('uses fresh callbacks and context without leaving a listener after unmount'
   const hook = renderHook(
     ({ onPost, value }) =>
       usePostShortcuts({
+        onSeen: vi.fn(),
+        onFavorite: vi.fn(),
         readContext: () => value,
         onPost,
         onSearch: search,
@@ -80,6 +82,8 @@ test('search stays available with no list while movement at a boundary does noth
   const hook = renderHook(
     ({ neighbours }) =>
       usePostShortcuts({
+        onSeen: vi.fn(),
+        onFavorite: vi.fn(),
         readContext: () => ({ ...context, neighbours }),
         onPost,
         onSearch,
@@ -102,11 +106,13 @@ test('ignores inactive routes, unsupported keys and keyboard owners', () => {
   const readContext = vi.fn<() => PostShortcutContext | null>().mockReturnValue(null)
   const onPost = vi.fn()
   const onSearch = vi.fn()
-  const hook = renderHook(() => usePostShortcuts({ readContext, onPost, onSearch }))
+  const hook = renderHook(() =>
+    usePostShortcuts({ readContext, onPost, onSearch, onSeen: vi.fn(), onFavorite: vi.fn() }),
+  )
   fireEvent.keyDown(document, { code: 'Slash' })
   expect(onSearch).not.toHaveBeenCalled()
   expect(readContext).toHaveBeenCalledOnce()
-  fireEvent.keyDown(document, { code: 'KeyF' })
+  fireEvent.keyDown(document, { code: 'BracketLeft' })
   const input = document.createElement('input')
   document.body.append(input)
   fireEvent.keyDown(input, { code: 'KeyJ' })
@@ -194,3 +200,32 @@ test.each([
     client.clear()
   },
 )
+
+test('marks the latest post in either layout without requiring a loaded filtered list', () => {
+  const onSeen = vi.fn()
+  const onFavorite = vi.fn()
+  let current: PostShortcutContext = { ...context, neighbours: null }
+  renderHook(() =>
+    usePostShortcuts({
+      readContext: () => current,
+      onPost: vi.fn(),
+      onSearch: vi.fn(),
+      onSeen,
+      onFavorite,
+    }),
+  )
+  fireEvent.keyDown(document, { code: 'KeyS', key: 'ы' })
+  expect(onSeen).toHaveBeenCalledExactlyOnceWith(savedRow.id)
+  current = { ...current, postId: 'latest-post' }
+  fireEvent.keyDown(document, { code: 'KeyF', key: 'а' })
+  expect(onFavorite).toHaveBeenCalledExactlyOnceWith('latest-post')
+  fireEvent.keyDown(document, { code: 'KeyS', key: 's' })
+  expect(onSeen).toHaveBeenLastCalledWith('latest-post')
+  fireEvent.keyDown(document, { code: 'KeyF', key: 'f', ctrlKey: true })
+  expect(onFavorite).toHaveBeenCalledTimes(1)
+  current = { ...current, postId: null }
+  fireEvent.keyDown(document, { code: 'KeyS' })
+  fireEvent.keyDown(document, { code: 'KeyF' })
+  expect(onSeen).toHaveBeenCalledTimes(2)
+  expect(onFavorite).toHaveBeenCalledTimes(1)
+})
