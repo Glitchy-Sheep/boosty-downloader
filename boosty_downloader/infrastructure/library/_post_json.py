@@ -35,12 +35,16 @@ from boosty_downloader.infrastructure.library._record_validation import (
     validate_relative_file_path,
     validate_temporal_text,
 )
+from boosty_downloader.infrastructure.library._thumbnail_path import (
+    validate_thumbnail_path,
+)
 from boosty_downloader.infrastructure.library.errors import (
     InvalidPostRecordError,
     UnsupportedPostSchemaError,
 )
 
-POST_SCHEMA_VERSION: Final = 1
+POST_SCHEMA_VERSION: Final = 2
+_SUPPORTED_POST_VERSIONS: Final = (1, POST_SCHEMA_VERSION)
 _INVALID_UNION_TAG: Final = 'union_tag_invalid'
 
 
@@ -68,6 +72,7 @@ def _validate_media_entry(entry: MediaEntry) -> MediaEntry:
     _validate_media_numbers(entry)
     validate_relative_file_path(entry.path, 'path')
     validate_relative_file_path(entry.preview_path, 'preview_path')
+    validate_thumbnail_path(entry.thumbnail_path, 'thumbnail_path')
     if entry.status == MediaStatus.downloaded and (
         entry.path is None or entry.size is None
     ):
@@ -160,8 +165,19 @@ def _validate_document_temporal_text(document: Mapping[str, object]) -> None:
             validate_temporal_text(entry)
 
 
+def _validate_v1_media_fields(raw: Mapping[str, object]) -> None:
+    media = raw.get('media')
+    if raw['schema_version'] != 1 or not isinstance(media, dict):
+        return
+    for entry in cast('dict[str, object]', media).values():
+        if isinstance(entry, dict) and 'thumbnail_path' in entry:
+            message = 'thumbnail_path is not supported by post schema version 1'
+            raise ValueError(message)
+
+
 def _decode_document(data: bytes, raw: Mapping[str, object]) -> _PostDocument:
     try:
+        _validate_v1_media_fields(raw)
         _validate_document_temporal_text(raw)
         return _PostDocument.model_validate_json(data)
     except ValidationError as error:
@@ -172,7 +188,7 @@ def _decode_document(data: bytes, raw: Mapping[str, object]) -> _PostDocument:
 
 
 def encode_post_record(record: StoredPost) -> bytes:
-    """Validate a record and encode version1 UTF-8 JSON without mutating it."""
+    """Validate a record and encode version2 UTF-8 JSON without mutating it."""
     try:
         document = _PostDocument(
             schema_version=POST_SCHEMA_VERSION,
@@ -193,8 +209,9 @@ def decode_post_record(data: bytes) -> StoredPost:
     """Decode a supported record into an independent domain snapshot."""
     raw = _read_json_object(data)
     version = _read_schema_version(raw)
-    if version != POST_SCHEMA_VERSION:
-        message = f'Unsupported post schema version: {version}; supported: {POST_SCHEMA_VERSION}'
+    if version not in _SUPPORTED_POST_VERSIONS:
+        supported = ', '.join(map(str, _SUPPORTED_POST_VERSIONS))
+        message = f'Unsupported post schema version: {version}; supported: {supported}'
         raise UnsupportedPostSchemaError(message)
     document = _decode_document(data, raw)
     return StoredPost(

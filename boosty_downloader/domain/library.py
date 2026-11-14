@@ -189,13 +189,14 @@ class LibraryPost:
     """
     Current overview with an independently retained saved body.
 
-    A saved body has both record and folder; a locked-only post has neither. The overview may contain newer locked metadata than the saved record. The teaser path is relative to the author folder.
+    A saved body has both record and folder; a locked-only post has neither. The overview may contain newer locked metadata than the saved record. The teaser paths are relative to the author folder.
     """
 
     overview: PostOverview
     record: StoredPost | None = None
     folder: str | None = None
     teaser_path: str | None = None
+    teaser_thumbnail_path: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

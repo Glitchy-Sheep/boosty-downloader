@@ -195,7 +195,7 @@ def test_multiple_recordless_folders_report_both_paths(
     [
         pytest.param(b'{', InvalidPostRecordError, id='corrupt'),
         pytest.param(
-            b'{"schema_version": 2}', UnsupportedPostSchemaError, id='unsupported'
+            b'{"schema_version": 3}', UnsupportedPostSchemaError, id='unsupported'
         ),
     ],
 )

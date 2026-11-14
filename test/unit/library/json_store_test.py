@@ -185,7 +185,7 @@ def test_orphan_temporary_does_not_count_as_a_record(
             b'{"schema_version": 1}', InvalidPostRecordError, id='invalid-record'
         ),
         pytest.param(
-            b'{"schema_version": 2}', UnsupportedPostSchemaError, id='future-schema'
+            b'{"schema_version": 3}', UnsupportedPostSchemaError, id='future-schema'
         ),
     ],
 )

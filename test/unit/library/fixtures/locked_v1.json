@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "author": "writer",
+  "posts": {
+    "locked-post-full-id": {
+      "post": {
+        "id": "locked-post-full-id",
+        "author": "writer",
+        "url": "https://example.test/writer/posts/locked-post-full-id",
+        "title": "Locked image",
+        "created_at": "2026-11-14T12:00:00Z",
+        "updated_at": "2026-11-14T12:00:00Z"
+      },
+      "synced_at": "2026-11-14T12:00:00Z",
+      "teaser_path": ".boosty-downloader/teasers/locked-post-full-id.jpg"
+    }
+  }
+}

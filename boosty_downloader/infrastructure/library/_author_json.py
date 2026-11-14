@@ -22,13 +22,16 @@ from boosty_downloader.infrastructure.library._record_validation import (
     validate_relative_file_path,
     validate_temporal_text,
 )
+from boosty_downloader.infrastructure.library._thumbnail_path import (
+    validate_thumbnail_path,
+)
 from boosty_downloader.infrastructure.library.errors import (
     InvalidAuthorRecordError,
     UnsupportedAuthorSchemaError,
 )
 
 AUTHOR_SCHEMA_VERSION: Final = 1
-LOCKED_SCHEMA_VERSION: Final = 1
+LOCKED_SCHEMA_VERSION: Final = 2
 _RECORD_CONFIG: Final = ConfigDict(
     extra='forbid',
     hide_input_in_errors=True,
@@ -48,6 +51,7 @@ def _validate_author(info: AuthorInfo) -> AuthorInfo:
 
 def _validate_locked(post: LockedPost) -> LockedPost:
     validate_relative_file_path(post.teaser_path, 'teaser_path')
+    validate_thumbnail_path(post.teaser_thumbnail_path, 'teaser_thumbnail_path')
     return replace(
         post,
         post=validate_post_metadata(post.post),
@@ -93,7 +97,9 @@ def _validation_message(error: ValidationError) -> str:
     return f'Invalid author record at {field}: {problem["msg"]}'
 
 
-def _read_document(data: bytes, supported_version: int) -> dict[str, object]:
+def _read_document(
+    data: bytes, supported_versions: tuple[int, ...]
+) -> dict[str, object]:
     try:
         document: object = loads(data.decode('utf-8'))
     except (ValueError, RecursionError) as error:
@@ -103,23 +109,35 @@ def _read_document(data: bytes, supported_version: int) -> dict[str, object]:
         message = 'Invalid author record: expected a JSON object'
         raise InvalidAuthorRecordError(message)
     raw = cast('dict[str, object]', document)
-    _check_schema_version(raw, supported_version)
+    _check_schema_version(raw, supported_versions)
     return raw
 
 
 def _check_schema_version(
-    document: Mapping[str, object], supported_version: int
+    document: Mapping[str, object], supported_versions: tuple[int, ...]
 ) -> None:
     version = document.get('schema_version')
     if type(version) is not int:
         message = 'Invalid author record: schema_version must be an integer'
         raise InvalidAuthorRecordError(message)
-    if version != supported_version:
+    if version not in supported_versions:
+        supported = ', '.join(map(str, supported_versions))
         message = (
-            f'Unsupported author schema version: {version}; '
-            f'supported: {supported_version}'
+            f'Unsupported author schema version: {version}; supported: {supported}'
         )
         raise UnsupportedAuthorSchemaError(message)
+
+
+def _validate_v1_locked_fields(raw: Mapping[str, object]) -> None:
+    posts = raw.get('posts')
+    if raw['schema_version'] != 1 or not isinstance(posts, dict):
+        return
+    for locked in cast('dict[str, object]', posts).values():
+        if isinstance(locked, dict) and 'teaser_thumbnail_path' in locked:
+            message = (
+                'teaser_thumbnail_path is not supported by locked schema version 1'
+            )
+            raise ValueError(message)
 
 
 def _validate_locked_temporal_text(raw: Mapping[str, object]) -> None:
@@ -146,7 +164,7 @@ def encode_author_record(info: AuthorInfo) -> bytes:
 
 def decode_author_record(data: bytes) -> AuthorInfo:
     """Decode a supported author record into an independent domain snapshot."""
-    raw = _read_document(data, AUTHOR_SCHEMA_VERSION)
+    raw = _read_document(data, (AUTHOR_SCHEMA_VERSION,))
     try:
         validate_temporal_text(raw.get('author'))
         return _AuthorDocument.model_validate_json(data).author
@@ -173,8 +191,9 @@ def encode_locked_posts(author: str, posts: Mapping[str, LockedPost]) -> bytes:
 
 def decode_locked_posts(data: bytes, *, author: str) -> dict[str, LockedPost]:
     """Decode independent observations and check ownership, even for an empty map."""
-    raw = _read_document(data, LOCKED_SCHEMA_VERSION)
+    raw = _read_document(data, (1, LOCKED_SCHEMA_VERSION))
     try:
+        _validate_v1_locked_fields(raw)
         _validate_locked_temporal_text(raw)
         document = _LockedDocument.model_validate_json(data)
     except ValidationError as error:
