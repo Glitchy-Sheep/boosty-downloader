@@ -1,6 +1,6 @@
 # Viewer API
 
-Start `boosty-downloader view -o LIBRARY --no-open`. The server exposes the following read routes without Boosty credentials. The packaged UI remains a shell until its data screens are connected.
+Start `boosty-downloader view -o LIBRARY --no-open`. The server exposes the following read routes without Boosty credentials. The packaged UI consumes the authors endpoint; author timelines, post screens and Media controls are connected in subsequent stages.
 
 | GET route | Result |
 | --- | --- |

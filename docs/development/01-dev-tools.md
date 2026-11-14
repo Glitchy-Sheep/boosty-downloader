@@ -21,6 +21,7 @@ The React viewer uses Node 24 LTS, pinned in `.nvmrc`. With nvm installed, run `
 - `task ui:types` generates the tracked `viewer-ui/src/lib/api.gen.ts` from Python API models.
 - `task ui:check` runs TypeScript, oxlint and Vitest.
 - `task ui:build` writes static assets and Brotli/gzip copies of JavaScript and CSS to `boosty_downloader/viewer/static/app/`.
+- `task ui:e2e` builds the viewer and checks it in isolated Chromium and Firefox sessions against a temporary library served by the real `view` command.
 - `task build` builds the viewer first, then the wheel and source distribution. Both include the offline assets.
 
 Commit `viewer-ui/package-lock.json` with dependency changes. Generated assets and `node_modules` are ignored. The source under `viewer-ui/src/lib/` is tracked despite the repository's general Python `lib/` ignore rule.
@@ -31,7 +32,9 @@ The JSON contract lives in `boosty_downloader/viewer/api_models.py`. After chang
 
 A standard wheel build without `viewer/static/app/index.html` fails with a `task ui:build` hint. Direct `uv build` therefore requires that frontend step first; use `task build` for the complete pipeline. The generated UI also travels in the source distribution, so building a wheel from a released source archive does not need Node. Installing a published wheel does not need Node either.
 
-The current frontend provides the approved shell and theme through the `view` server. Library APIs and data screens are connected in subsequent stages.
+The frontend shows the authors page through the `view` server, with artwork, post counts and indexed media storage. Author timelines and post screens are connected in subsequent stages.
+
+Install the browser binaries once from `viewer-ui/` with `npx playwright install chromium firefox`. On Linux, add `--with-deps` to install the required system libraries. Then run `task ui:e2e` from the repository root. The harness generates its own synthetic library without ffmpeg, starts a viewer on an available local port and removes its temporary files after stopping the server. It sets the recording opener hook, so browser tests cannot launch desktop applications. HTML reports, screenshots and failure traces stay in the ignored `viewer-ui/playwright-report/` and `viewer-ui/test-results/` directories.
 
 Start the Python backend on an explicit port and the Vite dev server in another terminal:
 
@@ -40,7 +43,7 @@ uv run python -m boosty_downloader.main view -o .sample/library --port 8314 --no
 task ui:dev
 ```
 
-The dev page is at `http://127.0.0.1:5174`. It binds localhost only and proxies `/api/` and `/media/` to `http://127.0.0.1:8314`, rewriting Host and Origin for the backend's request guards. To use another backend port, set `BOOSTY_VIEWER_BACKEND` to the matching URL when starting `task ui:dev`. Use an explicit `view --port` so a busy default port cannot move the backend away from the proxy target. The read APIs and data screens are added by subsequent viewer stages.
+The dev page is at `http://127.0.0.1:5174`. It binds localhost only and proxies `/api/`, `/media/` and `/thumbs/` to `http://127.0.0.1:8314`, rewriting Host and Origin for the backend's request guards. To use another backend port, set `BOOSTY_VIEWER_BACKEND` to the matching URL when starting `task ui:dev`. Use an explicit `view --port` so a busy default port cannot move the backend away from the proxy target.
 
 After Ctrl+C, a fixed port can remain temporarily unavailable while the OS closes prior connections. Wait, or choose another `--port` and update `BOOSTY_VIEWER_BACKEND` to match.
 
@@ -70,7 +73,8 @@ Tasks are grouped by the dev cycle: `setup` → `fix` → `check` → `test` →
 |---------|-------------|
 | `task setup` | First-time dev setup (venv + deps + editor settings) |
 | `task deps` | Install/sync dependencies (alias of `setup:deps`) |
-| `task ci` | Everything CI runs: checks + tests + build |
+| `task ci` | Python and UI checks, unit tests and package build |
+| `task ui:e2e` | Browser checks against a temporary local viewer |
 | `task fix` | Auto-fix lint and formatting, then type-check |
 | `task lint` | Lint with auto-fix (alias of `fix:lint`) |
 | `task format` | Apply formatting (alias of `fix:format`) |
