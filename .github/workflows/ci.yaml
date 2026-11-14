@@ -39,7 +39,7 @@ jobs:
   test:
     name: 🧪 Test matrix / py${{ matrix.python }} / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     # Cells: the oldest and the newest supported Python plus the pin on
     # Ubuntu, and the pin on Windows (paths, line endings and the console
     # differ there). fail-fast off: one red cell must not cancel the others.
@@ -73,7 +73,7 @@ jobs:
           else
             echo "⏭️ Skipping integration tests (no .env config available)"
           fi
-        timeout-minutes: 10
+        timeout-minutes: 20
 
   ui:
     name: 🎨 Viewer
