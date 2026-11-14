@@ -549,9 +549,12 @@ async def test_a_gone_external_video_costs_one_attempt_and_keeps_the_post_readab
         html = (tmp_path / AUTHOR / POST_DIR_NAME / 'post.html').read_text(
             encoding='utf-8'
         )
-        assert f'Video not downloaded: {gone_url}' in html
+        assert f'Video not downloaded: </span>{gone_url}</span>' in html
         assert 'This video is unavailable' in html
-        assert f'href="{gone_url}">Open the original</a>' in html
+        assert (
+            f'href="{gone_url}" data-page-generated="true">Open the original</a>'
+            in html
+        )
         log = (tmp_path / AUTHOR / 'failed_downloads.log').read_text(encoding='utf-8')
         assert 'External video unavailable: This video is unavailable' in log
     finally:

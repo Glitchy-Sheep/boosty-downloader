@@ -206,7 +206,7 @@ def test_pending_post_url_is_escaped_once_without_changing_the_destination() -> 
 
 
 def test_unavailable_file_retains_its_name_and_recorded_error() -> None:
-    html = render_html_chunk(
+    card = _read_card(
         HtmlGenUnavailable(
             kind=UnavailableKind.FILE,
             label='Source archive.zip',
@@ -214,8 +214,9 @@ def test_unavailable_file_retains_its_name_and_recorded_error() -> None:
         )
     )
 
-    assert 'File not downloaded: Source archive.zip' in html
-    assert 'Connection lost after 10 bytes' in html
+    assert 'Source archive.zip' in card.authored
+    assert 'File not downloaded:' in card.generated
+    assert 'Connection lost after 10 bytes' in card.generated
 
 
 @pytest.mark.parametrize(
@@ -235,8 +236,9 @@ def test_unavailable_video_retains_reason_title_duration_and_external_source(
         )
     )
 
-    assert 'Video not downloaded: Video <part 2> & "notes"' in card.authored
-    assert 'Denied <request> & retry="later"' in card.authored
+    assert 'Video <part 2> & "notes"' in card.authored
+    assert 'Video not downloaded:' in card.generated
+    assert 'Denied <request> & retry="later"' in card.generated
     assert f'Duration: {display}' in card.generated
     assert card.links == ['https://video.example/watch?id="one"&part=2']
     assert 'request' not in card.tags
@@ -248,7 +250,7 @@ def test_unavailable_video_retains_reason_title_duration_and_external_source(
     [
         (
             HtmlGenUnavailable(kind=UnavailableKind.IMAGE, reason='Connection lost'),
-            'Image not downloaded',
+            '<span data-page-generated="true">Image not downloaded</span>',
             'Connection lost',
             '',
         ),
@@ -259,25 +261,30 @@ def test_unavailable_video_retains_reason_title_duration_and_external_source(
                 reason='Access denied',
                 source_url='https://video.example/watch?v=gone',
             ),
-            'Video not downloaded: Stream &lt;part 2&gt;',
+            (
+                '<span data-page-generated="true">Video not downloaded: </span>'
+                'Stream &lt;part 2&gt;'
+            ),
             'Access denied',
             (
                 '        <a class="unavailable-link" '
-                'href="https://video.example/watch?v=gone">Open the original</a>\n'
+                'href="https://video.example/watch?v=gone" '
+                'data-page-generated="true">Open the original</a>\n'
             ),
         ),
     ],
     ids=['nameless-image', 'named-video-with-source'],
 )
-def test_legacy_unavailable_markup_stays_unchanged_without_duration(
+def test_unavailable_markup_marks_generated_text_without_duration(
     chunk: HtmlGenUnavailable, title: str, reason: str, link: str
 ) -> None:
     assert render_html_chunk(chunk) == (
         '<div class="unavailable">\n'
-        '    <span class="unavailable-icon">⚠️</span>\n'
+        '    <span class="unavailable-icon" aria-hidden="true">⚠️</span>\n'
         '    <span class="unavailable-text">\n'
         f'        <span class="unavailable-title">{title}</span>\n'
-        f'        <span class="unavailable-reason">{reason}</span>\n'
+        f'        <span class="unavailable-reason" '
+        f'data-page-generated="true">{reason}</span>\n'
         f'{link}'
         '    </span>\n'
         '</div>'
