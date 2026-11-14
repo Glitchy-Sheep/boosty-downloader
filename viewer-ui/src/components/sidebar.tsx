@@ -10,7 +10,7 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react'
-import { useRef, useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode, type RefObject } from 'react'
 
 import { AuthorAvatar } from '@/components/author-avatar'
 import { PostList } from '@/components/post-list'
@@ -34,6 +34,7 @@ export type SidebarProps = {
   tags: TagCount[]
   currentId?: string | undefined
   searchResetRevision?: number
+  searchInputRef?: RefObject<HTMLInputElement | null> | undefined
   loading: boolean
   updating: boolean
   error: Error | null
@@ -116,6 +117,7 @@ export function Sidebar(props: SidebarProps) {
           onSearch={(q) => setFilters({ q: q || undefined }, true)}
           resetRevision={searchClearRevision}
           navigationRevision={props.searchResetRevision}
+          inputRef={props.searchInputRef}
         />
         <KindFilters filters={filters} setFilters={setFilters} />
         <StateFilters filters={filters} setFilters={setFilters} />

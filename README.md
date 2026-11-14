@@ -192,6 +192,8 @@ Opening an author selects its newest post and shows a virtual timeline with mont
 
 The post pane shows its complete saved text and media in the author's order. Use tags to filter, Previous/Next to follow the filtered timeline, and the heart to save favorites. Search highlights have their own match navigation. Open a photo for a full-screen view with arrow keys and Escape. Saved content stays readable after access closes; locked posts have no editable heart. Opening or playing a post does not mark it seen.
 
+Use `j` for the next post, `k` for the previous post and `/` to focus and select the search text. These shortcuts follow physical key positions, so they also work with the Russian layout. Fast presses advance from the previous chosen post and preserve the current filters and order. Text fields, dialogs and native audio/video controls keep their own keys; shortcuts with modifiers are ignored.
+
 Video and audio resume from their saved position, with a Start over action. Playback saves every five seconds while playing and on pause, seeking while paused and leaving the page. A piece played into its last 10 seconds, or last 5 percent when shorter, starts from the beginning next time. Final page-close requests use browser keepalive; delivery still depends on the browser and the local server remaining available. A failed save is shown beside the player.
 
 After the viewer stops, the operating system can keep a fixed port temporarily unavailable while connections close. The default mode chooses another free port; with `--port`, wait or choose another value.

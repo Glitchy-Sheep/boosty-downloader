@@ -51,6 +51,7 @@ type PagerLinkProps = {
 function PagerLink({ post, direction, onPost, href }: PagerLinkProps) {
   const isNext = direction === 'next'
   const label = isNext ? 'Next' : 'Previous'
+  const shortcut = isNext ? 'j' : 'k'
   const title = displayedPostTitle(post.title)
   const select = (event: MouseEvent<HTMLAnchorElement>): void => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
@@ -63,6 +64,8 @@ function PagerLink({ post, direction, onPost, href }: PagerLinkProps) {
       href={href}
       onClick={select}
       aria-label={`${label}: ${title}`}
+      aria-keyshortcuts={shortcut}
+      title={`${label} post (${shortcut})`}
       className={cn(
         'group flex flex-col gap-1.5 rounded-[10px] border bg-card p-4 outline-none transition-colors hover:border-primary/50 focus-visible:ring-3 focus-visible:ring-ring/50',
         isNext && '@md/main:items-end @md/main:text-right',
@@ -71,6 +74,9 @@ function PagerLink({ post, direction, onPost, href }: PagerLinkProps) {
       <span className="flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground transition-colors group-hover:text-primary">
         {!isNext && <ArrowLeft aria-hidden="true" className="size-3.5" />}
         {label}
+        <kbd aria-hidden="true" className="rounded border px-1 font-normal">
+          {shortcut}
+        </kbd>
         {isNext && <ArrowRight aria-hidden="true" className="size-3.5" />}
       </span>
       <span className="line-clamp-2 text-[14px] leading-snug font-medium wrap-anywhere">

@@ -1,5 +1,5 @@
 import { Search, X } from 'lucide-react'
-import { useEffect, useEffectEvent, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState, type RefObject } from 'react'
 
 const DEBOUNCE_MS = 200
 
@@ -8,6 +8,7 @@ type SearchBoxProps = {
   onSearch: (text: string) => void
   resetRevision?: number
   navigationRevision?: number | undefined
+  inputRef?: RefObject<HTMLInputElement | null> | undefined
 }
 
 /** Search follows the URL, publishing new text after typing pauses. */
@@ -16,8 +17,10 @@ export function SearchBox({
   onSearch,
   resetRevision = 0,
   navigationRevision = 0,
+  inputRef,
 }: SearchBoxProps) {
-  const input = useRef<HTMLInputElement>(null)
+  const localInput = useRef<HTMLInputElement>(null)
+  const input = inputRef ?? localInput
   const [text, setText] = useState(value)
   const sent = useRef(value)
   const lastReset = useRef(resetRevision)
@@ -62,8 +65,17 @@ export function SearchBox({
         }}
         placeholder="Search posts..."
         aria-label="Search posts"
-        className="h-9 w-full min-w-0 rounded-lg border border-input bg-background py-1 pr-9 pl-8 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
+        aria-keyshortcuts={inputRef ? '/' : undefined}
+        className="peer h-9 w-full min-w-0 rounded-lg border border-input bg-background py-1 pr-9 pl-8 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
       />
+      {inputRef && !text && (
+        <kbd
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 rounded border px-1.5 text-xs text-muted-foreground peer-focus:hidden md:block"
+        >
+          /
+        </kbd>
+      )}
       {text && (
         <button
           type="button"

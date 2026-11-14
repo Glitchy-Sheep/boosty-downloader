@@ -220,7 +220,10 @@ describe('PostPage', () => {
     fireEvent(link, ordinary)
     expect(ordinary.defaultPrevented).toBe(true)
     expect(onPost).toHaveBeenCalledExactlyOnceWith('after')
-    expect(navigation.querySelector('kbd')).toBeNull()
+    expect(link).toHaveAttribute('aria-keyshortcuts', 'j')
+    expect(
+      within(navigation).getByRole('link', { name: 'Previous: Earlier in the list' }),
+    ).toHaveAttribute('aria-keyshortcuts', 'k')
   })
 
   it('removes stale pager destinations during a filter update', () => {

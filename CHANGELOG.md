@@ -2,6 +2,8 @@
 
 ### Added
 
+- The viewer supports physical `j`/`k` keys to browse posts and `/` to focus search, including the Russian keyboard layout. Fast presses preserve every step and keep current filters; typing, dialogs and native media controls keep their keys.
+
 - The viewer reads complete saved posts with text search, filtered Previous/Next navigation, tag filters, page favorites and fullscreen photos. Retained content remains readable after access closes.
 - Inline video and audio resume from saved positions, offer Start over, and save progress during playback and on leaving the page. Opening or playing a post keeps its seen mark unchanged.
 

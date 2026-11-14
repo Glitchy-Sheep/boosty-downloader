@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import { createRef } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { SearchBox } from '@/components/search-box'
@@ -6,6 +7,23 @@ import { SearchBox } from '@/components/search-box'
 afterEach(() => vi.useRealTimers())
 
 describe('SearchBox', () => {
+  it('shares its input with keyboard navigation and keeps clear-button focus', () => {
+    const input = createRef<HTMLInputElement>()
+    const { unmount } = render(<SearchBox value="needle" onSearch={vi.fn()} inputRef={input} />)
+    const field = screen.getByRole('textbox', { name: 'Search posts' })
+    expect(input.current).toBe(field)
+    input.current?.focus()
+    input.current?.select()
+    expect(field).toHaveFocus()
+    expect(input.current?.selectionStart).toBe(0)
+    expect(input.current?.selectionEnd).toBe(6)
+    fireEvent.click(screen.getByRole('button', { name: 'Clear the search' }))
+    expect(field).toHaveValue('')
+    expect(field).toHaveFocus()
+    unmount()
+    expect(input.current).toBeNull()
+  })
+
   it('sends only the final text after typing pauses', () => {
     vi.useFakeTimers()
     const search = vi.fn()

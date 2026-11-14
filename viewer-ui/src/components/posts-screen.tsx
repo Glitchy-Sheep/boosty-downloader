@@ -6,10 +6,12 @@ import { PostBody } from '@/components/post-body'
 import { PostPage } from '@/components/post-page'
 import { Sidebar } from '@/components/sidebar'
 import { useFavorite } from '@/hooks/use-favorite'
+import { usePostShortcuts } from '@/hooks/use-post-shortcuts'
 import type { SavePosition } from '@/hooks/use-post-playback'
 import { savePlaybackPosition } from '@/lib/api'
 import { hasFilters, type Filters } from '@/lib/filters'
 import { acceptPosition } from '@/lib/playback-cache'
+import { readPostShortcutContext } from '@/lib/post-shortcut-context'
 import { authorQuery, postQuery, tagsQuery, usePostList } from '@/lib/queries'
 import { stringifyViewerSearch } from '@/lib/url-search'
 
@@ -41,6 +43,8 @@ export function PostsScreen() {
   const navigate = useNavigate()
   const router = useRouter()
   const searchResetRevision = useSearchHistoryReset()
+  const client = useQueryClient()
+  const searchInput = useRef<HTMLInputElement>(null)
   const { data: summary } = useSuspenseQuery(authorQuery(author))
   const posts = usePostList(author, filters)
   const tags = useQuery(tagsQuery(author))
@@ -48,6 +52,20 @@ export function PostsScreen() {
   useEffect(() => {
     if (pane.current) pane.current.scrollTop = 0
   }, [author, postId])
+  usePostShortcuts({
+    readContext: () => readPostShortcutContext(client, router.history.location, author),
+    onPost: (target) => {
+      void router.navigate({
+        to: '/a/$author/p/$postId',
+        params: { author: target.author, postId: target.postId },
+        search: target.filters,
+      })
+    },
+    onSearch: () => {
+      searchInput.current?.focus()
+      searchInput.current?.select()
+    },
+  })
 
   const changeFilters = (next: Filters, options?: { replace?: boolean }): void => {
     if (postId) {
@@ -87,6 +105,7 @@ export function PostsScreen() {
           author={summary}
           filters={filters}
           searchResetRevision={searchResetRevision}
+          searchInputRef={searchInput}
           posts={posts.data}
           tags={tags.data ?? []}
           currentId={postId}
