@@ -8,13 +8,21 @@ from boosty_downloader.application.page_builder import build_post_page
 from boosty_downloader.infrastructure.html_generator import render_html_body
 
 if TYPE_CHECKING:
-    from boosty_downloader.application.ports import MediaUrl
+    from boosty_downloader.application.ports import LinkUrl, MediaUrl
     from boosty_downloader.domain.stored_post import StoredPost
 
 
 class StoredPostBodyRenderer:
     """Build an HTML body without a document wrapper or filesystem changes."""
 
-    def render(self, record: StoredPost, *, media_url: MediaUrl) -> str:
+    def render(
+        self,
+        record: StoredPost,
+        *,
+        media_url: MediaUrl,
+        link_url: LinkUrl | None = None,
+    ) -> str:
         """Render current content and retained removed media at the supplied URLs."""
-        return render_html_body(build_post_page(record, media_url=media_url))
+        return render_html_body(
+            build_post_page(record, media_url=media_url, link_url=link_url)
+        )

@@ -12,6 +12,7 @@ import pytest
 from boosty_downloader.domain.library import LocatedPost
 from boosty_downloader.domain.post_folder import compose_post_directory_name
 from boosty_downloader.domain.stored_post import PostMetadata, PostSync, StoredPost
+from boosty_downloader.infrastructure.library import post_records
 from boosty_downloader.infrastructure.library.errors import (
     AmbiguousPostFolderError,
     InvalidPostRecordError,
@@ -224,15 +225,16 @@ def test_unreadable_candidate_propagates_even_after_an_exact_match(
     exact = _seed_record(tmp_path, record)
     unreadable = _create_folder(tmp_path, record.post, collision=1) / 'post.json'
     error = PermissionError('candidate cannot be read')
-    real_read_bytes = Path.read_bytes
+    unreadable.write_bytes(b'{}')
+    real_read_bytes = post_records._read_saved_bytes
 
-    def read_bytes(path: Path) -> bytes:
+    def read_bytes(root: Path, path: Path) -> bytes | None:
         if path == unreadable:
             raise error
-        return real_read_bytes(path)
+        return real_read_bytes(root, path)
 
     _set_author_order(monkeypatch, exact.parent, [exact, unreadable.parent])
-    monkeypatch.setattr(Path, 'read_bytes', read_bytes)
+    monkeypatch.setattr(post_records, '_read_saved_bytes', read_bytes)
     with pytest.raises(PermissionError) as raised:
         JsonPostRecords(tmp_path).find_post('writer', record.post.id)
     assert raised.value is error
@@ -324,14 +326,14 @@ def test_disappearance_during_record_read_does_not_return_a_missing_folder(
     tmp_path: Path, record: StoredPost, monkeypatch: pytest.MonkeyPatch
 ):
     folder = _create_folder(tmp_path, record.post)
-    real_read_bytes = Path.read_bytes
+    real_read_bytes = post_records._read_saved_bytes
 
-    def remove_folder(path: Path) -> bytes:
+    def remove_folder(root: Path, path: Path) -> bytes | None:
         if path == folder / 'post.json':
             folder.rmdir()
-        return real_read_bytes(path)
+        return real_read_bytes(root, path)
 
-    monkeypatch.setattr(Path, 'read_bytes', remove_folder)
+    monkeypatch.setattr(post_records, '_read_saved_bytes', remove_folder)
     assert JsonPostRecords(tmp_path).find_post('writer', record.post.id) is None
 
 

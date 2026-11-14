@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
     from boosty_downloader.application.mappers.live_post import LivePost
     from boosty_downloader.application.media_paths import MediaPathHint
-    from boosty_downloader.application.ports import PostStore
+    from boosty_downloader.application.ports import PostLocator
     from boosty_downloader.application.reconcile import ReconcileResult
     from boosty_downloader.domain.content_types import DownloadContentTypeFilter
     from boosty_downloader.domain.disk_snapshot import DiskSnapshot
@@ -86,7 +86,7 @@ class PostPreparer:
     """
 
     library_root: Path
-    store: PostStore
+    store: PostLocator
     author: str
     preferred_video_quality: BoostyOkVideoType
     restore_missing: bool = False

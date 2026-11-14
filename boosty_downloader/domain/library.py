@@ -13,6 +13,14 @@ from boosty_downloader.domain.stored_post import AuthorInfo, PostMetadata, Store
 
 
 @dataclass(frozen=True, slots=True)
+class PostIdentity:
+    """A full post key, independent of folder names and index row numbers."""
+
+    author: str
+    post_id: str
+
+
+@dataclass(frozen=True, slots=True)
 class LocatedPost:
     """An existing post folder; a missing record allows recovery of retained files."""
 

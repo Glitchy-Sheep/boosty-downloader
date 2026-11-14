@@ -10,7 +10,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Protocol, TypeAlias
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Collection, Iterator
     from uuid import UUID
 
     from boosty_downloader.domain.library import (
@@ -77,12 +77,8 @@ class FailureLog(Protocol):
     async def add_error(self, error_id: str, message: str) -> None: ...
 
 
-class PostStore(Protocol):
-    """
-    Persistent post records for one library root, keyed by author and full post ID.
-
-    Folders are portable POSIX paths relative to the library root. Saved inputs and returned records are independent snapshots, including nested mutable values.
-    """
+class PostLocator(Protocol):
+    """Read canonical locations and choose portable library-relative folders."""
 
     def find_post(self, author: str, post_id: str) -> LocatedPost | None:
         """
@@ -92,9 +88,19 @@ class PostStore(Protocol):
         """
         ...
 
-    def choose_post_folder(self, post: PostMetadata) -> str:
-        """Choose a new post's folder without creating or reserving it."""
+    def choose_post_folder(
+        self, post: PostMetadata, *, reserved_folders: Collection[str] = ()
+    ) -> str:
+        """Choose a free folder, excluding caller reservations, without writes."""
         ...
+
+
+class PostStore(PostLocator, Protocol):
+    """
+    Persistent post records for one library root, keyed by author and full post ID.
+
+    Folders are portable POSIX paths relative to the library root. Saved inputs and returned records are independent snapshots, including nested mutable values.
+    """
 
     def save_post(self, folder: str, record: StoredPost) -> None:
         """
@@ -153,18 +159,37 @@ class StoredPostCollection(Protocol):
         """Read fresh independent records for one author or the entire library."""
         ...
 
+    def find_post(self, author: str, post_id: str) -> LocatedPost | None:
+        """Read a fresh canonical record by full identity, or None if absent."""
+        ...
+
     def save_post(self, folder: str, record: StoredPost) -> None:
         """Atomically save a record in its confirmed folder, preserving other files."""
         ...
 
 
 MediaUrl: TypeAlias = Callable[[str], str]
+LinkUrl: TypeAlias = Callable[[str], str]
+
+
+class LinkResolver(Protocol):
+    """Locate an eligible saved target by author and full post identity."""
+
+    def post_folder(self, author: str, post_id: str) -> str | None:
+        """Return its portable library-relative folder, or None if unavailable."""
+        ...
 
 
 class PostBodyRenderer(Protocol):
     """Render a saved body with URLs for its post-relative media paths."""
 
-    def render(self, record: StoredPost, *, media_url: MediaUrl) -> str:
+    def render(
+        self,
+        record: StoredPost,
+        *,
+        media_url: MediaUrl,
+        link_url: LinkUrl | None = None,
+    ) -> str:
         """Return the shared post body without changing records or writing a page."""
         ...
 

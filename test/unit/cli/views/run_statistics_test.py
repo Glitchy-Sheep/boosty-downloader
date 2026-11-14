@@ -9,6 +9,7 @@ import pytest
 from boosty_downloader.application.blog_overview import MediaCounts
 from boosty_downloader.application.run_statistics import RunStatistics
 from boosty_downloader.cli.views.run_statistics import render_run_statistics
+from boosty_downloader.domain.library import PostIdentity
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -101,3 +102,31 @@ def test_summary_omits_deleted_media_when_none_remain(
 
     assert 'Media deleted from disk:' not in text
     assert '--restore-missing' not in text
+
+
+@pytest.mark.parametrize('posts_downloaded', [0, 1])
+def test_incomplete_run_reports_pending_checks_and_partial_results(
+    plain: Callable[[RenderableType], str], posts_downloaded: int
+) -> None:
+    stats = RunStatistics(posts_downloaded=posts_downloaded)
+    stats.record_pending_post(PostIdentity('writer', 'post'))
+
+    text = plain(render_run_statistics(stats, elapsed_seconds=3, completed=False))
+
+    assert 'Run stopped after 3s' in text
+    assert 'Partial results' in text
+    assert '1 pending page checks' in text
+    assert 'unchanged' not in text
+    assert 'Run finished' not in text
+    assert 'Nothing new' not in text
+
+
+def test_finished_run_with_failed_posts_does_not_claim_nothing_new(
+    plain: Callable[[RenderableType], str],
+) -> None:
+    text = plain(
+        render_run_statistics(RunStatistics(posts_failed=1), elapsed_seconds=3)
+    )
+
+    assert '1 failed' in text
+    assert 'Nothing new' not in text

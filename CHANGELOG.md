@@ -2,6 +2,8 @@
 
 ### Added
 
+- Authored links between saved posts open local copies. Downloads resolve links to posts saved later in the same run; `render` and later downloads refresh processed pages when more targets become available. Viewer body links use local post routes.
+
 - `view` starts the local viewer server with the packaged shell, optional LAN access, and empty-library or compatibility pages. Read APIs expose authors, filtered posts, search context and complete post bodies; local media support seeking with Range requests. Data screens and mark editing are not connected to the shell yet.
 
 - Viewer APIs save seen marks, favorites and playback positions across downloads, index rebuilds and library moves. Bulk marking respects the selected post filters and reports numerical progress. Playback near the end of a video or track counts as finished.
@@ -27,6 +29,8 @@
 
 ### Changed
 
+- Dry-run includes page updates caused by local post links. Unchanged page bytes keep their modification time during downloads and offline rendering.
+
 - Saved video players show the stored preview when available and request metadata preload. The viewer body uses the same video markup.
 
 - Saved post pages use consistent spacing between paragraphs, including text inside lists. Line breaks within a paragraph remain distinct from paragraph boundaries.
@@ -41,6 +45,8 @@
 - Dry-run creates or changes no local files, including config samples, caches, failure logs and debug logs. A missing config is an error; `--debug` prints preview diagnostics on the console and keeps any existing log file unchanged
 
 ### Fixed
+
+- Interrupted downloads show partial results and pending page checks. Repeated post IDs in a blog listing are processed once in downloads and dry-run.
 
 - Saved post pages served by the viewer can load their own images, audio and video while keeping their sandbox isolation. Ordinary media URLs retain protection against embedding from unrelated sites.
 

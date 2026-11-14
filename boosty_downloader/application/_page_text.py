@@ -19,11 +19,13 @@ from boosty_downloader.infrastructure.html_generator.models import (
     HtmlLineBreak,
     HtmlListItem,
     HtmlTextBlock,
+    HtmlTextFragment,
 )
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from boosty_downloader.application.ports import LinkUrl
     from boosty_downloader.domain.stored_post import ListBlock, ListItem, TextContent
 
 
@@ -50,7 +52,9 @@ class _TextFlow:
         self.heading_level = 0
 
 
-def build_text_blocks(content: Iterable[TextContent]) -> list[HtmlTextBlock]:
+def build_text_blocks(
+    content: Iterable[TextContent], *, link_url: LinkUrl | None = None
+) -> list[HtmlTextBlock]:
     """Join adjacent text blocks; only explicit boundaries retain empty paragraphs."""
     flow = _TextFlow()
     for block in content:
@@ -58,13 +62,15 @@ def build_text_blocks(content: Iterable[TextContent]) -> list[HtmlTextBlock]:
             case ParagraphBreak():
                 flow.flush()
             case TextBlock():
-                _append_text_block(flow, block)
+                _append_text_block(flow, block, link_url)
     if flow.fragments:
         flow.flush()
     return flow.blocks
 
 
-def _append_text_block(flow: _TextFlow, block: TextBlock) -> None:
+def _append_text_block(
+    flow: _TextFlow, block: TextBlock, link_url: LinkUrl | None
+) -> None:
     level = _leading_level(block, flow.heading_level)
     for fragment in block.fragments:
         match fragment:
@@ -74,7 +80,16 @@ def _append_text_block(flow: _TextFlow, block: TextBlock) -> None:
                 if not fragment.text:
                     continue
                 level = fragment.header_level
-                flow.append(convert_text_fragment(fragment), level)
+                flow.append(_build_text_fragment(fragment, link_url), level)
+
+
+def _build_text_fragment(
+    fragment: PostDataChunkText.TextFragment, link_url: LinkUrl | None
+) -> HtmlTextFragment:
+    presentation = convert_text_fragment(fragment)
+    if link_url is not None and presentation.link_url is not None:
+        presentation.link_url = link_url(presentation.link_url)
+    return presentation
 
 
 def _leading_level(block: TextBlock, fallback: int) -> int:
@@ -85,16 +100,20 @@ def _leading_level(block: TextBlock, fallback: int) -> int:
     return fallback
 
 
-def build_textual_list(block: ListBlock) -> HtmlGenList:
+def build_textual_list(
+    block: ListBlock, *, link_url: LinkUrl | None = None
+) -> HtmlGenList:
     """Keep stored paragraphs and nested items inside their ordered or unordered list."""
     return HtmlGenList(
-        items=[_build_list_item(item) for item in block.items],
+        items=[_build_list_item(item, link_url) for item in block.items],
         style=convert_list_style(block.style),
     )
 
 
-def _build_list_item(item: ListItem) -> HtmlListItem:
+def _build_list_item(item: ListItem, link_url: LinkUrl | None) -> HtmlListItem:
     return HtmlListItem(
-        data=[*build_text_blocks(item.data)],
-        nested_items=[_build_list_item(nested) for nested in item.nested_items],
+        data=[*build_text_blocks(item.data, link_url=link_url)],
+        nested_items=[
+            _build_list_item(nested, link_url) for nested in item.nested_items
+        ],
     )

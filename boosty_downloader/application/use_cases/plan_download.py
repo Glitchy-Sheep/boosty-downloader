@@ -9,6 +9,7 @@ from boosty_downloader.application.blog_overview import BlogOverview, summarize_
 from boosty_downloader.application.download_plan import (
     DownloadPlan,
     build_download_plan,
+    first_post_observations,
 )
 from boosty_downloader.application.use_cases.listing_walk import walk_full_listing
 
@@ -60,10 +61,11 @@ class PlanDownloadUseCase:
 
     async def execute(self) -> DryRunReport:
         walk = await walk_full_listing(self.boosty_api, self.author_name, self.logger)
+        posts = list(first_post_observations(walk.posts))
         return DryRunReport(
-            overview=summarize_posts(self.author_name, walk.posts),
+            overview=summarize_posts(self.author_name, posts),
             plan=build_download_plan(
-                walk.posts,
+                posts,
                 preparer=self.preparer,
                 filters=self.filters,
                 excluded_tags=self.excluded_tags,

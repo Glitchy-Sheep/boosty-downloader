@@ -21,24 +21,25 @@ if TYPE_CHECKING:
 
 
 def render_run_statistics(
-    stats: RunStatistics, *, elapsed_seconds: float
+    stats: RunStatistics, *, elapsed_seconds: float, completed: bool = True
 ) -> RenderableType:
     """
     Build the block printed when a download run ends.
 
     ``elapsed_seconds`` is injected so the block is testable.
     """
-    title = Rule(title=f'Run finished in {duration(elapsed_seconds)}', style='dim')
+    title = Rule(title=_run_title(elapsed_seconds, completed=completed), style='dim')
     if stats.posts_downloaded == 0 and stats.media == MediaCounts():
         return Group(
             title,
-            'Nothing new to download',
+            *_status_lines(stats, completed=completed),
             f'Posts: {_posts_line(stats)}',
             *_deleted_media_lines(stats),
             Rule(style='dim'),
         )
     return Group(
         title,
+        *_status_lines(stats, completed=completed),
         f'Posts: {_posts_line(stats)}',
         '',
         '[bold]Media downloaded[/bold]',
@@ -50,11 +51,32 @@ def render_run_statistics(
     )
 
 
+def _run_title(elapsed_seconds: float, *, completed: bool) -> str:
+    if completed:
+        return f'Run finished in {duration(elapsed_seconds)}'
+    return f'Run stopped after {duration(elapsed_seconds)}'
+
+
+def _status_lines(stats: RunStatistics, *, completed: bool) -> list[str]:
+    if not completed:
+        return ['Partial results']
+    if (
+        stats.posts_downloaded == 0
+        and stats.media == MediaCounts()
+        and stats.posts_failed == 0
+        and stats.posts_pending == 0
+    ):
+        return ['Nothing new to download']
+    return []
+
+
 def _posts_line(stats: RunStatistics) -> str:
     """Only the buckets that happened: a clean run reads as one short phrase."""
     parts = [f'[bold]{stats.posts_downloaded}[/bold] downloaded']
     if stats.posts_cached:
         parts.append(f'{stats.posts_cached} unchanged')
+    if stats.posts_pending:
+        parts.append(f'{stats.posts_pending} pending page checks')
     if stats.posts_without_content:
         parts.append(f'{stats.posts_without_content} skipped by filters')
     if stats.posts_failed:

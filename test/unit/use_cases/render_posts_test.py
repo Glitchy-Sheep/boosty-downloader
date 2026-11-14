@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from errno import EACCES, ENOSYS, EPERM
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import quote
 
 import pytest
 
@@ -15,7 +16,7 @@ from boosty_downloader.application.use_cases.render_posts import (
     RenderPostsUseCase,
     RenderReport,
 )
-from boosty_downloader.domain.library import SavedPost
+from boosty_downloader.domain.library import LocatedPost, SavedPost
 from boosty_downloader.domain.post_data_chunks import PostDataChunkText
 from boosty_downloader.domain.post_folder import compose_post_directory_name
 from boosty_downloader.domain.stored_post import (
@@ -29,6 +30,7 @@ from boosty_downloader.domain.stored_post import (
     TextBlock,
 )
 from boosty_downloader.infrastructure.html_generator import PAGE_TEMPLATE_VERSION
+from boosty_downloader.infrastructure.library.page_links import SavedPageLinkResolver
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -53,17 +55,35 @@ class _MemoryCollection:
                 yield saved
 
     def save_post(self, folder: str, record: StoredPost) -> None:
-        self.saved.append(SavedPost(folder, deepcopy(record)))
+        saved = SavedPost(folder, deepcopy(record))
+        self.saved.append(saved)
+        self.posts = [saved if post.folder == folder else post for post in self.posts]
+
+    def find_post(self, author: str, post_id: str) -> LocatedPost | None:
+        for saved in self.posts:
+            if saved.record.post.author == author and saved.record.post.id == post_id:
+                return LocatedPost(saved.folder, deepcopy(saved.record))
+        return None
+
+
+def _use_case(root: Path, store: _MemoryCollection) -> RenderPostsUseCase:
+    return RenderPostsUseCase(
+        root, store, link_resolver=SavedPageLinkResolver(root, store.find_post)
+    )
 
 
 def _post(
-    root: Path, *, author: str = 'writer', title: str = 'Stored lesson'
+    root: Path,
+    *,
+    author: str = 'writer',
+    title: str = 'Stored lesson',
+    post_id: str = POST_ID,
 ) -> SavedPost:
     record = StoredPost(
         PostMetadata(
-            POST_ID,
+            post_id,
             author,
-            f'https://boosty.to/{author}/posts/{POST_ID}',
+            f'https://boosty.to/{author}/posts/{post_id}',
             title,
             NOW,
             NOW,
@@ -72,7 +92,7 @@ def _post(
         PostSync(NOW, NOW),
         [TextBlock([PostDataChunkText.TextFragment('Saved body text')])],
     )
-    folder = f'{author}/{compose_post_directory_name(title, NOW, POST_ID)}'
+    folder = f'{author}/{compose_post_directory_name(title, NOW, post_id)}'
     (root / folder).mkdir(parents=True)
     return SavedPost(folder, record)
 
@@ -111,6 +131,16 @@ def _page(root: Path, saved: SavedPost) -> str:
     return (root / saved.folder / 'post.html').read_text(encoding='utf-8')
 
 
+def _link_to(
+    saved: SavedPost, target: SavedPost, *, label: str = 'Related post'
+) -> None:
+    saved.record.blocks.append(
+        TextBlock(
+            [PostDataChunkText.TextFragment(label, link_url=target.record.post.url)]
+        )
+    )
+
+
 def _symlink(link: Path, target: Path, *, directory: bool = False) -> None:
     try:
         link.symlink_to(target, target_is_directory=directory)
@@ -133,7 +163,7 @@ def test_renders_only_selected_authors_and_reports_completed_pages(
     second = _post(tmp_path, author='other')
     store = _MemoryCollection(first, second)
 
-    report = RenderPostsUseCase(tmp_path, store).execute(author)
+    report = _use_case(tmp_path, store).execute(author)
 
     selected = [
         saved
@@ -164,7 +194,7 @@ def test_missing_recorded_file_becomes_a_deleted_placeholder_without_mutating_in
     original = deepcopy(saved)
     store = _MemoryCollection(saved)
 
-    assert RenderPostsUseCase(tmp_path, store).execute() == RenderReport(pages=1)
+    assert _use_case(tmp_path, store).execute() == RenderReport(pages=1)
 
     current = store.saved[0].record
     entry = current.media[FILE_ID]
@@ -191,7 +221,7 @@ def test_returned_recorded_file_uses_actual_size_without_changing_its_bytes(
     modified = media.stat().st_mtime_ns
     store = _MemoryCollection(saved)
 
-    RenderPostsUseCase(tmp_path, store).execute()
+    _use_case(tmp_path, store).execute()
 
     entry = store.saved[0].record.media[FILE_ID]
     assert entry.status is MediaStatus.downloaded
@@ -214,7 +244,7 @@ def test_removed_media_keeps_its_history_and_appears_only_while_on_disk(
         _write_media(tmp_path, saved, b'retained')
     store = _MemoryCollection(saved)
 
-    RenderPostsUseCase(tmp_path, store).execute()
+    _use_case(tmp_path, store).execute()
 
     entry = store.saved[0].record.media[FILE_ID]
     assert entry.removed_at == REMOVED_AT
@@ -236,13 +266,13 @@ def test_offline_render_does_not_adopt_unconfirmed_files(
     _write_media(tmp_path, saved, b'possibly partial')
     store = _MemoryCollection(saved)
 
-    RenderPostsUseCase(tmp_path, store).execute()
+    _use_case(tmp_path, store).execute()
 
     assert store.saved[0].record.media[FILE_ID].status is status
     assert 'href="files/material.zip"' not in _page(tmp_path, saved)
 
 
-def test_unchanged_record_is_not_saved_but_page_is_always_rebuilt(
+def test_unchanged_record_is_not_saved_but_stale_page_is_rebuilt(
     tmp_path: Path,
 ) -> None:
     saved = _post(tmp_path)
@@ -251,11 +281,156 @@ def test_unchanged_record_is_not_saved_but_page_is_always_rebuilt(
     page.write_text('Old page', encoding='utf-8')
     store = _MemoryCollection(saved)
 
-    assert RenderPostsUseCase(tmp_path, store).execute() == RenderReport(pages=1)
+    assert _use_case(tmp_path, store).execute() == RenderReport(pages=1)
 
     assert 'Saved body text' in _page(tmp_path, saved)
     assert 'Old page' not in _page(tmp_path, saved)
     assert store.saved == []
+
+
+@pytest.mark.parametrize('target_author', ['writer', 'other'])
+def test_forward_and_cyclic_links_are_local_after_one_streaming_run(
+    tmp_path: Path, target_author: str
+) -> None:
+    first = _post(tmp_path)
+    second = _post(tmp_path, author=target_author, post_id='secondab-target')
+    _link_to(first, second)
+    _link_to(first, second, label='Repeated destination')
+    _link_to(first, first, label='This post')
+    _link_to(second, first)
+    store = _MemoryCollection(first, second)
+
+    report = _use_case(tmp_path, store).execute()
+
+    assert report == RenderReport(pages=2)
+    assert store.selected_authors == [None]
+    assert len(store.saved) == 2
+    first_page = _page(tmp_path, first)
+    second_page = _page(tmp_path, second)
+    if target_author == 'writer':
+        first_target = f'../{Path(second.folder).name}/post.html'
+        second_target = f'../{Path(first.folder).name}/post.html'
+    else:
+        first_target = f'../../{second.folder}/post.html'
+        second_target = f'../../{first.folder}/post.html'
+    assert first_page.count(f'href="{quote(first_target)}"') == 2
+    assert f'href="{quote(second_target)}"' in second_page
+    assert 'href="post.html"' in first_page
+    assert store.posts[0].record.blocks == first.record.blocks
+    assert store.posts[1].record.blocks == second.record.blocks
+
+
+def test_repeated_render_keeps_identical_html_and_record_untouched(
+    tmp_path: Path,
+) -> None:
+    saved = _post(tmp_path)
+    _link_to(saved, saved)
+    store = _MemoryCollection(saved)
+    use_case = _use_case(tmp_path, store)
+    assert use_case.execute() == RenderReport(pages=1)
+    page = tmp_path / saved.folder / 'post.html'
+    before = page.read_bytes(), page.stat().st_mtime_ns
+    saved_count = len(store.saved)
+
+    assert use_case.execute() == RenderReport(pages=1)
+
+    assert (page.read_bytes(), page.stat().st_mtime_ns) == before
+    assert len(store.saved) == saved_count
+
+
+def test_second_pass_reads_the_latest_canonical_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = _post(tmp_path)
+    second = _post(tmp_path, post_id='secondab-target')
+    _link_to(first, second)
+    store = _MemoryCollection(first, second)
+    iterate = store.iter_saved_posts
+
+    def changed_source(author: str | None = None) -> Iterator[SavedPost]:
+        yield from iterate(author)
+        store.posts[0].record.blocks.append(
+            TextBlock([PostDataChunkText.TextFragment('Latest saved revision')])
+        )
+
+    monkeypatch.setattr(store, 'iter_saved_posts', changed_source)
+
+    assert _use_case(tmp_path, store).execute() == RenderReport(pages=2)
+
+    page = _page(tmp_path, first)
+    assert 'Latest saved revision' in page
+    assert f'href="{second.record.post.url}"' not in page
+    assert len(store.saved) == 2
+
+
+def test_failed_iteration_keeps_completed_pages_without_repairing_links(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = _post(tmp_path)
+    second = _post(tmp_path, post_id='secondab-target')
+    _link_to(first, second)
+    store = _MemoryCollection(first, second)
+    iterate = store.iter_saved_posts
+
+    def incomplete(author: str | None = None) -> Iterator[SavedPost]:
+        yield from iterate(author)
+        message = 'Later canonical record is corrupt'
+        raise ValueError(message)
+
+    monkeypatch.setattr(store, 'iter_saved_posts', incomplete)
+
+    with pytest.raises(ValueError, match='Later canonical record is corrupt'):
+        _use_case(tmp_path, store).execute()
+
+    assert f'href="{second.record.post.url}"' in _page(tmp_path, first)
+    assert 'Saved body text' in _page(tmp_path, second)
+    assert len(store.saved) == 2
+
+
+@pytest.mark.parametrize('failure', ['missing', 'recordless', 'identity', 'corrupt'])
+def test_invalid_canonical_source_during_second_pass_is_reported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    first = _post(tmp_path)
+    second = _post(tmp_path, post_id='secondab-target')
+    _link_to(first, second)
+    store = _MemoryCollection(first, second)
+    iterate = store.iter_saved_posts
+    lookup = store.find_post
+    finished = False
+
+    def finish_iteration(author: str | None = None) -> Iterator[SavedPost]:
+        nonlocal finished
+        yield from iterate(author)
+        finished = True
+
+    def changed_source(author: str, post_id: str) -> LocatedPost | None:
+        located = lookup(author, post_id)
+        if not finished or post_id != first.record.post.id:
+            return located
+        match failure:
+            case 'missing':
+                return None
+            case 'recordless':
+                return LocatedPost(first.folder, None)
+            case 'identity':
+                changed = deepcopy(first.record)
+                changed.post.id = 'different-full-identity'
+                return LocatedPost(first.folder, changed)
+            case _:
+                message = 'Canonical source is corrupt'
+                raise ValueError(message)
+
+    monkeypatch.setattr(store, 'iter_saved_posts', finish_iteration)
+    monkeypatch.setattr(store, 'find_post', changed_source)
+
+    with pytest.raises(
+        ValueError, match=r'refreshing links|Canonical source is corrupt'
+    ):
+        _use_case(tmp_path, store).execute()
+
+    assert f'href="{second.record.post.url}"' in _page(tmp_path, first)
+    assert len(store.saved) == 2
 
 
 def test_failed_page_write_does_not_save_observations_or_template_marker(
@@ -268,8 +443,8 @@ def test_failed_page_write_does_not_save_observations_or_template_marker(
     page.mkdir()
     store = _MemoryCollection(saved)
 
-    with pytest.raises(OSError, match=r'post\.html'):
-        RenderPostsUseCase(tmp_path, store).execute()
+    with pytest.raises(ValueError, match='destination is not a regular file'):
+        _use_case(tmp_path, store).execute()
 
     assert page.is_dir()
     assert store.saved == []
@@ -291,7 +466,7 @@ def test_record_save_sees_completed_html_and_its_failure_propagates(
 
     monkeypatch.setattr(store, 'save_post', fail_save)
     with pytest.raises(OSError, match='Record storage failed'):
-        RenderPostsUseCase(tmp_path, store).execute()
+        _use_case(tmp_path, store).execute()
     assert saved.record.sync.page_template is None
 
 
@@ -300,7 +475,7 @@ def test_blank_title_uses_existing_folder_name(tmp_path: Path) -> None:
     saved.record.post.title = '  '
     store = _MemoryCollection(saved)
 
-    RenderPostsUseCase(tmp_path, store).execute()
+    _use_case(tmp_path, store).execute()
 
     assert f'<title>{Path(saved.folder).name}</title>' in _page(tmp_path, saved)
 
@@ -319,7 +494,7 @@ def test_ancillary_records_and_index_are_not_read_or_changed(tmp_path: Path) -> 
         path.write_bytes(b'invalid ancillary data')
     modified = {path: path.stat().st_mtime_ns for path in unrelated}
 
-    RenderPostsUseCase(tmp_path, store).execute()
+    _use_case(tmp_path, store).execute()
 
     assert 'Saved body text' in _page(tmp_path, saved)
     for path in unrelated:
@@ -335,7 +510,7 @@ def test_recorded_case_alias_is_confirmed_by_the_filesystem(tmp_path: Path) -> N
     recorded_exists = (tmp_path / saved.folder / recorded).exists()
     store = _MemoryCollection(saved)
 
-    RenderPostsUseCase(tmp_path, store).execute()
+    _use_case(tmp_path, store).execute()
 
     entry = store.saved[0].record.media[FILE_ID]
     if recorded_exists:
@@ -358,7 +533,7 @@ def test_escaping_post_folder_cannot_create_a_page(tmp_path: Path) -> None:
     store = _MemoryCollection(escaping)
 
     with pytest.raises(ValueError, match='portable relative file path'):
-        RenderPostsUseCase(root, store).execute()
+        _use_case(root, store).execute()
 
     assert not (outside / 'post.html').exists()
     assert store.saved == []
@@ -374,7 +549,7 @@ def test_page_symlink_does_not_overwrite_its_external_target(tmp_path: Path) -> 
     store = _MemoryCollection(saved)
 
     with pytest.raises(ValueError, match='destination is a link'):
-        RenderPostsUseCase(root, store).execute()
+        _use_case(root, store).execute()
 
     assert page.is_symlink()
     assert outside.read_text(encoding='utf-8') == 'Keep external content'

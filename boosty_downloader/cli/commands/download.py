@@ -211,6 +211,7 @@ async def _download_handler(  # noqa: PLR0913
         )
 
         failed = False
+        completed = False
         try:
             if post_id is not None:
                 outcome = await DownloadPostByIdUseCase(
@@ -233,11 +234,16 @@ async def _download_handler(  # noqa: PLR0913
                     download_context=downloading_context,
                     skip_all_failures=skip_all_failures,
                 ).execute()
+            completed = True
         finally:
             # Also after a systemic stop or Ctrl+C: what got done is still news.
             stats = downloading_context.run_statistics
             app.reporter.console.print(
-                render_run_statistics(stats, elapsed_seconds=stats.elapsed_seconds())
+                render_run_statistics(
+                    stats,
+                    elapsed_seconds=stats.elapsed_seconds(),
+                    completed=completed,
+                )
             )
         if failed:
             # Scripts rely on the exit code: a failed download is not a success.

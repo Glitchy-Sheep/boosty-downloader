@@ -39,6 +39,10 @@ _NOW = datetime(2026, 11, 9, tzinfo=timezone.utc)
 _SAVED_PATH = 'images/Фото 100% #1?.jpg'
 _REMOVED_PATH = 'files/Копия 100% #2?.zip'
 _PREFIX = '/media/author/post/'
+_PARAGRAPH_LINK = 'https://boosty.to/author/posts/paragraph'
+_HEADING_LINK = 'https://boosty.to/author/posts/heading'
+_LIST_LINK = 'https://boosty.to/author/posts/list'
+_NESTED_LINK = 'https://boosty.to/author/posts/nested'
 
 
 def _record() -> StoredPost:
@@ -106,6 +110,110 @@ def test_relative_callback_matches_default_saved_page_body() -> None:
     body = renderer.render(record, media_url=lambda path: quote(path, safe='/'))
 
     assert body == render_html_body(build_post_page(record))
+
+
+def _linked_block(text: str, url: str, *, heading: int = 0) -> TextBlock:
+    return TextBlock(
+        [
+            PostDataChunkText.TextFragment(
+                text,
+                link_url=url,
+                header_level=heading,
+                style=PostDataChunkText.TextFragment.TextStyle(
+                    bold=True, italic=True, underline=True
+                ),
+            )
+        ]
+    )
+
+
+def _linked_record() -> StoredPost:
+    record = _record()
+    item = ListItem(
+        [_linked_block('List link', _LIST_LINK)],
+        [ListItem([_linked_block('Nested link', _NESTED_LINK)])],
+    )
+    return replace(
+        record,
+        blocks=[
+            _linked_block('Paragraph link', _PARAGRAPH_LINK),
+            ParagraphBreak(),
+            _linked_block('Heading link', _HEADING_LINK, heading=2),
+            ListBlock([item]),
+            *record.blocks,
+        ],
+    )
+
+
+def test_authored_links_are_separate_from_media_and_placeholder_links() -> None:
+    record = _linked_record()
+    before = deepcopy(record)
+    link_calls: list[str] = []
+    media_calls: list[str] = []
+    destinations = {
+        _PARAGRAPH_LINK: '/a/author/p/paragraph',
+        _HEADING_LINK: '/a/author/p/heading',
+        _LIST_LINK: '/a/author/p/list',
+        _NESTED_LINK: '/a/author/p/nested',
+    }
+
+    def link_url(url: str) -> str:
+        link_calls.append(url)
+        return destinations[url]
+
+    def media_url(path: str) -> str:
+        media_calls.append(path)
+        return _PREFIX + quote(path, safe='/')
+
+    body = StoredPostBodyRenderer().render(
+        record, media_url=media_url, link_url=link_url
+    )
+
+    assert link_calls == list(destinations)
+    assert media_calls == [_SAVED_PATH, _REMOVED_PATH]
+    assert all(f'href="{target}"' in body for target in destinations.values())
+    assert '<h2><a href="/a/author/p/heading">' in body
+    assert '<strong><em><u>Nested link</u></em></strong>' in body
+    assert f'href="{record.post.url}" data-page-generated="true"' in body
+    assert 'Open the post on Boosty' in body
+    assert record == before
+
+
+def test_link_callback_matches_the_saved_page_and_is_optional() -> None:
+    record = _linked_record()
+
+    def local_link(url: str) -> str:
+        return '../saved/post.html#' + url.rsplit('/', 1)[-1]
+
+    renderer = StoredPostBodyRenderer()
+    body = renderer.render(record, media_url=lambda path: path, link_url=local_link)
+    chunks = build_post_page(record, media_url=lambda path: path, link_url=local_link)
+    page = render_html(chunks, page_title=record.post.title)
+
+    assert body == render_html_body(chunks)
+    assert body in page
+    original = renderer.render(record, media_url=lambda path: path)
+    assert all(
+        f'href="{url}"' in original
+        for url in [_PARAGRAPH_LINK, _HEADING_LINK, _LIST_LINK, _NESTED_LINK]
+    )
+    assert '../saved/post.html' not in original
+
+
+def test_unsafe_callback_result_keeps_authored_text_without_an_anchor() -> None:
+    record = replace(
+        _record(), blocks=[_linked_block('Linked words', _PARAGRAPH_LINK)], media={}
+    )
+    body = StoredPostBodyRenderer().render(
+        record,
+        media_url=lambda path: path,
+        link_url=lambda _url: 'javascript:alert(1)',
+    )
+
+    assert body == '<p><strong><em><u>Linked words</u></em></strong></p>'
+    assert body == render_html_body(
+        build_post_page(record, link_url=lambda _url: 'javascript:alert(1)')
+    )
 
 
 @pytest.mark.parametrize('kind', [MediaKind.boosty_video, MediaKind.external_video])

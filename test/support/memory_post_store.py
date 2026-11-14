@@ -1,5 +1,6 @@
 """An in-memory PostStore for tests that need records without filesystem access."""
 
+from collections.abc import Collection
 from copy import deepcopy
 from dataclasses import dataclass
 
@@ -36,9 +37,18 @@ class MemoryPostStore:
         """Load an independent snapshot of the folder and any surviving record."""
         return deepcopy(self._posts.get(_PostKey(author, post_id)))
 
-    def choose_post_folder(self, post: PostMetadata) -> str:
+    def choose_post_folder(
+        self, post: PostMetadata, *, reserved_folders: Collection[str] = ()
+    ) -> str:
         """Choose a deterministic fixture path without reserving it."""
-        return f'{post.author}/{post.id}'
+        folder = f'{post.author}/{post.id}'
+        candidate = folder
+        collision = 0
+        occupied = {located.folder for located in self._posts.values()}
+        while candidate in occupied or candidate in reserved_folders:
+            collision += 1
+            candidate = f'{folder}-{collision}'
+        return candidate
 
     def save_post(self, folder: str, record: StoredPost) -> None:
         """Save a record snapshot in its own folder, preserving access observations."""

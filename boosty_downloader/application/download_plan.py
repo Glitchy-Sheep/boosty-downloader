@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from boosty_downloader.application.blog_overview import MediaCounts
 from boosty_downloader.application.filtering import has_excluded_tag
+from boosty_downloader.application.planned_post_pages import PlannedPostPages
+from boosty_downloader.application.post_locations import ReservedPostLocator
 from boosty_downloader.domain.stored_post import MediaKind
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Iterable, Iterator, Sequence
 
     from boosty_downloader.application.post_preparation import (
         PostPreparer,
@@ -52,6 +54,16 @@ class PlannedMedia:
         )
 
 
+def first_post_observations(posts: Iterable[PostDTO]) -> Iterator[PostDTO]:
+    """Keep one author's first snapshot of each full post ID in listing order."""
+    seen_post_ids: set[str] = set()
+    for post in posts:
+        if post.id in seen_post_ids:
+            continue
+        seen_post_ids.add(post.id)
+        yield post
+
+
 def build_download_plan(
     posts: Iterable[PostDTO],
     *,
@@ -60,17 +72,22 @@ def build_download_plan(
     excluded_tags: Sequence[str] = (),
     now: datetime | None = None,
 ) -> DownloadPlan:
-    """Observe accessible posts; tag exclusions precede any record lookup."""
+    """Use each full ID's first observation; exclusions precede any record lookup."""
     observed_at = now or datetime.now(timezone.utc)
+    locations = ReservedPostLocator(preparer.store)
+    pages = PlannedPostPages(preparer.library_root, preparer.store)
+    preparer = replace(preparer, store=locations)
     new = updated = unchanged = excluded = 0
     media = PlannedMedia()
-    for post in posts:
+    for post in first_post_observations(posts):
         if has_excluded_tag((tag.title for tag in post.tags or ()), excluded_tags):
             excluded += 1
             continue
         if not post.has_access:
             continue
         prepared = preparer.prepare(post, filters, observed_at)
+        locations.reserve(prepared.live.post, prepared.folder)
+        pages.record(prepared)
         if prepared.is_new:
             new += 1
         elif prepared.needs_update:
@@ -78,10 +95,11 @@ def build_download_plan(
         else:
             unchanged += 1
         media += _planned_media(prepared)
+    refreshed = pages.count_updated_sources()
     return DownloadPlan(
         new_posts=new,
-        updated_posts=updated,
-        unchanged_posts=unchanged,
+        updated_posts=updated + refreshed,
+        unchanged_posts=unchanged - refreshed,
         excluded_posts=excluded,
         media=media.counts,
         known_bytes=media.known_bytes,

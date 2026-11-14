@@ -274,6 +274,20 @@ async def test_success_resets_the_streak(monkeypatch: pytest.MonkeyPatch) -> Non
     assert len(calls) == 9, 'four failures, a success, four more - never a stop'
 
 
+async def test_repeated_failed_identity_does_not_multiply_the_failure_streak(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _script_outcomes(monkeypatch, {'broken': OSError('Disk failure')})
+    use_case = _use_case(
+        ['broken'] * 6 + ['next'], _FakeReporter(), _FakeFailedLogger()
+    )
+
+    await use_case.execute()
+
+    assert calls == ['broken', 'next']
+    assert use_case.context.run_statistics.posts_failed == 1
+
+
 async def test_gone_videos_are_not_a_failure_streak(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

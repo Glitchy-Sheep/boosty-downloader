@@ -6,6 +6,7 @@ from functools import partial
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 
+from boosty_downloader.application.post_links import ViewerPostLinks
 from boosty_downloader.domain.library_errors import LibraryReadError
 from boosty_downloader.domain.library_media import LibraryMediaItem
 from boosty_downloader.domain.library_summary import summarize_post
@@ -19,15 +20,20 @@ from boosty_downloader.viewer.urls import media_url, post_media_path
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from boosty_downloader.application.ports import PostBodyRenderer
+    from boosty_downloader.application.ports import LinkResolver, PostBodyRenderer
     from boosty_downloader.domain.library import LibraryPost, LibraryPostDetails
     from boosty_downloader.domain.stored_post import MediaEntry
 
 
 def post_detail_response(
-    author: str, detail: LibraryPostDetails, root: Path, renderer: PostBodyRenderer
+    author: str,
+    detail: LibraryPostDetails,
+    root: Path,
+    renderer: PostBodyRenderer,
+    *,
+    link_resolver: LinkResolver | None = None,
 ) -> api.PostDetail:
-    """Render only this snapshot; no index refresh or extra mark reads are needed."""
+    """Render this source snapshot and resolve links without refreshing the index."""
     content = detail.content
     row = post_response(author, summarize_post(detail))
     post = content.overview.post
@@ -37,7 +43,7 @@ def post_detail_response(
         tier_price_rub=post.tier_price_rub,
         post_price_rub=post.post_price_rub,
         boosty_url=post.url,
-        body_html=_body_html(author, content, renderer),
+        body_html=_body_html(author, content, renderer, link_resolver),
         media=_detail_media(author, detail),
         has_folder=_has_folder(root, author, content.folder),
     )
@@ -55,14 +61,24 @@ def _body_media_url(author: str, folder: str, relative: str) -> str:
     return media_url(author, post_media_path(author, folder, relative))
 
 
-def _body_html(author: str, content: LibraryPost, renderer: PostBodyRenderer) -> str:
+def _body_html(
+    author: str,
+    content: LibraryPost,
+    renderer: PostBodyRenderer,
+    link_resolver: LinkResolver | None,
+) -> str:
     if content.record is None:
         return ''
     if content.folder is None:
         message = 'The saved post has no folder.'
         raise LibraryReadError(message)
+    links = None
+    if link_resolver is not None:
+        links = ViewerPostLinks(link_resolver)
     return renderer.render(
-        content.record, media_url=partial(_body_media_url, author, content.folder)
+        content.record,
+        media_url=partial(_body_media_url, author, content.folder),
+        link_url=links,
     )
 
 
