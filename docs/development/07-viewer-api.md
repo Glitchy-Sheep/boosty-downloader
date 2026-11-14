@@ -12,6 +12,7 @@ Start `boosty-downloader view -o LIBRARY --no-open`. The server exposes the foll
 | `/api/opener` | Available local file actions and system; no local root for an ineligible request |
 | `/api/authors/{author}/posts/{id}` | Current metadata/access, retained body, fresh marks and downloaded videos/audio/files |
 | `/media/{author}/{path}` | Local media with Range, HEAD and conditional request support; confirmed generated pages use an adapted HTTP representation |
+| `/thumbs/{author}/{post_id}` | A current post cover thumbnail, a redirect to its local original, or 404 |
 
 ## Post filters
 
@@ -32,6 +33,10 @@ Favorites filter the owning post. Unseen filters individual pieces: playback is 
 Counts apply the same mark filters across every view, independently of the selected view. `counts.all` excludes files. `missing` counts current pending, failed, unavailable and locally deleted pieces in the selected view; removed pieces without a downloaded copy do not count. List and count queries share one index snapshot. An unfiltered kind view's recorded sizes sum to the author's storage total for that kind, without reading media files.
 
 ## Snapshots and paths
+
+Images expose their saved thumbnail through `thumb_path`, falling back to the original path when no thumbnail is recorded. Videos keep their saved previews. These indexed paths do not prove that the file still exists; a photo tile should retry its original `path` if loading `thumb_path` fails. `cover_path` retains its original-image meaning.
+
+`/thumbs/{author}/{post_id}` checks current canonical candidates and local files: images in body order, the first Boosty video's preview, then a locked teaser. For each image it serves a nonempty local thumbnail, or redirects to that image's usable original under `/media/`. A retained thumbnail remains usable after its original is deleted. Removed pieces cannot become covers. Missing, empty or unsafe candidates are skipped; no usable candidate returns 404. Direct responses support HEAD, Range and conditional requests with the same image headers as local media. The route never redirects to Boosty.
 
 Lists, tags and author totals use the prepared index. A post detail reads its current canonical body, access overlay, marks and cover together through one reader operation. Canonical files are independent records, not a cross-file transaction. Lists may remain stale until the next preparation or writer update while a detail already reflects a changed or missing record. A read request never synchronizes the index or reconciles local media status.
 

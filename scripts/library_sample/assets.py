@@ -7,7 +7,7 @@ import struct
 import subprocess
 import wave
 import zlib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import timedelta
 from hashlib import sha256
 from pathlib import Path
@@ -21,6 +21,7 @@ from library_sample.asset_models import (
     VideoAsset,
 )
 from library_sample.attachments import create_attachments
+from library_sample.photo_png import write_photo_png
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,9 +52,9 @@ _PALETTES: Final = (
     _Palette('00416a', 'e4e5e6', '1c1c1c'),
 )
 _IMAGE_SHAPES: Final = (
-    _Dimensions(960, 540),
-    _Dimensions(640, 960),
-    _Dimensions(800, 800),
+    _Dimensions(2400, 1350),
+    _Dimensions(1600, 2400),
+    _Dimensions(2000, 2000),
 )
 _VIDEO_SIZE: Final = _Dimensions(640, 360)
 _VIDEO_SECONDS: Final = (24, 75, 150)
@@ -120,7 +121,7 @@ def _create_images(
     directory: Path, seed: int, backend: AssetBackend
 ) -> tuple[ImageAsset, ...]:
     return tuple(
-        _create_image(
+        _create_photo(
             directory / f'image_{number:02d}',
             size=_IMAGE_SHAPES[number % len(_IMAGE_SHAPES)],
             palette=_PALETTES[number % len(_PALETTES)],
@@ -129,6 +130,37 @@ def _create_images(
         )
         for number in range(18)
     )
+
+
+def _create_photo(
+    stem: Path,
+    *,
+    size: _Dimensions,
+    palette: _Palette,
+    seed: int,
+    backend: AssetBackend,
+) -> ImageAsset:
+    if backend is AssetBackend.fallback:
+        image = ImageAsset(stem.with_suffix('.png'), size.width, size.height)
+        thumbnail = write_photo_png(image, palette.first, palette.third, seed)
+        return replace(image, thumbnail_path=thumbnail)
+    path = stem.with_suffix('.jpg')
+    source = _gradient(size, palette, seed, moving=False)
+    source += f',noise=alls=65:all_seed={seed}'
+    _run_ffmpeg('-f', 'lavfi', '-i', source, '-frames:v', '1', '-q:v', '1', str(path))
+    thumbnail = stem.with_name(f'{stem.name}_thumb').with_suffix('.jpg')
+    _run_ffmpeg(
+        '-i',
+        str(path),
+        '-vf',
+        'scale=480:-2',
+        '-frames:v',
+        '1',
+        '-q:v',
+        '4',
+        str(thumbnail),
+    )
+    return ImageAsset(path, size.width, size.height, thumbnail)
 
 
 def _create_author_images(

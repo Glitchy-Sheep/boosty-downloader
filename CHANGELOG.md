@@ -2,6 +2,8 @@
 
 ### Added
 
+- Downloads save small thumbnails for post images and locked teasers. Later runs fill missing thumbnails without downloading originals again; thumbnail failures warn once and preserve primary download results. Viewer thumbnail URLs fall back to local originals when needed.
+
 - Authored links between saved posts open local copies. Downloads resolve links to posts saved later in the same run; `render` and later downloads refresh processed pages when more targets become available. Viewer body links use local post routes.
 
 - `view` starts the local viewer server with the packaged shell, optional LAN access, and empty-library or compatibility pages. Read APIs expose authors, filtered posts, search context and complete post bodies; local media support seeking with Range requests. Data screens and mark editing are not connected to the shell yet.
