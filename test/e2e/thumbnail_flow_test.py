@@ -136,7 +136,7 @@ async def test_thumbnail_saved_once_without_primary_bytes_or_page_changes(
         assert requests.thumbnails == [f'/image/{IMAGE_ID}?fake-signed-query&mw=480']
         assert requests.auxiliary == ['/preview/full']
         page = tmp_path / AUTHOR / POST_DIR_NAME / 'post.html'
-        assert '.boosty-downloader/thumbs/' not in page.read_text()
+        assert '.boosty-downloader/thumbs/' not in page.read_text(encoding='utf-8')
         before = _snapshot(page.parent)
         thumbnail_before = (thumbnail.read_bytes(), thumbnail.stat().st_mtime_ns)
         requests.clear()

@@ -90,11 +90,25 @@ def _boundary(response: ClientResponse) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    'path',
+    [
+        'images/кадр 100% #x=y&z=%2F.png',
+        pytest.param(
+            'images/кадр 100% #?x=y&z=%2F.png',
+            marks=pytest.mark.skipif(
+                os.name == 'nt',
+                reason='Windows filenames cannot contain a question mark',
+            ),
+        ),
+    ],
+)
 async def test_image_without_thumbnail_redirects_once_to_encoded_original(
     http: _Fixture,
+    path: str,
 ):
     entry = http.library.record.media['image:cover']
-    entry.path = 'images/кадр 100% #?x=y&z=%2F.png'
+    entry.path = path
     http.write(f'{http.library.folder.partition("/")[2]}/{entry.path}')
     http.save()
     response = await http.client.get(http.url(), allow_redirects=False)
