@@ -27,6 +27,8 @@
 
 ### Changed
 
+- Saved post pages use consistent spacing between paragraphs, including text inside lists. Line breaks within a paragraph remain distinct from paragraph boundaries.
+
 - Rebuilding the library search index is faster for large libraries.
 
 - BREAKING: v5 stores download state in each post's `post.json` and marks the library format. It refuses unmarked destinations containing older post folders before any download request or startup write. There is no automatic migration or adoption of v4 downloads or their cache; choose a separate destination and keep the old folder for posts no longer available on Boosty
