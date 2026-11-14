@@ -2,6 +2,8 @@
 
 ### Added
 
+- The viewer can jump to any month in the filtered post timeline without changing the open post, filters or viewing marks. The month selector follows manual scrolling and groups long histories by year.
+
 - The viewer supports physical `j`/`k` keys to browse posts and `/` to focus search, including the Russian keyboard layout. Fast presses preserve every step and keep current filters; typing, dialogs and native media controls keep their keys.
 
 - The viewer reads complete saved posts with text search, filtered Previous/Next navigation, tag filters, page favorites and fullscreen photos. Retained content remains readable after access closes.

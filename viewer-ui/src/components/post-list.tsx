@@ -3,6 +3,7 @@ import { cn } from 'cn'
 import { SearchX } from 'lucide-react'
 import { useCallback, useLayoutEffect, useMemo, useRef, type CSSProperties } from 'react'
 
+import { MonthScrubber } from '@/components/month-scrubber'
 import { PostRow } from '@/components/post-row'
 import type { PostRow as PostSummary } from '@/lib/api.gen'
 import { rowMetrics } from '@/lib/sidebar'
@@ -16,6 +17,7 @@ type PostListProps = {
   currentId: string | undefined
   listKey: string
   isStale: boolean
+  navigationDisabled: boolean
   width: number
   emptyMessage: string
   postHref: (id: string) => string
@@ -31,6 +33,7 @@ export function PostList({
   currentId,
   listKey,
   isStale,
+  navigationDisabled,
   width,
   emptyMessage,
   postHref,
@@ -40,7 +43,10 @@ export function PostList({
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const innerRef = useRef<HTMLDivElement>(null)
-  const { rows, monthIndexes, rowIndexById } = useMemo(() => buildTimeline(posts ?? []), [posts])
+  const { rows, monthIndexes, monthTargets, rowIndexById } = useMemo(
+    () => buildTimeline(posts ?? []),
+    [posts],
+  )
   const stickyIndex = useRef(0)
   const metrics = useMemo(() => rowMetrics(width), [width])
   const sizeOf = useCallback(
@@ -137,54 +143,69 @@ export function PostList({
     '--title-lines': metrics.titleLines,
   } as CSSProperties
 
+  const virtualItems = virtualizer.getVirtualItems()
+  const activeMonth = rows[stickyIndex.current]
+  const currentMonth = activeMonth?.kind === 'month' ? activeMonth.key : undefined
+
   return (
-    <div
-      ref={scrollRef}
-      data-post-list=""
-      aria-label="Post timeline"
-      aria-busy={isStale}
-      // Keyboard focus lets users scroll the timeline without selecting a post.
-      // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-      tabIndex={0}
-      style={rowStyle}
-      className={cn(
-        'min-h-0 flex-1 overflow-y-auto overscroll-contain outline-none transition-opacity duration-150 [overflow-anchor:none] focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset',
-        isStale && 'opacity-60',
-      )}
-    >
+    <>
+      <MonthScrubber
+        months={monthTargets}
+        currentKey={currentMonth}
+        disabled={navigationDisabled}
+        onMonth={(target) => {
+          if (navigationDisabled) return
+          virtualizer.scrollToIndex(target.firstPostIndex, { align: 'start' })
+        }}
+      />
       <div
-        ref={innerRef}
-        className="relative w-full"
-        style={{ height: virtualizer.getTotalSize() }}
+        ref={scrollRef}
+        data-post-list=""
+        aria-label="Post timeline"
+        aria-busy={isStale}
+        // Keyboard focus lets users scroll the timeline without selecting a post.
+        // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+        tabIndex={0}
+        style={rowStyle}
+        className={cn(
+          'min-h-0 flex-1 overflow-y-auto overscroll-contain outline-none transition-opacity duration-150 [overflow-anchor:none] focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset',
+          isStale && 'opacity-60',
+        )}
       >
-        {virtualizer.getVirtualItems().map((item) => {
-          const row = rowAt(item.index)
-          const pinned = item.index === stickyIndex.current
-          return (
-            <div
-              key={item.key}
-              className={pinned ? 'sticky top-0 z-10' : 'absolute top-0 left-0 w-full'}
-              style={{
-                height: item.size,
-                transform: pinned ? undefined : `translateY(${item.start}px)`,
-              }}
-            >
-              {row.kind === 'month' ? (
-                <MonthHeader row={row} />
-              ) : (
-                <PostRow
-                  author={author}
-                  post={row.post}
-                  current={row.post.id === currentId}
-                  href={postHref(row.post.id)}
-                  onSelect={onPost}
-                />
-              )}
-            </div>
-          )
-        })}
+        <div
+          ref={innerRef}
+          className="relative w-full"
+          style={{ height: virtualizer.getTotalSize() }}
+        >
+          {virtualItems.map((item) => {
+            const row = rowAt(item.index)
+            const pinned = item.index === stickyIndex.current
+            return (
+              <div
+                key={item.key}
+                className={pinned ? 'sticky top-0 z-10' : 'absolute top-0 left-0 w-full'}
+                style={{
+                  height: item.size,
+                  transform: pinned ? undefined : `translateY(${item.start}px)`,
+                }}
+              >
+                {row.kind === 'month' ? (
+                  <MonthHeader row={row} />
+                ) : (
+                  <PostRow
+                    author={author}
+                    post={row.post}
+                    current={row.post.id === currentId}
+                    href={postHref(row.post.id)}
+                    onSelect={onPost}
+                  />
+                )}
+              </div>
+            )
+          })}
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 

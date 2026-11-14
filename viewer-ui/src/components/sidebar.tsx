@@ -170,6 +170,7 @@ export function Sidebar(props: SidebarProps) {
           currentId={currentId}
           listKey={`${author.name}|${filtersSearchParams(filters)}`}
           isStale={updating}
+          navigationDisabled={loading || updating || error !== null}
           width={width}
           emptyMessage={emptyMessage}
           postHref={postHref}
