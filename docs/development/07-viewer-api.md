@@ -19,6 +19,8 @@ The posts route accepts `q`, `kind`, `unseen`, `fav`, `tag`, `locked`, `incomple
 
 Search matches are plain text runs with a `matched` flag. Render their text as text, including any literal HTML-looking source content. The post body is HTML from the same renderer as saved pages; it does not add search highlights itself. Unsafe link schemes are discarded in both representations while visible text is retained.
 
+Authored Boosty links to indexed posts with saved bodies use `/a/{author}/p/{full-id}`, retaining their query and fragment. They work independently of whether the target has a generated `post.html`. Missing targets remain remote, and placeholder buttons labelled Open on Boosty keep their remote destination. Standalone saved pages instead use relative `post.html` paths, resolved from canonical records without the index. The application shell does not yet implement the post screen for these routes.
+
 ## Media filters
 
 The media route accepts `view=all|images|videos|audio|files`, `order=newest|oldest`, `unseen=0|1` and `fav=0|1`. Defaults are All, newest first and no mark filters. Unknown or repeated parameters and other values return 400. All combines images, both video sources and audio; files have their own view.

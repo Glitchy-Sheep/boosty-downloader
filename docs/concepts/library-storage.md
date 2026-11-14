@@ -94,6 +94,8 @@ boosty-downloader render AUTHOR -o LIBRARY
 
 Rendering needs no credentials or Boosty network access and never uses the index. It refreshes observations of recorded local media, rebuilds HTML and saves the successful template version in `post.json`. It preserves media files and viewing marks. A later index synchronization picks up changed records.
 
+Authored links to other saved posts use relative `post.html` paths, including posts by another author. A local target needs its full saved record and a regular page in its own folder. Missing or unreadable targets keep their Boosty links. After a normal download completes, links to pages saved later in that run are resolved. A later `render` or download that processes the source also picks up newly saved targets; it never downloads a post merely because a link mentions it. Identical HTML keeps its modification time.
+
 Rebuild the index on a local disk, for example when the library itself is on network storage:
 
 ```bash
