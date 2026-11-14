@@ -15,12 +15,17 @@ from boosty_downloader.viewer.media_paths import (
     is_author_component,
     resolve_author_path,
 )
+from boosty_downloader.viewer.saved_page_media import (
+    EMBED_TOKEN_PARAMETER,
+    rewrite_saved_page,
+)
 
 if TYPE_CHECKING:
     from os import stat_result
     from pathlib import Path
 
     from boosty_downloader.application.ports import LibraryReader
+    from boosty_downloader.viewer.saved_page_media import SavedMediaAccess
 
 FileStatSelection: TypeAlias = tuple['Path | None', 'stat_result', str | None]
 _SAVED_PAGE: Final = 'post.html'
@@ -65,6 +70,7 @@ _INLINE_TYPES: Final = {
 class _MediaFile:
     path: Path
     headers: dict[str, str]
+    is_saved_page: bool = False
 
 
 class _ExactFile(web.FileResponse):
@@ -121,20 +127,73 @@ def _select_media(
     except OSError as error:
         raise web.HTTPNotFound from error
     if _saved_page_matches(reader, root, author, relative, path):
-        return _MediaFile(path, _headers('text/html; charset=utf-8', saved_page=True))
+        return _MediaFile(
+            path,
+            _headers('text/html; charset=utf-8', saved_page=True),
+            is_saved_page=True,
+        )
     content_type = None if ':' in relative else _INLINE_TYPES.get(suffix(path.name))
     return _MediaFile(path, _headers(content_type or 'application/octet-stream'))
 
 
-async def serve_media(
-    request: web.Request, *, reader: LibraryReader, library_root: Path
+def _embed_token(request: web.Request) -> str | None:
+    tokens = request.query.getall(EMBED_TOKEN_PARAMETER, [])
+    if not tokens:
+        return None
+    if len(tokens) != 1 or not tokens[0]:
+        raise web.HTTPForbidden
+    return tokens[0]
+
+
+def _saved_page_response(
+    media: _MediaFile, author: str, relative: str, access: SavedMediaAccess
+) -> web.Response:
+    try:
+        html = media.path.read_bytes().decode('utf-8')
+    except (OSError, UnicodeError) as error:
+        raise web.HTTPNotFound from error
+    body = rewrite_saved_page(html, author=author, relative=relative, access=access)
+    headers = {**media.headers, 'Cache-Control': 'no-store'}
+    return web.Response(text=body, headers=headers)
+
+
+def _media_response(  # noqa: PLR0913 - request identity and injected services
+    *,
+    reader: LibraryReader,
+    root: Path,
+    author: str,
+    relative: str,
+    access: SavedMediaAccess,
+    token: str | None,
 ) -> web.StreamResponse:
-    """Serve a listed author's exact local file without blocking the event loop."""
-    media = await asyncio.to_thread(
-        _select_media,
-        reader,
-        library_root,
-        request.match_info['author'],
-        request.match_info['path'],
+    if token is not None and not access.is_allowed(author, relative, token):
+        raise web.HTTPForbidden
+    media = _select_media(reader, root, author, relative)
+    if token is None and media.is_saved_page:
+        return _saved_page_response(media, author, relative, access)
+    response = _ExactFile(media.path, headers=media.headers)
+    if token is not None:
+        if not media.headers['Content-Type'].startswith(('image/', 'audio/', 'video/')):
+            raise web.HTTPForbidden
+        response.headers['Cache-Control'] = 'no-store'
+        response.headers['Cross-Origin-Resource-Policy'] = 'cross-origin'
+    return response
+
+
+async def serve_media(
+    request: web.Request,
+    *,
+    reader: LibraryReader,
+    library_root: Path,
+    access: SavedMediaAccess,
+) -> web.StreamResponse:
+    """Serve exact media or adapt a saved page without blocking the event loop."""
+    return await asyncio.to_thread(
+        _media_response,
+        reader=reader,
+        root=library_root,
+        author=request.match_info['author'],
+        relative=request.match_info['path'],
+        access=access,
+        token=_embed_token(request),
     )
-    return _ExactFile(media.path, headers=media.headers)

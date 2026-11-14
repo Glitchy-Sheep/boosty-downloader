@@ -85,6 +85,22 @@ async def _ok(request: web.Request) -> web.Response:
     return web.json_response({'ok': True})
 
 
+@pytest.mark.parametrize('status', [200, 206, 304, 403, 404, 416, 500])
+async def test_media_policy_keeps_route_permission_only_for_successful_responses(
+    status: int,
+) -> None:
+    request = make_mocked_request('GET', '/media/alpha/post/image.png')
+    configured = web.Response(
+        status=status, headers={'Cross-Origin-Resource-Policy': 'cross-origin'}
+    )
+    await secure_response(request, configured)
+    expected = 'cross-origin' if status < 400 else 'same-origin'
+    assert configured.headers['Cross-Origin-Resource-Policy'] == expected
+    ordinary = web.Response(status=status)
+    await secure_response(request, ordinary)
+    assert ordinary.headers['Cross-Origin-Resource-Policy'] == 'same-origin'
+
+
 @pytest.fixture
 async def guard_client() -> AsyncIterator[TestClient[web.Request, web.Application]]:
     app = web.Application(middlewares=[guard_requests])

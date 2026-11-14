@@ -5,6 +5,7 @@ from __future__ import annotations
 import ipaddress
 import socket
 from dataclasses import dataclass
+from http import HTTPStatus
 from typing import TYPE_CHECKING, Final, TypeAlias, cast
 from urllib.parse import urlsplit
 
@@ -262,12 +263,20 @@ async def guard_requests(
     return await handler(request)
 
 
+def _media_resource_policy(response: web.StreamResponse) -> str:
+    if response.status >= HTTPStatus.BAD_REQUEST:
+        return 'same-origin'
+    return response.headers.get('Cross-Origin-Resource-Policy', 'same-origin')
+
+
 async def secure_response(request: web.Request, response: web.StreamResponse) -> None:
     """Set headers at publication time, including errors and streamed files."""
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Referrer-Policy'] = 'no-referrer'
     if request.path == '/media' or request.path.startswith('/media/'):
-        response.headers['Cross-Origin-Resource-Policy'] = 'same-origin'
+        response.headers['Cross-Origin-Resource-Policy'] = _media_resource_policy(
+            response
+        )
     if 'Content-Security-Policy' not in response.headers:
         response.headers['Content-Security-Policy'] = _APP_POLICY
         response.headers['X-Frame-Options'] = 'DENY'

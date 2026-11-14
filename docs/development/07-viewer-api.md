@@ -11,7 +11,7 @@ Start `boosty-downloader view -o LIBRARY --no-open`. The server exposes the foll
 | `/api/authors/{author}/media` | Filtered downloaded media, shared post metadata, view counts and missing pieces |
 | `/api/opener` | Available local file actions and system; no local root for an ineligible request |
 | `/api/authors/{author}/posts/{id}` | Current metadata/access, retained body, fresh marks and downloaded videos/audio/files |
-| `/media/{author}/{path}` | An exact local file with Range, HEAD and conditional request support |
+| `/media/{author}/{path}` | Local media with Range, HEAD and conditional request support; confirmed generated pages use an adapted HTTP representation |
 
 ## Post filters
 
@@ -40,6 +40,10 @@ Retained downloaded copies removed by the author remain in detail media. Missing
 ## File responses and failures
 
 Only listed authors can supply files. Resolved paths stay within their author directory, including contained symlinks. Raster images, audio, video, PDF and plain UTF-8 text may display inline. HTML, SVG, XML, MHTML and unknown types download with an inert sandbox. A confirmed generated `post.html`, requested by its exact canonical path, receives a scripted sandbox with an opaque origin. File bytes never come from a compressed sibling with a different name.
+
+For a confirmed generated page, the HTTP response rewrites local image, audio, video and poster URLs with signatures for individual resources. Stored HTML and links to other pages stay unchanged. Each server instance uses a new signing key; a signature is bound to one author-relative path and remains valid for that instance so later seeking still works. The media route verifies the signature, containment and resolved file type before permitting cross-origin embedding of raster images, audio or video. Ordinary media URLs, errors, HTML/SVG and document downloads retain `Cross-Origin-Resource-Policy: same-origin`; no CORS access is granted. Adapted pages and signed media responses use `Cache-Control: no-store`.
+
+The saved-page theme switcher tolerates unavailable browser storage. In a sandbox it changes only the current page; it does not read or write the viewer's theme preference.
 
 Expected failures share `{ "error": { "code": "...", "message": "..." } }`: invalid filters return 400, absent resources return 404, and unreadable or corrupt library data return 409 with `library_unavailable`. HTTP errors disclose no absolute library paths. Host/write guards retain their 421/403 responses. Reader I/O, file resolution and body rendering run in worker threads with independent SQLite connections.
 

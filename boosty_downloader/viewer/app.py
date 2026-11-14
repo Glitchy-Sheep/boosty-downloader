@@ -20,6 +20,7 @@ from boosty_downloader.viewer.opener import NO_OPENER, Opener
 from boosty_downloader.viewer.pages import LibraryNotice
 from boosty_downloader.viewer.read_routes import ReadRoutes
 from boosty_downloader.viewer.responses import handle_library_errors
+from boosty_downloader.viewer.saved_page_media import SavedMediaAccess
 from boosty_downloader.viewer.static import StaticUI
 
 if TYPE_CHECKING:
@@ -55,7 +56,9 @@ def create_app(  # noqa: PLR0913 - explicit injected services and UI options
         if library_root is None or body_renderer is None:
             message = 'A library reader requires its root and body renderer.'
             raise ValueError(message)
-        ReadRoutes(reader, library_root, body_renderer).register(app)
+        ReadRoutes(reader, library_root, body_renderer, SavedMediaAccess()).register(
+            app
+        )
         MarkRoutes(reader).register(app)
         OpenRoutes(reader, library_root, opener).register(app)
     else:

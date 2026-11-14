@@ -43,7 +43,7 @@ from boosty_downloader.infrastructure.library._atomic_write import write_atomica
 from boosty_downloader.infrastructure.library._media_paths import is_link
 
 # Bump when the generated page structure or styling changes.
-PAGE_TEMPLATE_VERSION: Final[int] = 4
+PAGE_TEMPLATE_VERSION: Final[int] = 5
 
 
 # Load all templates as a package files

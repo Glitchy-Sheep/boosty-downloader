@@ -42,6 +42,10 @@
 
 ### Fixed
 
+- Saved post pages served by the viewer can load their own images, audio and video while keeping their sandbox isolation. Ordinary media URLs retain protection against embedding from unrelated sites.
+
+- The saved-page theme switcher works when browser storage is unavailable, including inside the viewer's sandbox. In that case the choice applies only to the current page.
+
 - Saved post pages and viewer body fragments discard unsafe link schemes while preserving their text. HTML and SVG attachments download through the viewer; confirmed generated post pages run in an opaque sandbox.
 
 - On Windows, saving a library record tolerates brief reader locks while preserving complete old or new contents
