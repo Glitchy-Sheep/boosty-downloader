@@ -269,21 +269,30 @@ async def test_external_video_preview_is_not_post_cover(http: _Fixture):
     assert (await http.client.get(http.url())).status == 404
 
 
-@pytest.mark.parametrize('saved', [False, True])
-async def test_locked_thumbnail_and_original_fallback(http: _Fixture, *, saved: bool):
-    post_id = POST_ID if saved else LOCKED_ID
+def _save_locked_thumbnail(http: _Fixture, post_id: str) -> Path:
     detail = http.library.reader.post('writer', post_id)
     assert detail is not None
-    if saved:
+    if post_id == POST_ID:
         http.library.record.blocks.clear()
         http.save()
     locked = LockedPost(detail.content.overview.post, NOW, 'locked/teaser.jpg', THUMB)
     http.library.store.save_locked_post(locked)
-    path = http.write(THUMB)
+    return http.write(THUMB)
+
+
+@pytest.mark.parametrize('post_id', [LOCKED_ID, POST_ID])
+async def test_locked_thumbnail_precedes_original(http: _Fixture, post_id: str) -> None:
+    _save_locked_thumbnail(http, post_id)
     response = await http.client.get(http.url(post_id))
     assert response.status == 200
     assert await response.read() == BODY
-    path.unlink()
+
+
+@pytest.mark.parametrize('post_id', [LOCKED_ID, POST_ID])
+async def test_missing_locked_thumbnail_falls_back_to_original_then_404(
+    http: _Fixture, post_id: str
+) -> None:
+    _save_locked_thumbnail(http, post_id).unlink()
     response = await http.client.get(http.url(post_id), allow_redirects=False)
     assert response.status == 302
     assert response.headers['Location'] == '/media/writer/locked/teaser.jpg'
