@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from boosty_downloader.application.post_link_tracker import PostLinkTracker
+from boosty_downloader.application.post_locations import ReservedPostLocator
 from boosty_downloader.application.run_statistics import RunStatistics
 
 if TYPE_CHECKING:
@@ -41,5 +43,11 @@ class DownloadContext:
     failed_logger: FailureLog
     # Counters of this run, filled by the use cases and shown at the end.
     run_statistics: RunStatistics = field(default_factory=RunStatistics)
+    page_links: PostLinkTracker = field(default_factory=PostLinkTracker)
     excluded_tags: tuple[str, ...] = ()
     restore_missing: bool = False
+    post_locations: ReservedPostLocator = field(init=False)
+
+    def __post_init__(self) -> None:
+        """Share folder reservations across this run's posts and retries."""
+        self.post_locations = ReservedPostLocator(self.post_store)

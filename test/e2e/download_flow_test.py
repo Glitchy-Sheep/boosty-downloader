@@ -29,6 +29,7 @@ from support.synthetic_post import (
     synthetic_post,
 )
 
+from boosty_downloader.application import post_pages as post_pages_module
 from boosty_downloader.application import post_retry as post_retry_module
 from boosty_downloader.application.blog_overview import MediaCounts
 from boosty_downloader.application.download_context import DownloadContext
@@ -38,9 +39,6 @@ from boosty_downloader.application.filtering import (
 from boosty_downloader.application.post_download_state import PostDownloadState
 from boosty_downloader.application.post_preparation import PostPreparer
 from boosty_downloader.application.run_statistics import RunStatistics
-from boosty_downloader.application.use_cases import (
-    download_single_post as single_post_module,
-)
 from boosty_downloader.application.use_cases.download_all_posts import (
     DownloadAllPostUseCase,
 )
@@ -72,7 +70,6 @@ if TYPE_CHECKING:
     from yarl import URL
 
     from boosty_downloader.application.run_statistics import RunStatistics
-    from boosty_downloader.infrastructure.html_generator.models import HtmlGenChunk
     from boosty_downloader.infrastructure.media_publication import PublishedFile
 
 AUTHOR = 'example_author'
@@ -713,13 +710,15 @@ async def test_page_is_rendered_once_after_all_retries(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     rendered: list[Path] = []
-    original = single_post_module.render_html_to_file
+    original = post_pages_module.write_html_page
 
-    def render(chunks: list[HtmlGenChunk], out_path: Path, page_title: str) -> None:
+    def render(
+        out_path: Path, content: bytes, *, only_if_changed: bool = False
+    ) -> bool:
         rendered.append(out_path)
-        original(chunks, out_path, page_title)
+        return original(out_path, content, only_if_changed=only_if_changed)
 
-    monkeypatch.setattr(single_post_module, 'render_html_to_file', render)
+    monkeypatch.setattr(post_pages_module, 'write_html_page', render)
     async with TestServer(_build_app([], fail_first_file=True)) as server:
         await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
     assert rendered == [tmp_path / AUTHOR / POST_DIR_NAME / 'post.html']
@@ -732,12 +731,12 @@ async def test_render_failure_preserves_completed_media_and_transfer_cause(
     *,
     dead_images: bool,
 ) -> None:
-    original = single_post_module.render_html_to_file
+    original = post_pages_module.write_html_page
 
     def broken_render(
-        chunks: list[HtmlGenChunk], out_path: Path, page_title: str
-    ) -> None:
-        del chunks, out_path, page_title
+        out_path: Path, content: bytes, *, only_if_changed: bool = False
+    ) -> bool:
+        del out_path, content, only_if_changed
         message = 'page cannot be written'
         raise OSError(message)
 
@@ -745,7 +744,7 @@ async def test_render_failure_preserves_completed_media_and_transfer_cause(
         del delay
 
     monkeypatch.setattr(post_retry_module.asyncio, 'sleep', no_sleep)
-    monkeypatch.setattr(single_post_module, 'render_html_to_file', broken_render)
+    monkeypatch.setattr(post_pages_module, 'write_html_page', broken_render)
     served: list[str] = []
     async with TestServer(_build_app(served, dead_images=dead_images)) as server:
         reporter = _QuietReporter()
@@ -760,7 +759,7 @@ async def test_render_failure_preserves_completed_media_and_transfer_cause(
         assert located.record.sync.page_template is None
         assert located.record.media[f'file:{FILE_ID}'].status is MediaStatus.downloaded
         served.clear()
-        monkeypatch.setattr(single_post_module, 'render_html_to_file', original)
+        monkeypatch.setattr(post_pages_module, 'write_html_page', original)
         await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
         assert all('/image/' in path for path in served)
         assert len(served) == (5 if dead_images else 0)

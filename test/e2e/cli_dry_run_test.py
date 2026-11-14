@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from dataclasses import dataclass
@@ -20,6 +21,7 @@ from support.synthetic_post import (
 from typer.testing import CliRunner
 
 from boosty_downloader.application.mappers.live_post import map_post_dto_to_live
+from boosty_downloader.application.post_pages import render_post_page
 from boosty_downloader.application.reconcile import prepare_record
 from boosty_downloader.cli.commands import download as download_command
 from boosty_downloader.domain.stored_post import MediaStatus
@@ -34,6 +36,7 @@ from boosty_downloader.infrastructure.boosty_api.models.post.posts_request impor
 )
 from boosty_downloader.infrastructure.html_generator import PAGE_TEMPLATE_VERSION
 from boosty_downloader.infrastructure.library.library_format import initialize_library
+from boosty_downloader.infrastructure.library.page_links import SavedPageLinkResolver
 from boosty_downloader.infrastructure.library.post_store import JsonPostStore
 from boosty_downloader.infrastructure.loggers.debug_file import DEBUG_LOG_FILENAME
 from boosty_downloader.main import typer_app
@@ -132,6 +135,93 @@ def _preview_args(root: Path, *, debug: bool) -> list[str]:
         '--cache-dir',
         str(root / 'custom-cache'),
     ]
+
+
+def _linked_posts() -> tuple[PostDTO, PostDTO]:
+    target = synthetic_post()
+    target.update(id='linked-target', data=[text_chunk('Linked post')])
+    source = synthetic_post()
+    source.update(
+        id='linked-source',
+        data=[
+            {
+                'type': 'link',
+                'url': f'https://boosty.to/{AUTHOR}/posts/linked-target',
+                'content': json.dumps(['Read the next post', 'unstyled', []]),
+                'explicit': True,
+            }
+        ],
+    )
+    return PostDTO.model_validate(source), PostDTO.model_validate(target)
+
+
+def _seed_rendered_page(root: Path, post: PostDTO) -> Path:
+    folder = _seed_record(root, post)
+    store = JsonPostStore(root)
+    saved = store.find_post(AUTHOR, post.id)
+    assert saved is not None
+    assert saved.record is not None
+    render_post_page(
+        saved.record,
+        root=root,
+        folder=saved.folder,
+        link_resolver=SavedPageLinkResolver(root, store.find_post),
+    )
+    return folder
+
+
+@pytest.mark.parametrize('target_first', [False, True])
+@pytest.mark.parametrize('restore_page', [False, True])
+def test_preview_predicts_final_link_changes_without_touching_the_library(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    listing: list[PostDTO],
+    *,
+    target_first: bool,
+    restore_page: bool,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _write_config(tmp_path)
+    source, target = _linked_posts()
+    root = tmp_path / 'library'
+    if restore_page:
+        target_folder = _seed_rendered_page(root, target)
+        _seed_rendered_page(root, source)
+        (target_folder / 'post.html').unlink()
+    else:
+        _seed_rendered_page(root, source)
+    listing.extend([target, source] if target_first else [source, target])
+    before = _snapshot(tmp_path)
+
+    result = runner.invoke(typer_app, _preview_args(tmp_path, debug=True))
+
+    assert result.exit_code == 0, result.exception
+    output = Text.from_ansi(result.output).plain
+    assert re.search(r'Existing posts to update\s+1', output)
+    assert re.search(rf'New records\s+{0 if restore_page else 1}', output)
+    assert re.search(rf'Existing posts unchanged\s+{1 if restore_page else 0}', output)
+    assert _snapshot(tmp_path) == before
+
+
+def test_preview_overview_and_plan_count_repeated_posts_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    listing: list[PostDTO],
+    post: PostDTO,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _write_config(tmp_path)
+    listing.extend([post, post])
+    before = _snapshot(tmp_path)
+
+    result = runner.invoke(typer_app, _preview_args(tmp_path, debug=False))
+
+    assert result.exit_code == 0, result.exception
+    output = Text.from_ansi(result.output).plain
+    assert '1 post, 1 accessible to you' in output
+    assert re.search(r'New records\s+1', output)
+    assert 'Known download size: 4.00 MB' in output
+    assert _snapshot(tmp_path) == before
 
 
 @pytest.mark.parametrize('debug', [False, True])

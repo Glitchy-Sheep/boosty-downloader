@@ -10,10 +10,12 @@ from boosty_downloader.application.exceptions.application_errors import (
 )
 from boosty_downloader.application.failure_streak import FailureStreakBreaker
 from boosty_downloader.application.filtering import has_excluded_tag
+from boosty_downloader.application.post_link_repair import repair_download_links
 from boosty_downloader.application.post_retry import (
     PostDownloadRetrier,
     PostOutcome,
 )
+from boosty_downloader.domain.library import PostIdentity
 from boosty_downloader.infrastructure.boosty_api.models.unknown_content import (
     UnknownContent,
     collect_unknown_content,
@@ -96,6 +98,7 @@ class DownloadAllPostUseCase:
         all_skipped: list[SkippedPost] = []
         failed_posts: list[str] = []
         unknown_content: set[UnknownContent] = set()
+        seen_posts: set[PostIdentity] = set()
         # --skip-all-failures turns the breaker off: posts keep skipping
         # without limit, the run always reaches the end.
         breaker = FailureStreakBreaker(
@@ -121,6 +124,10 @@ class DownloadAllPostUseCase:
                     description=f'Processing page [bold]{current_page}[/bold]',
                 )
 
+                identity = PostIdentity(self.author_name, post_dto.id)
+                if identity in seen_posts:
+                    continue
+                seen_posts.add(identity)
                 outcome = await self._download_or_skip(post_dto, failed_posts)
                 if outcome is None:
                     continue
@@ -145,6 +152,7 @@ class DownloadAllPostUseCase:
                 f'--- Finished page {current_page} ---'
             )
 
+        repair_download_links(self.context)
         self._print_run_summary(all_skipped, unknown_content, failed_posts)
 
     async def _download_or_skip(
