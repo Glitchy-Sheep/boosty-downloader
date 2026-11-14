@@ -7,7 +7,7 @@ type SearchBoxProps = {
   value: string
   onSearch: (text: string) => void
   resetRevision?: number
-  navigationRevision?: number
+  navigationRevision?: number | undefined
 }
 
 /** Search follows the URL, publishing new text after typing pauses. */

@@ -55,11 +55,16 @@ export function PostsScreen() {
         to: '/a/$author/p/$postId',
         params: { author, postId },
         search: next,
-        replace: options?.replace,
+        replace: options?.replace ?? false,
       })
       return
     }
-    void navigate({ to: '/a/$author', params: { author }, search: next, replace: options?.replace })
+    void navigate({
+      to: '/a/$author',
+      params: { author },
+      search: next,
+      replace: options?.replace ?? false,
+    })
   }
   const openPost = (id: string): void => {
     void navigate({ to: '/a/$author/p/$postId', params: { author, postId: id }, search: filters })

@@ -1,3 +1,4 @@
+import { requireFixture } from './required-fixture'
 import {
   API_PATH,
   POSTS,
@@ -78,8 +79,10 @@ for (const colorScheme of ['dark', 'light'] as const) {
       })),
     )
     expect(bounds).toHaveLength(2)
-    expect(Math.abs(bounds[0].y - bounds[1].y)).toBeLessThan(1)
-    expect(bounds[1].x).toBeGreaterThan(bounds[0].x)
+    const previousBounds = requireFixture(bounds[0])
+    const nextBounds = requireFixture(bounds[1])
+    expect(Math.abs(previousBounds.y - nextBounds.y)).toBeLessThan(1)
+    expect(nextBounds.x).toBeGreaterThan(previousBounds.x)
     expect((await detail(page, corpus, POSTS.reader)).seen).toBe(false)
     await pane(page).evaluate((element) => {
       element.scrollTop = 0
@@ -126,8 +129,10 @@ for (const colorScheme of ['dark', 'light'] as const) {
       })),
     )
     expect(bounds).toHaveLength(2)
-    expect(Math.abs(bounds[0].x - bounds[1].x)).toBeLessThan(1)
-    expect(bounds[1].y).toBeGreaterThan(bounds[0].y)
+    const previousBounds = requireFixture(bounds[0])
+    const nextBounds = requireFixture(bounds[1])
+    expect(Math.abs(previousBounds.x - nextBounds.x)).toBeLessThan(1)
+    expect(nextBounds.y).toBeGreaterThan(previousBounds.y)
     await info.attach(`reader-mobile-${colorScheme}`, {
       body: await page.screenshot(),
       contentType: 'image/png',
@@ -174,7 +179,7 @@ for (const order of ['newest', 'oldest']) {
       expect(posts.rows.map((post) => post.id)).toEqual(expectedIds)
       await openPost(page, corpus, POSTS.reader, search)
       const pager = pane(page).getByRole('navigation', { name: 'Post navigation' })
-      const previous = posts.rows[0]
+      const previous = requireFixture(posts.rows[0])
       const next = posts.rows.at(-1)!
       await expect(
         pager.getByRole('link', { name: `Previous: ${previous.title}` }),
@@ -278,14 +283,14 @@ test('body images open full screen, follow authored order and restore opening fo
   await page.keyboard.press('Enter')
   const dialog = page.getByRole('dialog', { name: 'Post image viewer' })
   await expect(dialog).toBeVisible()
-  await expect(dialog.locator('img')).toHaveAttribute('src', sources[0])
+  await expect(dialog.locator('img')).toHaveAttribute('src', requireFixture(sources[0]))
   await page.keyboard.press('ArrowRight')
-  await expect(dialog.locator('img')).toHaveAttribute('src', sources[1])
+  await expect(dialog.locator('img')).toHaveAttribute('src', requireFixture(sources[1]))
   await dialog.getByRole('button', { name: 'Next image' }).click()
-  await expect(dialog.locator('img')).toHaveAttribute('src', sources[2])
+  await expect(dialog.locator('img')).toHaveAttribute('src', requireFixture(sources[2]))
   await expect(dialog.getByRole('button', { name: 'Next image' })).toHaveCount(0)
   await page.keyboard.press('ArrowLeft')
-  await expect(dialog.locator('img')).toHaveAttribute('src', sources[1])
+  await expect(dialog.locator('img')).toHaveAttribute('src', requireFixture(sources[1]))
   await page.keyboard.press('Escape')
   await expect(dialog).toHaveCount(0)
   await expect(images.first()).toBeFocused()

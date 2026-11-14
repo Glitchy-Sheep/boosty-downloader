@@ -163,7 +163,7 @@ describe('usePostPlayback', () => {
   })
 
   it('keeps players and resume position stable when only cached marks and callbacks change', async () => {
-    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined)
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined)
     const oldSave = vi.fn().mockResolvedValue(undefined)
     const newSave = vi.fn().mockResolvedValue(undefined)
     const { container, rerender, unmount } = render(<Body item={playbackItem()} save={oldSave} />)
@@ -175,7 +175,7 @@ describe('usePostPlayback', () => {
     rerender(<Body item={playbackItem({ position_s: 24 })} save={newSave} />)
     expect(container.querySelector('video')).toBe(video)
     expect(video.currentTime).toBe(30)
-    expect(video.pause).not.toHaveBeenCalled()
+    expect(pause).not.toHaveBeenCalled()
     expect(container.querySelectorAll('.resume-note')).toHaveLength(1)
     fireEvent.pause(video)
     await act(() => Promise.resolve())

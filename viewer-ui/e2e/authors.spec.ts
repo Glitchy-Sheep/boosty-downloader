@@ -1,3 +1,4 @@
+import { requireFixture } from './required-fixture'
 import type { Page } from '@playwright/test'
 
 import {
@@ -32,7 +33,7 @@ async function checkOverflow(page: Page): Promise<void> {
   )
   expect(
     overflow.every((pixels) => pixels <= 0.5),
-    `Card overflow: ${overflow}`,
+    `Card overflow: ${overflow.join(', ')}`,
   ).toBe(true)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   expect(
@@ -205,8 +206,10 @@ test('long titles, missing descriptions and unbroken text preserve card geometry
   page,
 }) => {
   const authors = await actualAuthors(page)
-  authors[0].title = 'Мастерская цифровой живописи, концепт-арта и пиксель-арта'
-  authors[1].description = ''
+  const first = requireFixture(authors[0])
+  const second = requireFixture(authors[1])
+  first.title = 'Мастерская цифровой живописи, концепт-арта и пиксель-арта'
+  second.description = ''
   await openAuthors(page, authors)
   const rows = await page.locator('a[href^="/a/"] [data-storage]').evaluateAll((blocks) =>
     blocks.map((block) => ({
@@ -218,8 +221,8 @@ test('long titles, missing descriptions and unbroken text preserve card geometry
     const heights = rows.map((row) => row[part])
     expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(2)
   }
-  authors[0].title = 'Pixelforgeconceptartandshaderlaboratoryworkshop'
-  authors[0].description =
+  first.title = 'Pixelforgeconceptartandshaderlaboratoryworkshop'
+  first.description =
     'https://example.test/a/verylongunbrokenlinkwithnomidwordseparatorsthatmuststayinsidethecard'
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1000 })

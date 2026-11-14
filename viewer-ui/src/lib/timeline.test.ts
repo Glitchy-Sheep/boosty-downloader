@@ -82,7 +82,7 @@ describe('author timeline', () => {
     expect(timeline.rows[0]).toMatchObject({ key: '2026-01', count: 1 })
     expect(timeline.rows[2]).toMatchObject({ key: '2025-12', count: 1 })
     const row = timeline.rows[3]
-    expect(row.kind).toBe('post')
-    if (row.kind === 'post') expect(row.post).toBe(locked)
+    expect(row?.kind).toBe('post')
+    if (row?.kind === 'post') expect(row.post).toBe(locked)
   })
 })

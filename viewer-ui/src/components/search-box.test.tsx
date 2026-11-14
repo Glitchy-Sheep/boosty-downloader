@@ -12,11 +12,17 @@ describe('SearchBox', () => {
     render(<SearchBox value="" onSearch={search} />)
     const input = screen.getByRole('textbox', { name: 'Search posts' })
     fireEvent.change(input, { target: { value: 'ш' } })
-    act(() => vi.advanceTimersByTime(150))
+    act(() => {
+      vi.advanceTimersByTime(150)
+    })
     fireEvent.change(input, { target: { value: 'шейдер' } })
-    act(() => vi.advanceTimersByTime(199))
+    act(() => {
+      vi.advanceTimersByTime(199)
+    })
     expect(search).not.toHaveBeenCalled()
-    act(() => vi.advanceTimersByTime(1))
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
     expect(search).toHaveBeenCalledExactlyOnceWith('шейдер')
   })
 
@@ -28,7 +34,9 @@ describe('SearchBox', () => {
     fireEvent.change(input, { target: { value: 'unfinished' } })
     rerender(<SearchBox value="previous" onSearch={search} />)
     expect(input).toHaveValue('previous')
-    act(() => vi.advanceTimersByTime(250))
+    act(() => {
+      vi.advanceTimersByTime(250)
+    })
     expect(search).not.toHaveBeenCalled()
   })
 
@@ -38,11 +46,15 @@ describe('SearchBox', () => {
     const { rerender } = render(<SearchBox value="" onSearch={search} />)
     const input = screen.getByRole('textbox', { name: 'Search posts' })
     fireEvent.change(input, { target: { value: '2024' } })
-    act(() => vi.advanceTimersByTime(200))
+    act(() => {
+      vi.advanceTimersByTime(200)
+    })
     fireEvent.change(input, { target: { value: '2024 art' } })
     rerender(<SearchBox value="2024" onSearch={search} />)
     expect(input).toHaveValue('2024 art')
-    act(() => vi.advanceTimersByTime(200))
+    act(() => {
+      vi.advanceTimersByTime(200)
+    })
     expect(search.mock.calls).toEqual([['2024'], ['2024 art']])
   })
 
@@ -54,7 +66,9 @@ describe('SearchBox', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear the search' }))
     expect(input).toHaveValue('')
     expect(input).toHaveFocus()
-    act(() => vi.advanceTimersByTime(200))
+    act(() => {
+      vi.advanceTimersByTime(200)
+    })
     expect(search).toHaveBeenCalledExactlyOnceWith('')
     fireEvent.keyDown(input, { key: 'Escape' })
     expect(input).not.toHaveFocus()
@@ -66,7 +80,9 @@ describe('SearchBox', () => {
     const { unmount } = render(<SearchBox value="" onSearch={search} />)
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'draft' } })
     unmount()
-    act(() => vi.advanceTimersByTime(250))
+    act(() => {
+      vi.advanceTimersByTime(250)
+    })
     expect(search).not.toHaveBeenCalled()
   })
 
@@ -77,11 +93,15 @@ describe('SearchBox', () => {
     const input = screen.getByRole('textbox', { name: 'Search posts' })
     input.focus()
     fireEvent.change(input, { target: { value: 'pending' } })
-    act(() => vi.advanceTimersByTime(47))
+    act(() => {
+      vi.advanceTimersByTime(47)
+    })
     rerender(<SearchBox value="" onSearch={search} navigationRevision={1} />)
     expect(input).toHaveValue('')
     expect(input).toHaveFocus()
-    act(() => vi.advanceTimersByTime(450))
+    act(() => {
+      vi.advanceTimersByTime(450)
+    })
     expect(search).not.toHaveBeenCalled()
   })
 
@@ -95,7 +115,9 @@ describe('SearchBox', () => {
     rerender(<SearchBox value="previous" onSearch={search} resetRevision={1} />)
     expect(input).toHaveValue('')
     expect(input).toHaveFocus()
-    act(() => vi.advanceTimersByTime(450))
+    act(() => {
+      vi.advanceTimersByTime(450)
+    })
     expect(search).not.toHaveBeenCalled()
     rerender(<SearchBox value="" onSearch={search} resetRevision={1} />)
     expect(input).toHaveValue('')

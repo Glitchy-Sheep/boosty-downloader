@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 
 import type { FullConfig } from '@playwright/test'
+import { requireFixture } from './required-fixture'
 
 const run = promisify(execFile)
 const repository = fileURLToPath(new URL('../../', import.meta.url))
@@ -64,6 +65,7 @@ async function waitForViewer(server: ChildProcess, origin: string, library: stri
 }
 
 export default async function setup(config: FullConfig): Promise<() => Promise<void>> {
+  const project = requireFixture(config.projects[0])
   await access(python)
   await access(path.join(repository, 'boosty_downloader/viewer/static/app/index.html'))
   const temporary = await mkdtemp(path.join(await realpath(tmpdir()), 'boosty-viewer-e2e-'))
@@ -79,8 +81,8 @@ export default async function setup(config: FullConfig): Promise<() => Promise<v
       if (generator) await stop(generator)
       if (server) await stop(server)
       try {
-        await mkdir(config.projects[0].outputDir, { recursive: true })
-        await writeFile(path.join(config.projects[0].outputDir, 'viewer-server.log'), output)
+        await mkdir(project.outputDir, { recursive: true })
+        await writeFile(path.join(project.outputDir, 'viewer-server.log'), output)
       } finally {
         await rm(temporary, { recursive: true, force: true })
       }

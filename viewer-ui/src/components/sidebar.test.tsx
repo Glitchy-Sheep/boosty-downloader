@@ -85,11 +85,15 @@ describe('Sidebar filters', () => {
     const { rerender } = render(<Sidebar {...input} />)
     const search = screen.getByRole('textbox', { name: 'Search posts' })
     fireEvent.change(search, { target: { value: 'pending-search' } })
-    act(() => vi.advanceTimersByTime(47))
+    act(() => {
+      vi.advanceTimersByTime(47)
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
     rerender(<Sidebar {...input} filters={{}} />)
     expect(search).toHaveValue('')
-    act(() => vi.advanceTimersByTime(450))
+    act(() => {
+      vi.advanceTimersByTime(450)
+    })
     expect(input.onFilters).toHaveBeenCalledExactlyOnceWith(NO_FILTERS)
   })
 

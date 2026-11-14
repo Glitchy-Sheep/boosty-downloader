@@ -1,3 +1,4 @@
+import { requireFixture } from './required-fixture'
 import {
   actualAuthors,
   checkStorage,
@@ -18,7 +19,10 @@ test('zero, single-kind and single-author storage have truthful summaries', asyn
   await expect(page.locator('[data-storage-bar]')).toHaveCount(0)
   await expect(page.getByText('No media on disk', { exact: true })).toHaveCount(3)
 
-  const single = { ...authors[0], storage: { ...EMPTY_STORAGE, images: 45_200_000_000 } }
+  const single = {
+    ...requireFixture(authors[0]),
+    storage: { ...EMPTY_STORAGE, images: 45_200_000_000 },
+  }
   await openAuthors(page, [single])
   await expect(storage(page)).toHaveCount(0)
   await expect(storage(page, single).locator('p')).toHaveText('45.2 GB of photos on disk')
@@ -73,7 +77,7 @@ for (const platform of [
   test.describe(platform.name, () => {
     test.use({ userAgent: platform.userAgent })
     test('units follow the browser platform at rounding boundaries', async ({ page }) => {
-      const [template] = await actualAuthors(page)
+      const template = requireFixture((await actualAuthors(page))[0])
       const authors = boundaries.map((boundary, index) => ({
         ...template,
         name: `boundary-${index}`,
@@ -85,7 +89,7 @@ for (const platform of [
       await openAuthors(page, authors)
       for (const [index, author] of authors.entries()) {
         await expect(storage(page, author).locator('p')).toHaveText(
-          `${boundaries[index][platform.name]} of photos on disk`,
+          `${requireFixture(boundaries[index])[platform.name]} of photos on disk`,
         )
       }
     })

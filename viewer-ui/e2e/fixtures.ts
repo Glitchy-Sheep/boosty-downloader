@@ -1,6 +1,7 @@
 import { expect, test as base, type Locator, type Page } from '@playwright/test'
 
 import type { Author, MediaStorage } from '../src/lib/api.gen'
+import { requireFixture } from './required-fixture'
 
 export const KINDS = ['videos', 'images', 'files', 'audio'] as const
 export const LABELS: Record<keyof MediaStorage, string> = {
@@ -73,10 +74,12 @@ export function sumStorage(authors: Author[]): MediaStorage {
 export function sizeMatches(text: string, bytes: number, base = 1000): boolean {
   const match = /^(\d+(?:\.\d+)?) (B|KB|MB|GB|TB)$/.exec(text)
   if (!match) return false
-  const unit = ['B', 'KB', 'MB', 'GB', 'TB'].indexOf(match[2])
-  const value = Number(match[1])
+  const [, amount, suffix] = match
+  if (amount === undefined || suffix === undefined) return false
+  const unit = ['B', 'KB', 'MB', 'GB', 'TB'].indexOf(suffix)
+  const value = Number(amount)
   if (unit === 0) return value === bytes
-  const digits = match[1].replace('.', '').replace(/^0+/, '').length
+  const digits = amount.replace('.', '').replace(/^0+/, '').length
   const represented = value * base ** unit
   return digits <= 3 && value < 1000 && Math.abs(represented - bytes) <= represented * 0.0051
 }
@@ -86,7 +89,7 @@ export async function checkStorage(block: Locator, values: MediaStorage): Promis
     (first, second) => values[second] - values[first],
   )
   const lead = (await block.locator('p').first().innerText()).replace(/\s+/g, ' ').trim()
-  expect(sizeMatches(lead.split(' of ')[0], total(values)), lead).toBe(true)
+  expect(sizeMatches(requireFixture(lead.split(' of ')[0]), total(values)), lead).toBe(true)
   const bar = block.locator('[data-storage-bar]')
   await expect(bar).toBeVisible()
   expect(
@@ -95,7 +98,7 @@ export async function checkStorage(block: Locator, values: MediaStorage): Promis
       .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-kind'))),
   ).toEqual(kinds)
   if (kinds.length === 1) {
-    expect(lead).toContain(`of ${LABELS[kinds[0]].toLowerCase()}`)
+    expect(lead).toContain(`of ${LABELS[requireFixture(kinds[0])].toLowerCase()}`)
     await expect(block.locator('li')).toHaveCount(0)
   } else {
     expect(

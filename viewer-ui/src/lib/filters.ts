@@ -6,14 +6,14 @@ export const KINDS = ['videos', 'images', 'files', 'audio'] as const satisfies r
 
 /** Post filters in the address. Missing values use the API defaults. */
 export type Filters = {
-  q?: string
-  kind?: Kind
-  unseen?: 1
-  fav?: 1
-  tag?: string
-  locked?: 1
-  incomplete?: 1
-  order?: Exclude<Order, 'newest'>
+  q?: string | undefined
+  kind?: Kind | undefined
+  unseen?: 1 | undefined
+  fav?: 1 | undefined
+  tag?: string | undefined
+  locked?: 1 | undefined
+  incomplete?: 1 | undefined
+  order?: Exclude<Order, 'newest'> | undefined
 }
 
 function flag(value: unknown): 1 | undefined {

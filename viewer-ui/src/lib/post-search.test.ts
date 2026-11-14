@@ -92,7 +92,7 @@ describe('post search', () => {
       'Shaders',
       'shader',
     ])
-    expect(hits[0].marks).toHaveLength(3)
+    expect(hits[0]?.marks).toHaveLength(3)
     expect(root.querySelector('a')).toBe(link)
     expect(root.querySelector('strong')).toBe(strong)
     unmarkHits(root)

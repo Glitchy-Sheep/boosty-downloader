@@ -26,7 +26,7 @@ test('optimistic unfavorite keeps filtered rows, month counts and author counts 
     total: 0,
   })
   expect(client.getQueryData(authorQuery('studio').queryKey)?.favorites).toBe(0)
-  expect(client.getQueryData(authorsQuery().queryKey)?.[0].favorites).toBe(0)
+  expect(client.getQueryData(authorsQuery().queryKey)?.[0]?.favorites).toBe(0)
   expect(client.getQueryData(postQuery('studio', savedPost.id).queryKey)?.body_html).toBe(
     savedPost.body_html,
   )
@@ -79,9 +79,9 @@ test('server marks merge into detail without dropping media or list search fragm
   expect(after.media).toBe(before.media)
   expect(after.body_html).toBe(before.body_html)
   expect(after.favorite).toBe(false)
-  expect(client.getQueryData(postsQuery('studio', { q: 'saved' }).queryKey)?.rows[0].match).toEqual(
-    match,
-  )
+  expect(
+    client.getQueryData(postsQuery('studio', { q: 'saved' }).queryKey)?.rows[0]?.match,
+  ).toEqual(match)
   client.clear()
 })
 

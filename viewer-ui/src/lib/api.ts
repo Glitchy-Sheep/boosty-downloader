@@ -50,7 +50,7 @@ async function responseError(response: Response, signal?: AbortSignal): Promise<
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(url, {
     headers: { Accept: 'application/json' },
-    signal,
+    signal: signal ?? null,
   })
   if (!response.ok) throw await responseError(response, signal)
   return response.json() as Promise<T>

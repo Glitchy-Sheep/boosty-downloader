@@ -1,4 +1,4 @@
-import { afterEach, expect, test, vi } from 'vitest'
+import { afterEach, assert, expect, test, vi } from 'vitest'
 
 import {
   ApiError,
@@ -15,7 +15,7 @@ import type { Filters } from '@/lib/filters'
 afterEach(() => vi.unstubAllGlobals())
 
 test('loads the same-origin authors contract and forwards cancellation', async () => {
-  const request = vi.fn().mockResolvedValue(Response.json([]))
+  const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json([]))
   vi.stubGlobal('fetch', request)
   const controller = new AbortController()
 
@@ -29,7 +29,7 @@ test('loads the same-origin authors contract and forwards cancellation', async (
 test('preserves the structured API error status, code and useful message', async () => {
   vi.stubGlobal(
     'fetch',
-    vi.fn().mockResolvedValue(
+    vi.fn<typeof fetch>().mockResolvedValue(
       Response.json(
         {
           error: { code: 'library_unavailable', message: 'The library is unavailable.' },
@@ -50,7 +50,10 @@ test('preserves the structured API error status, code and useful message', async
 test.each(['<html>Gateway failure</html>', JSON.stringify({ error: '<script>unsafe</script>' })])(
   'uses a plain fallback for an unexpected HTTP error body',
   async (body) => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body, { status: 502 })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>().mockResolvedValue(new Response(body, { status: 502 })),
+    )
 
     await expect(getAuthors()).rejects.toEqual(
       new ApiError(502, 'The library request failed (502).'),
@@ -60,7 +63,7 @@ test.each(['<html>Gateway failure</html>', JSON.stringify({ error: '<script>unsa
 
 test('does not translate a cancelled request into an API error', async () => {
   const aborted = new DOMException('Aborted', 'AbortError')
-  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(aborted))
+  vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockRejectedValue(aborted))
 
   await expect(getAuthors()).rejects.toBe(aborted)
 })
@@ -73,14 +76,14 @@ test('preserves cancellation while reading an HTTP error response body', async (
     controller.abort(reason)
     throw reason
   })
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response))
+  vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(response))
 
   await expect(getAuthors(controller.signal)).rejects.toBe(reason)
 })
 
 test('keeps all post filters and literal search text in the API request', async () => {
   const result = { rows: [], months: [], total: 0 }
-  const request = vi.fn().mockResolvedValue(Response.json(result))
+  const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json(result))
   vi.stubGlobal('fetch', request)
   const controller = new AbortController()
   const filters: Filters = {
@@ -95,7 +98,11 @@ test('keeps all post filters and literal search text in the API request', async 
   }
 
   expect(await getPosts('author-name', filters, controller.signal)).toEqual(result)
-  const url = new URL(request.mock.calls[0][0], 'http://localhost')
+  const call = request.mock.calls[0]
+  assert.isDefined(call)
+  const [input, options] = call
+  assert(typeof input === 'string')
+  const url = new URL(input, 'http://localhost')
   expect(url.pathname).toBe('/api/authors/author-name/posts')
   expect(Object.fromEntries(url.searchParams)).toEqual({
     q: '001.0 + %',
@@ -107,11 +114,11 @@ test('keeps all post filters and literal search text in the API request', async 
     incomplete: '1',
     order: 'oldest',
   })
-  expect(request.mock.calls[0][1].signal).toBe(controller.signal)
+  expect(options?.signal).toBe(controller.signal)
 })
 
 test('encodes resource identities once and keeps detail independent of filters', async () => {
-  const request = vi.fn().mockImplementation(async () => Response.json({}))
+  const request = vi.fn<typeof fetch>().mockImplementation(async () => Response.json({}))
   vi.stubGlobal('fetch', request)
 
   await getAuthor('автор %2F')
@@ -127,7 +134,7 @@ test('encodes resource identities once and keeps detail independent of filters',
 })
 
 test('writes favorite and opaque media positions to their actual endpoints', async () => {
-  const request = vi.fn().mockImplementation(async () => Response.json({}))
+  const request = vi.fn<typeof fetch>().mockImplementation(async () => Response.json({}))
   vi.stubGlobal('fetch', request)
 
   await setFavorite('автор %', 'post #', true)
@@ -159,7 +166,7 @@ test('writes favorite and opaque media positions to their actual endpoints', asy
 test.each([NaN, Infinity, -1])(
   'rejects invalid playback values before JSON can convert %s to null',
   async (value) => {
-    const request = vi.fn()
+    const request = vi.fn<typeof fetch>()
     vi.stubGlobal('fetch', request)
     await expect(
       savePlaybackPosition('studio', 'media', { seconds: value, duration: 100 }, false),
@@ -174,7 +181,7 @@ test.each([NaN, Infinity, -1])(
 test('reports rejected writes as structured errors', async () => {
   vi.stubGlobal(
     'fetch',
-    vi.fn().mockResolvedValue(
+    vi.fn<typeof fetch>().mockResolvedValue(
       Response.json(
         {
           error: { code: 'write_refused', message: 'The library is read-only.' },

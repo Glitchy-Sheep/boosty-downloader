@@ -5,7 +5,13 @@
     "lib": ["ES2023"],
     "types": ["node"],
     "skipLibCheck": true,
+    "allowJs": true,
+    "checkJs": true,
     "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true,
+    "noImplicitOverride": true,
 
     /* Bundler mode */
     "module": "nodenext",
@@ -20,5 +26,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts"]
+  "include": ["vite.config.ts", "playwright.config.ts", "scripts/**/*.mjs"]
 }

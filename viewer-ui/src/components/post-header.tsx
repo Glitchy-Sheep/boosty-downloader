@@ -7,7 +7,7 @@ import { displayedPostTitle, safeHttpUrl } from '@/lib/post-presentation'
 
 type PostHeaderProps = {
   post: PostDetail
-  selectedTag?: string
+  selectedTag?: string | undefined
   favoritePending: boolean
   favoriteError: string | null
   onFavorite: () => void

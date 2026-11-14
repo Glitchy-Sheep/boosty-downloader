@@ -56,7 +56,7 @@ describe('flat viewer search parameters', () => {
     expect(Object.getPrototypeOf(parsed)).toBeNull()
     expect(parsed.__proto__).toEqual(['one', 'two'])
     expect(parsed.constructor).toBe('value')
-    expect(parsed.toString).toBe('text')
+    expect(parsed).toHaveProperty('toString', 'text')
     expect(parseViewerSearch(stringifyViewerSearch(parsed))).toEqual({
       constructor: 'value',
       toString: 'text',

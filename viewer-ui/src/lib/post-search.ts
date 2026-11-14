@@ -3,6 +3,7 @@ export type SearchHit = { marks: HTMLElement[] }
 type FoldedText = { text: string; origins: TextRange[] }
 type TextPart = TextRange & { node: Text }
 type TextRun = { text: string; parts: TextPart[] }
+type MarkedRange = { range: TextRange; hit: SearchHit }
 
 // unicode61 ignores these combining accents; other combining marks separate words.
 // https://github.com/sqlite/sqlite/blob/master/ext/fts5/fts5_unicode2.c
@@ -66,7 +67,8 @@ function fold(text: string): FoldedText {
     const end = start + character.length
     const folded = foldCharacter(character)
     result.text += folded
-    if (!folded && result.origins.length) result.origins.at(-1)!.end = end
+    const previous = result.origins.at(-1)
+    if (!folded && previous) previous.end = end
     for (let index = 0; index < folded.length; index++) result.origins.push({ start, end })
     start = end
   }
@@ -85,10 +87,9 @@ export function findHits(text: string, words: readonly string[]): TextRange[] {
   const hits: TextRange[] = []
   for (const match of folded.text.matchAll(WORDS)) {
     if (!words.some((word) => match[0].startsWith(word))) continue
-    hits.push({
-      start: folded.origins[match.index].start,
-      end: folded.origins[match.index + match[0].length - 1].end,
-    })
+    const first = folded.origins[match.index]
+    const last = folded.origins[match.index + match[0].length - 1]
+    if (first && last) hits.push({ start: first.start, end: last.end })
   }
   return hits
 }
@@ -142,16 +143,19 @@ export function markHits(root: HTMLElement, words: readonly string[]): SearchHit
   unmarkHits(root)
   const hits: SearchHit[] = []
   for (const run of textRuns(root)) {
-    const ranges = findHits(run.text, words)
-    const runHits: SearchHit[] = ranges.map(() => ({ marks: [] }))
+    const markedRanges: MarkedRange[] = findHits(run.text, words).map((range) => ({
+      range,
+      hit: { marks: [] },
+    }))
+    const descending = markedRanges.toReversed()
     for (const part of run.parts) {
       // Descending offsets keep the remaining text positions valid after splitting.
-      for (let index = ranges.length - 1; index >= 0; index--) {
-        const mark = markPart(part, ranges[index])
-        if (mark) runHits[index].marks.push(mark)
+      for (const { range, hit } of descending) {
+        const mark = markPart(part, range)
+        if (mark) hit.marks.push(mark)
       }
     }
-    hits.push(...runHits)
+    hits.push(...markedRanges.map(({ hit }) => hit))
   }
   return hits
 }

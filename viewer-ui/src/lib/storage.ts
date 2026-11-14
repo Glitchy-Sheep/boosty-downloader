@@ -45,7 +45,8 @@ export function storageParts(storage: MediaStorage): StorageBreakdown {
 
 /** Name the sole kind when present, or the combined media otherwise. */
 export function storageNoun(parts: readonly StoragePart[]): string {
-  if (parts.length === 1) return STORAGE_LOOKS[parts[0].kind].label.toLowerCase()
+  const first = parts[0]
+  if (parts.length === 1 && first) return STORAGE_LOOKS[first.kind].label.toLowerCase()
   return 'media'
 }
 

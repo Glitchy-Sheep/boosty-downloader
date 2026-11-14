@@ -6,6 +6,7 @@ import { brotliCompressSync, constants, gzipSync } from 'node:zlib'
 const output = fileURLToPath(new URL('../../boosty_downloader/viewer/static/app/', import.meta.url))
 const compressibleExtensions = new Set(['.js', '.css'])
 
+/** @param {string} directory */
 async function compressDirectory(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name)

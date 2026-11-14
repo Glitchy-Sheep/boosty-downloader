@@ -5,10 +5,12 @@ export type PostNeighbours = { previous: PostRow | null; next: PostRow | null }
 type PostOrderKey = Pick<PostRow, 'id' | 'created_at'>
 
 function compareIds(left: string, right: string): number {
-  const leftPoints = Array.from(left, (character) => character.codePointAt(0)!)
-  const rightPoints = Array.from(right, (character) => character.codePointAt(0)!)
-  for (let index = 0; index < Math.min(leftPoints.length, rightPoints.length); index += 1) {
-    const difference = leftPoints[index] - rightPoints[index]
+  const leftPoints = Array.from(left, (character) => character.codePointAt(0) ?? 0)
+  const rightPoints = Array.from(right, (character) => character.codePointAt(0) ?? 0)
+  for (const [index, leftPoint] of leftPoints.entries()) {
+    const rightPoint = rightPoints[index]
+    if (rightPoint === undefined) break
+    const difference = leftPoint - rightPoint
     if (difference) return difference
   }
   return leftPoints.length - rightPoints.length

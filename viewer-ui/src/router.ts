@@ -97,7 +97,7 @@ export function createViewerRouter(queryClient: QueryClient, history?: RouterHis
   return createRouter({
     routeTree,
     context: { queryClient },
-    history,
+    ...(history ? { history } : {}),
     parseSearch: parseViewerSearch,
     stringifySearch: stringifyViewerSearch,
     defaultPendingMs: 0,

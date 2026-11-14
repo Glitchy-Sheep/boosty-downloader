@@ -49,10 +49,10 @@ export function applyFavorite(
   for (const [key, list] of client.getQueriesData<PostList>({ queryKey: ['posts', author] })) {
     if (!list) continue
     const filters = key[2] as PostFilters
-    const index = list.rows.findIndex((row) => row.id === postId)
-    if (index < 0) continue
+    const selected = list.rows.find((row) => row.id === postId)
+    if (!selected) continue
     if (filters.fav && !favorite) {
-      removed.push({ key, row: list.rows[index] })
+      removed.push({ key, row: selected })
       client.setQueryData(key, withRows(list.rows.filter((row) => row.id !== postId)))
     } else {
       client.setQueryData(key, {

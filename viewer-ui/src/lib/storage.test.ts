@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { assert, describe, expect, test } from 'vitest'
 
 import type { Author, MediaStorage } from '@/lib/api.gen'
 import { libraryStorage, storageNoun, storageParts } from '@/lib/storage'
@@ -57,9 +57,11 @@ describe('storageParts', () => {
   test('returns independent parts without changing the input totals', () => {
     const storage = { ...EMPTY_STORAGE, images: 45_200_000_000 }
     const result = storageParts(storage)
-    result.parts[0].bytes = 0
+    const first = result.parts[0]
+    assert.isDefined(first)
+    first.bytes = 0
     expect(storage.images).toBe(45_200_000_000)
-    expect(storageParts(storage).parts[0].bytes).toBe(45_200_000_000)
+    expect(storageParts(storage).parts[0]?.bytes).toBe(45_200_000_000)
   })
 })
 

@@ -16,7 +16,7 @@ test('canonical post metadata and authored HTML-looking text remain inert', asyn
   ).toBeVisible()
   await expect(pane(page).locator('a[href^="javascript:"]')).toHaveCount(0)
   await expect(pane(page).locator('script, iframe, [onerror], [onload]')).toHaveCount(0)
-  expect(await page.evaluate(() => Reflect.get(window, '__postAttack'))).toBeUndefined()
+  expect(await page.evaluate((): unknown => Reflect.get(window, '__postAttack'))).toBeUndefined()
 
   const body = await page.request.get(`${corpus.origin}${API_PATH}/posts/${POSTS.security}`)
   expect(body.ok()).toBe(true)

@@ -20,7 +20,7 @@ function mainIcon(counts: MediaCounts): LucideIcon {
   return FileText
 }
 
-type ThumbnailProps = { author: string; post: PostRow; className?: string }
+type ThumbnailProps = { author: string; post: PostRow; className?: string | undefined }
 
 /** The thumbnail endpoint selects a saved image, preview or locked teaser. */
 export function PostThumbnail({ author, post, className }: ThumbnailProps) {

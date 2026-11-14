@@ -27,10 +27,12 @@ const newer = row('z', '2026-12-01T00:00:00Z')
 
 describe('postNeighbours', () => {
   it.each<Order>(['newest', 'oldest'])('follows the actual filtered rows in %s order', (order) => {
-    const rows = order === 'oldest' ? [older, current, newer] : [newer, current, older]
+    const first = order === 'oldest' ? older : newer
+    const last = order === 'oldest' ? newer : older
+    const rows = [first, current, last]
     expect(postNeighbours(rows, current, order)).toEqual({ previous: rows[0], next: rows[2] })
-    expect(postNeighbours(rows, rows[0], order)).toEqual({ previous: null, next: current })
-    expect(postNeighbours(rows, rows[2], order)).toEqual({ previous: current, next: null })
+    expect(postNeighbours(rows, first, order)).toEqual({ previous: null, next: current })
+    expect(postNeighbours(rows, last, order)).toEqual({ previous: current, next: null })
   })
 
   it.each<Order>(['newest', 'oldest'])(

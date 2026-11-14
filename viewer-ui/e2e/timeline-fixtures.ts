@@ -2,6 +2,7 @@ import type { Locator, Page } from '@playwright/test'
 
 import type { Author, PostDetail, PostList, PostRow, TagCount } from '../src/lib/api.gen'
 import { actualAuthors, expect, origin } from './fixtures'
+import { requireFixture } from './required-fixture'
 
 export const AUTHOR = 'pixel_forge'
 export const AUTHOR_PATH = `/a/${AUTHOR}`
@@ -56,21 +57,30 @@ export async function expectSelected(page: Page, post: PostRow): Promise<void> {
   expect(new URL(page.url()).pathname).toBe(postPath(post.id))
 }
 
-export async function expectStickyMonth(page: Page, posts: PostRow[]): Promise<string> {
-  const scroller = sidebar(page).locator('[data-post-list]')
-  const visibleId = await rows(page).evaluateAll((nodes) => {
-    const container = nodes[0].closest('[data-post-list]')!
-    const parent = container.getBoundingClientRect()
-    const headerHeight = container.querySelector('[data-month]')!.getBoundingClientRect().height
-    return nodes
-      .find((node) => {
-        const bounds = node.getBoundingClientRect()
-        return bounds.top >= parent.top + headerHeight && bounds.bottom <= parent.bottom + 1
-      })
-      ?.getAttribute('data-post-id')
+type PinnedMonth = { month: string | null; label: string | null }
+type StickyMonthSnapshot = { visibleId: string | null; pinned: PinnedMonth[] }
+
+/** Read rows and headers from one DOM snapshot while the virtual window changes. */
+function readStickyMonth(container: Element): StickyMonthSnapshot {
+  const parent = container.getBoundingClientRect()
+  const headers = Array.from(container.querySelectorAll('[data-month]'))
+  const headerHeight = headers[0]?.getBoundingClientRect().height ?? 0
+  const visible = Array.from(container.querySelectorAll('[data-post-id]')).find((node) => {
+    const bounds = node.getBoundingClientRect()
+    return bounds.top >= parent.top + headerHeight && bounds.bottom <= parent.bottom + 1
   })
-  expect(visibleId).toBeTruthy()
-  const post = posts.find((post) => post.id === visibleId)!
+  const pinned = headers
+    .filter((header) => Math.abs(header.getBoundingClientRect().top - parent.top) <= 1)
+    .map((header) => ({
+      month: header.getAttribute('data-month'),
+      label: header.querySelector('span')?.textContent ?? null,
+    }))
+  return { visibleId: visible?.getAttribute('data-post-id') ?? null, pinned }
+}
+
+function checkStickyMonth(snapshot: StickyMonthSnapshot, posts: PostRow[]): string {
+  expect(snapshot.visibleId).toBeTruthy()
+  const post = requireFixture(posts.find((post) => post.id === snapshot.visibleId))
   const created = new Date(post.created_at)
   const month = created.toISOString().slice(0, 7)
   const label = new Intl.DateTimeFormat('en-US', {
@@ -78,19 +88,18 @@ export async function expectStickyMonth(page: Page, posts: PostRow[]): Promise<s
     year: 'numeric',
     timeZone: 'UTC',
   }).format(created)
-  const pinned = await scroller.locator('[data-month]').evaluateAll((headers) =>
-    headers
-      .filter((header) => {
-        const parent = header.closest('[data-post-list]')!.getBoundingClientRect()
-        return Math.abs(header.getBoundingClientRect().top - parent.top) <= 1
-      })
-      .map((header) => ({
-        month: header.getAttribute('data-month'),
-        label: header.querySelector('span')?.textContent,
-      })),
-  )
-  expect(pinned).toEqual([{ month, label }])
+  expect(snapshot.pinned).toEqual([{ month, label }])
   return month
+}
+
+export async function expectStickyMonth(page: Page, posts: PostRow[]): Promise<string> {
+  const scroller = sidebar(page).locator('[data-post-list]')
+  let checkedMonth: string | undefined
+  await expect(async () => {
+    const snapshot = await scroller.evaluate(readStickyMonth)
+    checkedMonth = checkStickyMonth(snapshot, posts)
+  }).toPass({ timeout: 5_000 })
+  return requireFixture(checkedMonth)
 }
 
 export function postList(posts: PostRow[]): PostList {

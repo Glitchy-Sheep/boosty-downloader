@@ -1,3 +1,4 @@
+import { requireFixture } from './required-fixture'
 import { actualAuthors, card, expect, openAuthors, origin, storage, test } from './fixtures'
 
 test('cards expose one title and a complete storage description to assistive technology', async ({
@@ -6,7 +7,7 @@ test('cards expose one title and a complete storage description to assistive tec
 }) => {
   const authors = await actualAuthors(page)
   authors[0] = {
-    ...authors[0],
+    ...requireFixture(authors[0]),
     title: 'Accessible artist',
     unseen: 12,
     storage: {
@@ -19,9 +20,9 @@ test('cards expose one title and a complete storage description to assistive tec
   const description =
     '263 GB of media on disk: videos 240 GB, photos 20 GB, audio 2 GB, files 1 GB. 12 unseen.'
   await openAuthors(page, authors)
-  await expect(card(page, authors[0])).toHaveAccessibleName('Accessible artist')
-  await expect(card(page, authors[0])).toHaveAccessibleDescription(description)
-  for (const image of await card(page, authors[0]).locator('img').all())
+  await expect(card(page, requireFixture(authors[0]))).toHaveAccessibleName('Accessible artist')
+  await expect(card(page, requireFixture(authors[0]))).toHaveAccessibleDescription(description)
+  for (const image of await card(page, requireFixture(authors[0])).locator('img').all())
     await expect(image).toHaveAttribute('alt', '')
   if (browserName === 'chromium') {
     const session = await page.context().newCDPSession(page)
@@ -31,7 +32,7 @@ test('cards expose one title and a complete storage description to assistive tec
         (node) => node.role?.value === 'link' && node.name?.value === 'Accessible artist',
       )
       expect(links).toHaveLength(1)
-      expect(links[0].description?.value).toBe(description)
+      expect(requireFixture(links[0]).description?.value).toBe(description)
       const repeatedSummary = nodes.filter(
         (node) =>
           !node.ignored && node.role?.value === 'StaticText' && node.name?.value === description,
@@ -68,9 +69,14 @@ test('forced colors preserve distinguishable bars and their text legends', async
 
 test('absent and failed decorative artwork keep initials and card layout', async ({ page }) => {
   const authors = await actualAuthors(page)
-  authors[0] = { ...authors[0], title: 'Without Artwork', avatar_url: null, cover_url: null }
+  authors[0] = {
+    ...requireFixture(authors[0]),
+    title: 'Without Artwork',
+    avatar_url: null,
+    cover_url: null,
+  }
   authors[1] = {
-    ...authors[1],
+    ...requireFixture(authors[1]),
     title: 'Broken Artwork',
     avatar_url: '/missing-avatar',
     cover_url: '/missing-cover',
@@ -85,7 +91,7 @@ test('absent and failed decorative artwork keep initials and card layout', async
   })
   await page.route('**/api/authors', (route) => route.fulfill({ json: authors }))
   await page.goto(origin(), { waitUntil: 'domcontentloaded' })
-  const broken = card(page, authors[1])
+  const broken = card(page, requireFixture(authors[1]))
   await expect(broken).toBeVisible()
   const geometry = () =>
     broken.evaluate((element) => {
@@ -101,7 +107,9 @@ test('absent and failed decorative artwork keep initials and card layout', async
       }
     })
   const before = await geometry().finally(release)
-  await expect(card(page, authors[0]).getByText('WA', { exact: true })).toBeVisible()
+  await expect(
+    card(page, requireFixture(authors[0])).getByText('WA', { exact: true }),
+  ).toBeVisible()
   await expect(broken.getByText('BA', { exact: true })).toBeVisible()
   await expect(broken.locator('img')).toHaveCount(0)
   const after = await geometry()

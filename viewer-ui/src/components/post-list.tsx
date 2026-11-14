@@ -22,6 +22,8 @@ type PostListProps = {
   onPost: (id: string) => void
 }
 
+type ShownSelection = { listKey: string; currentId: string | undefined }
+
 /** A bounded timeline keeps only nearby posts and their active month mounted. */
 export function PostList({
   author,
@@ -57,16 +59,27 @@ export function PostList({
     },
     [monthIndexes],
   )
-  const getItemKey = useCallback(
-    (index: number): string => `${rows[index].kind}:${rows[index].key}`,
+  const rowAt = useCallback(
+    (index: number): TimelineRow => {
+      const row = rows[index]
+      if (!row) throw new RangeError('Timeline row index is out of bounds')
+      return row
+    },
     [rows],
+  )
+  const getItemKey = useCallback(
+    (index: number): string => {
+      const row = rowAt(index)
+      return `${row.kind}:${row.key}`
+    },
+    [rowAt],
   )
   // Virtualizer methods read mutable state; this component opts out of compiler memoization.
   // oxlint-disable-next-line react/incompatible-library
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: (index) => sizeOf(rows[index]),
+    estimateSize: (index) => sizeOf(rowAt(index)),
     getItemKey,
     rangeExtractor,
     overscan: 8,
@@ -88,7 +101,7 @@ export function PostList({
     virtualizer.scrollToOffset(moved.start + inside - MONTH_HEIGHT)
   }, [metrics, virtualizer])
 
-  const shown = useRef<{ listKey: string; currentId?: string } | null>(null)
+  const shown = useRef<ShownSelection | null>(null)
   const currentIndex = currentId === undefined ? undefined : rowIndexById.get(currentId)
   useLayoutEffect(() => {
     if (!posts?.length || isStale) return
@@ -130,6 +143,8 @@ export function PostList({
       data-post-list=""
       aria-label="Post timeline"
       aria-busy={isStale}
+      // Keyboard focus lets users scroll the timeline without selecting a post.
+      // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex
       tabIndex={0}
       style={rowStyle}
       className={cn(
@@ -143,7 +158,7 @@ export function PostList({
         style={{ height: virtualizer.getTotalSize() }}
       >
         {virtualizer.getVirtualItems().map((item) => {
-          const row = rows[item.index]
+          const row = rowAt(item.index)
           const pinned = item.index === stickyIndex.current
           return (
             <div

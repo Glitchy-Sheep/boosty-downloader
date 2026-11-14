@@ -32,7 +32,7 @@ export type SidebarProps = {
   filters: Filters
   posts: PostPage | undefined
   tags: TagCount[]
-  currentId?: string
+  currentId?: string | undefined
   searchResetRevision?: number
   loading: boolean
   updating: boolean

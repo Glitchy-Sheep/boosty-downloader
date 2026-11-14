@@ -1,3 +1,4 @@
+import { requireFixture } from './required-fixture'
 import { expect, origin, test } from './fixtures'
 import {
   API_PATH,
@@ -22,7 +23,7 @@ test('the 5000-row timeline renders a few screens and keeps its scroll on row na
   const selectedIndex = posts.findIndex(
     (post, index) => index > 2400 && new Date(post.created_at).getUTCDate() === 15,
   )
-  const selected = posts[selectedIndex]
+  const selected = requireFixture(posts[selectedIndex])
   await installTimeline(page, posts)
   await page.goto(`${origin()}${postPath(selected.id)}`)
   await expectSelected(page, selected)
@@ -32,11 +33,12 @@ test('the 5000-row timeline renders a few screens and keeps its scroll on row na
   const scroller = sidebar(page).locator('[data-post-list]')
   expect(await scroller.evaluate((element) => element.scrollHeight)).toBeGreaterThan(200_000)
   const original = await scroller.elementHandle()
-  const next = row(page, posts[selectedIndex + 1].id)
+  const nextPost = requireFixture(posts[selectedIndex + 1])
+  const next = row(page, nextPost.id)
   await expect(next).toBeInViewport()
   const before = await scroller.evaluate((element) => element.scrollTop)
   await next.click()
-  await expectSelected(page, posts[selectedIndex + 1])
+  await expectSelected(page, nextPost)
   expect(await original!.evaluate((element) => element.isConnected)).toBe(true)
   expect(
     Math.abs((await scroller.evaluate((element) => element.scrollTop)) - before),
@@ -96,10 +98,12 @@ test('search snippets keep distinct row heights and literal markup inert', async
           : null,
     },
   }))
+  const snippetPost = requireFixture(posts[0])
+  const titleOnlyPost = requireFixture(posts[1])
   await installTimeline(page, posts)
-  await page.goto(`${origin()}${postPath(posts[0].id, 'q=script')}`)
-  await expectSelected(page, posts[0])
-  await expect(row(page, posts[0].id).locator('mark')).toHaveText([
+  await page.goto(`${origin()}${postPath(snippetPost.id, 'q=script')}`)
+  await expectSelected(page, snippetPost)
+  await expect(row(page, snippetPost.id).locator('mark')).toHaveText([
     '<script>',
     '<img src=x onerror=window.timelineInjected=2>',
   ])
@@ -117,10 +121,12 @@ test('search snippets keep distinct row heights and literal markup inert', async
     }),
   )
   for (let index = 1; index < geometry.length; index += 1) {
-    expect(geometry[index].top).toBeGreaterThanOrEqual(geometry[index - 1].bottom - 1)
+    expect(requireFixture(geometry[index]).top).toBeGreaterThanOrEqual(
+      requireFixture(geometry[index - 1]).bottom - 1,
+    )
   }
-  const snippet = geometry.find((value) => value.id === posts[0].id)!
-  const titleOnly = geometry.find((value) => value.id === posts[1].id)!
+  const snippet = geometry.find((value) => value.id === snippetPost.id)!
+  const titleOnly = geometry.find((value) => value.id === titleOnlyPost.id)!
   expect(snippet.height).toBeGreaterThan(titleOnly.height)
 })
 
@@ -128,11 +134,11 @@ test.describe('UTC month labels', () => {
   test.use({ timezoneId: 'America/Los_Angeles' })
   test('month grouping follows the API even on another local calendar date', async ({ page }) => {
     const posts = largeRows(2)
-    posts[0].created_at = '2026-02-01T00:05:00Z'
-    posts[1].created_at = '2026-01-31T23:55:00Z'
+    requireFixture(posts[0]).created_at = '2026-02-01T00:05:00Z'
+    requireFixture(posts[1]).created_at = '2026-01-31T23:55:00Z'
     await installTimeline(page, posts)
     await page.goto(`${origin()}${AUTHOR_PATH}`)
-    await expectSelected(page, posts[0])
+    await expectSelected(page, requireFixture(posts[0]))
     await expect(sidebar(page).locator('[data-month="2026-02"]')).toContainText('February')
     await expect(sidebar(page).locator('[data-month="2026-01"]')).toContainText('January')
     await expectRows(page, posts)
@@ -143,20 +149,22 @@ test('numeric search and tag strings remain exact in the address and controls', 
   page,
 }) => {
   const posts = largeRows(2)
+  const first = requireFixture(posts[0])
+  const second = requireFixture(posts[1])
   await installTimeline(page, posts)
   await page.route(`**${API_PATH}/tags`, (route) =>
     route.fulfill({ json: [{ tag: '0012', count: 2 }] }),
   )
-  await page.goto(`${origin()}${postPath(posts[0].id, 'q=0012&tag=0012')}`)
-  await expectSelected(page, posts[0])
+  await page.goto(`${origin()}${postPath(first.id, 'q=0012&tag=0012')}`)
+  await expectSelected(page, first)
   await expect(sidebar(page).getByRole('textbox', { name: 'Search posts' })).toHaveValue('0012')
   await expect(sidebar(page).getByRole('combobox', { name: 'Tag', exact: true })).toHaveValue(
     '0012',
   )
   expect(new URL(page.url()).searchParams.get('q')).toBe('0012')
   expect(new URL(page.url()).searchParams.get('tag')).toBe('0012')
-  await row(page, posts[1].id).click()
-  await expectSelected(page, posts[1])
+  await row(page, second.id).click()
+  await expectSelected(page, second)
   expect(new URL(page.url()).searchParams.get('q')).toBe('0012')
   expect(new URL(page.url()).searchParams.get('tag')).toBe('0012')
 })
@@ -186,13 +194,15 @@ for (const title of ['', '   ']) {
     page,
   }) => {
     const posts = largeRows(2)
-    posts[0].title = title
-    posts[0].match = { title: [], text: null }
+    const untitled = requireFixture(posts[0])
+    const initial = requireFixture(posts[1])
+    untitled.title = title
+    untitled.match = { title: [], text: null }
     await installTimeline(page, posts)
-    await page.goto(`${origin()}${postPath(posts[1].id)}`)
-    await expect(row(page, posts[0].id)).toHaveAccessibleName('Untitled post')
-    await row(page, posts[0].id).click()
-    await expectSelected(page, posts[0])
+    await page.goto(`${origin()}${postPath(initial.id)}`)
+    await expect(row(page, untitled.id)).toHaveAccessibleName('Untitled post')
+    await row(page, untitled.id).click()
+    await expectSelected(page, untitled)
   })
 }
 
@@ -248,7 +258,7 @@ for (const scope of ['author', 'list', 'detail', 'tags'] as const) {
     page,
   }) => {
     const posts = await actualPosts(page)
-    const selected = posts.rows[0]
+    const selected = requireFixture(posts.rows[0])
     const endpoints = {
       author: API_PATH,
       list: `${API_PATH}/posts`,
@@ -290,8 +300,8 @@ test('unknown author and post errors remain recoverable', async ({ page }) => {
   await page.goto(`${origin()}${postPath('00000000-0000-4000-8000-999999999999')}`)
   await expect(pane(page).getByRole('alert')).toContainText(/not found/i)
   const posts = await actualPosts(page)
-  await row(page, posts.rows[0].id).click()
-  await expectSelected(page, posts.rows[0])
+  await row(page, requireFixture(posts.rows[0]).id).click()
+  await expectSelected(page, requireFixture(posts.rows[0]))
 })
 
 test('retrying the sidebar at author entry recovers the index redirect', async ({ page }) => {
@@ -314,7 +324,7 @@ test('retrying the sidebar at author entry recovers the index redirect', async (
   expect(new URL(page.url()).pathname.replace(/\/$/, '')).toBe(AUTHOR_PATH)
   fail = false
   await sidebar(page).getByRole('button', { name: 'Retry posts', exact: true }).click()
-  await expectSelected(page, posts.rows[0])
+  await expectSelected(page, requireFixture(posts.rows[0]))
   await expectRows(page, posts.rows)
   await expect(page.getByRole('alert')).toHaveCount(0)
 })

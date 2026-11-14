@@ -1,3 +1,4 @@
+import { requireFixture } from './required-fixture'
 import { expect, openAuthors, origin, test } from './fixtures'
 import {
   API_PATH,
@@ -23,8 +24,11 @@ for (const width of [1440, 390]) {
       const posts = await actualPosts(page)
       await openAuthors(page)
       await page.getByRole('link', { name: 'Pixel Forge', exact: true }).click()
-      await expectSelected(page, posts.rows[0])
-      await expect(row(page, posts.rows[0].id)).toHaveAttribute('aria-current', 'page')
+      await expectSelected(page, requireFixture(posts.rows[0]))
+      await expect(row(page, requireFixture(posts.rows[0]).id)).toHaveAttribute(
+        'aria-current',
+        'page',
+      )
       await expectRows(page, posts.rows)
       await expect(page.getByRole('main')).toHaveCount(1)
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
@@ -65,7 +69,7 @@ test('oldest-first entry respects the filtered order and does not add a redirect
   expect(posts.rows.length).toBeGreaterThan(1)
   await openAuthors(page)
   await page.goto(`${origin()}${AUTHOR_PATH}?unseen=1&order=oldest`)
-  await expectSelected(page, posts.rows[0])
+  await expectSelected(page, requireFixture(posts.rows[0]))
   await expectRows(page, posts.rows)
   await expect(sidebar(page).getByRole('button', { name: 'Unseen', exact: true })).toHaveAttribute(
     'aria-pressed',
@@ -90,11 +94,12 @@ test('each media and state control filters the real indexed list', async ({ page
   const unfiltered = await actualPosts(page)
   for (const choice of cases) {
     await page.goto(`${origin()}${AUTHOR_PATH}`)
-    await expectSelected(page, unfiltered.rows[0])
+    await expectSelected(page, requireFixture(unfiltered.rows[0]))
     await sidebar(page).getByRole('button', { name: choice.label, exact: true }).click()
     const expected = await actualPosts(page, choice.query)
     await expectRows(page, expected.rows)
-    const [key, value] = choice.query.split('=')
+    const [entry] = new URLSearchParams(choice.query)
+    const [key, value] = requireFixture(entry)
     await expect.poll(() => new URL(page.url()).searchParams.get(key)).toBe(value)
     await expect(
       sidebar(page).getByRole('button', { name: choice.label, exact: true }),
@@ -103,7 +108,7 @@ test('each media and state control filters the real indexed list', async ({ page
 })
 
 test('combined filters survive reload, copied addresses, Back and Forward', async ({ page }) => {
-  const tag = (await actualTags(page))[0].tag
+  const tag = requireFixture((await actualTags(page))[0]).tag
   await page.goto(`${origin()}${AUTHOR_PATH}`)
   await sidebar(page).getByRole('button', { name: 'Videos', exact: true }).click()
   await sidebar(page).getByRole('button', { name: 'Unseen', exact: true }).click()
@@ -147,7 +152,7 @@ test('clearing all eight filters keeps a valid selected post outside the result'
   page,
 }) => {
   const posts = await actualPosts(page)
-  const selected = posts.rows[0]
+  const selected = requireFixture(posts.rows[0])
   const query = new URLSearchParams({
     q: 'no-such-library-text-98765',
     kind: 'videos',
@@ -172,14 +177,16 @@ test('clearing all eight filters keeps a valid selected post outside the result'
 test('selecting a row preserves filters and Back restores the previous post', async ({ page }) => {
   const posts = await actualPosts(page, 'kind=videos')
   expect(posts.rows.length).toBeGreaterThan(1)
-  await page.goto(`${origin()}${postPath(posts.rows[0].id, 'kind=videos')}`)
-  await expectSelected(page, posts.rows[0])
-  await row(page, posts.rows[1].id).click()
-  await expectSelected(page, posts.rows[1])
+  const initial = requireFixture(posts.rows[0])
+  const next = requireFixture(posts.rows[1])
+  await page.goto(`${origin()}${postPath(initial.id, 'kind=videos')}`)
+  await expectSelected(page, initial)
+  await row(page, next.id).click()
+  await expectSelected(page, next)
   expect(new URL(page.url()).searchParams.get('kind')).toBe('videos')
   await page.goBack()
-  await expectSelected(page, posts.rows[0])
-  await expect(row(page, posts.rows[0].id)).toHaveAttribute('aria-current', 'page')
+  await expectSelected(page, initial)
+  await expect(row(page, initial.id)).toHaveAttribute('aria-current', 'page')
   await page.getByRole('link', { name: 'Authors', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Authors', exact: true })).toBeVisible()
   expect(new URL(page.url()).search).toBe('')
@@ -275,7 +282,7 @@ test('Clear filters discards unsent search text when the URL has no search yet',
 }) => {
   const posts = await actualPosts(page)
   await page.goto(`${origin()}${AUTHOR_PATH}`)
-  await expectSelected(page, posts.rows[0])
+  await expectSelected(page, requireFixture(posts.rows[0]))
   await sidebar(page).getByRole('button', { name: 'Videos', exact: true }).click()
   const search = sidebar(page).getByRole('textbox', { name: 'Search posts' })
   await search.fill('unsent search text')
