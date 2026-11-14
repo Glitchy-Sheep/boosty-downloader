@@ -1,4 +1,4 @@
-# Viewer read API
+# Viewer API
 
 Start `boosty-downloader view -o LIBRARY --no-open`. The server exposes the following read routes without Boosty credentials. The packaged UI remains a shell until its data screens are connected.
 
@@ -32,3 +32,28 @@ Only listed authors can supply files. Resolved paths stay within their author di
 Expected failures share `{ "error": { "code": "...", "message": "..." } }`: invalid filters return 400, absent resources return 404, and unreadable or corrupt library data return 409 with `library_unavailable`. HTTP errors disclose no absolute library paths. Host/write guards retain their 421/403 responses. Reader I/O, file resolution and body rendering run in worker threads with independent SQLite connections.
 
 The Python models generate `viewer-ui/src/lib/api.gen.ts`; run `task ui:types` after changing a contract. Focused HTTP checks run with `uv run pytest test/unit/viewer/ test/e2e/viewer_startup_test.py`.
+
+## User marks
+
+Writes require `application/json`. When present, `Origin` and `Sec-Fetch-Site` must identify a same-origin request. Writes change viewing marks, preserving downloaded content and media. The packaged shell does not yet expose these controls.
+
+| Route | Body and result |
+| --- | --- |
+| `PUT /api/authors/{author}/posts/{id}/marks` | Exactly one of `{ "seen": true }` or `{ "favorite": true }`; returns the fresh post row and author totals. Use false to clear a mark. |
+| `POST /api/authors/{author}/marks` | `{ "seen": true, "filters": {} }`; applies the same normalized filters as the post list and returns `{ "count": N }` for actual changes. |
+| `GET /api/authors/{author}/marks/progress` | Active bulk state with `active`, nullable `total`, `completed` and `changed`; accepts no query parameters or body. |
+| `PUT /api/authors/{author}/media/{id}/position` | `{ "seconds": 120, "duration": 1800 }`; returns the media item with its saved position and finished state. |
+
+Mark values are strict booleans. Playback values are finite, nonnegative numbers; booleans, strings, NaN and Infinity are invalid. Invalid bodies and malformed media identities return 400. An unknown resource returns 404. Locked posts reject seen/favorite changes with 409 and are excluded from bulk marking. Previously saved marks remain intact. Playback still works for downloaded video/audio retained after a post became locked or the author removed the piece.
+
+Opening a post never marks it seen. New pieces make a previously seen post Updated; a text-only edit or a returning piece with its original addition time does not. Marking it seen again acknowledges the newest observed content. If imported addition times are ahead of the local clock, this watermark is no earlier than those times. Favorite and playback changes preserve the seen mark.
+
+A position in the last 10 seconds, or last 5 percent when shorter, is finished. A 24-second clip therefore finishes at 22.8 seconds. Finished playback stores a zero position for the next play; saving an earlier position clears the finished state. Zero duration means unknown duration and does not mark completion. Finishing media does not mark the entire post seen.
+
+## Bulk progress and failure recovery
+
+Bulk selection captures the filtered identities before changing their marks. Progress reports handled identities and actual changes separately, including no-ops in `completed`. During selection `total` is null. Poll progress while the POST is pending; its final response determines success. An idle progress response has `active=false`, null total and zero counts, and is not evidence of a successful POST.
+
+Only one bulk per author runs in a viewer instance. Another returns 409 with `marks_busy`. Disconnecting the browser does not cancel writes or release the active operation early; shutdown waits for its worker. Progress state exists only during that operation.
+
+Each mark is saved to canonical storage before its index projection. If an index update fails, the request returns 409 and already saved marks remain. Repeating the same request repairs the projection even when the canonical value is already correct. Bulk failure keeps the successfully saved prefix; refresh list/author data after an error. Request mutations serialize within the shared reader instance; separate viewer processes have no shared mutation lock.

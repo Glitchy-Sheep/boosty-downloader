@@ -194,7 +194,7 @@ class PostFilters(_APIModel):
     kind: MediaKind | None = None
     unseen: StrictBool = False
     fav: StrictBool = False
-    tag: str | None = None
+    tag: Annotated[str, Field(min_length=1)] | None = None
     locked: StrictBool = False
     incomplete: StrictBool = False
     order: SortOrder = 'newest'
@@ -233,6 +233,15 @@ class BulkMarksResult(_APIModel):
     """Number of posts whose seen mark changed."""
 
     count: NonNegativeInt
+
+
+class BulkMarksProgressResponse(_APIModel):
+    """Progress of the active bulk; the POST response reports its final outcome."""
+
+    active: bool
+    total: NonNegativeInt | None = None
+    completed: NonNegativeInt = 0
+    changed: NonNegativeInt = 0
 
 
 class MediaFilters(_APIModel):

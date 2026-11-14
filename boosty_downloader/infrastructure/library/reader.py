@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from pathlib import PurePosixPath
 from sqlite3 import Error as SQLiteError
+from threading import Lock
 from typing import TYPE_CHECKING, Final
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -16,6 +17,11 @@ from boosty_downloader.infrastructure.library._reader_authors import (
     read_author,
     read_authors,
     read_tags,
+)
+from boosty_downloader.infrastructure.library._reader_mutations import (
+    JsonMarkMutations,
+    current_time,
+    writing_marks,
 )
 from boosty_downloader.infrastructure.library._reader_queries import (
     read_post_id_by_folder,
@@ -37,7 +43,8 @@ from boosty_downloader.infrastructure.library.post_marks import JsonPostMarks
 from boosty_downloader.infrastructure.library.post_records import JsonPostRecords
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Callable, Generator
+    from datetime import datetime
     from pathlib import Path
 
     from boosty_downloader.domain.library import (
@@ -47,6 +54,12 @@ if TYPE_CHECKING:
         TagCount,
     )
     from boosty_downloader.domain.library_marks import PostMarks
+    from boosty_downloader.domain.library_mutations import (
+        BulkMarkProgress,
+        LibraryMediaItem,
+        MediaIdentity,
+        PostMarkResult,
+    )
     from boosty_downloader.domain.stored_post import StoredPost
     from boosty_downloader.infrastructure.library.index import IndexSyncCounts
     from boosty_downloader.infrastructure.library.index_sources import PostSource
@@ -58,13 +71,22 @@ _AUTHOR_PAGE_DEPTH: Final = 2
 class JsonLibraryReader:
     """Read independent snapshots; call prepare explicitly before using the index."""
 
-    def __init__(self, root: Path, *, index_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        root: Path,
+        *,
+        index_path: Path | None = None,
+        clock: Callable[[], datetime] = current_time,
+    ) -> None:
         self._root = root
         self._index = LibraryIndex(root, index_path=index_path)
+        self._mutation_lock = Lock()
+        self._mutations = JsonMarkMutations(root, self._index, clock)
 
     def prepare(self) -> IndexSyncCounts:
         """Synchronize the disposable projection without modifying canonical records."""
-        return self._index.synchronize()
+        with self._mutation_lock:
+            return self._index.synchronize()
 
     def authors(self) -> list[LibraryAuthor]:
         """List known authors from the index, including authors without details."""
@@ -120,10 +142,50 @@ class JsonLibraryReader:
 
     def save_marks(self, author: str, post_id: str, marks: PostMarks) -> None:
         """Persist marks first; a failed projection update leaves canonical marks saved."""
-        root = self._canonical_root()
-        JsonPostMarks(root).save_marks(author, post_id, marks)
-        source = _saved_source(root, author, post_id)
-        self._index.upsert_post(project_post(source))
+        with self._mutation_lock:
+            root = self._canonical_root()
+            JsonPostMarks(root).save_marks(author, post_id, marks)
+            source = _saved_source(root, author, post_id)
+            self._index.upsert_post(project_post(source))
+
+    def set_seen(
+        self, author: str, post_id: str, *, seen: bool
+    ) -> PostMarkResult | None:
+        """Acknowledge current content while preserving other user marks."""
+        with writing_marks(), self._mutation_lock:
+            return self._mutations.set_seen(author, post_id, seen=seen)
+
+    def set_favorite(
+        self, author: str, post_id: str, *, favorite: bool
+    ) -> PostMarkResult | None:
+        """Change favorite state without replacing seen or playback marks."""
+        with writing_marks(), self._mutation_lock:
+            return self._mutations.set_favorite(author, post_id, favorite=favorite)
+
+    def set_seen_many(
+        self,
+        author: str,
+        filters: PostFilters,
+        *,
+        seen: bool,
+        progress: Callable[[BulkMarkProgress], None] | None = None,
+    ) -> int | None:
+        """Update a fixed filtered selection with progress after each durable change."""
+        with writing_marks(), self._mutation_lock:
+            return self._mutations.set_seen_many(
+                author, filters, seen=seen, progress=progress
+            )
+
+    def set_position(
+        self,
+        author: str,
+        identity: MediaIdentity,
+        seconds: float,
+        duration: float,
+    ) -> LibraryMediaItem | None:
+        """Save progress for a retained playable piece independently of post marks."""
+        with writing_marks(), self._mutation_lock:
+            return self._mutations.set_position(author, identity, seconds, duration)
 
     def _canonical_root(self) -> Path:
         with self._index.connect():

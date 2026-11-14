@@ -4,6 +4,8 @@
 
 - `view` starts the local viewer server with the packaged shell, optional LAN access, and empty-library or compatibility pages. Read APIs expose authors, filtered posts, search context and complete post bodies; local media support seeking with Range requests. Data screens and mark editing are not connected to the shell yet.
 
+- Viewer APIs save seen marks, favorites and playback positions across downloads, index rebuilds and library moves. Bulk marking respects the selected post filters and reports numerical progress. Playback near the end of a video or track counts as finished.
+
 - `render [AUTHOR]` rebuilds saved post pages offline from complete records and current local media. It works without credentials or a search index and preserves media files and viewing marks.
 
 - `reindex` rebuilds the library search index from saved records without network access or credentials. It preserves posts, media and viewing marks, and supports `--cache-dir`.

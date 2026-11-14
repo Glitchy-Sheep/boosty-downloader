@@ -48,9 +48,6 @@ def _filter_value(key: str, value: str) -> str | bool:
             message = 'Boolean filters must be 0 or 1.'
             raise InvalidQueryError(message)
         return value == '1'
-    if key == 'tag' and not value:
-        message = 'A tag filter must not be empty.'
-        raise InvalidQueryError(message)
     return value
 
 
