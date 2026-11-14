@@ -117,9 +117,9 @@ Reindexing needs no credentials or network access. It changes only the disposabl
 boosty-downloader view -o LIBRARY
 ```
 
-`view` prepares the library reader and serves the packaged application shell, with pages for an empty or incompatible library. It needs no Boosty credentials. By default it binds to the local machine on port 8314, tries the next free port if needed and opens the browser. `--port` chooses an exact port, `--no-open` suppresses the browser launch, and `--lan` enables the local-network listener.
+`view` prepares the library reader and serves the packaged authors page, with pages for an empty or incompatible library. It needs no Boosty credentials. By default it binds to the local machine on port 8314, tries the next free port if needed and opens the browser. `--port` chooses an exact port, `--no-open` suppresses the browser launch, and `--lan` enables the local-network listener.
 
-Read APIs provide authors, filtered post lists, tags and complete post bodies. Local media support seeking, while author-supplied HTML and SVG download and generated post pages run in an opaque sandbox. The packaged UI still shows the shell; data screens and mark controls follow. Saved `post.html` pages can also be opened directly. See the [read API contract](../development/07-viewer-api.md).
+Read APIs provide authors, filtered post lists, tags and complete post bodies. Local media support seeking, while author-supplied HTML and SVG download and generated post pages run in an opaque sandbox. The authors page displays artwork, counts and indexed downloaded-media storage by kind, including retained copies. It excludes pages, records and auxiliary images. It performs no media-file scan; deleted or re-encoded files affect totals after reconciliation updates their records. Author timelines, post screens and mark controls follow. Saved `post.html` pages can also be opened directly. See the [read API contract](../development/07-viewer-api.md).
 
 ## Moving from v4
 

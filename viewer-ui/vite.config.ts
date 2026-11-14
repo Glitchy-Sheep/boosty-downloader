@@ -30,7 +30,7 @@ export default defineConfig({
     host: '127.0.0.1',
     port: 5174,
     strictPort: true,
-    proxy: { '/api': backendProxy(), '/media': backendProxy() },
+    proxy: { '/api': backendProxy(), '/media': backendProxy(), '/thumbs': backendProxy() },
   },
   build: {
     outDir: '../boosty_downloader/viewer/static/app',

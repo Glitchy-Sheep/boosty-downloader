@@ -2,6 +2,8 @@
 
 ### Added
 
+- The viewer shows author cards with saved artwork, post counts and downloaded-media storage by kind, plus a library total. Cards adapt to narrow screens and include descriptions for screen readers.
+
 - Downloads save small thumbnails for post images and locked teasers. Later runs fill missing thumbnails without downloading originals again; thumbnail failures warn once and preserve primary download results. Viewer thumbnail URLs fall back to local originals when needed.
 
 - Authored links between saved posts open local copies. Downloads resolve links to posts saved later in the same run; `render` and later downloads refresh processed pages when more targets become available. Viewer body links use local post routes.

@@ -10,9 +10,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build && node scripts/compress-assets.mjs",
     "check": "npm run typecheck && npm run lint && npm run test",
-    "typecheck": "tsc -b",
+    "typecheck": "tsc -b && tsc -p e2e/tsconfig.json",
     "lint": "oxlint --deny-warnings",
     "test": "vitest run",
+    "e2e": "playwright test",
     "preview": "vite preview"
   },
   "dependencies": {
