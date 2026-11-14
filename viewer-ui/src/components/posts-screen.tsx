@@ -1,10 +1,15 @@
-import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { getRouteApi, Outlet, useNavigate, useParams, useRouter } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { PostBody } from '@/components/post-body'
+import { PostPage } from '@/components/post-page'
 import { Sidebar } from '@/components/sidebar'
-import { formatDate } from '@/lib/dates'
+import { useFavorite } from '@/hooks/use-favorite'
+import type { SavePosition } from '@/hooks/use-post-playback'
+import { savePlaybackPosition } from '@/lib/api'
 import { hasFilters, type Filters } from '@/lib/filters'
+import { acceptPosition } from '@/lib/playback-cache'
 import { authorQuery, postQuery, tagsQuery, usePostList } from '@/lib/queries'
 import { stringifyViewerSearch } from '@/lib/url-search'
 
@@ -35,6 +40,8 @@ export function PostsScreen() {
   const { data: summary } = useSuspenseQuery(authorQuery(author))
   const posts = usePostList(author, filters)
   const tags = useQuery(tagsQuery(author))
+  const pane = useRef<HTMLElement>(null)
+  useEffect(() => { if (pane.current) pane.current.scrollTop = 0 }, [author, postId])
 
   const changeFilters = (next: Filters, options?: { replace?: boolean }): void => {
     if (postId) {
@@ -78,7 +85,7 @@ export function PostsScreen() {
           postHref={postHref}
         />
       </div>
-      <section aria-label="Selected post" className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+      <section ref={pane} aria-label="Selected post" className="@container/main min-h-0 min-w-0 flex-1 overflow-y-auto">
         <Outlet />
       </section>
     </div>
@@ -93,19 +100,49 @@ export function EmptyPostList() {
 
 export function SelectedPost() {
   const { author, postId } = postRoute.useParams()
+  return <PostReader key={JSON.stringify([author, postId])} author={author} postId={postId} />
+}
+
+function PostReader({ author, postId }: { author: string; postId: string }) {
+  const filters = postsRoute.useSearch()
+  const client = useQueryClient()
+  const navigate = useNavigate()
+  const router = useRouter()
   const { data: post } = useSuspenseQuery(postQuery(author, postId))
-  const title = post.title.trim() ? post.title : 'Untitled post'
+  const posts = usePostList(author, filters)
+  const favorite = useFavorite(author, postId)
+  const savePosition = useCallback<SavePosition>(async (media, position, options) => {
+    const saved = await savePlaybackPosition(author, media.id, position, options.keepalive)
+    acceptPosition(client, author, postId, saved)
+  }, [client, author, postId])
+  const changeFilters = (patch: Filters): void => {
+    void navigate({ to: '/a/$author/p/$postId', params: { author, postId }, search: { ...filters, ...patch } })
+  }
   return (
-    <article className="mx-auto max-w-[900px] p-6 sm:p-10">
-      <time dateTime={post.created_at} className="text-sm text-muted-foreground">{formatDate(post.created_at)}</time>
-      <h1 className="mt-2 text-2xl font-semibold wrap-anywhere">{title}</h1>
-      {post.access === 'locked' && <p className="mt-3 text-sm text-muted-foreground">Locked{post.tier && ` · ${post.tier}`}</p>}
-      {post.tags.length > 0 && (
-        <ul aria-label="Post tags" className="mt-4 flex flex-wrap gap-2 text-sm text-muted-foreground">
-          {post.tags.map(tag => <li key={tag} className="rounded-md border px-2 py-1 wrap-anywhere">{tag}</li>)}
-        </ul>
-      )}
-    </article>
+    <PostPage
+      author={author}
+      post={post}
+      filters={filters}
+      posts={posts.data}
+      listPending={posts.isPending || posts.isPlaceholderData || posts.isError}
+      favoritePending={favorite.pending}
+      favoriteError={favorite.error}
+      onFavorite={favorite.toggle}
+      onTag={tag => changeFilters({ tag: filters.tag === tag ? undefined : tag })}
+      onPost={id => { void navigate({ to: '/a/$author/p/$postId', params: { author, postId: id }, search: filters }) }}
+      postHref={id => `/a/${encodeURIComponent(author)}/p/${encodeURIComponent(id)}${stringifyViewerSearch(filters)}`}
+    >
+      <PostBody
+        author={author}
+        postId={postId}
+        html={post.body_html}
+        media={post.media}
+        query={filters.q}
+        onClearSearch={() => changeFilters({ q: undefined })}
+        onNavigate={href => { void router.navigate({ href }) }}
+        savePosition={savePosition}
+      />
+    </PostPage>
   )
 }
 

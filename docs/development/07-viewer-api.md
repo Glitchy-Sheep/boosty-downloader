@@ -1,6 +1,6 @@
 # Viewer API
 
-Start `boosty-downloader view -o LIBRARY --no-open`. The server exposes the following read routes without Boosty credentials. The packaged UI consumes authors, filtered post lists, tags and selected-post metadata. Full post reading and Media controls are connected in subsequent stages.
+Start `boosty-downloader view -o LIBRARY --no-open`. The server exposes the following read routes without Boosty credentials. The packaged UI consumes authors, filtered post lists, tags and complete post details, with body search, fullscreen images, favorites and inline playback. The Media screen and local file action controls follow in subsequent stages.
 
 | GET route | Result |
 | --- | --- |
@@ -20,7 +20,9 @@ The posts route accepts `q`, `kind`, `unseen`, `fav`, `tag`, `locked`, `incomple
 
 Search matches are plain text runs with a `matched` flag. Render their text as text, including any literal HTML-looking source content. The post body is HTML from the same renderer as saved pages; it does not add search highlights itself. Unsafe link schemes are discarded in both representations while visible text is retained.
 
-Authored Boosty links to indexed posts with saved bodies use `/a/{author}/p/{full-id}`, retaining their query and fragment. They work independently of whether the target has a generated `post.html`. Missing targets remain remote, and placeholder buttons labelled Open on Boosty keep their remote destination. Standalone saved pages instead use relative `post.html` paths, resolved from canonical records without the index. Local post routes show the author timeline and selected-post metadata; full body rendering follows in the UI.
+Authored Boosty links to indexed posts with saved bodies use `/a/{author}/p/{full-id}`, retaining their query and fragment. They work independently of whether the target has a generated `post.html`. Missing targets remain remote, and placeholder buttons labelled Open on Boosty keep their remote destination. Standalone saved pages instead use relative `post.html` paths, resolved from canonical records without the index. Local post routes show the author timeline and complete retained body. Ordinary internal link activation uses the application router; modified clicks keep browser behavior.
+
+Body search decorates text nodes without rebuilding native players. Generated labels and player controls are excluded; authored attachment titles inside the retained-media section remain searchable. Post images come from the body in reading order, since detail media deliberately excludes images. The pager follows filtered rows and inserts an excluded current post using the same timestamp and ID order as the backend, including microseconds and Unicode IDs.
 
 ## Media filters
 
@@ -58,7 +60,7 @@ The Python models generate `viewer-ui/src/lib/api.gen.ts`; run `task ui:types` a
 
 ## User marks
 
-Writes require `application/json`. When present, `Origin` and `Sec-Fetch-Site` must identify a same-origin request. Writes change viewing marks, preserving downloaded content and media. The packaged shell does not yet expose these controls.
+Writes require `application/json`. When present, `Origin` and `Sec-Fetch-Site` must identify a same-origin request. Writes change viewing marks, preserving downloaded content and media. The post page exposes favorites and inline playback positions. Seen and bulk controls follow later.
 
 | Route | Body and result |
 | --- | --- |
@@ -72,6 +74,10 @@ Mark values are strict booleans. Playback values are finite, nonnegative numbers
 Opening a post never marks it seen. New pieces make a previously seen post Updated; a text-only edit or a returning piece with its original addition time does not. Marking it seen again acknowledges the newest observed content. If imported addition times are ahead of the local clock, this watermark is no earlier than those times. Favorite and playback changes preserve the seen mark.
 
 A position in the last 10 seconds, or last 5 percent when shorter, is finished. A 24-second clip therefore finishes at 22.8 seconds. Finished playback stores a zero position for the next play; saving an earlier position clears the finished state. Zero duration means unknown duration and does not mark completion. Finishing media does not mark the entire post seen.
+
+The UI resumes after metadata is available, ignoring saved positions below one second. Start over saves zero immediately. Position writes are ordered per media identity across player remounts and use keepalive, including requests already in flight when the page closes. Browser termination can still prevent a queued request from starting. Cache responses update position fields without replacing the rendered player or unrelated marks; failed saves remain visible beside the player.
+
+Favorite changes optimistically update the post, matching list rows and author counts. A failure rolls back those fields while preserving later playback or unrelated updates. The response row is merged into the complete detail, retaining body and media; query-specific search fragments stay on their rows. Relevant lists and counts refresh after pending favorite writes settle.
 
 ## Bulk progress and failure recovery
 

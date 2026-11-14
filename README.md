@@ -188,7 +188,11 @@ The viewer needs no Boosty credentials. Global `--config` selects the settings f
 
 The authors page shows saved artwork, post counts and recorded downloaded-media sizes. Bars and labels show videos, photos, audio and files from largest to smallest; retained downloaded copies count too. These totals exclude pages, records and auxiliary images, and do not scan the disk when opening the page. Windows uses 1024 bytes per KB; other devices use 1000, with three significant digits.
 
-Opening an author selects its newest post and shows a virtual timeline with month headings and local thumbnails. Search titles and post text, combine filters for media kind, unseen, favorites, tag, locked or incomplete posts, and change the order. The address preserves these choices across reload and browser navigation. A selected post remains available when filters hide it from the list. The post pane currently shows saved metadata; full body reading and playback follow in this development version.
+Opening an author selects its newest post and shows a virtual timeline with month headings and local thumbnails. Search titles and post text, combine filters for media kind, unseen, favorites, tag, locked or incomplete posts, and change the order. The address preserves these choices across reload and browser navigation. A selected post remains available when filters hide it from the list.
+
+The post pane shows its complete saved text and media in the author's order. Use tags to filter, Previous/Next to follow the filtered timeline, and the heart to save favorites. Search highlights have their own match navigation. Open a photo for a full-screen view with arrow keys and Escape. Saved content stays readable after access closes; locked posts have no editable heart. Opening or playing a post does not mark it seen.
+
+Video and audio resume from their saved position, with a Start over action. Playback saves every five seconds while playing and on pause, seeking while paused and leaving the page. A piece played into its last 10 seconds, or last 5 percent when shorter, starts from the beginning next time. Final page-close requests use browser keepalive; delivery still depends on the browser and the local server remaining available. A failed save is shown beside the player.
 
 After the viewer stops, the operating system can keep a fixed port temporarily unavailable while connections close. The default mode chooses another free port; with `--port`, wait or choose another value.
 

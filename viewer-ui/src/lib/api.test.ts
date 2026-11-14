@@ -1,6 +1,6 @@
 import { afterEach, expect, test, vi } from 'vitest'
 
-import { ApiError, getAuthor, getAuthors, getPost, getPosts, getTags } from '@/lib/api'
+import { ApiError, getAuthor, getAuthors, getPost, getPosts, getTags, savePlaybackPosition, setFavorite } from '@/lib/api'
 import type { Filters } from '@/lib/filters'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -82,4 +82,39 @@ test('encodes resource identities once and keeps detail independent of filters',
   expect(request.mock.calls.map(call => call[0])).toEqual([
     author, `${author}/tags`, `${author}/posts/post%20%23%3F%25`,
   ])
+})
+
+test('writes favorite and opaque media positions to their actual endpoints', async () => {
+  const request = vi.fn().mockImplementation(async () => Response.json({}))
+  vi.stubGlobal('fetch', request)
+
+  await setFavorite('автор %', 'post #', true)
+  await savePlaybackPosition('автор %', 'opaque/%2F', { seconds: 3, duration: 20 }, true)
+
+  const authorPath = '/api/authors/%D0%B0%D0%B2%D1%82%D0%BE%D1%80%20%25'
+  expect(request.mock.calls).toEqual([
+    [`${authorPath}/posts/post%20%23/marks`, {
+      method: 'PUT', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: '{"favorite":true}', keepalive: false,
+    }],
+    [`${authorPath}/media/opaque%2F%252F/position`, {
+      method: 'PUT', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: '{"seconds":3,"duration":20}', keepalive: true,
+    }],
+  ])
+})
+
+test.each([NaN, Infinity, -1])('rejects invalid playback values before JSON can convert %s to null', async value => {
+  const request = vi.fn()
+  vi.stubGlobal('fetch', request)
+  await expect(savePlaybackPosition('studio', 'media', { seconds: value, duration: 100 }, false)).rejects.toThrow('finite')
+  await expect(savePlaybackPosition('studio', 'media', { seconds: 0, duration: value }, false)).rejects.toThrow('finite')
+  expect(request).not.toHaveBeenCalled()
+})
+
+test('reports rejected writes as structured errors', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({
+    error: { code: 'write_refused', message: 'The library is read-only.' },
+  }, { status: 403 })))
+  await expect(setFavorite('studio', 'post', true)).rejects.toMatchObject({ status: 403, code: 'write_refused' })
 })

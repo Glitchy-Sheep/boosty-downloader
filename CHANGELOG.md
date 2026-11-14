@@ -2,6 +2,9 @@
 
 ### Added
 
+- The viewer reads complete saved posts with text search, filtered Previous/Next navigation, tag filters, page favorites and fullscreen photos. Retained content remains readable after access closes.
+- Inline video and audio resume from saved positions, offer Start over, and save progress during playback and on leaving the page. Opening or playing a post keeps its seen mark unchanged.
+
 - Author cards open a virtual post timeline with month headings, local thumbnails and access states. Search, media kind, unseen, favorites, tag, locked, incomplete and sort filters stay in the URL, including after reload and browser navigation.
 
 - The viewer shows author cards with saved artwork, post counts and downloaded-media storage by kind, plus a library total. Cards adapt to narrow screens and include descriptions for screen readers.
@@ -10,7 +13,7 @@
 
 - Authored links between saved posts open local copies. Downloads resolve links to posts saved later in the same run; `render` and later downloads refresh processed pages when more targets become available. Viewer body links use local post routes.
 
-- `view` starts the local viewer server with the packaged shell, optional LAN access, and empty-library or compatibility pages. Read APIs expose authors, filtered posts, search context and complete post bodies; local media support seeking with Range requests. Data screens and mark editing are not connected to the shell yet.
+- `view` starts the local viewer server with the packaged shell, optional LAN access, and empty-library or compatibility pages. Read APIs expose authors, filtered posts, search context and complete post bodies; local media support seeking with Range requests.
 
 - Viewer APIs save seen marks, favorites and playback positions across downloads, index rebuilds and library moves. Bulk marking respects the selected post filters and reports numerical progress. Playback near the end of a video or track counts as finished.
 
