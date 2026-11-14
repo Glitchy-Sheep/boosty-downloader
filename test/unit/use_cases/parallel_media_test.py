@@ -8,8 +8,10 @@ from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
 import pytest
+from support.raster_images import png_bytes
 from support.synthetic_post import IMAGE_ID, file_chunk, image_chunk, synthetic_post
 
+from boosty_downloader.application import thumbnail_sync
 from boosty_downloader.application.download_context import DownloadContext
 from boosty_downloader.application.exceptions.application_errors import (
     ApplicationCancelledError,
@@ -42,6 +44,22 @@ if TYPE_CHECKING:
     )
     from boosty_downloader.infrastructure.media_transfer import ReserveMediaPath
     from boosty_downloader.infrastructure.post_media_downloader import ProgressCallback
+
+
+THUMBNAIL_PATH = '.boosty-downloader/thumbs/image.png'
+
+
+@pytest.fixture
+def thumbnail(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    async def publish(*, library_root: Path, author: str, **_kwargs: object) -> str:
+        path = library_root / author / THUMBNAIL_PATH
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(png_bytes())
+        return THUMBNAIL_PATH
+
+    download = AsyncMock(side_effect=publish)
+    monkeypatch.setattr(thumbnail_sync, 'download_post_thumbnail', download)
+    return download
 
 
 def _file(index: int) -> dict[str, object]:
@@ -198,6 +216,7 @@ async def test_failed_file_allows_siblings_to_finish_and_persists_each_outcome(
 
 async def test_failed_image_becomes_a_placeholder_then_retry_replaces_it(
     tmp_path: Path,
+    thumbnail: AsyncMock,
 ) -> None:
     media = Mock(spec=PostMediaDownloader)
     media.download_image = AsyncMock(
@@ -212,6 +231,8 @@ async def test_failed_image_becomes_a_placeholder_then_retry_replaces_it(
         encoding='utf-8'
     )
     assert _record(use_case).media[f'image:{IMAGE_ID}'].status is MediaStatus.failed
+    thumbnail.assert_not_awaited()
+    assert not (tmp_path / 'author' / THUMBNAIL_PATH).exists()
 
     async def download(
         image: object, on_progress: ProgressCallback, *, reserve: ReserveMediaPath
@@ -226,10 +247,16 @@ async def test_failed_image_becomes_a_placeholder_then_retry_replaces_it(
     assert 'src="images/picture.png"' in page
     assert 'dead image' not in page
     assert _record(use_case).media[f'image:{IMAGE_ID}'].status is MediaStatus.downloaded
+    assert _record(use_case).media[f'image:{IMAGE_ID}'].thumbnail_path == THUMBNAIL_PATH
+    thumbnail.assert_awaited_once()
+    assert thumbnail.await_args is not None
+    assert thumbnail.await_args.kwargs['media_id'] == f'image:{IMAGE_ID}'
+    assert use_case.context.run_statistics.downloaded_bytes == 1
 
 
 async def test_fresh_attempt_uses_saved_files_in_its_complete_page(
     tmp_path: Path,
+    thumbnail: AsyncMock,
 ) -> None:
     async def download_file(
         file: PostDataChunkFile,
@@ -262,6 +289,9 @@ async def test_fresh_attempt_uses_saved_files_in_its_complete_page(
     retry.finalize()
 
     media.download_file.assert_awaited_once()
+    thumbnail.assert_awaited_once()
+    assert _record(retry).media[f'image:{IMAGE_ID}'].thumbnail_path == THUMBNAIL_PATH
+    assert (tmp_path / 'author' / THUMBNAIL_PATH).read_bytes() == png_bytes()
     page = (retry.destination / 'post.html').read_text(encoding='utf-8')
     assert page.index('src="images/picture.png"') < page.index(
         'href="files/file-0.bin"'

@@ -213,6 +213,9 @@ def test_later_run_plans_only_missing_pieces_and_then_becomes_unchanged(
     _complete(preparer, second, VIDEO_MEDIA_ID, 'boosty_videos/lesson.mp4', VIDEO_BYTES)
     _record(second).media[VIDEO_MEDIA_ID].preview_path = 'previews/lesson.jpg'
     _write(preparer.library_root / second.folder / 'previews/lesson.jpg', IMAGE_BYTES)
+    thumbnail = '.boosty-downloader/thumbs/cover.png'
+    _record(second).media[IMAGE_MEDIA_ID].thumbnail_path = thumbnail
+    _write(preparer.library_root / AUTHOR / thumbnail, IMAGE_BYTES)
     preparer.store.save_post(second.folder, _record(second))
 
     third = preparer.prepare(post, ALL_FILTERS, LATER + timedelta(days=1))

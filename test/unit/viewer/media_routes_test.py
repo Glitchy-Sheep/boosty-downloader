@@ -402,3 +402,20 @@ async def test_slow_media_read_does_not_block_another_request(
         response = await slow
         await response.read()
     assert response.status == 200
+
+
+async def test_saved_thumbnail_projection_preserves_original_and_cover(
+    http: _HTTPFixture,
+) -> None:
+    entry = http.library.record.media['image:cover']
+    entry.thumbnail_path = '.boosty-downloader/thumbs/cover.png'
+    http.library.store.save_post(http.library.folder, http.library.record)
+    http.library.reader.prepare()
+    page = await _media(http, '?view=images')
+    image = page.items[0]
+    relative_folder = http.library.folder.partition('/')[2]
+    assert image.thumb_path == entry.thumbnail_path
+    assert image.path == f'{relative_folder}/{IMAGE_PATH}'
+    assert image.size == entry.size
+    assert page.posts[POST_ID].cover_path == image.path
+    assert not (http.library.root / 'writer' / entry.thumbnail_path).exists()
