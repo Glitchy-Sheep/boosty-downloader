@@ -13,6 +13,7 @@ import {
 import { useRef, useState, type ReactNode, type RefObject } from 'react'
 
 import { AuthorAvatar } from '@/components/author-avatar'
+import { BulkMarks } from '@/components/bulk-marks'
 import { PostList } from '@/components/post-list'
 import { SearchBox } from '@/components/search-box'
 import { useElementWidth } from '@/hooks/use-element-width'
@@ -135,13 +136,19 @@ export function Sidebar(props: SidebarProps) {
             )}
           </div>
         )}
-        <div className="flex h-5 items-center gap-2 text-[12.5px] text-muted-foreground">
-          <span className="font-medium text-foreground tabular-nums">
+        <div className="flex min-h-7 flex-wrap items-center gap-2 text-[12.5px] text-muted-foreground">
+          <span className="shrink-0 font-medium whitespace-nowrap text-foreground tabular-nums">
             {resultCount(posts, loading, error)}
           </span>
           {(loading || updating) && (
             <LoaderCircle aria-label="Updating posts" className="size-3.5 animate-spin" />
           )}
+          <BulkMarks
+            author={author.name}
+            filters={filters}
+            posts={posts}
+            disabled={loading || updating || error !== null}
+          />
           {hasFilters(filters) && (
             <button
               type="button"

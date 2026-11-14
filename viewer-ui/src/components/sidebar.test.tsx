@@ -6,6 +6,7 @@ import type { Author } from '@/lib/api.gen'
 import { NO_FILTERS, type Filters } from '@/lib/filters'
 
 vi.mock('@/hooks/use-element-width', () => ({ useElementWidth: () => 360 }))
+vi.mock('@/components/bulk-marks', () => ({ BulkMarks: () => null }))
 vi.mock('@/components/post-list', () => ({
   PostList: ({ emptyMessage }: { emptyMessage: string }) => <p>{emptyMessage}</p>,
 }))
