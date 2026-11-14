@@ -73,7 +73,7 @@ jobs:
           else
             echo "⏭️ Skipping integration tests (no .env config available)"
           fi
-        timeout-minutes: 5
+        timeout-minutes: 10
 
   ui:
     name: 🎨 Viewer

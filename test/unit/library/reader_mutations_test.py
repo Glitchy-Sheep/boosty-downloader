@@ -31,7 +31,8 @@ from boosty_downloader.domain.library_errors import (
     LibraryWriteError,
 )
 from boosty_downloader.domain.library_marks import PlaybackPosition, PostMarks
-from boosty_downloader.domain.library_mutations import BulkMarkProgress, MediaIdentity
+from boosty_downloader.domain.library_media import MediaIdentity
+from boosty_downloader.domain.library_mutations import BulkMarkProgress
 from boosty_downloader.domain.stored_post import LockedPost
 from boosty_downloader.infrastructure.library import _index_marks as index_marks
 from boosty_downloader.infrastructure.library import _reader_mutations as mutations

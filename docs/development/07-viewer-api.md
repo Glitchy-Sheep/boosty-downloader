@@ -8,6 +8,7 @@ Start `boosty-downloader view -o LIBRARY --no-open`. The server exposes the foll
 | `/api/authors/{author}` | One author with the same totals |
 | `/api/authors/{author}/posts` | Filtered rows, month counts and total |
 | `/api/authors/{author}/tags` | Exact tags and distinct post counts |
+| `/api/authors/{author}/media` | Filtered downloaded media, shared post metadata, view counts and missing pieces |
 | `/api/authors/{author}/posts/{id}` | Current metadata/access, retained body, fresh marks and downloaded videos/audio/files |
 | `/media/{author}/{path}` | An exact local file with Range, HEAD and conditional request support |
 
@@ -16,6 +17,16 @@ Start `boosty-downloader view -o LIBRARY --no-open`. The server exposes the foll
 The posts route accepts `q`, `kind`, `unseen`, `fav`, `tag`, `locked`, `incomplete` and `order`. Filters combine. `kind` is `images`, `videos`, `files` or `audio`; `order` is `newest` (default) or `oldest`. Boolean flags accept only `0` and `1`, defaulting to false. A tag is exact and nonempty. An empty search is valid. Unknown parameters, repeated parameters and invalid values return 400 instead of silently weakening the selection.
 
 Search matches are plain text runs with a `matched` flag. Render their text as text, including any literal HTML-looking source content. The post body is HTML from the same renderer as saved pages; it does not add search highlights itself. Unsafe link schemes are discarded in both representations while visible text is retained.
+
+## Media filters
+
+The media route accepts `view=all|images|videos|audio|files`, `order=newest|oldest`, `unseen=0|1` and `fav=0|1`. Defaults are All, newest first and no mark filters. Unknown or repeated parameters and other values return 400. All combines images, both video sources and audio; files have their own view.
+
+Only recorded downloaded pieces are listed. Copies retained after the author removed a piece or locked its post remain available. Current pieces precede removed copies in either date order. Equal dates use the full post ID, then inventory position and media ID for stable ordering. `posts` contains each listed post's metadata once, keyed by its full ID.
+
+Favorites filter the owning post. Unseen filters individual pieces: playback is unfinished, and the post has no seen mark or the piece was added after that mark. A new piece does not put older pieces from the same seen post back in Unseen. The shared post's `seen` flag reports its mark even when a new piece appears in Unseen.
+
+Counts apply the same mark filters across every view, independently of the selected view. `counts.all` excludes files. `missing` counts current pending, failed, unavailable and locally deleted pieces in the selected view; removed pieces without a downloaded copy do not count. List and count queries share one index snapshot. An unfiltered kind view's recorded sizes sum to the author's storage total for that kind, without reading media files.
 
 ## Snapshots and paths
 

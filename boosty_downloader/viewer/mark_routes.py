@@ -22,7 +22,7 @@ from boosty_downloader.viewer.responses import model_response
 
 if TYPE_CHECKING:
     from boosty_downloader.application.ports import LibraryReader
-    from boosty_downloader.domain.library_mutations import MediaIdentity
+    from boosty_downloader.domain.library_media import MediaIdentity
     from boosty_downloader.viewer.mark_progress import ProgressCallback
 
 _MARK_REQUEST = TypeAdapter(api.MarkRequest)

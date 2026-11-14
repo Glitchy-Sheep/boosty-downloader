@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from functools import partial
+from pathlib import PurePosixPath
 from sqlite3 import Error as SQLiteError
 from typing import TYPE_CHECKING, cast
 
@@ -16,9 +17,9 @@ from boosty_downloader.domain.library_errors import (
     LibraryMarkConflictError,
     LibraryWriteError,
 )
+from boosty_downloader.domain.library_media import LibraryMediaItem
 from boosty_downloader.domain.library_mutations import (
     BulkMarkProgress,
-    LibraryMediaItem,
     PostMarkResult,
 )
 from boosty_downloader.domain.library_summary import (
@@ -55,7 +56,8 @@ if TYPE_CHECKING:
 
     from boosty_downloader.domain.library import PostFilters
     from boosty_downloader.domain.library_marks import PostMarks
-    from boosty_downloader.domain.library_mutations import MediaIdentity
+    from boosty_downloader.domain.library_media import MediaIdentity
+    from boosty_downloader.domain.stored_post import MediaEntry
     from boosty_downloader.infrastructure.library.index import LibraryIndex
     from boosty_downloader.infrastructure.library.index_sources import PostSource
 
@@ -295,7 +297,17 @@ def _media_item(source: PostSource, media_id: str) -> LibraryMediaItem:
         media_id,
         entry,
         source.marks.positions.get(media_id),
+        _playback_thumbnail(source.post.folder, entry),
     )
+
+
+def _playback_thumbnail(folder: str, entry: MediaEntry) -> str | None:
+    if (
+        entry.kind in {MediaKind.boosty_video, MediaKind.external_video}
+        and entry.preview_path is not None
+    ):
+        return (PurePosixPath(folder) / entry.preview_path).as_posix()
+    return None
 
 
 def _report(

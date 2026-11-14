@@ -1,4 +1,4 @@
-"""Shared media responses for post details and playback writes."""
+"""Shared media responses for indexed lists, post details and playback writes."""
 
 from __future__ import annotations
 
@@ -10,14 +10,43 @@ from boosty_downloader.domain.stored_post import MediaKind
 from boosty_downloader.viewer import api_models as api
 from boosty_downloader.viewer.file_types import file_type
 from boosty_downloader.viewer.media_identity import media_identity
-from boosty_downloader.viewer.urls import post_media_path
+from boosty_downloader.viewer.urls import author_relative_path, post_media_path
 
 if TYPE_CHECKING:
     from datetime import timedelta
 
     from boosty_downloader.domain.library_marks import PlaybackPosition
-    from boosty_downloader.domain.library_mutations import LibraryMediaItem
-    from boosty_downloader.domain.stored_post import MediaEntry
+    from boosty_downloader.domain.library_media import (
+        LibraryMediaItem,
+        LibraryMediaPage,
+        LibraryMediaPost,
+    )
+
+
+def media_page_response(author: str, page: LibraryMediaPage) -> api.MediaPage:
+    """Keep post metadata shared and count All without the separate Files view."""
+    counts = page.counts
+    return api.MediaPage(
+        items=[media_item_response(author, item) for item in page.items],
+        posts={key: _media_post(author, post) for key, post in page.posts.items()},
+        counts=api.MediaViewCounts(
+            all=counts.images + counts.videos + counts.audio,
+            images=counts.images,
+            videos=counts.videos,
+            audio=counts.audio,
+            files=counts.files,
+        ),
+        missing=page.missing,
+    )
+
+
+def _media_post(author: str, post: LibraryMediaPost) -> api.MediaPost:
+    return api.MediaPost(
+        title=post.title,
+        cover_path=author_relative_path(author, post.cover_path),
+        seen=post.seen_at is not None,
+        favorite=post.favorite,
+    )
 
 
 def media_item_response(author: str, item: LibraryMediaItem) -> api.MediaItem:
@@ -32,7 +61,7 @@ def media_item_response(author: str, item: LibraryMediaItem) -> api.MediaItem:
         created_at=item.created_at,
         kind=_wire_kind(entry.kind),
         path=post_media_path(author, item.folder, entry.path),
-        thumb_path=_thumbnail(author, item.folder, entry),
+        thumb_path=author_relative_path(author, item.thumbnail_path),
         title=entry.title,
         filename=PurePosixPath(entry.path).name,
         artist=entry.artist,
@@ -57,12 +86,6 @@ def _wire_kind(kind: MediaKind) -> api.MediaKind:
             return 'files'
         case MediaKind.image:
             return 'images'
-
-
-def _thumbnail(author: str, folder: str, entry: MediaEntry) -> str | None:
-    if entry.preview_path is None:
-        return None
-    return post_media_path(author, folder, entry.preview_path)
 
 
 def _duration_seconds(duration: timedelta | None) -> float | None:

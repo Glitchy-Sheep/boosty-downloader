@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from functools import partial
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 
 from boosty_downloader.domain.library_errors import LibraryReadError
-from boosty_downloader.domain.library_mutations import LibraryMediaItem
+from boosty_downloader.domain.library_media import LibraryMediaItem
 from boosty_downloader.domain.library_summary import summarize_post
 from boosty_downloader.domain.stored_post import MediaKind, MediaStatus
 from boosty_downloader.viewer import api_models as api
@@ -93,5 +94,19 @@ def _media_item(
         media_id=key,
         entry=entry,
         playback=detail.marks.positions.get(key),
+        thumbnail_path=_thumbnail_path(content.folder, entry),
     )
     return media_item_response(author, item)
+
+
+def _thumbnail_path(folder: str, entry: MediaEntry) -> str | None:
+    match entry.kind:
+        case MediaKind.image:
+            path = entry.path
+        case MediaKind.boosty_video | MediaKind.external_video:
+            path = entry.preview_path
+        case _:
+            return None
+    if path is None:
+        return None
+    return str(PurePosixPath(folder, path))
