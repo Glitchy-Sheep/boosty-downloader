@@ -21,13 +21,15 @@ task viewer:sample -- --out .sample/large --posts 5000 --seed 7
 
 ## Media and recorded sizes
 
-When ffmpeg is installed, it creates playable local media in several shapes and lengths. Without ffmpeg, the generator uses solid-colour images, WAV audio and bundled self-generated MP4 files. No extra runtime dependency is required. Media are generated once and reused within the sample, keeping disk usage small.
+When ffmpeg is installed, it creates playable local media in several shapes and lengths, including textured multi-MB JPEG photos with small 480 px copies. Without ffmpeg, photos are deterministic textured PNGs with thumbnails sampled from those same pixels; author artwork stays solid-colour, audio uses WAV and videos use bundled self-generated MP4 files. Both modes include landscape, portrait and square photos with actual originals larger than 2 MB. No extra runtime dependency is required. Assets are generated once and reused through hardlinks where supported, with a copying fallback.
 
-Recorded media sizes deliberately resemble real libraries, so storage charts show useful differences between authors. They are larger than the physical sample files. The sample uses the production JSON store and builds the disposable search index from those records.
+Recorded media sizes deliberately resemble real libraries, so storage charts show useful differences between authors. They remain independent of physical file sizes. Measure HTTP response bytes or actual files when checking transfer budgets. Photos have separate author-relative thumbnails, locked teasers have their own thumbnail reference and videos reuse their previews. The sample uses the production JSON store and builds the disposable search index from those records.
 
 ## Reusing an output directory
 
 The generator creates a new output directory and records its ownership and file fingerprints in `.sample-library.json`. An identical, unchanged sample can be reused with the same arguments. An arbitrary existing directory, changed files, different arguments or an incomplete previous generation cause an error. Choose a fresh `--out` in that case. There is no destructive reset option.
+
+The thumbnail corpus uses sample-manifest version 2. Samples generated with version 1 are rejected without replacement; choose a fresh output directory to obtain the larger photos and thumbnails. This sample version is separate from the production library marker and canonical record schemas.
 
 Viewing marks are user-owned data. Changing them while trying the viewer also changes the sample, so rerunning the generator does not silently reset them. The default `.sample/` directory is ignored by Git.
 

@@ -120,12 +120,7 @@ def _select_media(
 ) -> _MediaFile:
     if not is_author_component(author) or not reader.has_author(author):
         raise web.HTTPNotFound
-    path = resolve_author_path(root, author, relative)
-    try:
-        if path is None or not S_ISREG(path.stat().st_mode):
-            raise web.HTTPNotFound
-    except OSError as error:
-        raise web.HTTPNotFound from error
+    path = _resolve_media_file(root, author, relative)
     if _saved_page_matches(reader, root, author, relative, path):
         return _MediaFile(
             path,
@@ -134,6 +129,32 @@ def _select_media(
         )
     content_type = None if ':' in relative else _INLINE_TYPES.get(suffix(path.name))
     return _MediaFile(path, _headers(content_type or 'application/octet-stream'))
+
+
+def _resolve_media_file(root: Path, author: str, relative: str) -> Path:
+    path = resolve_author_path(root, author, relative)
+    try:
+        if path is None or not S_ISREG(path.stat().st_mode):
+            raise web.HTTPNotFound
+    except OSError as error:
+        raise web.HTTPNotFound from error
+    return path
+
+
+def image_file_response(
+    root: Path, author: str, relative: str
+) -> web.FileResponse | None:
+    """Serve a contained raster image with the ordinary media headers and ranges."""
+    try:
+        path = _resolve_media_file(root, author, relative)
+        if path.stat().st_size <= 0:
+            return None
+    except (web.HTTPNotFound, OSError):
+        return None
+    content_type = None if ':' in relative else _INLINE_TYPES.get(suffix(path.name))
+    if content_type is None or not content_type.startswith('image/'):
+        return None
+    return _ExactFile(path, headers=_headers(content_type))
 
 
 def _embed_token(request: web.Request) -> str | None:

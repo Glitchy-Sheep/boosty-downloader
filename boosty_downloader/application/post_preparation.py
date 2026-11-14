@@ -12,6 +12,7 @@ from boosty_downloader.application.media_paths import (
     get_preferred_media_path,
 )
 from boosty_downloader.application.reconcile import reconcile
+from boosty_downloader.application.thumbnail_plan import missing_thumbnail_ids
 from boosty_downloader.domain.library import LocatedPost
 from boosty_downloader.domain.stored_post import MediaEntry, MediaKind, MediaStatus
 from boosty_downloader.infrastructure.html_generator import PAGE_TEMPLATE_VERSION
@@ -51,6 +52,7 @@ class PreparedPost:
     page_exists: bool
     record_changed: bool
     preview_download_ids: tuple[str, ...] = ()
+    thumbnail_download_ids: tuple[str, ...] = ()
 
     @property
     def is_new(self) -> bool:
@@ -72,6 +74,7 @@ class PreparedPost:
         return (
             bool(self.reconciliation.download_ids)
             or bool(self.preview_download_ids)
+            or bool(self.thumbnail_download_ids)
             or self.record_changed
             or self.page_needs_update
         )
@@ -115,7 +118,7 @@ class PostPreparer:
             restore_missing=self.restore_missing,
             checked_unavailable_ids=checked_unavailable_ids,
         )
-        return _prepared_post(live, located, disk, result)
+        return _prepared_post(self.library_root, live, located, disk, result)
 
     def _locate_post(self, live: LivePost) -> LocatedPost:
         located = self.store.find_post(self.author, live.post.id)
@@ -125,7 +128,11 @@ class PostPreparer:
 
 
 def _prepared_post(
-    live: LivePost, located: LocatedPost, disk: DiskSnapshot, result: ReconcileResult
+    root: Path,
+    live: LivePost,
+    located: LocatedPost,
+    disk: DiskSnapshot,
+    result: ReconcileResult,
 ) -> PreparedPost:
     return PreparedPost(
         live=live,
@@ -136,6 +143,7 @@ def _prepared_post(
         page_exists=find_recorded_file('post.html', disk) is not None,
         record_changed=_has_record_changes(located.record, result.record),
         preview_download_ids=_preview_download_ids(live, result.record, disk),
+        thumbnail_download_ids=missing_thumbnail_ids(root, live, result.record, disk),
     )
 
 

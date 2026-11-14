@@ -27,6 +27,10 @@ from boosty_downloader.application.post_links import has_post_links
 from boosty_downloader.application.post_pages import render_post_page
 from boosty_downloader.application.post_preparation import PostPreparer
 from boosty_downloader.application.preview_sync import ensure_post_previews
+from boosty_downloader.application.thumbnail_sync import (
+    ensure_image_thumbnail,
+    ensure_saved_thumbnails,
+)
 from boosty_downloader.domain.library import PostIdentity
 from boosty_downloader.domain.post_data_chunks import (
     PostDataChunkAudio,
@@ -150,6 +154,7 @@ class DownloadSinglePostUseCase:
             state.save_initial()
             self._needs_render = True
         await ensure_post_previews(self.context, state, prepared)
+        await ensure_saved_thumbnails(self.context, state, prepared)
         post_task = self.context.progress_reporter.create_task(
             f'[bold]POST: {self.post_dto.title}[/bold]',
             total=len(prepared.reconciliation.download_ids),
@@ -316,6 +321,7 @@ class DownloadSinglePostUseCase:
                 self.context.run_statistics.add_media(
                     _media_counts(media.kind), result.size
                 )
+            await ensure_image_thumbnail(self.context, state, media_id, media)
         finally:
             self.context.progress_reporter.complete_task(task_id)
 

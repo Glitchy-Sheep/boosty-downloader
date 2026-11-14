@@ -32,6 +32,7 @@ from library_sample.models import (
 )
 
 from boosty_downloader.domain.library import PostAccess, PostFilters
+from boosty_downloader.domain.library_media import LibraryMediaView, MediaFilters
 from boosty_downloader.domain.post_data_chunks import PostDataChunkText
 from boosty_downloader.domain.stored_post import (
     MediaBlock,
@@ -111,6 +112,77 @@ def test_generated_library_is_readable_without_source_assets_api(sample: Path) -
     assert (saved, locked_only, retained_locked) == (18, 6, 3)
     assert statuses == set(MediaStatus)
     assert kinds == set(MediaKind)
+
+
+def test_sample_records_and_media_projection_point_to_saved_author_thumbnails(
+    sample: Path,
+) -> None:
+    reader = JsonLibraryReader(sample)
+    images = locked_teasers = 0
+    for author in reader.authors():
+        media = reader.list_media(author.author, LibraryMediaView.image, MediaFilters())
+        for item in media.items:
+            images += 1
+            assert item.entry.status is MediaStatus.downloaded
+            detail = reader.post(author.author, item.post_id)
+            assert detail is not None
+            assert detail.content.record is not None
+            relative = detail.content.record.media[item.media_id].thumbnail_path
+            assert relative is not None
+            assert relative.startswith('.boosty-downloader/thumbs/')
+            assert item.thumbnail_path == f'{author.author}/{relative}'
+            assert (sample / item.thumbnail_path).is_file()
+        detail = reader.post(
+            author.author,
+            post_id(SampleConfig(posts=24), author.author, Scenario.locked_teaser),
+        )
+        assert detail is not None
+        relative = detail.content.teaser_thumbnail_path
+        assert relative is not None
+        assert relative.startswith('.boosty-downloader/thumbs/')
+        assert (sample / author.author / relative).is_file()
+        locked_teasers += 1
+    assert images >= 8
+    assert locked_teasers == 3
+
+
+def test_eight_photo_viewport_transfers_less_than_five_megabytes(sample: Path) -> None:
+    reader = JsonLibraryReader(sample)
+    media = reader.list_media(
+        AuthorName.art.value, LibraryMediaView.image, MediaFilters()
+    )
+    viewport = [
+        item
+        for item in media.items
+        if item.entry.status is MediaStatus.downloaded and item.entry.removed_at is None
+    ][:8]
+    assert len(viewport) == 8
+    original_bytes = thumbnail_bytes = 0
+    for item in viewport:
+        assert item.entry.path is not None
+        assert item.thumbnail_path is not None
+        original_bytes += (sample / item.folder / item.entry.path).stat().st_size
+        thumbnail_bytes += (sample / item.thumbnail_path).stat().st_size
+    assert 0 < thumbnail_bytes < 5_000_000 < original_bytes
+
+
+def test_sample_thumbnail_placements_reuse_asset_hardlinks_when_available(
+    sample: Path, tmp_path: Path
+) -> None:
+    originals = list(
+        (sample / '.boosty-downloader/sample-assets').glob('image_*_thumb.png')
+    )
+    assert originals
+    probe = tmp_path / 'hardlink-probe.png'
+    try:
+        probe.hardlink_to(originals[0])
+    except OSError:
+        pytest.skip('Filesystem does not support hardlinks for sample assets')
+    thumbnails = list(sample.glob('*/.boosty-downloader/thumbs/*.png'))
+    assert thumbnails
+    for thumbnail in thumbnails:
+        assert thumbnail.stat().st_nlink > 1
+        assert any(thumbnail.samefile(original) for original in originals)
 
 
 def test_anchors_cover_links_removed_history_attachments_and_marks(
@@ -270,6 +342,7 @@ def test_reuse_preserves_canonical_bytes_and_mtimes_and_repairs_index(
         'modified',
         'manifest-key',
         'version',
+        'old-version',
         'bool-version',
         'missing-generator',
         'missing-version',
@@ -307,12 +380,14 @@ def test_changed_or_unsafe_samples_are_rejected_without_writes(
         case _:
             _tamper_manifest(manifest_path, change)
     before = _snapshot(root)
+    times = {path: path.stat().st_mtime_ns for path in (root, *root.rglob('*'))}
     with pytest.raises(
         ValueError,
         match=r'Sample|sample|output|manifest|validation|seed|posts|locked-only',
     ):
         prepare_sample(root, SampleConfig(posts=24), backend=AssetBackend.fallback)
     assert _snapshot(root) == before
+    assert {path: path.stat().st_mtime_ns for path in times} == times
 
 
 @pytest.mark.parametrize(
@@ -402,7 +477,9 @@ def _tamper_manifest(path: Path, change: str) -> None:
         case 'manifest-key':
             document['unknown'] = True
         case 'version':
-            document['version'] = 2
+            document['version'] = 3
+        case 'old-version':
+            document['version'] = 1
         case 'bool-version':
             document['version'] = True
         case 'missing-generator' | 'missing-version':

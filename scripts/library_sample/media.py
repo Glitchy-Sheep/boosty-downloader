@@ -34,6 +34,7 @@ class MediaInventory:
 
     entries: dict[str, MediaEntry]
     files: tuple[AssetPlacement, ...]
+    author_files: tuple[AssetPlacement, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,6 +54,7 @@ class StoredPiece:
     media_id: str
     entry: MediaEntry
     files: tuple[AssetPlacement, ...]
+    author_files: tuple[AssetPlacement, ...]
 
 
 def build_media(
@@ -66,6 +68,7 @@ def build_media(
     return MediaInventory(
         {piece.media_id: piece.entry for piece in pieces},
         tuple(placement for piece in pieces for placement in piece.files),
+        tuple(placement for piece in pieces for placement in piece.author_files),
     )
 
 
@@ -188,9 +191,22 @@ def _piece(
     )
     _describe_asset(entry, asset, post)
     if isinstance(asset, VideoAsset):
-        entry.preview_path = f'previews/{position:02d}.png'
+        entry.preview_path = f'previews/{position:02d}{asset.preview.path.suffix}'
         files.append(AssetPlacement(entry.preview_path, asset.preview.path))
-    return StoredPiece(identity, entry, tuple(files))
+    thumbnails = _thumbnail_files(post, position, asset, entry)
+    return StoredPiece(identity, entry, tuple(files), thumbnails)
+
+
+def _thumbnail_files(
+    post: PostMetadata, position: int, asset: Asset, entry: MediaEntry
+) -> tuple[AssetPlacement, ...]:
+    if not isinstance(asset, ImageAsset) or asset.thumbnail_path is None:
+        return ()
+    if entry.status != MediaStatus.downloaded:
+        return ()
+    name = f'{post.id}-{position}{asset.thumbnail_path.suffix}'
+    entry.thumbnail_path = f'.boosty-downloader/thumbs/{name}'
+    return (AssetPlacement(entry.thumbnail_path, asset.thumbnail_path),)
 
 
 def _describe_asset(entry: MediaEntry, asset: Asset, post: PostMetadata) -> None:

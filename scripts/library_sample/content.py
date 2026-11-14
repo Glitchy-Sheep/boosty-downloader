@@ -157,7 +157,15 @@ def _author(
         AssetPlacement(cover_path, cover.path),
     ]
     if count > Scenario.locked_teaser:
-        files.append(AssetPlacement('teasers/locked.png', assets.images[index].path))
+        teaser = assets.images[index]
+        files.append(AssetPlacement(f'teasers/locked{teaser.path.suffix}', teaser.path))
+        if teaser.thumbnail_path is not None:
+            files.append(
+                AssetPlacement(
+                    f'.boosty-downloader/thumbs/locked{teaser.thumbnail_path.suffix}',
+                    teaser.thumbnail_path,
+                )
+            )
     info = AuthorInfo(
         theme.name,
         _SYNCED_AT,
@@ -203,9 +211,22 @@ def _post(
 ) -> SamplePost:
     metadata = _metadata(config, theme, ordinal)
     if ordinal in {Scenario.locked_teaser, Scenario.locked_no_teaser}:
-        teaser = 'teasers/locked.png' if ordinal == Scenario.locked_teaser else None
+        image = assets.images[AUTHORS.index(theme)]
+        teaser = (
+            f'teasers/locked{image.path.suffix}'
+            if ordinal == Scenario.locked_teaser
+            else None
+        )
+        thumbnail = None
+        if teaser is not None and image.thumbnail_path is not None:
+            thumbnail = f'.boosty-downloader/thumbs/locked{image.thumbnail_path.suffix}'
         metadata.content_counters = {'ok_video': 1, 'image': 2}
-        return SamplePost(None, LockedPost(metadata, _SYNCED_AT, teaser), None, ())
+        return SamplePost(
+            None,
+            LockedPost(metadata, _SYNCED_AT, teaser, teaser_thumbnail_path=thumbnail),
+            None,
+            (),
+        )
     inventory = build_media(metadata, ordinal, assets)
     blocks = _text(config, theme.name)
     blocks.extend(
@@ -219,7 +240,9 @@ def _post(
     locked = (
         LockedPost(metadata, _SYNCED_AT) if ordinal == Scenario.lost_access else None
     )
-    return SamplePost(record, locked, _marks(record, ordinal), inventory.files)
+    return SamplePost(
+        record, locked, _marks(record, ordinal), inventory.files, inventory.author_files
+    )
 
 
 def _text(config: SampleConfig, author: str) -> list[Block]:

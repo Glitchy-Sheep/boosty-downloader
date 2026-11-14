@@ -73,11 +73,17 @@ class SamplePost:
     locked: LockedPost | None
     marks: PostMarks | None
     files: tuple[AssetPlacement, ...]
+    author_files: tuple[AssetPlacement, ...] = ()
 
     def __post_init__(self) -> None:
         """Keep access and retained-content identities consistent."""
         if self.record is None:
-            if self.locked is None or self.marks is not None or self.files:
+            if (
+                self.locked is None
+                or self.marks is not None
+                or self.files
+                or self.author_files
+            ):
                 message = (
                     'A locked-only post has an observation and no saved files or marks'
                 )

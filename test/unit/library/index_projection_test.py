@@ -404,3 +404,26 @@ def test_author_projection_preserves_metadata_and_fingerprints_independently() -
     projected.info.description = 'changed'
     assert info.description == 'Full\n\nbiography'
     assert project_author(AuthorSource('teacher')).info is None
+
+
+@pytest.mark.parametrize('status', [MediaStatus.downloaded, MediaStatus.deleted])
+def test_retained_image_thumbnail_has_author_relative_origin(
+    saved_post: StoredPost, status: MediaStatus
+) -> None:
+    entry = MediaEntry(
+        MediaKind.image,
+        status,
+        NOW,
+        1,
+        path='images/original.png',
+        size=42,
+        thumbnail_path='.boosty-downloader/thumbs/diagram.png',
+        removed_at=NOW,
+    )
+    saved_post.media[IMAGE_ID] = entry
+    projected = project_post(_source(saved_post))
+    image = projected.media[-1]
+    assert image.thumbnail_path == 'teacher/.boosty-downloader/thumbs/diagram.png'
+    assert image.entry == entry
+    assert image.entry is not entry
+    assert projected.cover_path == f'{FOLDER}/lesson.jpg'

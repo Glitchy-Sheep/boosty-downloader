@@ -10,12 +10,15 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
 import pytest
 from aiohttp import ClientSession, web
 from aiohttp.test_utils import TestServer
 from aiohttp_retry import ExponentialRetry, RetryClient
+from aiolimiter import AsyncLimiter
+from support.raster_images import png_bytes
 from support.synthetic_blog import BLOG_TITLE, OWNER_NAME, POST_COUNT, synthetic_blog
 from support.synthetic_post import (
     AUDIO_SIZE,
@@ -64,6 +67,7 @@ from boosty_downloader.infrastructure.loggers.failed_downloads_logger import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
     from pathlib import Path
     from typing import Any
 
@@ -74,6 +78,7 @@ if TYPE_CHECKING:
 
 AUTHOR = 'example_author'
 POST_DIR_NAME = '2025-06-15 - Fixture post with every content type (00000000)'
+THUMBNAIL_PNG = png_bytes()
 
 
 class _QuietReporter:
@@ -150,6 +155,30 @@ def _local_payload(text: str, host: str) -> dict[str, Any]:
     return json.loads(text)
 
 
+@dataclass
+class _OptionalImageRequests:
+    thumbnails: list[str]
+    auxiliary: list[str]
+    thumbnail_status: int
+
+    @web.middleware
+    async def handle(
+        self,
+        request: web.Request,
+        handler: Callable[[web.Request], Awaitable[web.StreamResponse]],
+    ) -> web.StreamResponse:
+        if request.query.get('mw') == '480':
+            self.thumbnails.append(request.raw_path)
+            return web.Response(
+                status=self.thumbnail_status,
+                body=THUMBNAIL_PNG,
+                content_type='image/png',
+            )
+        if request.path.startswith(('/preview/', '/teaser/')):
+            self.auxiliary.append(request.path)
+        return await handler(request)
+
+
 def _build_app(  # noqa: PLR0913 - independent fake-server failure modes
     served_media: list[str],
     *,
@@ -161,8 +190,15 @@ def _build_app(  # noqa: PLR0913 - independent fake-server failure modes
     payload: dict[str, Any] | None = None,
     refreshed_payload: dict[str, Any] | None = None,
     first_file_status: int = 404,
+    served_thumbnails: list[str] | None = None,
+    served_auxiliary: list[str] | None = None,
+    thumbnail_status: int = 200,
 ) -> web.Application:
+    """Collect primary transfers separately from optional thumbnail and preview traffic."""
     fixture_text = json.dumps(payload if payload is not None else synthetic_post())
+    thumbnails = [] if served_thumbnails is None else served_thumbnails
+    auxiliary = [] if served_auxiliary is None else served_auxiliary
+
     file_failures_left = 1 if fail_first_file else 0
 
     async def listing(request: web.Request) -> web.Response:
@@ -205,7 +241,8 @@ def _build_app(  # noqa: PLR0913 - independent fake-server failure modes
         )
         return web.json_response(_local_payload(fresh, request.host))
 
-    app = web.Application()
+    optional_images = _OptionalImageRequests(thumbnails, auxiliary, thumbnail_status)
+    app = web.Application(middlewares=[optional_images.handle])
     app.router.add_get(f'/v1/blog/{AUTHOR}', blog_info)
     app.router.add_get(f'/v1/blog/{AUTHOR}/post/', listing)
     app.router.add_get(f'/v1/blog/{AUTHOR}/post/{POST_ID}', single_post)
@@ -259,6 +296,7 @@ async def _run_download(  # noqa: PLR0913 - isolated download scenarios
             filters=list(DownloadContentTypeFilter) if filters is None else filters,
             excluded_tags=excluded_tags,
             restore_missing=restore_missing,
+            thumbnail_requests=AsyncLimiter(1000, time_period=1),
             preferred_video_quality=BoostyOkVideoType.medium,
             progress_reporter=reporter,
             failed_logger=FailedDownloadsLogger(

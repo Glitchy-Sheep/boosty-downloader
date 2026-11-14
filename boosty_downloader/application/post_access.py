@@ -13,6 +13,7 @@ from boosty_downloader.application.exceptions.application_errors import (
 from boosty_downloader.application.filtering import has_excluded_tag
 from boosty_downloader.application.mappers.image import to_domain_image_chunk
 from boosty_downloader.application.mappers.post_metadata import map_post_metadata
+from boosty_downloader.application.thumbnail_sync import ensure_teaser_thumbnail
 from boosty_downloader.domain.stored_post import LockedPost
 from boosty_downloader.infrastructure.file_downloader import (
     DownloadCancelledError,
@@ -39,13 +40,22 @@ async def observe_post_access(context: DownloadContext, post: PostDTO) -> None:
         post=map_post_metadata(post, context.author_name),
         synced_at=datetime.now(timezone.utc),
         teaser_path=previous.teaser_path if previous is not None else None,
+        teaser_thumbnail_path=previous.teaser_thumbnail_path
+        if previous is not None
+        else None,
     )
     store.save_locked_post(observation)
     if has_excluded_tag((tag.title for tag in post.tags or ()), context.excluded_tags):
         return
     path = await _ensure_teaser(context, post, observation.teaser_path)
     if path is not None:
-        store.save_locked_post(replace(observation, teaser_path=path))
+        observation = replace(observation, teaser_path=path)
+        store.save_locked_post(observation)
+    thumbnail = await ensure_teaser_thumbnail(
+        context, observation, url=_teaser_url(post)
+    )
+    if thumbnail is not None:
+        store.save_locked_post(replace(observation, teaser_thumbnail_path=thumbnail))
 
 
 async def _ensure_teaser(

@@ -136,7 +136,9 @@ def _bad_bytes(operation: Operation, problem: BadRecord) -> bytes:
         case BadRecord.corrupt:
             return b'{broken'
         case BadRecord.unsupported:
-            return b'{"schema_version": 2}'
+            if operation in {Operation.read_author, Operation.write_author}:
+                return b'{"schema_version": 2}'
+            return b'{"schema_version": 3}'
         case BadRecord.foreign:
             if operation in {Operation.read_author, Operation.write_author}:
                 return encode_author_record(replace(_author(), author='other'))

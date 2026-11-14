@@ -273,7 +273,9 @@ async def secure_response(request: web.Request, response: web.StreamResponse) ->
     """Set headers at publication time, including errors and streamed files."""
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Referrer-Policy'] = 'no-referrer'
-    if request.path == '/media' or request.path.startswith('/media/'):
+    if request.path in {'/media', '/thumbs'} or request.path.startswith(
+        ('/media/', '/thumbs/')
+    ):
         response.headers['Cross-Origin-Resource-Policy'] = _media_resource_policy(
             response
         )

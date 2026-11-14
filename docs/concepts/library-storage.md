@@ -18,6 +18,7 @@ The destination passed with `-o` is the library root. A typical library has this
       avatar.<ext>
       cover.<ext>
       teasers/
+      thumbs/
     YYYY-MM-DD - Title (id8)/
       post.json
       viewer.json
@@ -40,6 +41,12 @@ The destination passed with `-o` is the library root. A typical library has this
 | Root `.boosty-downloader/index.db` | A disposable SQLite projection for library queries and search. `reindex` rebuilds it from the canonical JSON records, including viewing marks. |
 
 Post folders remain stable when a title changes. Media and video preview paths in `post.json` are relative to that post's folder. Avatar, cover and teaser paths are relative to the author's folder, so an avatar path includes `.boosty-downloader/`. All stored paths use portable relative strings. Keep the library's internal layout when moving or backing it up.
+
+Image `thumbnail_path` and locked-post `teaser_thumbnail_path` are also author-relative. They point directly under `.boosty-downloader/thumbs/`; original images stay in their existing locations. Post and locked records use schema version 2 for these fields. Version 1 records remain readable without rewriting them, and ordinary saves write version 2. Earlier v5 binaries reject version 2 records instead of silently discarding the new fields. This protects the individual record; it is not a library-wide startup compatibility check. The library format marker remains 5.
+
+Downloads request a copy at most 480 px wide from Boosty's image resizer after saving an image, and backfill missing thumbnails for current saved images whose originals still exist. Locked teasers receive the same treatment. Video covers reuse their existing previews. Thumbnail requests share a one-per-second limit, use the media session without account credentials and accept bounded raster responses up to 2 MiB. PNG responses retain PNG encoding, so their small copies can still be larger than JPEG copies. Unsupported or failed responses leave the original usable and produce one thumbnail warning per run; cancellation and record-write failures still propagate. Auxiliary bytes do not count toward primary-media transfer totals.
+
+A missing thumbnail is retried on a later ordinary download. Dry-run reports such a post as needing an update but performs no thumbnail request or write. Removed images retain their saved thumbnail reference, but no longer have a current remote source for backfill. Deleting an original does not remove its retained thumbnail; post-cover selection still excludes media removed from the author's current body.
 
 `author.json` and `locked.json` live in the author's service folder, not directly in the author root. A locked observation records an inaccessible post's overview without creating a new post folder. If access is lost after a post was saved, its existing body, media, page and viewing marks are preserved. Observations survive a partial scan and are cleared individually when access to that post is confirmed again.
 

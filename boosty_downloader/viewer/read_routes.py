@@ -22,6 +22,7 @@ from boosty_downloader.viewer.query import (
     parse_post_filters,
 )
 from boosty_downloader.viewer.responses import model_response
+from boosty_downloader.viewer.thumbs import serve_thumbnail
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -56,6 +57,7 @@ class ReadRoutes:
         app.router.add_get('/api/authors/{author}/tags', self.tags)
         app.router.add_get('/api/authors/{author}/posts/{post_id}', self.post)
         app.router.add_get('/media/{author}/{path:.*}', self.media)
+        app.router.add_get('/thumbs/{author}/{post_id}', self.thumbnail)
 
     async def authors(self, request: web.Request) -> web.Response:
         del request
@@ -140,4 +142,9 @@ class ReadRoutes:
             reader=self.reader,
             library_root=self.root,
             access=self.media_access,
+        )
+
+    async def thumbnail(self, request: web.Request) -> web.StreamResponse:
+        return await serve_thumbnail(
+            request, reader=self.reader, library_root=self.root
         )

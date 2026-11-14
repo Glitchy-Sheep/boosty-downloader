@@ -63,7 +63,7 @@ def create_app(  # noqa: PLR0913 - explicit injected services and UI options
         OpenRoutes(reader, library_root, opener).register(app)
     else:
         app.router.add_get('/api/opener', disabled_opener)
-    for prefix in ('api', 'media'):
+    for prefix in ('api', 'media', 'thumbs'):
         app.router.add_route('*', f'/{prefix}', _not_found)
         app.router.add_route('*', f'/{prefix}/{{path:.*}}', _not_found)
     directory = static_directory or Path(__file__).parent / 'static' / 'app'

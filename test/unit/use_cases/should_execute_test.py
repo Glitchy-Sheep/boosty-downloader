@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
+from support.raster_images import png_bytes
 from support.synthetic_post import (
     AUDIO_ID,
     FILE_ID,
@@ -19,6 +20,7 @@ from support.synthetic_post import (
     text_chunk,
 )
 
+from boosty_downloader.application import thumbnail_sync
 from boosty_downloader.application.download_context import DownloadContext
 from boosty_downloader.application.filtering import BoostyOkVideoType
 from boosty_downloader.application.ports import FailureLog, ProgressReporter
@@ -47,6 +49,22 @@ if TYPE_CHECKING:
     )
     from boosty_downloader.infrastructure.media_transfer import ReserveMediaPath
     from boosty_downloader.infrastructure.post_media_downloader import ProgressCallback
+
+
+THUMBNAIL_PATH = '.boosty-downloader/thumbs/image.png'
+
+
+@pytest.fixture
+def thumbnail(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    async def publish(*, library_root: Path, author: str, **_kwargs: object) -> str:
+        path = library_root / author / THUMBNAIL_PATH
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(png_bytes())
+        return THUMBNAIL_PATH
+
+    download = AsyncMock(side_effect=publish)
+    monkeypatch.setattr(thumbnail_sync, 'download_post_thumbnail', download)
+    return download
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,7 +154,11 @@ def _record(use_case: DownloadSinglePostUseCase) -> StoredPost:
 @pytest.mark.parametrize('case', MEDIA_CASES, ids=lambda case: case.method)
 @pytest.mark.parametrize('selected', list(DownloadContentTypeFilter))
 async def test_each_media_kind_downloads_only_under_its_filter(
-    tmp_path: Path, case: MediaCase, selected: DownloadContentTypeFilter, media: Mock
+    tmp_path: Path,
+    case: MediaCase,
+    selected: DownloadContentTypeFilter,
+    media: Mock,
+    thumbnail: AsyncMock,
 ) -> None:
     use_case = _use_case(tmp_path, [case.payload], [selected])
 
@@ -158,6 +180,15 @@ async def test_each_media_kind_downloads_only_under_its_filter(
     for other in MEDIA_CASES:
         if other.method != case.method:
             getattr(media, other.method).assert_not_awaited()
+    entry = next(iter(_record(use_case).media.values()))
+    if case.method == 'download_image' and selected is case.selected_filter:
+        thumbnail.assert_awaited_once()
+        assert entry.thumbnail_path == THUMBNAIL_PATH
+        assert (tmp_path / 'author' / THUMBNAIL_PATH).read_bytes() == png_bytes()
+        assert use_case.context.run_statistics.downloaded_bytes == 1
+    else:
+        thumbnail.assert_not_awaited()
+        assert entry.thumbnail_path is None
     assert (use_case.destination / 'post.html').is_file()
 
 
