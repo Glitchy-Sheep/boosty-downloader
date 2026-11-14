@@ -83,6 +83,13 @@ tasks:
     cmds:
       - npm run build
 
+  ui:e2e:
+    desc: Check the packaged viewer in isolated Chromium and Firefox sessions
+    dir: viewer-ui
+    deps: [ui:build]
+    cmds:
+      - npm run e2e -- {{.CLI_ARGS}}
+
   viewer:sample:
     desc: Generate a synthetic local library for viewer development
     cmds:
@@ -220,13 +227,14 @@ tasks:
       - uv run python scripts/release.py tag
 
   ci:
-    desc: Run everything CI runs, locally (checks + tests + build)
+    desc: Run Python and UI checks, unit tests and the package build
     summary: |
-      Mirrors the three code jobs of the CI pipeline: lint + format + types,
-      unit tests (plus integration tests when ./.env exists),
-      and the package build. The changelog gate is PR-only and is left out.
+      Runs Python and UI lint, format, types and unit tests, integration tests
+      when ./.env exists, and the package build. Run task ui:e2e separately
+      for browser tests. The changelog gate runs only on pull requests.
     cmds:
       - task: check
+      - task: ui:check
       - task: test
         vars: { CLI_ARGS: -v }
       - cmd: |
