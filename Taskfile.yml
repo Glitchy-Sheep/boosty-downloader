@@ -70,11 +70,26 @@ tasks:
       - npm run dev -- {{.CLI_ARGS}}
 
   ui:check:
-    desc: Type-check, lint and test the viewer
+    desc: Check viewer formatting, types, lint, script tests and coverage
     dir: viewer-ui
     deps: [ui:install]
     cmds:
       - npm run check
+
+  ui:format:
+    desc: Format owned frontend sources and configuration
+    dir: viewer-ui
+    deps: [ui:install]
+    cmds:
+      - npm run format
+
+  ui:coverage:
+    desc: Run viewer unit tests with coverage and show quality metrics
+    dir: viewer-ui
+    deps: [ui:install]
+    cmds:
+      - defer: npm run quality:report
+      - npm run test:coverage
 
   ui:build:
     desc: Build the viewer's static assets

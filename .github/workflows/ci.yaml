@@ -102,12 +102,29 @@ jobs:
           test -f viewer-ui/src/lib/api.gen.ts
           task ui:types
           git diff --exit-code -- viewer-ui/src/lib/api.gen.ts
+      - name: Frontend formatting
+        run: npm run format:check
       - name: TypeScript
         run: npm run typecheck
       - name: Lint
         run: npm run lint
-      - name: Unit tests
-        run: npm run test
+      - name: Build and report script tests
+        run: npm run test:scripts
+      - name: Unit tests and coverage
+        run: npm run test:coverage
+      - name: Summarize frontend quality
+        if: ${{ !cancelled() }}
+        run: npm run quality:report
+      - name: Upload frontend quality reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: viewer-quality-results
+          path: |
+            viewer-ui/coverage/
+            viewer-ui/reports/
+          retention-days: 7
+          if-no-files-found: warn
       - name: Build viewer assets
         run: npm run build
       - name: Cache Playwright browsers

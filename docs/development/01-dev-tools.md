@@ -19,12 +19,22 @@ The React viewer uses Node 24 LTS, pinned in `.nvmrc`. With nvm installed, run `
 
 - `task ui:install` installs the exact npm lockfile in `viewer-ui/`.
 - `task ui:types` generates the tracked `viewer-ui/src/lib/api.gen.ts` from Python API models.
-- `task ui:check` runs TypeScript, oxlint and Vitest.
+- `task ui:format` formats owned frontend sources, styles and configuration with Oxfmt.
+- `task ui:check` checks formatting, TypeScript, type-aware Oxlint, build/report script tests and Vitest coverage.
+- `task ui:coverage` runs unit tests with coverage and prints their quality summary, including failed runs.
 - `task ui:build` writes static assets and Brotli/gzip copies of JavaScript and CSS to `boosty_downloader/viewer/static/app/`.
 - `task ui:e2e` builds the viewer and checks it in isolated Chromium and Firefox sessions against a temporary library served by the real `view` command.
 - `task build` builds the viewer first, then the wheel and source distribution. Both include the offline assets.
 
 Commit `viewer-ui/package-lock.json` with dependency changes. Generated assets and `node_modules` are ignored. The source under `viewer-ui/src/lib/` is tracked despite the repository's general Python `lib/` ignore rule.
+
+Frontend formatting uses two spaces, single quotes, no semicolons and LF line endings. Import order, Tailwind class order and package-key order are preserved. The generated API declarations and lockfile are excluded from formatting; declarations still pass TypeScript and generation-freshness checks. Use `npm run format:check` in `viewer-ui/` for a read-only formatting check.
+
+The application, tests, browser harness and native build scripts are type-checked. TypeScript checks optional fields and indexed lookups as well as strict nullability; filter fields explicitly accept `undefined` because clearing a URL filter requires it. Oxlint checks promise handling, unsafe types, React hooks and JSX accessibility. Warnings and unused lint suppressions fail the check. Prefer named props and domain types, validate unknown input at boundaries, and keep exceptions narrow with a reason. The semantic-role preference is disabled because valid groups and status messages need not be form controls.
+
+Vitest measures all production TS/TSX under `src/`, including files not imported by tests. Only tests, test helpers, generated declarations and compile-only contract assertions are excluded. `viewer-ui/coverage/index.html` shows uncovered source; JSON and LCOV reports support tooling. `viewer-ui/reports/unit-tests.json` records test results separately from coverage cleanup. `npm run quality:report` prints the latest reports; missing or invalid reports are shown as unavailable. Coverage complements the real-browser checks for CSS, focus, media and navigation.
+
+Coverage gates cap uncovered statements, branches, functions and lines at the measured baseline in `vite.config.ts`. Vitest expresses these caps as negative thresholds. Adding tested code can raise coverage without allowing more untested paths; lowering the caps as coverage improves keeps that progress. Do not raise caps or exclude production files to pass a feature's checks. The coverage command clears its previous reports first, so an interrupted run cannot leave a stale successful summary. The unit-test result in the summary is separate from the coverage gate; the command and CI job fail if either fails.
 
 The JSON contract lives in `boosty_downloader/viewer/api_models.py`. After changing it, run `task ui:types` and `task ui:check`, then commit the Python changes together with the generated TypeScript file. Do not edit `api.gen.ts` by hand. The Viewer CI job regenerates it and rejects missing, untracked or stale declarations. Python-only checks and tests do not invoke Node.
 
@@ -32,7 +42,7 @@ The JSON contract lives in `boosty_downloader/viewer/api_models.py`. After chang
 
 A standard wheel build without `viewer/static/app/index.html` fails with a `task ui:build` hint. Direct `uv build` therefore requires that frontend step first; use `task build` for the complete pipeline. The generated UI also travels in the source distribution, so building a wheel from a released source archive does not need Node. Installing a published wheel does not need Node either.
 
-The frontend shows authors, indexed media storage and a virtual author timeline through the `view` server. Search and filters live in the URL; the selected post currently shows saved metadata. Full post reading and Media controls are connected in subsequent stages.
+The frontend shows authors, indexed media storage and a virtual author timeline through the `view` server. Search and filters live in the URL. The selected post shows its saved page, search highlights, image gallery, favorite control and resumable native playback. The separate Media view is connected in a subsequent stage.
 
 Install the browser binaries once from `viewer-ui/` with `npx playwright install chromium firefox`. On Linux, add `--with-deps` to install the required system libraries. Then run `task ui:e2e` from the repository root. The harness generates its own synthetic library without ffmpeg, starts a viewer on an available local port and removes its temporary files after stopping the server. It sets the recording opener hook, so browser tests cannot launch desktop applications. HTML reports, screenshots and failure traces stay in the ignored `viewer-ui/playwright-report/` and `viewer-ui/test-results/` directories.
 

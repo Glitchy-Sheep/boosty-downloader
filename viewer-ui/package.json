@@ -9,12 +9,16 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build && node scripts/compress-assets.mjs",
-    "check": "npm run typecheck && npm run lint && npm run test",
+    "check": "npm run format:check && npm run typecheck && npm run lint && npm run test:scripts && npm run test:coverage",
     "typecheck": "tsc -b && tsc -p e2e/tsconfig.json",
     "lint": "oxlint --deny-warnings",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "test": "vitest run",
+    "pretest:coverage": "node scripts/clear-test-reports.mjs",
+    "test:coverage": "vitest run --coverage --reporter=default --reporter=json --outputFile=reports/unit-tests.json",
+    "test:scripts": "node --test scripts/*.test.mjs",
+    "quality:report": "node scripts/quality-report.mjs",
     "e2e": "playwright test",
     "preview": "vite preview"
   },
