@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from boosty_downloader.viewer import file_types
 from boosty_downloader.viewer.file_types import file_type, suffix
 
 
@@ -28,6 +29,14 @@ from boosty_downloader.viewer.file_types import file_type, suffix
         ('shortcut.desktop', 'program'),
         ('profile.mobileconfig', 'program'),
         ('file.settingcontent-ms', 'program'),
+        ('management.msc', 'program'),
+        ('patch.msp', 'program'),
+        ('shortcut.appref-ms', 'program'),
+        ('extension.vsto', 'program'),
+        ('extension.xlam', 'program'),
+        ('extension.ppam', 'program'),
+        ('connection.rdp', 'program'),
+        ('image\u202egnp.exe', 'program'),
         ('script.py', 'script'),
         ('manual.chm', 'script'),
         ('привет, мир.command', 'script'),
@@ -53,3 +62,9 @@ def test_stored_names_use_the_system_suffix(name: str, kind: str):
 )
 def test_suffix_normalizes_name_without_filesystem_access(name: str, expected: str):
     assert suffix(name) == expected
+
+
+def test_suffix_belongs_to_one_category() -> None:
+    groups = file_types._SUFFIXES.values()  # pyright: ignore[reportPrivateUsage]
+    suffixes = [item for group in groups for item in group.split()]
+    assert len(suffixes) == len(set(suffixes))

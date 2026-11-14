@@ -8,6 +8,8 @@
 
 - Viewer APIs list downloaded images, videos, audio and files with favorite and per-piece unseen filters. Lists keep retained copies from removed or locked posts, include view counts and report current missing media.
 
+- Viewer APIs can open saved files in their default applications, reveal them in the file manager and open post folders for a browser on the same computer. Remote browsers keep download access; local actions are unavailable over SSH and on Linux without a desktop opener.
+
 - `render [AUTHOR]` rebuilds saved post pages offline from complete records and current local media. It works without credentials or a search index and preserves media files and viewing marks.
 
 - `reindex` rebuilds the library search index from saved records without network access or credentials. It preserves posts, media and viewing marks, and supports `--cache-dir`.

@@ -9,6 +9,7 @@ Start `boosty-downloader view -o LIBRARY --no-open`. The server exposes the foll
 | `/api/authors/{author}/posts` | Filtered rows, month counts and total |
 | `/api/authors/{author}/tags` | Exact tags and distinct post counts |
 | `/api/authors/{author}/media` | Filtered downloaded media, shared post metadata, view counts and missing pieces |
+| `/api/opener` | Available local file actions and system; no local root for an ineligible request |
 | `/api/authors/{author}/posts/{id}` | Current metadata/access, retained body, fresh marks and downloaded videos/audio/files |
 | `/media/{author}/{path}` | An exact local file with Range, HEAD and conditional request support |
 
@@ -68,3 +69,20 @@ Bulk selection captures the filtered identities before changing their marks. Pro
 Only one bulk per author runs in a viewer instance. Another returns 409 with `marks_busy`. Disconnecting the browser does not cancel writes or release the active operation early; shutdown waits for its worker. Progress state exists only during that operation.
 
 Each mark is saved to canonical storage before its index projection. If an index update fails, the request returns 409 and already saved marks remain. Repeating the same request repairs the projection even when the canonical value is already correct. Bulk failure keeps the successfully saved prefix; refresh list/author data after an error. Request mutations serialize within the shared reader instance; separate viewer processes have no shared mutation lock.
+
+## Local file actions
+
+`GET /api/opener` reports `open`, `reveal`, `folders`, `system`, `root` and the system path separator `sep`. It is not cached. Ineligible requests receive disabled capabilities and no root path. The packaged shell does not yet show the action buttons.
+
+| POST route | Required JSON body |
+| --- | --- |
+| `/api/authors/{author}/media/{id}/open` | `{ "reveal": false }` to open; `{ "reveal": true }` to reveal in the file manager |
+| `/api/authors/{author}/posts/{id}/open` | `{}` to open the saved post folder |
+
+The media ID is the opaque ID from a media response. Both routes return 204 on success. The server obtains the recorded path from the index and checks it within the author's directory; clients supply no paths. Retained downloaded files remain eligible after removal or loss of post access. A missing file returns 404. A symlink whose target has a different file type can be revealed but cannot be opened. Post-folder symlinks cannot be opened.
+
+Opening uses the system's default application, as a double-click does, including programs and scripts. Reveal selects the file where the file manager supports it. macOS uses Finder, Windows uses Explorer, Linux uses the desktop file manager with a folder fallback, and Termux supports opening files without reveal or folder actions. A reported OS failure returns 409 with its reason; a successful handoff does not prove the target application has finished loading.
+
+These actions require a matching `Origin`, JSON and a browser on the viewer's own computer: loopback or the local address of the accepted connection. The Host must be localhost or an IP literal. Machine-name URLs, forwarded/proxy headers and other devices receive no local actions. When supplied on the capabilities GET, Origin and fetch metadata must also be valid; that GET does not require Origin. SSH disables real openers. Linux additionally requires a graphical session and `xdg-open`. Ordinary browsing remains available in these environments.
+
+For local development, set `BOOSTY_VIEWER_OPEN_LOG` to a temporary JSONL path before starting `view`. The CLI announces recording mode; actions append their name and absolute resolved path without opening anything. This explicit hook works without a desktop and over SSH, while HTTP request guards still apply. Use it to check file actions on synthetic libraries. The ordinary application factory defaults to no opener; the CLI injects the detected system opener.

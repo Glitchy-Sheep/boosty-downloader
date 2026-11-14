@@ -15,6 +15,8 @@ from boosty_downloader.viewer.api_models import (
 from boosty_downloader.viewer.compression import compress_json_responses
 from boosty_downloader.viewer.guard import guard_requests, secure_response
 from boosty_downloader.viewer.mark_routes import MarkRoutes
+from boosty_downloader.viewer.open_routes import OpenRoutes, disabled_opener
+from boosty_downloader.viewer.opener import NO_OPENER, Opener
 from boosty_downloader.viewer.pages import LibraryNotice
 from boosty_downloader.viewer.read_routes import ReadRoutes
 from boosty_downloader.viewer.responses import handle_library_errors
@@ -34,13 +36,14 @@ async def _not_found(request: web.Request) -> web.Response:
     return web.json_response(body.model_dump(mode='json'), status=404)
 
 
-def create_app(
+def create_app(  # noqa: PLR0913 - explicit injected services and UI options
     *,
     reader: LibraryReader | None,
     library_root: Path | None = None,
     body_renderer: PostBodyRenderer | None = None,
     notice: LibraryNotice | None = None,
     static_directory: Path | None = None,
+    opener: Opener = NO_OPENER,
 ) -> web.Application:
     """Build routes without opening storage, networking or library files."""
     app = web.Application(
@@ -54,6 +57,9 @@ def create_app(
             raise ValueError(message)
         ReadRoutes(reader, library_root, body_renderer).register(app)
         MarkRoutes(reader).register(app)
+        OpenRoutes(reader, library_root, opener).register(app)
+    else:
+        app.router.add_get('/api/opener', disabled_opener)
     for prefix in ('api', 'media'):
         app.router.add_route('*', f'/{prefix}', _not_found)
         app.router.add_route('*', f'/{prefix}/{{path:.*}}', _not_found)

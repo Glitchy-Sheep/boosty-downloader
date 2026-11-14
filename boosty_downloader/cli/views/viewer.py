@@ -37,3 +37,8 @@ def render_viewer_started(addresses: ServerAddresses) -> str:
 def render_viewer_failure(reason: str) -> str:
     """Keep folder names and diagnostics literal in Rich output."""
     return f'Cannot open the library viewer: {escape(reason)}'
+
+
+def render_opener_recording(path: str) -> str:
+    """Make the explicit recording hook visible before any file action."""
+    return f'File actions are recorded to {escape(path)}; no files are opened.'

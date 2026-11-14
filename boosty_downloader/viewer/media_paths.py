@@ -61,13 +61,23 @@ def resolve_author_path(library_root: Path, author: str, relative: str) -> Path 
     return candidate
 
 
-def has_post_folder(library_root: Path, author: str, folder: str) -> bool:
-    """Check a library-relative folder inside its exact author boundary."""
+def resolve_post_folder(library_root: Path, author: str, folder: str) -> Path | None:
+    """Find a real post directory without following folder symlinks."""
     name, separator, relative = folder.partition('/')
     if not separator or name != author:
-        return False
+        return None
     candidate = resolve_author_path(library_root, author, relative)
+    if candidate is None:
+        return None
     try:
-        return candidate is not None and candidate.is_dir()
-    except OSError:
-        return False
+        original = library_root.resolve(strict=True) / folder
+        if candidate == original and candidate.is_dir():
+            return candidate
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return None
+
+
+def has_post_folder(library_root: Path, author: str, folder: str) -> bool:
+    """Report whether the stored post folder can be opened without redirection."""
+    return resolve_post_folder(library_root, author, folder) is not None

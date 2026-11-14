@@ -28,6 +28,19 @@ _APP_POLICY: Final = (
 )
 _WRITE_METHODS: Final = frozenset({'POST', 'PUT', 'PATCH', 'DELETE'})
 SocketAddressValues: TypeAlias = tuple[object, ...]
+_IPAddress: TypeAlias = ipaddress.IPv4Address | ipaddress.IPv6Address
+_PROXY_HEADERS: Final = frozenset(
+    {
+        'forwarded',
+        'via',
+        'x-real-ip',
+        'x-client-ip',
+        'x-cluster-client-ip',
+        'cf-connecting-ip',
+        'true-client-ip',
+        'fastly-client-ip',
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,6 +107,62 @@ def is_host_allowed(request: web.Request) -> bool:
     return name in {machine, f'{machine}.local'}
 
 
+def is_address_host(request: web.Request) -> bool:
+    """Allow local actions only through a literal address or localhost."""
+    authority = _request_authority(request)
+    if authority is None:
+        return False
+    name = authority.host.removesuffix('.')
+    return name == 'localhost' or _is_ip(name)
+
+
+def _ip_address(value: str | None) -> _IPAddress | None:
+    if value is None:
+        return None
+    try:
+        address = ipaddress.ip_address(value.split('%', 1)[0])
+    except ValueError:
+        return None
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        return address.ipv4_mapped
+    return address
+
+
+def _connection_address(request: web.Request) -> _IPAddress | None:
+    if request.transport is None:
+        return None
+    address: object = request.transport.get_extra_info('sockname')
+    if not isinstance(address, tuple):
+        return None
+    values = cast('SocketAddressValues', address)
+    if not values or not isinstance(values[0], str):
+        return None
+    return _ip_address(values[0])
+
+
+def is_same_machine(request: web.Request) -> bool:
+    """Accept loopback or the connected local address without proxy headers."""
+    if any(
+        name.lower() in _PROXY_HEADERS or name.lower().startswith('x-forwarded-')
+        for name in request.headers
+    ):
+        return False
+    peer = _ip_address(request.remote)
+    if peer is None:
+        return False
+    return peer.is_loopback or peer == _connection_address(request)
+
+
+def is_open_allowed(request: web.Request) -> bool:
+    """Require the local viewer's explicit origin before any desktop action."""
+    return (
+        is_origin_allowed(request, required=True)
+        and is_write_allowed(request)
+        and is_address_host(request)
+        and is_same_machine(request)
+    )
+
+
 def _origin_authority(origin: str, scheme: str) -> _Authority | None:
     if _has_whitespace_or_controls(origin):
         return None
@@ -131,7 +200,14 @@ def is_write_allowed(request: web.Request) -> bool:
         or request.content_type != 'application/json'
     ):
         return False
+    return is_origin_allowed(request)
+
+
+def is_origin_allowed(request: web.Request, *, required: bool = False) -> bool:
+    """Check explicit origin and fetch metadata without requiring a request body."""
     origins = request.headers.getall('Origin', [])
+    if required and not origins:
+        return False
     if len(origins) > 1 or (origins and not _is_same_origin(request, origins[0])):
         return False
     fetch_sites = request.headers.getall('Sec-Fetch-Site', [])
