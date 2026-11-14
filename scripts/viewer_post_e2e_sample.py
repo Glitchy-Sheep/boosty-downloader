@@ -34,6 +34,7 @@ from boosty_downloader.infrastructure.library.post_store import JsonPostStore
 
 AUTHOR = 'reader_checks'
 SHORTCUT_AUTHOR = 'shortcut_checks'
+MONTH_AUTHOR = 'month_checks'
 NOW = datetime(2026, 11, 1, tzinfo=timezone.utc)
 Fragment = PostDataChunkText.TextFragment
 
@@ -63,6 +64,35 @@ class FixtureMedia:
 
     entries: dict[str, MediaEntry]
     sources: dict[str, Path]
+
+
+@dataclass(frozen=True, slots=True)
+class MonthScenario:
+    """One populated UTC month in a sparse seven-year history."""
+
+    year: int
+    month: int
+    milestone: bool = False
+
+
+MONTHS = (
+    MonthScenario(2019, 1, milestone=True),
+    MonthScenario(2019, 9),
+    MonthScenario(2020, 2),
+    MonthScenario(2020, 11, milestone=True),
+    MonthScenario(2021, 3, milestone=True),
+    MonthScenario(2021, 5),
+    MonthScenario(2021, 12),
+    MonthScenario(2022, 6, milestone=True),
+    MonthScenario(2023, 1),
+    MonthScenario(2023, 10),
+    MonthScenario(2024, 2, milestone=True),
+    MonthScenario(2024, 7),
+    MonthScenario(2025, 4),
+    MonthScenario(2025, 12, milestone=True),
+    MonthScenario(2026, 1),
+    MonthScenario(2026, 10, milestone=True),
+)
 
 
 SCENARIOS = (
@@ -259,6 +289,46 @@ def _save_shortcut(store: JsonPostStore, marks: JsonPostMarks, number: int) -> N
     marks.save_marks(SHORTCUT_AUTHOR, metadata.id, PostMarks(favorite=True))
 
 
+def _month_metadata(scenario: MonthScenario, day: int) -> PostMetadata:
+    number = scenario.year * 10_000 + scenario.month * 100 + day
+    post_id = f'20000000-0000-4000-8000-{number:012d}'
+    created = datetime(scenario.year, scenario.month, day, tzinfo=timezone.utc)
+    tags = [
+        'archive',
+        'milestone' if scenario.milestone else 'ordinary',
+        f'month-{created:%Y-%m}',
+    ]
+    return PostMetadata(
+        post_id,
+        MONTH_AUTHOR,
+        f'https://boosty.to/{MONTH_AUTHOR}/posts/{post_id}',
+        f'Archive {created:%Y-%m-%d}',
+        created,
+        created,
+        tags=tags,
+    )
+
+
+def _save_month(
+    store: JsonPostStore, marks: JsonPostMarks, scenario: MonthScenario
+) -> None:
+    for day in (3, 12, 24):
+        metadata = _month_metadata(scenario, day)
+        blocks: list[Block] = []
+        for paragraph in range(24):
+            blocks.extend(
+                [
+                    TextBlock(
+                        [Fragment(f'Archive reading paragraph {paragraph + 1}.')]
+                    ),
+                    ParagraphBreak(),
+                ]
+            )
+        record = StoredPost(metadata, PostSync(NOW, NOW), blocks)
+        store.save_post(store.choose_post_folder(metadata), record)
+        marks.save_marks(MONTH_AUTHOR, metadata.id, PostMarks(favorite=True))
+
+
 def prepare(root: Path) -> None:
     """Populate only a fresh temporary library owned by one browser-test worker."""
     root.mkdir()
@@ -275,6 +345,9 @@ def prepare(root: Path) -> None:
     store.save_author(AuthorInfo(SHORTCUT_AUTHOR, NOW, title='Shortcut Checks'))
     for number in range(1, 13):
         _save_shortcut(store, marks, number)
+    store.save_author(AuthorInfo(MONTH_AUTHOR, NOW, title='Month Checks'))
+    for scenario in MONTHS:
+        _save_month(store, marks, scenario)
     LibraryIndex(root).rebuild()
 
 
