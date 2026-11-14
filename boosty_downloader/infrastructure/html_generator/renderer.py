@@ -43,7 +43,7 @@ from boosty_downloader.infrastructure.library._atomic_write import write_atomica
 from boosty_downloader.infrastructure.library._media_paths import is_link
 
 # Bump when the generated page structure or styling changes.
-PAGE_TEMPLATE_VERSION: Final[int] = 3
+PAGE_TEMPLATE_VERSION: Final[int] = 4
 
 
 # Load all templates as a package files
@@ -239,6 +239,7 @@ def _render_media(chunk: HtmlGenMedia) -> str:
             return env.get_template('video.html').render(
                 video=chunk,
                 src=_media_src(chunk.url),
+                poster_src=_media_src(chunk.poster_url) if chunk.poster_url else None,
                 mime_type=_media_mime_type(chunk.url),
             )
         case HtmlGenAudio():

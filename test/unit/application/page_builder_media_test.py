@@ -97,6 +97,11 @@ _MEDIA_CASES = [
         HtmlGenVideo('videos/saved%20external.mp4', title='Author recording'),
     ),
 ]
+_VIDEO_CASES = [
+    case
+    for case in _MEDIA_CASES
+    if case.kind in {MediaKind.boosty_video, MediaKind.external_video}
+]
 
 
 class _RenderedMedia(HTMLParser):
@@ -180,6 +185,79 @@ def test_media_url_callback_covers_current_and_removed_pieces(case: _MediaCase):
         HtmlGenRemovedMedia([replace(case.expected, url=f'/library/{removed_path}')]),
     ]
     assert calls == [case.path, removed_path]
+
+
+@pytest.mark.parametrize('case', _VIDEO_CASES, ids=lambda case: case.kind.value)
+def test_saved_video_previews_follow_current_and_removed_media_urls(
+    case: _MediaCase,
+) -> None:
+    preview = 'previews/saved.jpg'
+    removed_path = f'retained/{case.path}'
+    removed_preview = 'previews/removed.jpg'
+    record = _record(
+        {
+            case.media_id: replace(_entry(case), preview_path=preview),
+            'removed': replace(
+                _entry(case),
+                removed_at=_NOW,
+                position=1,
+                path=removed_path,
+                preview_path=removed_preview,
+            ),
+        },
+        [case.media_id],
+    )
+    calls: list[str] = []
+
+    def media_url(path: str) -> str:
+        calls.append(path)
+        return f'/library/{path}'
+
+    assert build_post_page(record, media_url=media_url) == [
+        HtmlGenVideo(
+            f'/library/{case.path}', case.label, poster_url=f'/library/{preview}'
+        ),
+        HtmlGenRemovedMedia(
+            [
+                HtmlGenVideo(
+                    f'/library/{removed_path}',
+                    case.label,
+                    poster_url=f'/library/{removed_preview}',
+                )
+            ]
+        ),
+    ]
+    assert calls == [case.path, preview, removed_path, removed_preview]
+
+
+@pytest.mark.parametrize('case', _VIDEO_CASES, ids=lambda case: case.kind.value)
+@pytest.mark.parametrize(
+    'status',
+    [
+        MediaStatus.pending,
+        MediaStatus.deleted,
+        MediaStatus.failed,
+        MediaStatus.unavailable,
+    ],
+)
+def test_saved_preview_does_not_replace_a_missing_video_card(
+    case: _MediaCase, status: MediaStatus
+) -> None:
+    entry = _entry(case, status)
+    expected = build_post_page(_record({case.media_id: entry}, [case.media_id]))
+    with_preview = replace(entry, preview_path='previews/saved.jpg')
+    record = _record({case.media_id: with_preview}, [case.media_id])
+    calls: list[str] = []
+
+    def media_url(path: str) -> str:
+        calls.append(path)
+        return f'/library/{path}'
+
+    chunks = build_post_page(record, media_url=media_url)
+
+    assert chunks == expected
+    assert calls == []
+    assert '<video' not in render_html_chunk(chunks[0])
 
 
 @pytest.mark.parametrize('case', _MEDIA_CASES, ids=lambda case: case.kind.value)
