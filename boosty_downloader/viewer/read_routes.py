@@ -129,7 +129,9 @@ class ReadRoutes:
         result = self.reader.post(author, post_id)
         if result is None:
             raise web.HTTPNotFound
-        body = post_detail_response(author, result, self.root, self.renderer)
+        body = post_detail_response(
+            author, result, self.root, self.renderer, link_resolver=self.reader
+        )
         return model_response(body)
 
     async def media(self, request: web.Request) -> web.StreamResponse:

@@ -32,6 +32,8 @@ from support.viewer_read_library import (
 )
 
 from boosty_downloader.application.post_body_renderer import StoredPostBodyRenderer
+from boosty_downloader.domain.library import PostIdentity
+from boosty_downloader.domain.library_errors import LibraryReadError
 from boosty_downloader.domain.library_marks import PlaybackPosition, PostMarks
 from boosty_downloader.domain.post_data_chunks import PostDataChunkText
 from boosty_downloader.domain.stored_post import LockedPost, TextBlock
@@ -288,6 +290,135 @@ async def test_detail_and_list_derive_the_same_current_summary(
             )
             == row
         )
+
+
+def _save_authored_links(library: ReadLibrary, hrefs: list[str]) -> None:
+    library.record.blocks.insert(
+        0,
+        TextBlock(
+            [
+                PostDataChunkText.TextFragment(f'Link {index}', link_url=href)
+                for index, href in enumerate(hrefs)
+            ]
+        ),
+    )
+    library.store.save_post(library.folder, library.record)
+
+
+async def test_detail_links_resolve_full_ids_across_authors_without_saved_html(
+    http: _HTTPFixture,
+) -> None:
+    first = make_record('eeeeeeee-first-full-id', 'Old title 100% #1')
+    second = make_record('eeeeeeee-second-full-id', 'Another title')
+    cross_author = make_record('99999999-other-author', 'Another author')
+    cross_author.post.author = 'another_author'
+    cross_author.post.url = (
+        f'https://boosty.to/another_author/posts/{cross_author.post.id}'
+    )
+    for record in (first, second, cross_author):
+        folder = save_record(http.library.root, http.library.store, record)
+        assert not (http.library.root / folder / 'post.html').exists()
+    http.library.reader.prepare()
+    _save_authored_links(
+        http.library,
+        [
+            first.post.url + '?mode=reader#lesson',
+            second.post.url,
+            cross_author.post.url,
+        ],
+    )
+    before = _canonical_snapshot(http.library.root)
+
+    detail = await _detail(http)
+
+    assert f'href="/a/writer/p/{first.post.id}?mode=reader#lesson"' in detail.body_html
+    assert f'href="/a/writer/p/{second.post.id}"' in detail.body_html
+    assert f'href="/a/another_author/p/{cross_author.post.id}"' in detail.body_html
+    assert _canonical_snapshot(http.library.root) == before
+
+
+async def test_detail_resolves_targets_again_on_each_request(
+    http: _HTTPFixture,
+) -> None:
+    target = make_record('ffffffff-later-target', 'Arrived later')
+    _save_authored_links(http.library, [target.post.url])
+
+    assert f'href="{target.post.url}"' in (await _detail(http)).body_html
+
+    save_record(http.library.root, http.library.store, target)
+    http.library.reader.prepare()
+
+    assert f'href="/a/writer/p/{target.post.id}"' in (await _detail(http)).body_html
+
+
+async def test_locked_target_links_require_a_retained_body(
+    http: _HTTPFixture,
+) -> None:
+    retained = http.library.store.find_post('writer', TEXT_ID)
+    assert retained is not None
+    assert retained.record is not None
+    http.library.store.save_locked_post(LockedPost(retained.record.post, NOW))
+    http.library.reader.prepare()
+    locked_url = f'https://boosty.to/writer/posts/{LOCKED_ID}'
+    _save_authored_links(http.library, [locked_url, retained.record.post.url])
+
+    detail = await _detail(http)
+
+    assert f'href="{locked_url}"' in detail.body_html
+    assert f'href="/a/writer/p/{TEXT_ID}"' in detail.body_html
+
+
+async def test_only_authored_post_links_lookup_targets_in_the_worker_thread(
+    http: _HTTPFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target_url = f'https://boosty.to/writer/posts/{TEXT_ID}'
+    _save_authored_links(
+        http.library,
+        [
+            target_url,
+            'https://example.com/lesson',
+            '../manual.html',
+            'javascript:run()',
+        ],
+    )
+    loop_thread = threading.get_ident()
+    calls: list[PostIdentity] = []
+    original = http.library.reader.post_folder
+
+    def lookup(author: str, post_id: str) -> str | None:
+        assert threading.get_ident() != loop_thread
+        calls.append(PostIdentity(author, post_id))
+        return original(author, post_id)
+
+    monkeypatch.setattr(http.library.reader, 'post_folder', lookup)
+
+    detail = await _detail(http)
+
+    assert calls == [PostIdentity('writer', TEXT_ID)]
+    assert 'href="https://example.com/lesson"' in detail.body_html
+    assert 'href="../manual.html"' in detail.body_html
+    assert 'javascript:' not in detail.body_html
+    assert f'href="{http.library.record.post.url}"' in detail.body_html
+
+
+async def test_unreadable_link_target_preserves_the_readable_source(
+    http: _HTTPFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    href = f'https://boosty.to/writer/posts/{TEXT_ID}'
+    _save_authored_links(http.library, [href])
+
+    def unreadable(author: str, post_id: str) -> str | None:
+        del author, post_id
+        message = '/private/library/target.json is corrupt'
+        raise LibraryReadError(message)
+
+    monkeypatch.setattr(http.library.reader, 'post_folder', unreadable)
+
+    detail = await _detail(http)
+
+    assert f'href="{href}"' in detail.body_html
+    assert 'Saved body' in detail.body_html
+    assert '/private/library' not in detail.body_html
 
 
 async def test_locked_only_detail_has_remote_counts_and_no_missing_inventory(

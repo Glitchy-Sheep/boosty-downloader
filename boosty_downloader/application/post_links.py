@@ -10,9 +10,12 @@ from urllib.parse import quote, unquote, urlsplit
 
 from boosty_downloader.domain.library import PostIdentity
 from boosty_downloader.domain.library_errors import LibraryReadError
+from boosty_downloader.domain.post_data_chunks import PostDataChunkText
+from boosty_downloader.domain.stored_post import ListBlock, TextBlock
 
 if TYPE_CHECKING:
     from boosty_downloader.application.ports import LinkResolver
+    from boosty_downloader.domain.stored_post import Block, ListItem, StoredPost
 
 _INVALID_PERCENT: Final = re.compile(r'%(?![0-9a-fA-F]{2})')
 _SUFFIX_START: Final = re.compile(r'[?#]')
@@ -80,6 +83,38 @@ def parse_post_link(href: str) -> PostLink | None:
         return None
     suffix = _SUFFIX_START.search(href)
     return PostLink(identity, href[suffix.start() :] if suffix else '')
+
+
+def has_post_links(record: StoredPost) -> bool:
+    """Identify pages whose authored links may change as the library grows."""
+    return any(_block_has_post_links(block) for block in record.blocks)
+
+
+def _block_has_post_links(block: Block) -> bool:
+    match block:
+        case TextBlock():
+            return _text_has_post_links(block)
+        case ListBlock():
+            return any(_item_has_post_links(item) for item in block.items)
+        case _:
+            return False
+
+
+def _text_has_post_links(block: TextBlock) -> bool:
+    for fragment in block.fragments:
+        match fragment:
+            case PostDataChunkText.TextFragment(link_url=str(href)):
+                if parse_post_link(href) is not None:
+                    return True
+            case _:
+                continue
+    return False
+
+
+def _item_has_post_links(item: ListItem) -> bool:
+    return any(_block_has_post_links(block) for block in item.data) or any(
+        _item_has_post_links(nested) for nested in item.nested_items
+    )
 
 
 def _is_library_folder(folder: str) -> bool:

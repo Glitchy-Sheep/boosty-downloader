@@ -7,6 +7,7 @@ import socket
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
+from urllib.parse import quote
 
 import aiohttp
 import pytest
@@ -108,6 +109,19 @@ def _save_post(root: Path, author: str) -> Path:
     return root / folder
 
 
+def _link_saved_post(root: Path, source: str, target: str) -> str:
+    store = JsonPostRecords(root)
+    located = store.find_post(source, POST_ID)
+    assert located is not None
+    assert located.record is not None
+    url = f'https://boosty.to/{target}/posts/{POST_ID}?from=lesson#chapter'
+    located.record.blocks.append(
+        TextBlock([PostDataChunkText.TextFragment('Related lesson', link_url=url)])
+    )
+    store.save_post(located.folder, located.record)
+    return url
+
+
 @pytest.fixture
 def library(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _Library:
     monkeypatch.chdir(tmp_path)
@@ -182,6 +196,83 @@ def test_cli_selects_one_author_or_all_saved_pages(
             assert f'Saved text by {folder.parent.name}' in (
                 folder / 'post.html'
             ).read_text(encoding='utf-8')
+
+
+def test_cross_author_links_follow_only_completed_selected_pages(
+    library: _Library, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    remote = _link_saved_post(library.root, 'writer', 'other')
+    index = library.root / '.boosty-downloader' / 'index.db'
+    index.write_bytes(b'broken disposable index')
+    writer_record = (library.writer / 'post.json').read_bytes()
+    _forbid_network(monkeypatch)
+    arguments = ['render', 'writer', '-o', str(library.root)]
+
+    first = runner.invoke(typer_app, arguments)
+
+    assert first.exit_code == 0, first.exception
+    assert 'Rendered 1 page.' in _plain(first.output)
+    source_page = library.writer / 'post.html'
+    assert f'href="{remote}"' in source_page.read_text(encoding='utf-8')
+    assert not (library.other / 'post.html').exists()
+    original_source = _NodeState(
+        source_page.read_bytes(), source_page.stat().st_mtime_ns
+    )
+
+    target = runner.invoke(typer_app, ['render', 'other', '-o', str(library.root)])
+
+    assert target.exit_code == 0, target.exception
+    assert 'Rendered 1 page.' in _plain(target.output)
+    assert _NodeState(source_page.read_bytes(), source_page.stat().st_mtime_ns) == (
+        original_source
+    )
+
+    repaired = runner.invoke(typer_app, arguments)
+
+    assert repaired.exit_code == 0, repaired.exception
+    assert 'Rendered 1 page.' in _plain(repaired.output)
+    relative = quote(
+        f'../../{library.other.relative_to(library.root).as_posix()}/post.html'
+    )
+    html = source_page.read_text(encoding='utf-8')
+    assert f'href="{relative}?from=lesson#chapter"' in html
+    assert f'href="{remote}"' not in html
+    assert (library.writer / 'post.json').read_bytes() == writer_record
+    assert index.read_bytes() == b'broken disposable index'
+    before = _snapshot(library.root)
+
+    repeated = runner.invoke(typer_app, arguments)
+
+    assert repeated.exit_code == 0, repeated.exception
+    assert _snapshot(library.root) == before
+
+
+def test_all_render_repairs_forward_links_and_cycles_between_authors(
+    library: _Library, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _link_saved_post(library.root, 'other', 'writer')
+    _link_saved_post(library.root, 'writer', 'other')
+    before = _snapshot(library.root, files_only=True)
+    _forbid_network(monkeypatch)
+
+    result = runner.invoke(typer_app, ['render', '-o', str(library.root)])
+
+    assert result.exit_code == 0, result.exception
+    assert 'Rendered 2 pages.' in _plain(result.output)
+    for source, target in (
+        (library.other, library.writer),
+        (library.writer, library.other),
+    ):
+        relative = quote(
+            f'../../{target.relative_to(library.root).as_posix()}/post.html'
+        )
+        assert f'href="{relative}?from=lesson#chapter"' in (
+            source / 'post.html'
+        ).read_text(encoding='utf-8')
+    after = _snapshot(library.root, files_only=True)
+    for folder in (library.other, library.writer):
+        del after[(folder / 'post.html').relative_to(library.root)]
+    assert after == before
 
 
 @pytest.mark.parametrize('source', ['missing-config', 'paths-only-config', 'override'])
@@ -333,6 +424,27 @@ def test_later_corrupt_record_keeps_completed_pages_without_success_summary(
     completed_page = (library.other / 'post.html').read_text(encoding='utf-8')
     assert '<title>Saved lesson</title>' in completed_page
     assert 'Saved text by other' in completed_page
+
+
+def test_late_corrupt_record_does_not_start_link_repair(
+    library: _Library, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    remote = _link_saved_post(library.root, 'other', 'writer')
+    corrupt = _save_post(library.root, 'zzz') / 'post.json'
+    corrupt.write_bytes(b'not JSON')
+    _forbid_network(monkeypatch)
+
+    result = runner.invoke(typer_app, ['render', '-o', str(library.root)])
+
+    assert result.exit_code == 1, result.exception
+    assert 'Cannot render saved pages' in _plain(result.output)
+    assert 'Rendered' not in result.output
+    _assert_path_in_output(result.output, corrupt)
+    assert f'href="{remote}"' in (library.other / 'post.html').read_text(
+        encoding='utf-8'
+    )
+    assert (library.writer / 'post.html').is_file()
+    assert not corrupt.with_name('post.html').exists()
 
 
 def test_empty_target_is_not_initialized(

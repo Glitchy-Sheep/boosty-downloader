@@ -188,6 +188,6 @@ def test_saved_empty_page_also_records_its_template_version(tmp_path: Path) -> N
 
     html = output.read_text(encoding='utf-8')
     head = html.partition('</head>')[0]
-    assert '<meta name="boosty-downloader-page-template" content="5"' in head
+    assert '<meta name="boosty-downloader-page-template" content="6"' in head
     assert html.count('name="boosty-downloader-page-template"') == 1
     assert '<section class="removed-media">' not in html

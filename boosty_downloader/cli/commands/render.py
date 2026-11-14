@@ -25,6 +25,7 @@ from boosty_downloader.infrastructure.library._record_paths import validate_auth
 from boosty_downloader.infrastructure.library.library_format import (
     check_library_compatibility,
 )
+from boosty_downloader.infrastructure.library.page_links import SavedPageLinkResolver
 from boosty_downloader.infrastructure.library.post_records import JsonPostRecords
 from boosty_downloader.infrastructure.loggers import logger_instances
 from boosty_downloader.infrastructure.loggers.debug_file import debug_logging
@@ -53,8 +54,11 @@ def _validate_author(author: str | None) -> None:
 
 def _render_pages(root: Path, author: str | None) -> None:
     try:
+        store = JsonPostRecords(root)
         report = RenderPostsUseCase(
-            library_root=root, store=JsonPostRecords(root)
+            library_root=root,
+            store=store,
+            link_resolver=SavedPageLinkResolver(root, store.find_post),
         ).execute(author=author)
     except (OSError, ValueError, RuntimeError) as error:
         logger_instances.downloader_logger.error(
