@@ -2,6 +2,8 @@
 
 ### Added
 
+- The viewer supports explicit seen marks, Updated badges, row favorites and physical `s`/`f` shortcuts. Filtered bulk marking confirms the number of changes and shows progress; opening a post never marks it seen.
+
 - The viewer can jump to any month in the filtered post timeline without changing the open post, filters or viewing marks. The month selector follows manual scrolling and groups long histories by year.
 
 - The viewer supports physical `j`/`k` keys to browse posts and `/` to focus search, including the Russian keyboard layout. Fast presses preserve every step and keep current filters; typing, dialogs and native media controls keep their keys.

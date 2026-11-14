@@ -35,6 +35,7 @@ from boosty_downloader.infrastructure.library.post_store import JsonPostStore
 AUTHOR = 'reader_checks'
 SHORTCUT_AUTHOR = 'shortcut_checks'
 MONTH_AUTHOR = 'month_checks'
+MARKS_AUTHOR = 'marks_checks'
 NOW = datetime(2026, 11, 1, tzinfo=timezone.utc)
 Fragment = PostDataChunkText.TextFragment
 
@@ -73,6 +74,41 @@ class MonthScenario:
     year: int
     month: int
     milestone: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class MarkScenario:
+    """One initial combination of explicit marks and later downloaded content."""
+
+    number: int
+    title: str
+    tags: tuple[str, ...]
+    seen: bool = False
+    favorite: bool = False
+    updated: bool = False
+    locked: bool = False
+    playback: bool = False
+
+    @property
+    def post_id(self) -> str:
+        return f'30000000-0000-4000-8000-{self.number:012d}'
+
+
+MARK_SCENARIOS = (
+    MarkScenario(1, 'Unseen stream', ('stream', 'keyboard')),
+    MarkScenario(2, 'Updated stream', ('stream', 'keyboard'), seen=True, updated=True),
+    MarkScenario(3, 'Seen stream', ('stream', 'keyboard'), seen=True, favorite=True),
+    MarkScenario(4, 'Another unseen stream', ('stream', 'keyboard')),
+    MarkScenario(5, 'Locked stream', ('stream',), locked=True),
+    MarkScenario(6, 'Unopened notes', ('notes',)),
+    MarkScenario(7, 'Favorite notes', ('notes',), seen=True, favorite=True),
+    MarkScenario(8, 'First unread note', ('notes',)),
+    MarkScenario(9, 'Watched note', ('notes',), seen=True),
+    MarkScenario(10, 'Second unread note', ('notes',)),
+    MarkScenario(11, 'Already seen note', ('notes',), seen=True),
+    MarkScenario(12, 'Playback and marks', ('notes',), playback=True),
+    MarkScenario(13, 'Last unread note', ('notes',)),
+)
 
 
 MONTHS = (
@@ -329,6 +365,65 @@ def _save_month(
         marks.save_marks(MONTH_AUTHOR, metadata.id, PostMarks(favorite=True))
 
 
+def _mark_metadata(scenario: MarkScenario) -> PostMetadata:
+    created = NOW - timedelta(days=scenario.number * 35)
+    return PostMetadata(
+        scenario.post_id,
+        MARKS_AUTHOR,
+        f'https://boosty.to/{MARKS_AUTHOR}/posts/{scenario.post_id}',
+        scenario.title,
+        created,
+        created,
+        tags=list(scenario.tags),
+    )
+
+
+def _mark_inventory(scenario: MarkScenario, assets: AssetCatalog) -> FixtureMedia:
+    if not scenario.updated and not scenario.playback:
+        return FixtureMedia({}, {})
+    source = assets.audio[0]
+    entry = _piece(MediaKind.audio, 0, 'media/recording.wav', source.path)
+    entry.added_at = NOW - timedelta(days=1)
+    entry.duration = source.duration
+    return FixtureMedia({'audio:recording': entry}, {'audio:recording': source.path})
+
+
+def _initial_marks(scenario: MarkScenario) -> PostMarks:
+    seen_at = NOW if scenario.seen else None
+    if scenario.updated:
+        seen_at = NOW - timedelta(days=2)
+    positions: dict[str, PlaybackPosition] = {}
+    if scenario.playback:
+        positions['audio:recording'] = PlaybackPosition(7)
+    return PostMarks(seen_at=seen_at, favorite=scenario.favorite, positions=positions)
+
+
+def _save_mark_post(
+    root: Path,
+    store: JsonPostStore,
+    marks: JsonPostMarks,
+    scenario: MarkScenario,
+    assets: AssetCatalog,
+) -> None:
+    metadata = _mark_metadata(scenario)
+    if scenario.locked:
+        store.save_locked_post(LockedPost(metadata, NOW))
+        return
+    inventory = _mark_inventory(scenario, assets)
+    blocks: list[Block] = [
+        TextBlock([Fragment('Explicit viewing marks stay with this post.')])
+    ]
+    blocks.extend(MediaBlock(key) for key in inventory.entries)
+    record = StoredPost(metadata, PostSync(NOW, NOW), blocks, inventory.entries)
+    folder = store.choose_post_folder(metadata)
+    store.save_post(folder, record)
+    for key, source in inventory.sources.items():
+        destination = root / folder / str(inventory.entries[key].path)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        os.link(source, destination)
+    marks.save_marks(MARKS_AUTHOR, metadata.id, _initial_marks(scenario))
+
+
 def prepare(root: Path) -> None:
     """Populate only a fresh temporary library owned by one browser-test worker."""
     root.mkdir()
@@ -348,6 +443,9 @@ def prepare(root: Path) -> None:
     store.save_author(AuthorInfo(MONTH_AUTHOR, NOW, title='Month Checks'))
     for scenario in MONTHS:
         _save_month(store, marks, scenario)
+    store.save_author(AuthorInfo(MARKS_AUTHOR, NOW, title='Marks Checks'))
+    for scenario in MARK_SCENARIOS:
+        _save_mark_post(root, store, marks, scenario, assets)
     LibraryIndex(root).rebuild()
 
 

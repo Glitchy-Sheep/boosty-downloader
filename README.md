@@ -192,7 +192,11 @@ Opening an author selects its newest post and shows a virtual timeline with mont
 
 The post pane shows its complete saved text and media in the author's order. Use tags to filter, Previous/Next to follow the filtered timeline, and the heart to save favorites. Search highlights have their own match navigation. Open a photo for a full-screen view with arrow keys and Escape. Saved content stays readable after access closes; locked posts have no editable heart. Opening or playing a post does not mark it seen.
 
-Use `j` for the next post, `k` for the previous post and `/` to focus and select the search text. These shortcuts follow physical key positions, so they also work with the Russian layout. Fast presses advance from the previous chosen post and preserve the current filters and order. Text fields, dialogs and native audio/video controls keep their own keys; shortcuts with modifiers are ignored.
+Use `j` for the next post, `k` for the previous post and `/` to focus and select the search text. Press `s` to toggle the open post's seen mark and `f` to toggle its heart. These shortcuts follow physical key positions, so they also work with the Russian layout. Fast navigation advances from the previous chosen post and preserves the current filters and order. Text fields, menus, dialogs and native audio/video controls keep their own keys; shortcuts with modifiers are ignored.
+
+Choose **Mark as seen** or press `s` to mark a post seen. New media added after you marked it seen brings back its unseen dot and an **Updated** badge; marking it seen again acknowledges the update. Hearts on list rows work without opening the post and stay available on touch screens. Marks and author counts update immediately; a failed save reports an error and refreshes the saved state.
+
+Use **Mark posts** beside the result count to mark the current filtered list seen or unseen. Confirmation states how many posts will change; locked posts keep their marks. While the operation runs, the viewer reports processed and changed counts. Closing the dialog or browsing another post does not cancel the operation. A failure preserves completed changes and lets you retry the same filters.
 
 Use **Jump to month** above the timeline to browse older posts. It lists the months present in the current filtered results, grouped by year, and follows manual scrolling. The adjacent **Jump to month start** button returns to the first post of the current month. These controls move the list while keeping the open post, filters and viewing marks unchanged.
 

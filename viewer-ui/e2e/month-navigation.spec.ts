@@ -311,6 +311,8 @@ test('native month selection owns its keyboard input without changing the open p
   await jump(page, rows, '2021-03')
   await sidebar(page).getByRole('combobox', { name: 'Sort order' }).focus()
   await page.keyboard.press('Tab')
+  await expect(sidebar(page).getByRole('button', { name: 'Mark posts', exact: true })).toBeFocused()
+  await page.keyboard.press('Tab')
   await expect(scrubber(page)).toBeFocused()
   await page.keyboard.press('ArrowDown')
   await page.keyboard.press('Enter')
