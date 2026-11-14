@@ -1,5 +1,8 @@
 import type {
   Author,
+  BulkMarksProgressResponse,
+  BulkMarksRequest,
+  BulkMarksResult,
   ErrorBody,
   FavoriteMarkRequest,
   MarkResult,
@@ -7,6 +10,7 @@ import type {
   PositionRequest,
   PostDetail,
   PostList,
+  SeenMarkRequest,
   TagCount,
 } from '@/lib/api.gen'
 import { filtersSearchParams, type Filters } from '@/lib/filters'
@@ -56,13 +60,14 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   return response.json() as Promise<T>
 }
 
-async function putJson<T>(
+async function writeJson<T>(
   url: string,
-  body: FavoriteMarkRequest | PositionRequest,
+  body: FavoriteMarkRequest | SeenMarkRequest | BulkMarksRequest | PositionRequest,
+  method: 'PUT' | 'POST',
   keepalive = false,
 ): Promise<T> {
   const response = await fetch(url, {
-    method: 'PUT',
+    method,
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     keepalive,
@@ -106,7 +111,30 @@ export function setFavorite(
   postId: string,
   favorite: boolean,
 ): Promise<MarkResult> {
-  return putJson(`${authorPath(author)}/posts/${encodeURIComponent(postId)}/marks`, { favorite })
+  return writeJson(
+    `${authorPath(author)}/posts/${encodeURIComponent(postId)}/marks`,
+    { favorite },
+    'PUT',
+  )
+}
+
+export function setSeen(author: string, postId: string, seen: boolean): Promise<MarkResult> {
+  return writeJson(
+    `${authorPath(author)}/posts/${encodeURIComponent(postId)}/marks`,
+    { seen },
+    'PUT',
+  )
+}
+
+export function setSeenMany(author: string, request: BulkMarksRequest): Promise<BulkMarksResult> {
+  return writeJson(`${authorPath(author)}/marks`, request, 'POST')
+}
+
+export function getMarksProgress(
+  author: string,
+  signal?: AbortSignal,
+): Promise<BulkMarksProgressResponse> {
+  return getJson(`${authorPath(author)}/marks/progress`, signal)
 }
 
 export function savePlaybackPosition(
@@ -122,9 +150,10 @@ export function savePlaybackPosition(
       new Error('Playback position and duration must be finite, nonnegative seconds.'),
     )
   }
-  return putJson(
+  return writeJson(
     `${authorPath(author)}/media/${encodeURIComponent(mediaId)}/position`,
     position,
+    'PUT',
     keepalive,
   )
 }

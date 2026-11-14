@@ -7,10 +7,13 @@ import {
   getPost,
   getPosts,
   getTags,
+  getMarksProgress,
   savePlaybackPosition,
   setFavorite,
+  setSeen,
+  setSeenMany,
 } from '@/lib/api'
-import type { Filters } from '@/lib/filters'
+import { toPostFilters, type Filters } from '@/lib/filters'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -193,5 +196,67 @@ test('reports rejected writes as structured errors', async () => {
   await expect(setFavorite('studio', 'post', true)).rejects.toMatchObject({
     status: 403,
     code: 'write_refused',
+  })
+})
+
+test('writes one seen field and a normalized filtered bulk request to their endpoints', async () => {
+  const request = vi.fn<typeof fetch>().mockImplementation(async () => Response.json({ count: 3 }))
+  vi.stubGlobal('fetch', request)
+  const filters = toPostFilters({ q: '001 + %', tag: 'null', unseen: 1, fav: 1, order: 'oldest' })
+  await setSeen('автор %', 'post #', true)
+  expect(await setSeenMany('автор %', { filters, seen: false })).toEqual({ count: 3 })
+  const author = '/api/authors/%D0%B0%D0%B2%D1%82%D0%BE%D1%80%20%25'
+  expect(request.mock.calls).toEqual([
+    [
+      `${author}/posts/post%20%23/marks`,
+      {
+        method: 'PUT',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: '{"seen":true}',
+        keepalive: false,
+      },
+    ],
+    [
+      `${author}/marks`,
+      {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filters, seen: false }),
+        keepalive: false,
+      },
+    ],
+  ])
+})
+
+test('loads numerical bulk progress with caller-owned cancellation', async () => {
+  const result = { active: true, total: 12, completed: 8, changed: 3 }
+  const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json(result))
+  vi.stubGlobal('fetch', request)
+  const controller = new AbortController()
+  expect(await getMarksProgress('writer', controller.signal)).toEqual(result)
+  expect(request).toHaveBeenCalledExactlyOnceWith('/api/authors/writer/marks/progress', {
+    headers: { Accept: 'application/json' },
+    signal: controller.signal,
+  })
+})
+
+test('preserves the bulk conflict response rather than reporting zero changes', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        Response.json(
+          { error: { code: 'bulk_busy', message: 'Another operation is running.' } },
+          { status: 409 },
+        ),
+      ),
+  )
+  await expect(
+    setSeenMany('writer', { filters: toPostFilters({}), seen: true }),
+  ).rejects.toMatchObject({
+    status: 409,
+    code: 'bulk_busy',
+    message: 'Another operation is running.',
   })
 })
