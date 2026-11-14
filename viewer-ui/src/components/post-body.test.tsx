@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PostBody } from '@/components/post-body'
 
@@ -18,6 +18,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   HTMLElement.prototype.scrollIntoView = vi.fn()
 })
+
+afterEach(() => vi.useRealTimers())
 
 describe('PostBody', () => {
   it('keeps players and listeners through search and cache renders, then removes search marks', () => {
@@ -75,14 +77,31 @@ describe('PostBody', () => {
   })
 
   it('gives unnamed images a useful label and closes the gallery on post changes', () => {
+    vi.useFakeTimers()
     const { rerender } = render(
       <PostBody {...defaults} html='<img src="/media/writer/first.jpg" alt="">' />,
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Open image: Image 1' }))
+    const first = screen.getByRole('button', { name: 'Open image: Image 1' })
+    fireEvent.click(first)
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    rerender(<PostBody {...defaults} postId="second" html="<p>The next post</p>" />)
+    const restoreOldFocus = vi.spyOn(first, 'focus')
+    rerender(
+      <PostBody
+        {...defaults}
+        postId="second"
+        html='<p>The next post</p><button type="button">New post action</button>'
+      />,
+    )
+    const nextAction = screen.getByRole('button', { name: 'New post action' })
+    nextAction.focus()
+    act(() => {
+      vi.runAllTimers()
+    })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Open image/ })).not.toBeInTheDocument()
+    expect(first.isConnected).toBe(false)
+    expect(restoreOldFocus).not.toHaveBeenCalled()
+    expect(nextAction).toHaveFocus()
   })
 
   it('routes body post links without leaking filters and ignores modified clicks', () => {
