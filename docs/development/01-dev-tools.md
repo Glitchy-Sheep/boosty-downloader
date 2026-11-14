@@ -32,7 +32,7 @@ The JSON contract lives in `boosty_downloader/viewer/api_models.py`. After chang
 
 A standard wheel build without `viewer/static/app/index.html` fails with a `task ui:build` hint. Direct `uv build` therefore requires that frontend step first; use `task build` for the complete pipeline. The generated UI also travels in the source distribution, so building a wheel from a released source archive does not need Node. Installing a published wheel does not need Node either.
 
-The frontend shows the authors page through the `view` server, with artwork, post counts and indexed media storage. Author timelines and post screens are connected in subsequent stages.
+The frontend shows authors, indexed media storage and a virtual author timeline through the `view` server. Search and filters live in the URL; the selected post currently shows saved metadata. Full post reading and Media controls are connected in subsequent stages.
 
 Install the browser binaries once from `viewer-ui/` with `npx playwright install chromium firefox`. On Linux, add `--with-deps` to install the required system libraries. Then run `task ui:e2e` from the repository root. The harness generates its own synthetic library without ffmpeg, starts a viewer on an available local port and removes its temporary files after stopping the server. It sets the recording opener hook, so browser tests cannot launch desktop applications. HTML reports, screenshots and failure traces stay in the ignored `viewer-ui/playwright-report/` and `viewer-ui/test-results/` directories.
 
