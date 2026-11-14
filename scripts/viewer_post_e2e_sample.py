@@ -33,6 +33,7 @@ from boosty_downloader.infrastructure.library.post_marks import JsonPostMarks
 from boosty_downloader.infrastructure.library.post_store import JsonPostStore
 
 AUTHOR = 'reader_checks'
+SHORTCUT_AUTHOR = 'shortcut_checks'
 NOW = datetime(2026, 11, 1, tzinfo=timezone.utc)
 Fragment = PostDataChunkText.TextFragment
 
@@ -232,6 +233,32 @@ def _save(
     )
 
 
+def _shortcut_metadata(number: int) -> PostMetadata:
+    post_id = f'10000000-0000-4000-8000-{number:012d}'
+    created = NOW - timedelta(days=number)
+    parity = 'even' if number % 2 == 0 else 'odd'
+    return PostMetadata(
+        post_id,
+        SHORTCUT_AUTHOR,
+        f'https://boosty.to/{SHORTCUT_AUTHOR}/posts/{post_id}',
+        f'Shortcut post {number:02d}',
+        created,
+        created,
+        tags=['keyboard', parity],
+    )
+
+
+def _save_shortcut(store: JsonPostStore, marks: JsonPostMarks, number: int) -> None:
+    metadata = _shortcut_metadata(number)
+    record = StoredPost(
+        metadata,
+        PostSync(NOW, NOW),
+        [TextBlock([Fragment('Shortcut café reading sequence.')])],
+    )
+    store.save_post(store.choose_post_folder(metadata), record)
+    marks.save_marks(SHORTCUT_AUTHOR, metadata.id, PostMarks(favorite=True))
+
+
 def prepare(root: Path) -> None:
     """Populate only a fresh temporary library owned by one browser-test worker."""
     root.mkdir()
@@ -245,6 +272,9 @@ def prepare(root: Path) -> None:
     store.save_author(AuthorInfo(AUTHOR, NOW, title='Post Reader Checks'))
     for scenario in SCENARIOS:
         _save(root, store, marks, scenario, assets)
+    store.save_author(AuthorInfo(SHORTCUT_AUTHOR, NOW, title='Shortcut Checks'))
+    for number in range(1, 13):
+        _save_shortcut(store, marks, number)
     LibraryIndex(root).rebuild()
 
 
