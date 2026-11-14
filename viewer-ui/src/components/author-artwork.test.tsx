@@ -4,14 +4,18 @@ import { expect, test } from 'vitest'
 import { AuthorArtwork } from '@/components/author-artwork'
 
 test('keeps a placeholder when no artwork exists', () => {
-  const { container } = render(<AuthorArtwork src={null} className="size-full" fallback={<span>WN</span>} />)
+  const { container } = render(
+    <AuthorArtwork src={null} className="size-full" fallback={<span>WN</span>} />,
+  )
 
   expect(screen.getByText('WN')).toBeVisible()
   expect(container.querySelector('img')).toBeNull()
 })
 
 test('replaces a loading placeholder with decorative artwork after success', () => {
-  const { container } = render(<AuthorArtwork src="/avatar.png" className="size-full" fallback={<span>WN</span>} />)
+  const { container } = render(
+    <AuthorArtwork src="/avatar.png" className="size-full" fallback={<span>WN</span>} />,
+  )
   const image = container.querySelector('img')!
   expect(screen.getByText('WN')).toBeInTheDocument()
 

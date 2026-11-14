@@ -6,35 +6,69 @@ import type { Author } from '@/lib/api.gen'
 import { NO_FILTERS, type Filters } from '@/lib/filters'
 
 vi.mock('@/hooks/use-element-width', () => ({ useElementWidth: () => 360 }))
-vi.mock('@/components/post-list', () => ({ PostList: ({ emptyMessage }: { emptyMessage: string }) => <p>{emptyMessage}</p> }))
+vi.mock('@/components/post-list', () => ({
+  PostList: ({ emptyMessage }: { emptyMessage: string }) => <p>{emptyMessage}</p>,
+}))
 
 afterEach(() => vi.useRealTimers())
 
 const author: Author = {
-  name: 'author', title: 'Studio', description: '', avatar_url: null, cover_url: null,
-  posts: 8, locked: 2, unseen: 3, favorites: 1,
+  name: 'author',
+  title: 'Studio',
+  description: '',
+  avatar_url: null,
+  cover_url: null,
+  posts: 8,
+  locked: 2,
+  unseen: 3,
+  favorites: 1,
   storage: { videos: 0, images: 0, files: 0, audio: 0 },
 }
 
 function props(filters: Filters = {}): SidebarProps {
   return {
-    author, filters, posts: { rows: [], months: [], total: 0 }, tags: [{ tag: '2024', count: 3 }],
-    loading: false, updating: false, error: null, onRetry: vi.fn(), onFilters: vi.fn(),
-    onPost: vi.fn(), postHref: id => `#${id}`,
+    author,
+    filters,
+    posts: { rows: [], months: [], total: 0 },
+    tags: [{ tag: '2024', count: 3 }],
+    loading: false,
+    updating: false,
+    error: null,
+    onRetry: vi.fn(),
+    onFilters: vi.fn(),
+    onPost: vi.fn(),
+    postHref: (id) => `#${id}`,
   }
 }
 
 describe('Sidebar filters', () => {
   it('preserves all other fields when one filter changes', () => {
-    const filters: Filters = { q: 'paint', tag: '2024', kind: 'images', unseen: 1, fav: 1, locked: 1, incomplete: 1, order: 'oldest' }
+    const filters: Filters = {
+      q: 'paint',
+      tag: '2024',
+      kind: 'images',
+      unseen: 1,
+      fav: 1,
+      locked: 1,
+      incomplete: 1,
+      order: 'oldest',
+    }
     const input = props(filters)
     render(<Sidebar {...input} />)
     fireEvent.click(screen.getByRole('button', { name: 'Videos' }))
     expect(input.onFilters).toHaveBeenCalledWith({ ...filters, kind: 'videos' }, { replace: false })
     fireEvent.click(screen.getByRole('button', { name: 'Locked' }))
-    expect(input.onFilters).toHaveBeenLastCalledWith({ ...filters, locked: undefined }, { replace: false })
-    fireEvent.change(screen.getByRole('combobox', { name: 'Sort order' }), { target: { value: 'newest' } })
-    expect(input.onFilters).toHaveBeenLastCalledWith({ ...filters, order: undefined }, { replace: false })
+    expect(input.onFilters).toHaveBeenLastCalledWith(
+      { ...filters, locked: undefined },
+      { replace: false },
+    )
+    fireEvent.change(screen.getByRole('combobox', { name: 'Sort order' }), {
+      target: { value: 'newest' },
+    })
+    expect(input.onFilters).toHaveBeenLastCalledWith(
+      { ...filters, order: undefined },
+      { replace: false },
+    )
   })
 
   it('clears every field and preserves numeric tag strings', () => {
@@ -62,7 +96,16 @@ describe('Sidebar filters', () => {
   it('retains an exact selected tag while the tag request fails and retries independently', () => {
     const input = props({ tag: 'Unavailable tag' })
     const retryTags = vi.fn()
-    render(<Sidebar {...input} tags={[]} tagsError={new Error('Tags are unavailable.')} onRetryTags={retryTags} error={new Error('Posts are unavailable.')} posts={undefined} />)
+    render(
+      <Sidebar
+        {...input}
+        tags={[]}
+        tagsError={new Error('Tags are unavailable.')}
+        onRetryTags={retryTags}
+        error={new Error('Posts are unavailable.')}
+        posts={undefined}
+      />,
+    )
     expect(screen.getByRole('combobox', { name: 'Tag' })).toHaveValue('Unavailable tag')
     expect(screen.getByText('Tags are unavailable.')).toHaveAttribute('role', 'alert')
     expect(screen.getByText('Posts are unavailable.')).toHaveAttribute('role', 'alert')

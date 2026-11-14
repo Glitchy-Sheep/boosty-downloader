@@ -4,8 +4,20 @@ import { rowMetrics } from '@/lib/sidebar'
 
 describe('sidebar row geometry', () => {
   it('bounds narrow and wide layouts at the approved sizes', () => {
-    expect(rowMetrics(260)).toMatchObject({ coverWidth: 64, gap: 10, padX: 12, titleSize: 13.5, height: 75 })
-    expect(rowMetrics(510)).toMatchObject({ coverWidth: 144, gap: 14, padX: 16, titleSize: 15, height: 101 })
+    expect(rowMetrics(260)).toMatchObject({
+      coverWidth: 64,
+      gap: 10,
+      padX: 12,
+      titleSize: 13.5,
+      height: 75,
+    })
+    expect(rowMetrics(510)).toMatchObject({
+      coverWidth: 144,
+      gap: 14,
+      padX: 16,
+      titleSize: 15,
+      height: 101,
+    })
     expect(rowMetrics(0)).toEqual(rowMetrics(260))
     expect(rowMetrics(200)).toEqual(rowMetrics(260))
     expect(rowMetrics(640)).toEqual(rowMetrics(510))
@@ -29,8 +41,10 @@ describe('sidebar row geometry', () => {
     for (const width of [260, 320, 360, 385, 450, 510, 640]) {
       const metrics = rowMetrics(width)
       expect(metrics.snippetHeight).toBeGreaterThanOrEqual(metrics.height)
-      expect(metrics.snippetHeight).toBeGreaterThanOrEqual(2 * metrics.titleLeading + 4 + 16 + 32 + 4 + 20 - 0.5)
-      expect(metrics.height).toBeGreaterThanOrEqual(metrics.coverWidth * 9 / 16 + 20 - 0.5)
+      expect(metrics.snippetHeight).toBeGreaterThanOrEqual(
+        2 * metrics.titleLeading + 4 + 16 + 32 + 4 + 20 - 0.5,
+      )
+      expect(metrics.height).toBeGreaterThanOrEqual((metrics.coverWidth * 9) / 16 + 20 - 0.5)
       expect(metrics.titleLines).toBeGreaterThanOrEqual(2)
       expect(metrics.titleLines).toBeLessThanOrEqual(3)
     }

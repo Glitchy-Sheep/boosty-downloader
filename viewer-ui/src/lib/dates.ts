@@ -1,11 +1,19 @@
-const dayMonth = new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', timeZone: 'UTC' })
-const monthYear = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+const dayMonth = new Intl.DateTimeFormat('en-US', {
+  day: 'numeric',
+  month: 'short',
+  timeZone: 'UTC',
+})
+const monthYear = new Intl.DateTimeFormat('en-US', {
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'UTC',
+})
 
 /** Compact UTC date for rows grouped under a month and year. */
 export function formatDay(iso: string): string {
   const parts = dayMonth.formatToParts(new Date(iso))
-  const day = parts.find(part => part.type === 'day')?.value ?? ''
-  const month = parts.find(part => part.type === 'month')?.value ?? ''
+  const day = parts.find((part) => part.type === 'day')?.value ?? ''
+  const month = parts.find((part) => part.type === 'month')?.value ?? ''
   return `${day} ${month}`
 }
 

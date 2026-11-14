@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { formatPlaybackTime, pendingPlaybackMark, playbackPosition, resumeAt } from '@/lib/playback-position'
+import {
+  formatPlaybackTime,
+  pendingPlaybackMark,
+  playbackPosition,
+  resumeAt,
+} from '@/lib/playback-position'
 import { playbackItem } from '@/test/playback-fixture'
 
 describe('resumeAt', () => {
@@ -44,12 +49,27 @@ describe('playbackPosition', () => {
 
 describe('pendingPlaybackMark', () => {
   it('clears finished for Start over and partial playback', () => {
-    expect(pendingPlaybackMark({ seconds: 0, duration: 120 })).toEqual({ position_s: 0, finished: false })
-    expect(pendingPlaybackMark({ seconds: 40, duration: 120 })).toEqual({ position_s: 40, finished: false })
+    expect(pendingPlaybackMark({ seconds: 0, duration: 120 })).toEqual({
+      position_s: 0,
+      finished: false,
+    })
+    expect(pendingPlaybackMark({ seconds: 40, duration: 120 })).toEqual({
+      position_s: 40,
+      finished: false,
+    })
   })
   it('uses the same finished boundary and zero position as the server', () => {
-    expect(pendingPlaybackMark({ seconds: 114, duration: 120 })).toEqual({ position_s: 0, finished: true })
-    expect(pendingPlaybackMark({ seconds: 113.9, duration: 120 })).toEqual({ position_s: 113.9, finished: false })
-    expect(pendingPlaybackMark({ seconds: 990, duration: 1000 })).toEqual({ position_s: 0, finished: true })
+    expect(pendingPlaybackMark({ seconds: 114, duration: 120 })).toEqual({
+      position_s: 0,
+      finished: true,
+    })
+    expect(pendingPlaybackMark({ seconds: 113.9, duration: 120 })).toEqual({
+      position_s: 113.9,
+      finished: false,
+    })
+    expect(pendingPlaybackMark({ seconds: 990, duration: 1000 })).toEqual({
+      position_s: 0,
+      finished: true,
+    })
   })
 })

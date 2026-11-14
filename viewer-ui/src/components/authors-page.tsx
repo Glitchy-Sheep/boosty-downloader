@@ -6,7 +6,13 @@ import { AuthorAvatar } from '@/components/author-avatar'
 import { StorageBar, StorageLegend } from '@/components/storage'
 import type { Author } from '@/lib/api.gen'
 import { formatCount, formatSize, plural } from '@/lib/format'
-import { libraryStorage, STORAGE_LOOKS, storageNoun, storageParts, type StoragePart } from '@/lib/storage'
+import {
+  libraryStorage,
+  STORAGE_LOOKS,
+  storageNoun,
+  storageParts,
+  type StoragePart,
+} from '@/lib/storage'
 
 function title(author: Author): string {
   return author.title || author.name
@@ -28,7 +34,8 @@ export function AuthorsPage({ authors }: { authors: Author[] }) {
           <div>
             <h1 className="text-[28px] leading-tight font-semibold tracking-[-0.015em]">Authors</h1>
             <p className="mt-1.5 text-muted-foreground">
-              {plural(authors.length, 'author')} · {plural(posts, 'post')} · {formatCount(unseen)} unseen
+              {plural(authors.length, 'author')} · {plural(posts, 'post')} · {formatCount(unseen)}{' '}
+              unseen
             </p>
           </div>
           {authors.length > 1 && <LibraryStorage authors={authors} />}
@@ -55,12 +62,17 @@ function LibraryStorage({ authors }: { authors: Author[] }) {
   return (
     <section aria-label="Disk space" data-storage="" className="w-full max-w-[560px] lg:w-[520px]">
       <p className="flex items-baseline gap-2">
-        <span className="text-[22px] leading-none font-semibold tracking-tight">{formatSize(total)}</span>
+        <span className="text-[22px] leading-none font-semibold tracking-tight">
+          {formatSize(total)}
+        </span>
         <span className="text-[13px] text-muted-foreground">of {storageNoun(parts)} on disk</span>
       </p>
       <StorageBar parts={parts} className="mt-3 [--bar:10px]" />
       {parts.length > 1 && (
-        <StorageLegend parts={parts} className="mt-2.5 text-[12.5px] sm:flex sm:flex-wrap sm:gap-x-3.5" />
+        <StorageLegend
+          parts={parts}
+          className="mt-2.5 text-[12.5px] sm:flex sm:flex-wrap sm:gap-x-3.5"
+        />
       )}
     </section>
   )
@@ -103,7 +115,10 @@ function AuthorCard({ author, alone }: { author: Author; alone: boolean }) {
         </div>
         <div className="px-5">
           <AuthorAvatar author={author} className="-mt-9 size-[72px] ring-4 ring-card" />
-          <h2 id={`${id}-title`} className="mt-3 text-[17px] font-semibold tracking-tight wrap-anywhere">
+          <h2
+            id={`${id}-title`}
+            className="mt-3 text-[17px] font-semibold tracking-tight wrap-anywhere"
+          >
             {title(author)}
           </h2>
           <p className="mt-1 line-clamp-2 text-[13.5px] leading-relaxed text-muted-foreground wrap-anywhere">
@@ -111,7 +126,9 @@ function AuthorCard({ author, alone }: { author: Author; alone: boolean }) {
           </p>
         </div>
       </div>
-      <span id={`${id}-about`} hidden>{cardDescription(author, total, parts)}</span>
+      <span id={`${id}-about`} hidden>
+        {cardDescription(author, total, parts)}
+      </span>
       <AuthorStorage author={author} alone={alone} total={total} parts={parts} />
       <AuthorCounts author={author} />
     </a>

@@ -17,7 +17,10 @@ export function pendingPlaybackMark(position: PositionRequest): PlaybackMark {
 }
 
 /** Finished pieces and positions below one second start from the beginning. */
-export function resumeAt(item: Pick<MediaItem, 'position_s' | 'finished'>, duration: number): number {
+export function resumeAt(
+  item: Pick<MediaItem, 'position_s' | 'finished'>,
+  duration: number,
+): number {
   const saved = item.position_s ?? 0
   if (item.finished || !Number.isFinite(saved) || saved < 1) return 0
   if (!Number.isFinite(duration) || duration <= 0) return 0

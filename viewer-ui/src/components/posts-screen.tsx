@@ -19,14 +19,18 @@ const postRoute = getRouteApi('/a/$author/_posts/p/$postId')
 function useSearchHistoryReset(): number {
   const router = useRouter()
   const [revision, setRevision] = useState(0)
-  useEffect(() => router.history.subscribe(({ action }) => {
-    switch (action.type) {
-      case 'BACK':
-      case 'FORWARD':
-      case 'GO':
-        setRevision(value => value + 1)
-    }
-  }), [router])
+  useEffect(
+    () =>
+      router.history.subscribe(({ action }) => {
+        switch (action.type) {
+          case 'BACK':
+          case 'FORWARD':
+          case 'GO':
+            setRevision((value) => value + 1)
+        }
+      }),
+    [router],
+  )
   return revision
 }
 
@@ -41,11 +45,18 @@ export function PostsScreen() {
   const posts = usePostList(author, filters)
   const tags = useQuery(tagsQuery(author))
   const pane = useRef<HTMLElement>(null)
-  useEffect(() => { if (pane.current) pane.current.scrollTop = 0 }, [author, postId])
+  useEffect(() => {
+    if (pane.current) pane.current.scrollTop = 0
+  }, [author, postId])
 
   const changeFilters = (next: Filters, options?: { replace?: boolean }): void => {
     if (postId) {
-      void navigate({ to: '/a/$author/p/$postId', params: { author, postId }, search: next, replace: options?.replace })
+      void navigate({
+        to: '/a/$author/p/$postId',
+        params: { author, postId },
+        search: next,
+        replace: options?.replace,
+      })
       return
     }
     void navigate({ to: '/a/$author', params: { author }, search: next, replace: options?.replace })
@@ -79,13 +90,19 @@ export function PostsScreen() {
           error={posts.error}
           onRetry={retryPosts}
           tagsError={tags.error}
-          onRetryTags={() => { void tags.refetch() }}
+          onRetryTags={() => {
+            void tags.refetch()
+          }}
           onFilters={changeFilters}
           onPost={openPost}
           postHref={postHref}
         />
       </div>
-      <section ref={pane} aria-label="Selected post" className="@container/main min-h-0 min-w-0 flex-1 overflow-y-auto">
+      <section
+        ref={pane}
+        aria-label="Selected post"
+        className="@container/main min-h-0 min-w-0 flex-1 overflow-y-auto"
+      >
         <Outlet />
       </section>
     </div>
@@ -94,8 +111,14 @@ export function PostsScreen() {
 
 export function EmptyPostList() {
   const filters = postsRoute.useSearch()
-  const message = hasFilters(filters) ? 'No posts match these filters.' : 'No posts saved for this author.'
-  return <p role="status" className="p-8 text-muted-foreground">{message}</p>
+  const message = hasFilters(filters)
+    ? 'No posts match these filters.'
+    : 'No posts saved for this author.'
+  return (
+    <p role="status" className="p-8 text-muted-foreground">
+      {message}
+    </p>
+  )
 }
 
 export function SelectedPost() {
@@ -111,12 +134,19 @@ function PostReader({ author, postId }: { author: string; postId: string }) {
   const { data: post } = useSuspenseQuery(postQuery(author, postId))
   const posts = usePostList(author, filters)
   const favorite = useFavorite(author, postId)
-  const savePosition = useCallback<SavePosition>(async (media, position, options) => {
-    const saved = await savePlaybackPosition(author, media.id, position, options.keepalive)
-    acceptPosition(client, author, postId, saved)
-  }, [client, author, postId])
+  const savePosition = useCallback<SavePosition>(
+    async (media, position, options) => {
+      const saved = await savePlaybackPosition(author, media.id, position, options.keepalive)
+      acceptPosition(client, author, postId, saved)
+    },
+    [client, author, postId],
+  )
   const changeFilters = (patch: Filters): void => {
-    void navigate({ to: '/a/$author/p/$postId', params: { author, postId }, search: { ...filters, ...patch } })
+    void navigate({
+      to: '/a/$author/p/$postId',
+      params: { author, postId },
+      search: { ...filters, ...patch },
+    })
   }
   return (
     <PostPage
@@ -128,9 +158,17 @@ function PostReader({ author, postId }: { author: string; postId: string }) {
       favoritePending={favorite.pending}
       favoriteError={favorite.error}
       onFavorite={favorite.toggle}
-      onTag={tag => changeFilters({ tag: filters.tag === tag ? undefined : tag })}
-      onPost={id => { void navigate({ to: '/a/$author/p/$postId', params: { author, postId: id }, search: filters }) }}
-      postHref={id => `/a/${encodeURIComponent(author)}/p/${encodeURIComponent(id)}${stringifyViewerSearch(filters)}`}
+      onTag={(tag) => changeFilters({ tag: filters.tag === tag ? undefined : tag })}
+      onPost={(id) => {
+        void navigate({
+          to: '/a/$author/p/$postId',
+          params: { author, postId: id },
+          search: filters,
+        })
+      }}
+      postHref={(id) =>
+        `/a/${encodeURIComponent(author)}/p/${encodeURIComponent(id)}${stringifyViewerSearch(filters)}`
+      }
     >
       <PostBody
         author={author}
@@ -139,7 +177,9 @@ function PostReader({ author, postId }: { author: string; postId: string }) {
         media={post.media}
         query={filters.q}
         onClearSearch={() => changeFilters({ q: undefined })}
-        onNavigate={href => { void router.navigate({ href }) }}
+        onNavigate={(href) => {
+          void router.navigate({ href })
+        }}
         savePosition={savePosition}
       />
     </PostPage>
@@ -147,9 +187,17 @@ function PostReader({ author, postId }: { author: string; postId: string }) {
 }
 
 export function LoadingAuthor() {
-  return <p role="status" className="p-8 text-muted-foreground">Loading author...</p>
+  return (
+    <p role="status" className="p-8 text-muted-foreground">
+      Loading author...
+    </p>
+  )
 }
 
 export function LoadingPost() {
-  return <p role="status" className="p-8 text-muted-foreground">Loading post...</p>
+  return (
+    <p role="status" className="p-8 text-muted-foreground">
+      Loading post...
+    </p>
+  )
 }

@@ -49,6 +49,6 @@ export function tagsQuery(author: string) {
 export function usePostList(author: string, filters: Filters) {
   return useQuery({
     ...postsQuery(author, filters),
-    placeholderData: (previous, query) => query?.queryKey[1] === author ? previous : undefined,
+    placeholderData: (previous, query) => (query?.queryKey[1] === author ? previous : undefined),
   })
 }

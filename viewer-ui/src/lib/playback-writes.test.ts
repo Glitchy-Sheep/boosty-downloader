@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { createPlaybackWriter } from '@/lib/playback-writes'
 import { deferred, playbackItem } from '@/test/playback-fixture'
 
-const identity = { origin: 'http://localhost', author: 'author', postId: 'post', mediaId: 'opaque-media' }
+const identity = {
+  origin: 'http://localhost',
+  author: 'author',
+  postId: 'post',
+  mediaId: 'opaque-media',
+}
 
 describe('playback writes', () => {
   it('orders delayed requests across old and new player callbacks', async () => {
@@ -14,11 +19,19 @@ describe('playback writes', () => {
     const first = write(identity, item, { seconds: 15, duration: 100 }, oldSave)
     const last = write(identity, item, { seconds: 0, duration: 100 }, newSave)
     await Promise.resolve()
-    expect(oldSave).toHaveBeenCalledExactlyOnceWith(item, { seconds: 15, duration: 100 }, { keepalive: true })
+    expect(oldSave).toHaveBeenCalledExactlyOnceWith(
+      item,
+      { seconds: 15, duration: 100 },
+      { keepalive: true },
+    )
     expect(newSave).not.toHaveBeenCalled()
     pending.resolve()
     await Promise.all([first, last])
-    expect(newSave).toHaveBeenCalledExactlyOnceWith(item, { seconds: 0, duration: 100 }, { keepalive: true })
+    expect(newSave).toHaveBeenCalledExactlyOnceWith(
+      item,
+      { seconds: 0, duration: 100 },
+      { keepalive: true },
+    )
   })
   it('continues after failure and isolates different identities', async () => {
     const { write } = createPlaybackWriter()
@@ -62,7 +75,12 @@ describe('playback writes', () => {
   it('drops a failed final snapshot rather than retaining unconfirmed state forever', async () => {
     const writer = createPlaybackWriter()
     const stalled = deferred()
-    const request = writer.write(identity, playbackItem(), { seconds: 0, duration: 120 }, () => stalled.promise)
+    const request = writer.write(
+      identity,
+      playbackItem(),
+      { seconds: 0, duration: 120 },
+      () => stalled.promise,
+    )
     const failure = expect(request).rejects.toThrow('offline')
     expect(writer.pending(identity)?.position.seconds).toBe(0)
     stalled.reject(new Error('offline'))

@@ -17,10 +17,12 @@ function normalizeClosedEmptyObjects(value) {
 }
 
 const repository = fileURLToPath(new URL('../../', import.meta.url))
-const schema = JSON.parse(execFileSync('uv', ['run', 'python', 'scripts/viewer_schema.py'], {
-  cwd: repository,
-  encoding: 'utf8',
-}))
+const schema = JSON.parse(
+  execFileSync('uv', ['run', 'python', 'scripts/viewer_schema.py'], {
+    cwd: repository,
+    encoding: 'utf8',
+  }),
+)
 normalizeClosedEmptyObjects(schema)
 const declarations = await compile(schema, 'ViewerAPI', {
   bannerComment: '/* Generated from the viewer API models. Regenerate with: task ui:types */',

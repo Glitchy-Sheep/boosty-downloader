@@ -6,17 +6,40 @@ import { PostThumbnail } from '@/components/post-thumbnail'
 import type { PostRow as PostSummary } from '@/lib/api.gen'
 
 const post: PostSummary = {
-  id: 'post-1', title: 'First post', created_at: '2026-11-01T01:00:00+03:00',
-  access: 'open', counts: { images: 2, videos: 1, files: 0, audio: 0 },
-  cover_path: null, favorite: false, match: null, missing_media: 0,
-  seen: false, tier: null, updated: false,
+  id: 'post-1',
+  title: 'First post',
+  created_at: '2026-11-01T01:00:00+03:00',
+  access: 'open',
+  counts: { images: 2, videos: 1, files: 0, audio: 0 },
+  cover_path: null,
+  favorite: false,
+  match: null,
+  missing_media: 0,
+  seen: false,
+  tier: null,
+  updated: false,
 }
 
 describe('PostRow', () => {
   it('shows safe text highlights and current state using UTC dates', () => {
     const unsafeTitle = '<script>alert(1)</script>'
     const unsafeSnippet = '<img src=x onerror=alert(1)>'
-    const { container } = render(<PostRow author="author" post={{ ...post, title: unsafeTitle, match: { title: [{ text: unsafeTitle, matched: true }], text: [{ text: unsafeSnippet, matched: false }] } }} current href="#post" onSelect={vi.fn()} />)
+    const { container } = render(
+      <PostRow
+        author="author"
+        post={{
+          ...post,
+          title: unsafeTitle,
+          match: {
+            title: [{ text: unsafeTitle, matched: true }],
+            text: [{ text: unsafeSnippet, matched: false }],
+          },
+        }}
+        current
+        href="#post"
+        onSelect={vi.fn()}
+      />,
+    )
     const link = screen.getByRole('link', { name: unsafeTitle })
     expect(link).toHaveAttribute('aria-current', 'page')
     expect(link).toHaveAccessibleDescription('Unseen.')
@@ -43,8 +66,26 @@ describe('PostRow', () => {
   })
 
   it('describes locked, favorite and incomplete state without mutation controls', () => {
-    render(<PostRow author="author" post={{ ...post, access: 'locked', tier: 'Studio', seen: true, favorite: true, missing_media: 2, updated: true }} current={false} href="#post" onSelect={vi.fn()} />)
-    expect(screen.getByRole('link')).toHaveAccessibleDescription('Seen. Locked. Favorite. Updated since seen. 2 missing pieces.')
+    render(
+      <PostRow
+        author="author"
+        post={{
+          ...post,
+          access: 'locked',
+          tier: 'Studio',
+          seen: true,
+          favorite: true,
+          missing_media: 2,
+          updated: true,
+        }}
+        current={false}
+        href="#post"
+        onSelect={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('link')).toHaveAccessibleDescription(
+      'Seen. Locked. Favorite. Updated since seen. 2 missing pieces.',
+    )
     expect(screen.getByText('Studio')).toBeVisible()
     expect(screen.getByText('2 missing')).toBeVisible()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
@@ -53,16 +94,36 @@ describe('PostRow', () => {
   it.each([
     { label: 'without search', title: '', match: null },
     { label: 'with an empty highlight list', title: '', match: { title: [], text: null } },
-    { label: 'with an empty highlight fragment', title: '', match: { title: [{ text: '', matched: false }], text: null } },
+    {
+      label: 'with an empty highlight fragment',
+      title: '',
+      match: { title: [{ text: '', matched: false }], text: null },
+    },
     { label: 'with whitespace only', title: '  ', match: null },
   ])('names an untitled post $label', ({ title, match }) => {
-    render(<PostRow author="author" post={{ ...post, title, match }} current={false} href="#post" onSelect={vi.fn()} />)
+    render(
+      <PostRow
+        author="author"
+        post={{ ...post, title, match }}
+        current={false}
+        href="#post"
+        onSelect={vi.fn()}
+      />,
+    )
     expect(screen.getByRole('link')).toHaveAccessibleName('Untitled post')
     expect(screen.getByText('Untitled post')).toBeVisible()
   })
 
   it('keeps the actual title when the highlight list contains no text', () => {
-    render(<PostRow author="author" post={{ ...post, match: { title: [], text: null } }} current={false} href="#post" onSelect={vi.fn()} />)
+    render(
+      <PostRow
+        author="author"
+        post={{ ...post, match: { title: [], text: null } }}
+        current={false}
+        href="#post"
+        onSelect={vi.fn()}
+      />,
+    )
     expect(screen.getByRole('link')).toHaveAccessibleName('First post')
   })
 })
@@ -76,6 +137,9 @@ describe('PostThumbnail', () => {
     expect(container.querySelector('img')).toBeNull()
     expect(container.querySelector('svg')).not.toBeNull()
     rerender(<PostThumbnail author="автор /" post={{ ...post, id: 'next' }} />)
-    expect(container.querySelector('img')).toHaveAttribute('src', '/thumbs/%D0%B0%D0%B2%D1%82%D0%BE%D1%80%20%2F/next')
+    expect(container.querySelector('img')).toHaveAttribute(
+      'src',
+      '/thumbs/%D0%B0%D0%B2%D1%82%D0%BE%D1%80%20%2F/next',
+    )
   })
 })

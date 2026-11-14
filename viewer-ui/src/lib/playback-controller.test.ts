@@ -31,7 +31,11 @@ describe('native post playback', () => {
     expect(video.currentTime).toBe(20)
     fireEvent.click(screen.getByRole('button', { name: 'Start over' }))
     expect(video.currentTime).toBe(0)
-    expect(save).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'opaque-media' }), { seconds: 0, duration: 120 }, { keepalive: true })
+    expect(save).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ id: 'opaque-media' }),
+      { seconds: 0, duration: 120 },
+      { keepalive: true },
+    )
     await Promise.resolve()
     expect(screen.queryByRole('button', { name: 'Start over' })).not.toBeInTheDocument()
   })
@@ -45,7 +49,11 @@ describe('native post playback', () => {
     vi.advanceTimersByTime(4_999)
     expect(save).not.toHaveBeenCalled()
     vi.advanceTimersByTime(1)
-    expect(save).toHaveBeenLastCalledWith(expect.anything(), { seconds: 22, duration: 120 }, { keepalive: true })
+    expect(save).toHaveBeenLastCalledWith(
+      expect.anything(),
+      { seconds: 22, duration: 120 },
+      { keepalive: true },
+    )
     Object.defineProperty(audio, 'paused', { value: true, writable: true })
     audio.currentTime = 25
     fireEvent.pause(audio)
@@ -57,7 +65,11 @@ describe('native post playback', () => {
     cleanup()
     cleanup = undefined
     expect(save).toHaveBeenCalledTimes(5)
-    expect(save).toHaveBeenLastCalledWith(expect.anything(), { seconds: 25, duration: 120 }, { keepalive: true })
+    expect(save).toHaveBeenLastCalledWith(
+      expect.anything(),
+      { seconds: 25, duration: 120 },
+      { keepalive: true },
+    )
     fireEvent.pause(audio)
     fireEvent(window, new Event('pagehide'))
     expect(save).toHaveBeenCalledTimes(5)
@@ -84,10 +96,18 @@ describe('native post playback', () => {
     expect(save).not.toHaveBeenCalled()
     video.currentTime = 44
     fireEvent.seeked(video)
-    expect(save).toHaveBeenLastCalledWith(expect.anything(), { seconds: 44, duration: 120 }, { keepalive: true })
+    expect(save).toHaveBeenLastCalledWith(
+      expect.anything(),
+      { seconds: 44, duration: 120 },
+      { keepalive: true },
+    )
     video.currentTime = 120
     fireEvent.ended(video)
-    expect(save).toHaveBeenLastCalledWith(expect.anything(), { seconds: 120, duration: 120 }, { keepalive: true })
+    expect(save).toHaveBeenLastCalledWith(
+      expect.anything(),
+      { seconds: 120, duration: 120 },
+      { keepalive: true },
+    )
     Object.defineProperty(video, 'duration', { value: NaN, writable: true })
     fireEvent.pause(video)
     expect(save).toHaveBeenCalledTimes(2)
@@ -102,7 +122,11 @@ describe('native post playback', () => {
     fireEvent.seeked(video)
     video.currentTime = 12
     fireEvent.seeked(video)
-    expect(save).toHaveBeenLastCalledWith(expect.anything(), { seconds: 12, duration: 120 }, { keepalive: true })
+    expect(save).toHaveBeenLastCalledWith(
+      expect.anything(),
+      { seconds: 12, duration: 120 },
+      { keepalive: true },
+    )
     expect(save).toHaveBeenCalledTimes(2)
   })
 

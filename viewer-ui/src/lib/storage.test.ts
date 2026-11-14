@@ -36,13 +36,12 @@ describe('storageParts', () => {
   })
 
   test('keeps a deterministic media-kind order for equal sizes', () => {
-    expect(storageParts({ audio: 10, files: 10, images: 10, videos: 10 }).parts)
-      .toEqual([
-        { kind: 'videos', bytes: 10, share: 0.25 },
-        { kind: 'images', bytes: 10, share: 0.25 },
-        { kind: 'files', bytes: 10, share: 0.25 },
-        { kind: 'audio', bytes: 10, share: 0.25 },
-      ])
+    expect(storageParts({ audio: 10, files: 10, images: 10, videos: 10 }).parts).toEqual([
+      { kind: 'videos', bytes: 10, share: 0.25 },
+      { kind: 'images', bytes: 10, share: 0.25 },
+      { kind: 'files', bytes: 10, share: 0.25 },
+      { kind: 'audio', bytes: 10, share: 0.25 },
+    ])
   })
 
   test('has no bar parts when nothing is downloaded', () => {
@@ -66,30 +65,45 @@ describe('storageParts', () => {
 
 describe('storageNoun', () => {
   test('names a single media kind instead of the generic total', () => {
-    expect(storageNoun(storageParts({ ...EMPTY_STORAGE, images: 45_200_000_000 }).parts)).toBe('photos')
+    expect(storageNoun(storageParts({ ...EMPTY_STORAGE, images: 45_200_000_000 }).parts)).toBe(
+      'photos',
+    )
     expect(storageNoun(storageParts({ ...EMPTY_STORAGE, audio: 1 }).parts)).toBe('audio')
   })
 
   test('uses media for mixed or empty storage', () => {
     expect(storageNoun([])).toBe('media')
-    expect(storageNoun(storageParts({ ...EMPTY_STORAGE, images: 1, videos: 2 }).parts)).toBe('media')
+    expect(storageNoun(storageParts({ ...EMPTY_STORAGE, images: 1, videos: 2 }).parts)).toBe(
+      'media',
+    )
   })
 })
 
 describe('libraryStorage', () => {
   test('sums each indexed kind across authors without changing their records', () => {
     const first = Object.freeze({
-      videos: 263_000_000_000, files: 24_000_000_000, images: 1_650_000_000, audio: 0,
+      videos: 263_000_000_000,
+      files: 24_000_000_000,
+      images: 1_650_000_000,
+      audio: 0,
     })
     const second = Object.freeze({
-      videos: 0, files: 0, images: 45_200_000_000, audio: 3_000_000_000,
+      videos: 0,
+      files: 0,
+      images: 45_200_000_000,
+      audio: 3_000_000_000,
     })
     const authors = Object.freeze([
-      author('first', first), author('second', second), author('locked', EMPTY_STORAGE),
+      author('first', first),
+      author('second', second),
+      author('locked', EMPTY_STORAGE),
     ])
     const total = libraryStorage(authors)
     expect(total).toEqual({
-      videos: 263_000_000_000, files: 24_000_000_000, images: 46_850_000_000, audio: 3_000_000_000,
+      videos: 263_000_000_000,
+      files: 24_000_000_000,
+      images: 46_850_000_000,
+      audio: 3_000_000_000,
     })
     total.images = 0
     expect(first.images).toBe(1_650_000_000)

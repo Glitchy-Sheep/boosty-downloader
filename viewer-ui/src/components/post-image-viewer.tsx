@@ -30,7 +30,12 @@ export function PostImageViewer({ images, index, onShow, onClose }: PostImageVie
   }
 
   return (
-    <Dialog.Root open={Boolean(image)} onOpenChange={open => { if (!open) onClose() }}>
+    <Dialog.Root
+      open={Boolean(image)}
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+    >
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/95" />
         {image && index !== null && (
@@ -38,8 +43,11 @@ export function PostImageViewer({ images, index, onShow, onClose }: PostImageVie
             ref={content}
             aria-describedby={undefined}
             onKeyDown={move}
-            onOpenAutoFocus={event => { event.preventDefault(); content.current?.focus() }}
-            onCloseAutoFocus={event => {
+            onOpenAutoFocus={(event) => {
+              event.preventDefault()
+              content.current?.focus()
+            }}
+            onCloseAutoFocus={(event) => {
               event.preventDefault()
               if (lastTrigger.current?.isConnected) lastTrigger.current.focus()
             }}
@@ -47,18 +55,32 @@ export function PostImageViewer({ images, index, onShow, onClose }: PostImageVie
           >
             <Dialog.Title className="sr-only">Post image viewer</Dialog.Title>
             <div className="flex h-14 shrink-0 items-center gap-4 px-4 md:px-6">
-              <span className="shrink-0 text-sm text-white/65 tabular-nums" aria-live="polite">{index + 1} / {images.length}</span>
+              <span className="shrink-0 text-sm text-white/65 tabular-nums" aria-live="polite">
+                {index + 1} / {images.length}
+              </span>
               <span className="min-w-0 flex-1 truncate text-sm">{image.alt}</span>
               <Dialog.Close asChild>
-                <button type="button" aria-label="Close image viewer" className="grid size-9 place-items-center rounded-lg outline-none hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white">
+                <button
+                  type="button"
+                  aria-label="Close image viewer"
+                  className="grid size-9 place-items-center rounded-lg outline-none hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white"
+                >
                   <X aria-hidden="true" className="size-5" />
                 </button>
               </Dialog.Close>
             </div>
             <div className="relative flex min-h-0 flex-1 items-center justify-center px-2 pb-4 md:px-16">
-              <img key={image.src} src={image.src} alt={image.alt} draggable={false} className="max-h-full max-w-full object-contain select-none" />
+              <img
+                key={image.src}
+                src={image.src}
+                alt={image.alt}
+                draggable={false}
+                className="max-h-full max-w-full object-contain select-none"
+              />
               {index > 0 && <ImageStep direction="previous" onClick={() => onShow(index - 1)} />}
-              {index < images.length - 1 && <ImageStep direction="next" onClick={() => onShow(index + 1)} />}
+              {index < images.length - 1 && (
+                <ImageStep direction="next" onClick={() => onShow(index + 1)} />
+              )}
             </div>
           </Dialog.Content>
         )}
@@ -67,7 +89,13 @@ export function PostImageViewer({ images, index, onShow, onClose }: PostImageVie
   )
 }
 
-function ImageStep({ direction, onClick }: { direction: 'previous' | 'next'; onClick: () => void }) {
+function ImageStep({
+  direction,
+  onClick,
+}: {
+  direction: 'previous' | 'next'
+  onClick: () => void
+}) {
   const next = direction === 'next'
   const placement = next ? 'right-2 md:right-4' : 'left-2 md:left-4'
   return (
@@ -77,7 +105,11 @@ function ImageStep({ direction, onClick }: { direction: 'previous' | 'next'; onC
       aria-label={next ? 'Next image' : 'Previous image'}
       className={`absolute top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-full bg-black/40 text-white outline-none backdrop-blur hover:bg-black/70 focus-visible:ring-2 focus-visible:ring-white ${placement}`}
     >
-      {next ? <ChevronRight aria-hidden="true" className="size-5" /> : <ChevronLeft aria-hidden="true" className="size-5" />}
+      {next ? (
+        <ChevronRight aria-hidden="true" className="size-5" />
+      ) : (
+        <ChevronLeft aria-hidden="true" className="size-5" />
+      )}
     </button>
   )
 }

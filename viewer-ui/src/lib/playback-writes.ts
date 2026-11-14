@@ -4,7 +4,11 @@ export interface PositionSaveOptions {
   keepalive: boolean
 }
 
-export type SavePosition = (media: MediaItem, position: PositionRequest, options: PositionSaveOptions) => Promise<void>
+export type SavePosition = (
+  media: MediaItem,
+  position: PositionRequest,
+  options: PositionSaveOptions,
+) => Promise<void>
 
 export interface PlaybackIdentity {
   origin: string
@@ -25,14 +29,22 @@ interface PlaybackWriteState {
 
 function identityKey(identity: PlaybackIdentity): string {
   return JSON.stringify({
-    origin: identity.origin, author: identity.author, postId: identity.postId, mediaId: identity.mediaId,
+    origin: identity.origin,
+    author: identity.author,
+    postId: identity.postId,
+    mediaId: identity.mediaId,
   })
 }
 
 /** Active writes share an order across player remounts; idle queues retain nothing. */
 export function createPlaybackWriter() {
   const active = new Map<string, PlaybackWriteState>()
-  const write = (identity: PlaybackIdentity, media: MediaItem, position: PositionRequest, save: SavePosition): Promise<void> => {
+  const write = (
+    identity: PlaybackIdentity,
+    media: MediaItem,
+    position: PositionRequest,
+    save: SavePosition,
+  ): Promise<void> => {
     const key = identityKey(identity)
     const previous = active.get(key)?.tail ?? Promise.resolve()
     const desired = { ...position }
@@ -46,7 +58,8 @@ export function createPlaybackWriter() {
     })
     return request
   }
-  const pending = (identity: PlaybackIdentity): PendingPlaybackSave | undefined => active.get(identityKey(identity))?.pending
+  const pending = (identity: PlaybackIdentity): PendingPlaybackSave | undefined =>
+    active.get(identityKey(identity))?.pending
   return { write, pending }
 }
 

@@ -1,7 +1,13 @@
 import { LibraryBig } from 'lucide-react'
 import type { ReactNode } from 'react'
 
-export function AppShell({ children, isAuthorsPage = true }: { children?: ReactNode; isAuthorsPage?: boolean }) {
+export function AppShell({
+  children,
+  isAuthorsPage = true,
+}: {
+  children?: ReactNode
+  isAuthorsPage?: boolean
+}) {
   return (
     <div className="flex h-dvh flex-col">
       <header className="flex h-12 shrink-0 items-center gap-3 border-b bg-card px-3 md:h-14 md:gap-4 md:px-4">
@@ -26,7 +32,9 @@ export function AppShell({ children, isAuthorsPage = true }: { children?: ReactN
           </a>
         </nav>
       </header>
-      <main aria-label={isAuthorsPage ? 'Authors' : 'Library'} className="min-h-0 flex-1">{children}</main>
+      <main aria-label={isAuthorsPage ? 'Authors' : 'Library'} className="min-h-0 flex-1">
+        {children}
+      </main>
     </div>
   )
 }

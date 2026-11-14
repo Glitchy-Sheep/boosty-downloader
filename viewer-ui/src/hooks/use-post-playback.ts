@@ -3,7 +3,11 @@ import type { MediaItem } from '@/lib/api.gen'
 import { attachPostPlayback } from '@/lib/playback-controller'
 import { findPlaybackMedia, playerSource } from '@/lib/playback-media'
 import { pendingPlaybackMark } from '@/lib/playback-position'
-import { pendingPlaybackPosition, writePlaybackPosition, type SavePosition } from '@/lib/playback-writes'
+import {
+  pendingPlaybackPosition,
+  writePlaybackPosition,
+  type SavePosition,
+} from '@/lib/playback-writes'
 
 export type { SavePosition } from '@/lib/playback-writes'
 

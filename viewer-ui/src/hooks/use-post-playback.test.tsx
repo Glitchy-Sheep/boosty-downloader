@@ -7,9 +7,26 @@ import { deferred, playbackItem, setPlaying } from '@/test/playback-fixture'
 
 const html = '<p>Text</p><video controls><source src="/media/author/post/video.mp4"></video>'
 
-function Body({ item, save, author = 'author', markup = html }: { item: MediaItem; save: SavePosition; author?: string; markup?: string }) {
+function Body({
+  item,
+  save,
+  author = 'author',
+  markup = html,
+}: {
+  item: MediaItem
+  save: SavePosition
+  author?: string
+  markup?: string
+}) {
   const rootRef = useRef<HTMLDivElement>(null)
-  usePostPlayback({ rootRef, author, postId: item.post_id, html: markup, media: [item], savePosition: save })
+  usePostPlayback({
+    rootRef,
+    author,
+    postId: item.post_id,
+    html: markup,
+    media: [item],
+    savePosition: save,
+  })
   return <div ref={rootRef} dangerouslySetInnerHTML={{ __html: markup }} />
 }
 
@@ -29,31 +46,38 @@ describe('usePostPlayback', () => {
     { action: 'pause', expected: 40 },
     { action: 'start over', expected: 0 },
     { action: 'finish', expected: 0 },
-  ])('resumes the newest queued state after a rapid return following $action', async ({ action, expected }) => {
-    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined)
-    const pending = deferred()
-    const save = vi.fn().mockReturnValueOnce(pending.promise).mockResolvedValue(undefined)
-    const first = render(<Body item={playbackItem()} save={save} />)
-    const video = first.container.querySelector('video')!
-    metadata(video)
-    setPlaying(video)
-    video.currentTime = 40
-    fireEvent.pause(video)
-    await act(() => Promise.resolve())
-    if (action === 'start over') fireEvent.click(screen.getByRole('button', { name: 'Start over' }))
-    if (action === 'finish') {
-      video.currentTime = 120
-      fireEvent.ended(video)
-    }
-    first.unmount()
-    const second = render(<Body item={playbackItem()} save={save} />)
-    const returned = second.container.querySelector('video')!
-    metadata(returned)
-    const observed = returned.currentTime
-    second.unmount()
-    await act(async () => { pending.resolve(); await pending.promise })
-    expect(observed).toBe(expected)
-  })
+  ])(
+    'resumes the newest queued state after a rapid return following $action',
+    async ({ action, expected }) => {
+      vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined)
+      const pending = deferred()
+      const save = vi.fn().mockReturnValueOnce(pending.promise).mockResolvedValue(undefined)
+      const first = render(<Body item={playbackItem()} save={save} />)
+      const video = first.container.querySelector('video')!
+      metadata(video)
+      setPlaying(video)
+      video.currentTime = 40
+      fireEvent.pause(video)
+      await act(() => Promise.resolve())
+      if (action === 'start over')
+        fireEvent.click(screen.getByRole('button', { name: 'Start over' }))
+      if (action === 'finish') {
+        video.currentTime = 120
+        fireEvent.ended(video)
+      }
+      first.unmount()
+      const second = render(<Body item={playbackItem()} save={save} />)
+      const returned = second.container.querySelector('video')!
+      metadata(returned)
+      const observed = returned.currentTime
+      second.unmount()
+      await act(async () => {
+        pending.resolve()
+        await pending.promise
+      })
+      expect(observed).toBe(expected)
+    },
+  )
 
   it('uses queued partial playback over an older server-confirmed finished mark', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined)
@@ -73,7 +97,10 @@ describe('usePostPlayback', () => {
     metadata(returned)
     const observed = returned.currentTime
     second.unmount()
-    await act(async () => { pending.resolve(); await pending.promise })
+    await act(async () => {
+      pending.resolve()
+      await pending.promise
+    })
     expect(observed).toBe(40)
   })
 
@@ -92,13 +119,19 @@ describe('usePostPlayback', () => {
     video.currentTime = 40
     fireEvent.pause(video)
     first.unmount()
-    await act(async () => { older.resolve(); await older.promise })
+    await act(async () => {
+      older.resolve()
+      await older.promise
+    })
     const second = render(<Body item={playbackItem({ position_s: 20 })} save={save} />)
     const returned = second.container.querySelector('video')!
     metadata(returned)
     const observed = returned.currentTime
     second.unmount()
-    await act(async () => { newer.resolve(); await newer.promise })
+    await act(async () => {
+      newer.resolve()
+      await newer.promise
+    })
     expect(observed).toBe(40)
   })
 
@@ -147,7 +180,11 @@ describe('usePostPlayback', () => {
     fireEvent.pause(video)
     await act(() => Promise.resolve())
     expect(oldSave).not.toHaveBeenCalled()
-    expect(newSave).toHaveBeenCalledWith(expect.anything(), { seconds: 30, duration: 120 }, { keepalive: true })
+    expect(newSave).toHaveBeenCalledWith(
+      expect.anything(),
+      { seconds: 30, duration: 120 },
+      { keepalive: true },
+    )
     unmount()
   })
 
@@ -168,8 +205,15 @@ describe('usePostPlayback', () => {
     rerender(<Body item={other} save={newSave} markup={html.replaceAll('/post/', '/other/')} />)
     expect(oldSave).toHaveBeenCalledTimes(1)
     expect(newSave).not.toHaveBeenCalled()
-    await act(async () => { pending.resolve(); await pending.promise })
-    expect(oldSave).toHaveBeenLastCalledWith(expect.objectContaining({ post_id: 'post' }), { seconds: 30, duration: 120 }, { keepalive: true })
+    await act(async () => {
+      pending.resolve()
+      await pending.promise
+    })
+    expect(oldSave).toHaveBeenLastCalledWith(
+      expect.objectContaining({ post_id: 'post' }),
+      { seconds: 30, duration: 120 },
+      { keepalive: true },
+    )
     expect(newSave).not.toHaveBeenCalled()
     unmount()
   })

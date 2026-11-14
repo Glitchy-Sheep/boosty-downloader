@@ -33,7 +33,10 @@ export function rowMetrics(width: number): RowMetrics {
   const height = Math.round(Math.max(coverHeight, text) + 2 * ROW_PADDING_Y)
   const room = height - 2 * ROW_PADDING_Y - TITLE_GAP - META_HEIGHT
   const withSnippet = text + SNIPPET_HEIGHT + TITLE_GAP
-  const paddingFraction = Math.min((boundedWidth - ROWS_SMALL_WIDTH) / (PADDING_FULL_WIDTH - ROWS_SMALL_WIDTH), 1)
+  const paddingFraction = Math.min(
+    (boundedWidth - ROWS_SMALL_WIDTH) / (PADDING_FULL_WIDTH - ROWS_SMALL_WIDTH),
+    1,
+  )
   return {
     height,
     snippetHeight: Math.round(Math.max(coverHeight, withSnippet) + 2 * ROW_PADDING_Y),

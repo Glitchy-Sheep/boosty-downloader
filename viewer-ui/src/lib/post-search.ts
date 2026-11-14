@@ -6,16 +6,51 @@ type TextRun = { text: string; parts: TextPart[] }
 
 // unicode61 ignores these combining accents; other combining marks separate words.
 // https://github.com/sqlite/sqlite/blob/master/ext/fts5/fts5_unicode2.c
-const SEARCH_DIACRITIC = /[\u0300-\u0304\u0306-\u030c\u030f\u0311\u031b\u0323-\u0328\u032d\u032e\u0330\u0331]/u
+const SEARCH_DIACRITIC =
+  /[\u0300-\u0304\u0306-\u030c\u030f\u0311\u031b\u0323-\u0328\u032d\u032e\u0330\u0331]/u
 // unicode61 simple folding also equates these lowercase letter variants.
 // Keep this separate from compatibility normalization, which changes other words.
 const SIMPLE_FOLD: Readonly<Record<string, string>> = {
-  'µ': 'μ', 'ſ': 's', 'ς': 'σ', 'ϐ': 'β', 'ϑ': 'θ', 'ϕ': 'φ',
-  'ϖ': 'π', 'ϰ': 'κ', 'ϱ': 'ρ', 'ϵ': 'ε', 'ẛ': 'ṡ', 'ι': 'ι',
+  µ: 'μ',
+  ſ: 's',
+  ς: 'σ',
+  ϐ: 'β',
+  ϑ: 'θ',
+  ϕ: 'φ',
+  ϖ: 'π',
+  ϰ: 'κ',
+  ϱ: 'ρ',
+  ϵ: 'ε',
+  ẛ: 'ṡ',
+  ι: 'ι',
 }
 const WORDS = /[\p{L}\p{N}\p{Co}]+/gu
-const EXCLUDED = 'video, audio, script, style, button, input, textarea, select, [data-page-generated], [data-page-slot], .resume-note'
-const BLOCKS = new Set(['P', 'DIV', 'SECTION', 'ARTICLE', 'UL', 'OL', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'BLOCKQUOTE', 'PRE', 'TABLE', 'TR', 'TD', 'TH', 'BR', 'HR', 'IMG'])
+const EXCLUDED =
+  'video, audio, script, style, button, input, textarea, select, [data-page-generated], [data-page-slot], .resume-note'
+const BLOCKS = new Set([
+  'P',
+  'DIV',
+  'SECTION',
+  'ARTICLE',
+  'UL',
+  'OL',
+  'LI',
+  'H1',
+  'H2',
+  'H3',
+  'H4',
+  'H5',
+  'H6',
+  'BLOCKQUOTE',
+  'PRE',
+  'TABLE',
+  'TR',
+  'TD',
+  'TH',
+  'BR',
+  'HR',
+  'IMG',
+])
 
 function foldCharacter(character: string): string {
   if (SEARCH_DIACRITIC.test(character)) return ''
@@ -49,8 +84,11 @@ export function findHits(text: string, words: readonly string[]): TextRange[] {
   const folded = fold(text)
   const hits: TextRange[] = []
   for (const match of folded.text.matchAll(WORDS)) {
-    if (!words.some(word => match[0].startsWith(word))) continue
-    hits.push({ start: folded.origins[match.index].start, end: folded.origins[match.index + match[0].length - 1].end })
+    if (!words.some((word) => match[0].startsWith(word))) continue
+    hits.push({
+      start: folded.origins[match.index].start,
+      end: folded.origins[match.index + match[0].length - 1].end,
+    })
   }
   return hits
 }
@@ -71,7 +109,10 @@ function textRuns(root: HTMLElement): TextRun[] {
       return
     }
     if (!(node instanceof Element)) return
-    if (node.matches(EXCLUDED)) { finish(); return }
+    if (node.matches(EXCLUDED)) {
+      finish()
+      return
+    }
     const boundary = BLOCKS.has(node.tagName)
     if (boundary) finish()
     node.childNodes.forEach(visit)

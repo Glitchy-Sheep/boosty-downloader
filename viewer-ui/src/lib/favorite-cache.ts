@@ -20,30 +20,45 @@ function withRows(rows: PostRow[]): PostList {
     const month = monthKey(row.created_at)
     counts.set(month, (counts.get(month) ?? 0) + 1)
   }
-  return { rows, months: [...counts].map(([month, count]) => ({ month, count })), total: rows.length }
+  return {
+    rows,
+    months: [...counts].map(([month, count]) => ({ month, count })),
+    total: rows.length,
+  }
 }
 
 function changeAuthorCount(client: QueryClient, author: string, delta: number): void {
-  const update = (value: Author): Author => ({ ...value, favorites: Math.max(0, value.favorites + delta) })
-  client.setQueryData(authorQuery(author).queryKey, value => value && update(value))
-  client.setQueryData(authorsQuery().queryKey, values => values?.map(value => value.name === author ? update(value) : value))
+  const update = (value: Author): Author => ({
+    ...value,
+    favorites: Math.max(0, value.favorites + delta),
+  })
+  client.setQueryData(authorQuery(author).queryKey, (value) => value && update(value))
+  client.setQueryData(authorsQuery().queryKey, (values) =>
+    values?.map((value) => (value.name === author ? update(value) : value)),
+  )
 }
 
 /** Change only the favorite field; playback, seen and freshly loaded metadata survive. */
-export function applyFavorite(client: QueryClient, change: Omit<FavoriteChange, 'removed'>): FavoriteChange {
+export function applyFavorite(
+  client: QueryClient,
+  change: Omit<FavoriteChange, 'removed'>,
+): FavoriteChange {
   const { author, postId, favorite, previous } = change
   const removed: RemovedFavorite[] = []
-  client.setQueryData(postQuery(author, postId).queryKey, post => post && ({ ...post, favorite }))
+  client.setQueryData(postQuery(author, postId).queryKey, (post) => post && { ...post, favorite })
   for (const [key, list] of client.getQueriesData<PostList>({ queryKey: ['posts', author] })) {
     if (!list) continue
     const filters = key[2] as PostFilters
-    const index = list.rows.findIndex(row => row.id === postId)
+    const index = list.rows.findIndex((row) => row.id === postId)
     if (index < 0) continue
     if (filters.fav && !favorite) {
       removed.push({ key, row: list.rows[index] })
-      client.setQueryData(key, withRows(list.rows.filter(row => row.id !== postId)))
+      client.setQueryData(key, withRows(list.rows.filter((row) => row.id !== postId)))
     } else {
-      client.setQueryData(key, { ...list, rows: list.rows.map(row => row.id === postId ? { ...row, favorite } : row) })
+      client.setQueryData(key, {
+        ...list,
+        rows: list.rows.map((row) => (row.id === postId ? { ...row, favorite } : row)),
+      })
     }
   }
   changeAuthorCount(client, author, Number(favorite) - Number(previous))
@@ -53,26 +68,38 @@ export function applyFavorite(client: QueryClient, change: Omit<FavoriteChange, 
 export function rollbackFavorite(client: QueryClient, change: FavoriteChange): void {
   applyFavorite(client, { ...change, favorite: change.previous, previous: change.favorite })
   for (const { key, row } of change.removed) {
-    client.setQueryData<PostList>(key, current => {
-      if (!current || current.rows.some(item => item.id === row.id)) return current
+    client.setQueryData<PostList>(key, (current) => {
+      if (!current || current.rows.some((item) => item.id === row.id)) return current
       const filters = key[2] as PostFilters
-      const rows = [...current.rows, row].sort((left, right) => comparePosts(left, right, filters.order))
+      const rows = [...current.rows, row].sort((left, right) =>
+        comparePosts(left, right, filters.order),
+      )
       return withRows(rows)
     })
   }
 }
 
-export function acceptFavorite(client: QueryClient, author: string, result: MarkResult, updateCounts: boolean): void {
-  client.setQueryData(postQuery(author, result.post.id).queryKey, post => post && ({ ...post, ...result.post }))
+export function acceptFavorite(
+  client: QueryClient,
+  author: string,
+  result: MarkResult,
+  updateCounts: boolean,
+): void {
+  client.setQueryData(
+    postQuery(author, result.post.id).queryKey,
+    (post) => post && { ...post, ...result.post },
+  )
   for (const [key, list] of client.getQueriesData<PostList>({ queryKey: ['posts', author] })) {
     if (!list) continue
     const filters = key[2] as PostFilters
     if (filters.fav && !result.post.favorite) {
-      client.setQueryData(key, withRows(list.rows.filter(row => row.id !== result.post.id)))
+      client.setQueryData(key, withRows(list.rows.filter((row) => row.id !== result.post.id)))
     } else {
       client.setQueryData(key, {
         ...list,
-        rows: list.rows.map(row => row.id === result.post.id ? { ...row, ...result.post, match: row.match } : row),
+        rows: list.rows.map((row) =>
+          row.id === result.post.id ? { ...row, ...result.post, match: row.match } : row,
+        ),
       })
     }
   }

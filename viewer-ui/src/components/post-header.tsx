@@ -14,7 +14,14 @@ type PostHeaderProps = {
   onTag: (tag: string) => void
 }
 
-export function PostHeader({ post, selectedTag, favoritePending, favoriteError, onFavorite, onTag }: PostHeaderProps) {
+export function PostHeader({
+  post,
+  selectedTag,
+  favoritePending,
+  favoriteError,
+  onFavorite,
+  onTag,
+}: PostHeaderProps) {
   const boostyUrl = safeHttpUrl(post.boosty_url)
   const favoriteLabel = post.favorite ? 'Remove from favorites' : 'Add to favorites'
 
@@ -28,7 +35,7 @@ export function PostHeader({ post, selectedTag, favoritePending, favoriteError, 
           <CalendarDays aria-hidden="true" className="size-3.5" />
           <time dateTime={post.created_at}>{formatDate(post.created_at)}</time>
         </span>
-        {[...new Set(post.tags)].map(tag => (
+        {[...new Set(post.tags)].map((tag) => (
           <button
             key={tag}
             type="button"
@@ -40,13 +47,21 @@ export function PostHeader({ post, selectedTag, favoritePending, favoriteError, 
           </button>
         ))}
         {boostyUrl && (
-          <a href={boostyUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 rounded-sm font-medium outline-none transition-colors hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50">
+          <a
+            href={boostyUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-0.5 rounded-sm font-medium outline-none transition-colors hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
             Boosty <ArrowUpRight aria-hidden="true" className="size-3.5" />
           </a>
         )}
         <div className="ml-auto flex items-center gap-1.5">
           {post.access === 'locked' ? (
-            <span className="inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[12.5px]"><Lock aria-hidden="true" className="size-3.5" />Locked</span>
+            <span className="inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[12.5px]">
+              <Lock aria-hidden="true" className="size-3.5" />
+              Locked
+            </span>
           ) : (
             <button
               type="button"
@@ -55,14 +70,25 @@ export function PostHeader({ post, selectedTag, favoritePending, favoriteError, 
               aria-label={favoriteLabel}
               aria-pressed={post.favorite}
               title={favoriteLabel}
-              className={cn('grid size-8 place-items-center rounded-lg outline-none transition-colors hover:bg-muted hover:text-rose-500 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-wait disabled:opacity-50', post.favorite && 'text-rose-500')}
+              className={cn(
+                'grid size-8 place-items-center rounded-lg outline-none transition-colors hover:bg-muted hover:text-rose-500 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-wait disabled:opacity-50',
+                post.favorite && 'text-rose-500',
+              )}
             >
-              <Heart aria-hidden="true" className="size-4" fill={post.favorite ? 'currentColor' : 'none'} />
+              <Heart
+                aria-hidden="true"
+                className="size-4"
+                fill={post.favorite ? 'currentColor' : 'none'}
+              />
             </button>
           )}
         </div>
       </div>
-      {favoriteError && <p role="alert" className="mt-3 text-sm text-destructive">{favoriteError}</p>}
+      {favoriteError && (
+        <p role="alert" className="mt-3 text-sm text-destructive">
+          {favoriteError}
+        </p>
+      )}
     </header>
   )
 }

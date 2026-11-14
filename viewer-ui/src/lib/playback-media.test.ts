@@ -9,7 +9,15 @@ describe('findPlaybackMedia', () => {
     const item = playbackItem({ path: "folder/Ёж !'()* #?%2F.mp4" })
     const source = '/media/author/folder/%D0%81%D0%B6%20%21%27%28%29%2A%20%23%3F%252F.mp4'
     expect(findPlaybackMedia(source, 'author', 'post', [item], origin)).toBe(item)
-    expect(findPlaybackMedia(source.replace('%21%27%28%29%2A', "!'()*"), 'author', 'post', [item], origin)).toBe(item)
+    expect(
+      findPlaybackMedia(
+        source.replace('%21%27%28%29%2A', "!'()*"),
+        'author',
+        'post',
+        [item],
+        origin,
+      ),
+    ).toBe(item)
   })
   it.each([
     'https://evil.test/media/author/post/video.mp4',
@@ -25,10 +33,20 @@ describe('findPlaybackMedia', () => {
   it('does not bind another post or a non-player file', () => {
     const source = '/media/author/post/video.mp4'
     expect(findPlaybackMedia(source, 'author', 'other', [playbackItem()], origin)).toBeUndefined()
-    expect(findPlaybackMedia(source, 'author', 'post', [playbackItem({ kind: 'files' })], origin)).toBeUndefined()
+    expect(
+      findPlaybackMedia(source, 'author', 'post', [playbackItem({ kind: 'files' })], origin),
+    ).toBeUndefined()
   })
   it('accepts an author encoded as a single path segment', () => {
-    expect(findPlaybackMedia('/media/%D0%81%D0%B6/post/video.mp4', 'Ёж', 'post', [playbackItem()], origin)?.id).toBe('opaque-media')
+    expect(
+      findPlaybackMedia(
+        '/media/%D0%81%D0%B6/post/video.mp4',
+        'Ёж',
+        'post',
+        [playbackItem()],
+        origin,
+      )?.id,
+    ).toBe('opaque-media')
   })
 })
 

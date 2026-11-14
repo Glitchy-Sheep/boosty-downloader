@@ -23,15 +23,37 @@ export type PostPageProps = {
   children: ReactNode
 }
 
-export function PostPage({ author, post, filters, posts, listPending, favoritePending, favoriteError, onFavorite, onTag, onPost, postHref, children }: PostPageProps) {
+export function PostPage({
+  author,
+  post,
+  filters,
+  posts,
+  listPending,
+  favoritePending,
+  favoriteError,
+  onFavorite,
+  onTag,
+  onPost,
+  postHref,
+  children,
+}: PostPageProps) {
   const neighbours = postNeighbours(posts?.rows ?? [], post, filters.order)
   const locked = post.access === 'locked'
   const hasSavedContent = post.body_html.trim().length > 0 || post.has_folder
   return (
     <article className="mx-auto w-full max-w-[760px] px-5 pt-6 pb-12 @2xl/main:px-10 @2xl/main:pt-9 @2xl/main:pb-16">
-      <PostHeader post={post} selectedTag={filters.tag} favoritePending={favoritePending} favoriteError={favoriteError} onFavorite={onFavorite} onTag={onTag} />
+      <PostHeader
+        post={post}
+        selectedTag={filters.tag}
+        favoritePending={favoritePending}
+        favoriteError={favoriteError}
+        onFavorite={onFavorite}
+        onTag={onTag}
+      />
       <hr className="my-6 border-border @2xl/main:my-7" />
-      {locked && !hasSavedContent ? <LockedCard author={author} post={post} /> : (
+      {locked && !hasSavedContent ? (
+        <LockedCard author={author} post={post} />
+      ) : (
         <>
           {locked && <SavedAccessNotice />}
           {children}

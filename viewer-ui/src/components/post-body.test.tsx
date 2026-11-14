@@ -4,7 +4,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PostBody } from '@/components/post-body'
 
 vi.mock('@/hooks/use-post-playback', () => ({ usePostPlayback: vi.fn() }))
-const defaults = { author: 'writer', postId: 'first', media: [], query: undefined, onClearSearch: vi.fn(), savePosition: vi.fn(async () => {}), onNavigate: vi.fn() }
+const defaults = {
+  author: 'writer',
+  postId: 'first',
+  media: [],
+  query: undefined,
+  onClearSearch: vi.fn(),
+  savePosition: vi.fn(async () => {}),
+  onNavigate: vi.fn(),
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -13,7 +21,8 @@ beforeEach(() => {
 
 describe('PostBody', () => {
   it('keeps players and listeners through search and cache renders, then removes search marks', () => {
-    const html = '<p>Shader lesson and shader notes</p><video controls src="/media/writer/video.mp4"></video><audio controls src="/media/writer/audio.wav"></audio>'
+    const html =
+      '<p>Shader lesson and shader notes</p><video controls src="/media/writer/video.mp4"></video><audio controls src="/media/writer/audio.wav"></audio>'
     const { container, rerender } = render(<PostBody {...defaults} html={html} />)
     const video = container.querySelector('video')!
     const audio = container.querySelector('audio')!
@@ -45,13 +54,17 @@ describe('PostBody', () => {
   })
 
   it('opens body images in DOM order, includes retained images and restores focus', async () => {
-    const html = '<img src="/media/writer/first.jpg" alt="First drawing"><video poster="/media/writer/poster.jpg"></video><section class="removed-media"><img src="/media/writer/second.jpg" alt="Retained drawing"></section>'
+    const html =
+      '<img src="/media/writer/first.jpg" alt="First drawing"><video poster="/media/writer/poster.jpg"></video><section class="removed-media"><img src="/media/writer/second.jpg" alt="Retained drawing"></section>'
     render(<PostBody {...defaults} html={html} />)
     const first = screen.getByRole('button', { name: 'Open image: First drawing' })
     first.focus()
     fireEvent.keyDown(first, { key: 'Enter' })
     const dialog = screen.getByRole('dialog', { name: 'Post image viewer' })
-    expect(within(dialog).getByRole('img', { name: 'First drawing' })).toHaveAttribute('src', `${location.origin}/media/writer/first.jpg`)
+    expect(within(dialog).getByRole('img', { name: 'First drawing' })).toHaveAttribute(
+      'src',
+      `${location.origin}/media/writer/first.jpg`,
+    )
     expect(within(dialog).getByText('1 / 2')).toBeInTheDocument()
     fireEvent.keyDown(dialog, { key: 'ArrowRight' })
     expect(within(dialog).getByRole('img', { name: 'Retained drawing' })).toBeInTheDocument()
@@ -62,7 +75,9 @@ describe('PostBody', () => {
   })
 
   it('gives unnamed images a useful label and closes the gallery on post changes', () => {
-    const { rerender } = render(<PostBody {...defaults} html='<img src="/media/writer/first.jpg" alt="">' />)
+    const { rerender } = render(
+      <PostBody {...defaults} html='<img src="/media/writer/first.jpg" alt="">' />,
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Open image: Image 1' }))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     rerender(<PostBody {...defaults} postId="second" html="<p>The next post</p>" />)
@@ -75,7 +90,7 @@ describe('PostBody', () => {
     const link = screen.getByRole('link', { name: 'Other post' })
     fireEvent.click(link)
     expect(defaults.onNavigate).toHaveBeenCalledExactlyOnceWith('/a/other/p/second?q=001#part')
-    link.addEventListener('click', event => event.preventDefault())
+    link.addEventListener('click', (event) => event.preventDefault())
     fireEvent.click(link, { ctrlKey: true })
     expect(defaults.onNavigate).toHaveBeenCalledOnce()
   })

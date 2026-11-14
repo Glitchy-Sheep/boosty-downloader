@@ -6,16 +6,22 @@
     overflow-wrap: anywhere;
   }
 
-  .post-body p { margin: 0 0 0.85em; }
-  .post-body p:last-child { margin-bottom: 0; }
+  .post-body p {
+    margin: 0 0 0.85em;
+  }
+  .post-body p:last-child {
+    margin-bottom: 0;
+  }
   .post-body a {
     color: var(--primary);
     text-decoration: underline;
     text-decoration-color: color-mix(in srgb, var(--primary) 40%, transparent);
     text-underline-offset: 3px;
   }
-  .post-body a:hover { text-decoration-color: var(--primary); }
-  .post-body :is(a, img[role="button"], button):focus-visible {
+  .post-body a:hover {
+    text-decoration-color: var(--primary);
+  }
+  .post-body :is(a, img[role='button'], button):focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 4px;
   }
@@ -26,15 +32,35 @@
     line-height: 1.3;
     letter-spacing: -0.01em;
   }
-  .post-body h1 { font-size: 1.5em; }
-  .post-body h2 { font-size: 1.3em; }
-  .post-body h3 { font-size: 1.1em; }
-  .post-body > :first-child { margin-top: 0; }
-  .post-body :is(ul, ol) { margin: 0.9em 0; padding-left: 1.4em; }
-  .post-body ul { list-style: disc; }
-  .post-body ol { list-style: decimal; }
-  .post-body li { margin: 0.25em 0; padding-left: 0.2em; }
-  .post-body li::marker { color: var(--muted-foreground); }
+  .post-body h1 {
+    font-size: 1.5em;
+  }
+  .post-body h2 {
+    font-size: 1.3em;
+  }
+  .post-body h3 {
+    font-size: 1.1em;
+  }
+  .post-body > :first-child {
+    margin-top: 0;
+  }
+  .post-body :is(ul, ol) {
+    margin: 0.9em 0;
+    padding-left: 1.4em;
+  }
+  .post-body ul {
+    list-style: disc;
+  }
+  .post-body ol {
+    list-style: decimal;
+  }
+  .post-body li {
+    margin: 0.25em 0;
+    padding-left: 0.2em;
+  }
+  .post-body li::marker {
+    color: var(--muted-foreground);
+  }
   .post-body blockquote {
     margin: 1.25em 0;
     border-left: 3px solid var(--border);
@@ -49,7 +75,10 @@
     background: var(--muted);
     white-space: pre;
   }
-  .post-body code { font-family: ui-monospace, monospace; font-size: 0.9em; }
+  .post-body code {
+    font-family: ui-monospace, monospace;
+    font-size: 0.9em;
+  }
 
   .post-body img {
     display: block;
@@ -60,7 +89,9 @@
     background: var(--muted);
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
   }
-  .post-body img[role="button"] { cursor: zoom-in; }
+  .post-body img[role='button'] {
+    cursor: zoom-in;
+  }
 
   .post-body :is(.video-player, .audio-player) {
     margin: 1.5rem 0;
@@ -81,7 +112,10 @@
     aspect-ratio: 16 / 9;
     background: #000;
   }
-  .post-body audio { display: block; width: 100%; }
+  .post-body audio {
+    display: block;
+    width: 100%;
+  }
   .post-body .audio-player audio {
     width: calc(100% - 1.5rem);
     margin: 0.75rem;
@@ -102,9 +136,16 @@
     color: var(--foreground);
     text-decoration: none;
   }
-  .post-body .attachment:hover { background: var(--muted); }
-  .post-body .attachment + .attachment { border-top: 1px solid var(--border); }
-  .post-body :is(.attachment-text, .unavailable-text) { min-width: 0; flex: 1; }
+  .post-body .attachment:hover {
+    background: var(--muted);
+  }
+  .post-body .attachment + .attachment {
+    border-top: 1px solid var(--border);
+  }
+  .post-body :is(.attachment-text, .unavailable-text) {
+    min-width: 0;
+    flex: 1;
+  }
   .post-body :is(.attachment-icon, .unavailable-icon) {
     display: grid;
     flex: none;
@@ -138,7 +179,11 @@
     border-radius: var(--radius);
     background: color-mix(in srgb, var(--card) 55%, transparent);
   }
-  .post-body .unavailable-link { display: inline-block; margin-top: 2px; font-size: 12px; }
+  .post-body .unavailable-link {
+    display: inline-block;
+    margin-top: 2px;
+    font-size: 12px;
+  }
 
   .post-body .removed-media {
     margin-top: 2.5rem;
@@ -161,7 +206,18 @@
     color: var(--muted-foreground);
     font-size: 12.5px;
   }
-  .post-body .resume-note button { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
-  .post-body .playback-save-error { margin: 0.4rem 0.9rem; color: var(--destructive); font-size: 12.5px; }
-  .post-body mark.search-hit[data-current] { background: var(--primary); color: var(--primary-foreground); }
+  .post-body .resume-note button {
+    color: var(--primary);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .post-body .playback-save-error {
+    margin: 0.4rem 0.9rem;
+    color: var(--destructive);
+    font-size: 12.5px;
+  }
+  .post-body mark.search-hit[data-current] {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
 }

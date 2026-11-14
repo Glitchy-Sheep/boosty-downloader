@@ -35,17 +35,19 @@ export function attachPostPlayback(
 
   const observeSave = (request: Promise<void>): void => {
     const revision = ++latestSave
-    void request.then(() => {
-      if (!active || revision !== latestSave) return
-      errorNote?.remove()
-      errorNote = undefined
-    }).catch(() => {
-      if (!active || revision !== latestSave || errorNote) return
-      errorNote = generatedNote('playback-save-error')
-      errorNote.setAttribute('role', 'status')
-      errorNote.textContent = 'Playback position could not be saved.'
-      element.after(errorNote)
-    })
+    void request
+      .then(() => {
+        if (!active || revision !== latestSave) return
+        errorNote?.remove()
+        errorNote = undefined
+      })
+      .catch(() => {
+        if (!active || revision !== latestSave || errorNote) return
+        errorNote = generatedNote('playback-save-error')
+        errorNote.setAttribute('role', 'status')
+        errorNote.textContent = 'Playback position could not be saved.'
+        element.after(errorNote)
+      })
   }
 
   const save = (): void => {

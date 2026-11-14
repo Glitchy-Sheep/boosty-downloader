@@ -8,7 +8,8 @@ test('names the library and its current page without claiming any library data',
 
   expect(screen.getByRole('link', { name: 'Boosty Library' })).toHaveAttribute('href', '/')
   const navigation = screen.getByRole('navigation', { name: 'Library' })
-  expect(within(navigation).getByRole('link', { name: 'Authors', current: 'page' }))
-    .toHaveAttribute('href', '/')
+  expect(
+    within(navigation).getByRole('link', { name: 'Authors', current: 'page' }),
+  ).toHaveAttribute('href', '/')
   expect(screen.getByRole('main', { name: 'Authors' })).toBeEmptyDOMElement()
 })

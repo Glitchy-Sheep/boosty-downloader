@@ -1,9 +1,26 @@
 import type { QueryClient } from '@tanstack/react-query'
-import { createRootRouteWithContext, createRoute, createRouter, redirect } from '@tanstack/react-router'
+import {
+  createRootRouteWithContext,
+  createRoute,
+  createRouter,
+  redirect,
+} from '@tanstack/react-router'
 import type { RouterHistory } from '@tanstack/react-router'
 
-import { AuthorsScreen, LoadError, LoadingAuthors, NotFound, ViewerShell } from '@/components/route-screens'
-import { EmptyPostList, LoadingAuthor, LoadingPost, PostsScreen, SelectedPost } from '@/components/posts-screen'
+import {
+  AuthorsScreen,
+  LoadError,
+  LoadingAuthors,
+  NotFound,
+  ViewerShell,
+} from '@/components/route-screens'
+import {
+  EmptyPostList,
+  LoadingAuthor,
+  LoadingPost,
+  PostsScreen,
+  SelectedPost,
+} from '@/components/posts-screen'
 import { parseFilters } from '@/lib/filters'
 import { authorQuery, authorsQuery, postQuery, postsQuery } from '@/lib/queries'
 import { parseViewerSearch, stringifyViewerSearch } from '@/lib/url-search'
@@ -49,7 +66,12 @@ const postsIndexRoute = createRoute({
     const posts = await context.queryClient.ensureQueryData(postsQuery(params.author, deps))
     const first = posts.rows[0]
     if (!first) return
-    throw redirect({ to: '/a/$author/p/$postId', params: { author: params.author, postId: first.id }, search: deps, replace: true })
+    throw redirect({
+      to: '/a/$author/p/$postId',
+      params: { author: params.author, postId: first.id },
+      search: deps,
+      replace: true,
+    })
   },
   component: EmptyPostList,
   pendingComponent: LoadingPost,
@@ -59,7 +81,8 @@ const postsIndexRoute = createRoute({
 const postRoute = createRoute({
   getParentRoute: () => postsRoute,
   path: '/p/$postId',
-  loader: ({ context, params }) => context.queryClient.ensureQueryData(postQuery(params.author, params.postId)),
+  loader: ({ context, params }) =>
+    context.queryClient.ensureQueryData(postQuery(params.author, params.postId)),
   component: SelectedPost,
   pendingComponent: LoadingPost,
   errorComponent: LoadError,

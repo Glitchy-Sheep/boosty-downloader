@@ -13,9 +13,9 @@ export function useFavorite(author: string, postId: string) {
   const mutationKey = [FAVORITE_MUTATION, author, postId]
   const states = useMutationState({
     filters: { mutationKey, exact: true },
-    select: value => ({ status: value.state.status, error: value.state.error?.message ?? null }),
+    select: (value) => ({ status: value.state.status, error: value.state.error?.message ?? null }),
   })
-  const pending = states.some(state => state.status === 'pending')
+  const pending = states.some((state) => state.status === 'pending')
   const mutation = useMutation({
     mutationKey,
     // Author totals must not overtake another pending favorite response.
@@ -30,7 +30,13 @@ export function useFavorite(author: string, postId: string) {
       ])
       return applyFavorite(client, { author, postId, ...request })
     },
-    onSuccess: result => acceptFavorite(client, author, result, client.isMutating({ mutationKey: [FAVORITE_MUTATION, author] }) === 1),
+    onSuccess: (result) =>
+      acceptFavorite(
+        client,
+        author,
+        result,
+        client.isMutating({ mutationKey: [FAVORITE_MUTATION, author] }) === 1,
+      ),
     onError: (_error, _request, change) => {
       if (change) rollbackFavorite(client, change)
     },

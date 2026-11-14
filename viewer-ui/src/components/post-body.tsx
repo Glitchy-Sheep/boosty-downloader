@@ -19,9 +19,21 @@ type PostBodyProps = {
 }
 
 /** Search and playback decorate the saved HTML without replacing its player elements. */
-export function PostBody({ author, postId, html, media, query, onClearSearch, savePosition, onNavigate }: PostBodyProps) {
+export function PostBody({
+  author,
+  postId,
+  html,
+  media,
+  query,
+  onClearSearch,
+  savePosition,
+  onNavigate,
+}: PostBodyProps) {
   const rootRef = useRef<HTMLDivElement>(null)
-  const [search, setSearch] = useState<{ revision: number; hits: SearchHit[] }>({ revision: 0, hits: [] })
+  const [search, setSearch] = useState<{ revision: number; hits: SearchHit[] }>({
+    revision: 0,
+    hits: [],
+  })
   const [images, setImages] = useState<PostImage[]>([])
   const [imageIndex, setImageIndex] = useState<number | null>(null)
 
@@ -30,8 +42,12 @@ export function PostBody({ author, postId, html, media, query, onClearSearch, sa
     if (!root) return
     preparePostLinks(root)
     const gallery = Array.from(root.querySelectorAll<HTMLImageElement>('img'))
-      .filter(image => !image.closest('video, audio, a, button'))
-      .map((image, index) => ({ src: image.src, alt: image.alt.trim() || `Image ${index + 1}`, trigger: image }))
+      .filter((image) => !image.closest('video, audio, a, button'))
+      .map((image, index) => ({
+        src: image.src,
+        alt: image.alt.trim() || `Image ${index + 1}`,
+        trigger: image,
+      }))
     setImages(gallery)
     setImageIndex(null)
     for (const image of gallery) {
@@ -41,7 +57,7 @@ export function PostBody({ author, postId, html, media, query, onClearSearch, sa
       image.trigger.setAttribute('aria-label', `Open image: ${image.alt}`)
     }
     const open = (target: EventTarget | null) => {
-      const index = gallery.findIndex(image => image.trigger === target)
+      const index = gallery.findIndex((image) => image.trigger === target)
       if (index < 0) return false
       setImageIndex(index)
       return true
@@ -67,7 +83,7 @@ export function PostBody({ author, postId, html, media, query, onClearSearch, sa
     const root = rootRef.current
     if (!root) return
     const hits = markHits(root, searchWords(query))
-    setSearch(previous => ({ revision: previous.revision + 1, hits }))
+    setSearch((previous) => ({ revision: previous.revision + 1, hits }))
     return () => unmarkHits(root)
   }, [html, query, author, postId])
 
@@ -88,15 +104,28 @@ export function PostBody({ author, postId, html, media, query, onClearSearch, sa
 
   return (
     <>
-      {searchWords(query).length > 0 && <HitsBar key={search.revision} hits={search.hits} onClear={onClearSearch} />}
+      {searchWords(query).length > 0 && (
+        <HitsBar key={search.revision} hits={search.hits} onClear={onClearSearch} />
+      )}
       {!html.trim() && <p className="text-muted-foreground">This post has no text or media.</p>}
       <SavedHtml html={html} rootRef={rootRef} />
-      <PostImageViewer images={images} index={imageIndex} onShow={setImageIndex} onClose={() => setImageIndex(null)} />
+      <PostImageViewer
+        images={images}
+        index={imageIndex}
+        onShow={setImageIndex}
+        onClose={() => setImageIndex(null)}
+      />
     </>
   )
 }
 
-const SavedHtml = memo(function SavedHtml({ html, rootRef }: { html: string; rootRef: RefObject<HTMLDivElement | null> }) {
+const SavedHtml = memo(function SavedHtml({
+  html,
+  rootRef,
+}: {
+  html: string
+  rootRef: RefObject<HTMLDivElement | null>
+}) {
   return <div ref={rootRef} className="post-body" dangerouslySetInnerHTML={{ __html: html }} />
 })
 
@@ -107,18 +136,52 @@ function HitsBar({ hits, onClear }: { hits: SearchHit[]; onClear: () => void }) 
     if (!current) return
     for (const mark of current.marks) mark.setAttribute('data-current', '')
     current.marks[0]?.scrollIntoView({ block: 'center' })
-    return () => { for (const mark of current.marks) mark.removeAttribute('data-current') }
+    return () => {
+      for (const mark of current.marks) mark.removeAttribute('data-current')
+    }
   }, [hits, index])
-  const label = hits.length ? `Match ${index + 1} of ${hits.length} in the text` : 'No matches in the text'
-  const buttonClass = 'grid size-8 shrink-0 place-items-center rounded-md outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-35'
+  const label = hits.length
+    ? `Match ${index + 1} of ${hits.length} in the text`
+    : 'No matches in the text'
+  const buttonClass =
+    'grid size-8 shrink-0 place-items-center rounded-md outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-35'
   return (
-    <div role="search" aria-label="Search in this post" className="sticky top-2 z-20 mb-5 flex items-center gap-2 rounded-lg border bg-popover/95 px-3 py-1.5 text-[12.5px] text-muted-foreground shadow-sm backdrop-blur">
+    <div
+      role="search"
+      aria-label="Search in this post"
+      className="sticky top-2 z-20 mb-5 flex items-center gap-2 rounded-lg border bg-popover/95 px-3 py-1.5 text-[12.5px] text-muted-foreground shadow-sm backdrop-blur"
+    >
       <Search aria-hidden="true" className="size-3.5 shrink-0" />
-      <span aria-live="polite" className="tabular-nums">{label}</span>
+      <span aria-live="polite" className="tabular-nums">
+        {label}
+      </span>
       <div className="ml-auto flex items-center">
-        <button type="button" aria-label="Previous match" disabled={index <= 0} onClick={() => setIndex(index - 1)} className={buttonClass}><ChevronUp aria-hidden="true" className="size-4" /></button>
-        <button type="button" aria-label="Next match" disabled={index >= hits.length - 1} onClick={() => setIndex(index + 1)} className={buttonClass}><ChevronDown aria-hidden="true" className="size-4" /></button>
-        <button type="button" aria-label="Clear search in this post" onClick={onClear} className={buttonClass}><X aria-hidden="true" className="size-3.5" /></button>
+        <button
+          type="button"
+          aria-label="Previous match"
+          disabled={index <= 0}
+          onClick={() => setIndex(index - 1)}
+          className={buttonClass}
+        >
+          <ChevronUp aria-hidden="true" className="size-4" />
+        </button>
+        <button
+          type="button"
+          aria-label="Next match"
+          disabled={index >= hits.length - 1}
+          onClick={() => setIndex(index + 1)}
+          className={buttonClass}
+        >
+          <ChevronDown aria-hidden="true" className="size-4" />
+        </button>
+        <button
+          type="button"
+          aria-label="Clear search in this post"
+          onClick={onClear}
+          className={buttonClass}
+        >
+          <X aria-hidden="true" className="size-3.5" />
+        </button>
       </div>
     </div>
   )

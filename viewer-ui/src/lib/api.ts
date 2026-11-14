@@ -1,4 +1,14 @@
-import type { Author, ErrorBody, FavoriteMarkRequest, MarkResult, MediaItem, PositionRequest, PostDetail, PostList, TagCount } from '@/lib/api.gen'
+import type {
+  Author,
+  ErrorBody,
+  FavoriteMarkRequest,
+  MarkResult,
+  MediaItem,
+  PositionRequest,
+  PostDetail,
+  PostList,
+  TagCount,
+} from '@/lib/api.gen'
 import { filtersSearchParams, type Filters } from '@/lib/filters'
 
 export class ApiError extends Error {
@@ -46,7 +56,11 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   return response.json() as Promise<T>
 }
 
-async function putJson<T>(url: string, body: FavoriteMarkRequest | PositionRequest, keepalive = false): Promise<T> {
+async function putJson<T>(
+  url: string,
+  body: FavoriteMarkRequest | PositionRequest,
+  keepalive = false,
+): Promise<T> {
   const response = await fetch(url, {
     method: 'PUT',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
@@ -69,7 +83,11 @@ export function getAuthor(author: string, signal?: AbortSignal): Promise<Author>
   return getJson(authorPath(author), signal)
 }
 
-export function getPosts(author: string, filters: Filters, signal?: AbortSignal): Promise<PostList> {
+export function getPosts(
+  author: string,
+  filters: Filters,
+  signal?: AbortSignal,
+): Promise<PostList> {
   const query = filtersSearchParams(filters).toString()
   const suffix = query ? `?${query}` : ''
   return getJson(`${authorPath(author)}/posts${suffix}`, signal)
@@ -83,13 +101,30 @@ export function getTags(author: string, signal?: AbortSignal): Promise<TagCount[
   return getJson(`${authorPath(author)}/tags`, signal)
 }
 
-export function setFavorite(author: string, postId: string, favorite: boolean): Promise<MarkResult> {
+export function setFavorite(
+  author: string,
+  postId: string,
+  favorite: boolean,
+): Promise<MarkResult> {
   return putJson(`${authorPath(author)}/posts/${encodeURIComponent(postId)}/marks`, { favorite })
 }
 
-export function savePlaybackPosition(author: string, mediaId: string, position: PositionRequest, keepalive: boolean): Promise<MediaItem> {
-  if (![position.seconds, position.duration].every(value => Number.isFinite(value) && value >= 0)) {
-    return Promise.reject(new Error('Playback position and duration must be finite, nonnegative seconds.'))
+export function savePlaybackPosition(
+  author: string,
+  mediaId: string,
+  position: PositionRequest,
+  keepalive: boolean,
+): Promise<MediaItem> {
+  if (
+    ![position.seconds, position.duration].every((value) => Number.isFinite(value) && value >= 0)
+  ) {
+    return Promise.reject(
+      new Error('Playback position and duration must be finite, nonnegative seconds.'),
+    )
   }
-  return putJson(`${authorPath(author)}/media/${encodeURIComponent(mediaId)}/position`, position, keepalive)
+  return putJson(
+    `${authorPath(author)}/media/${encodeURIComponent(mediaId)}/position`,
+    position,
+    keepalive,
+  )
 }

@@ -15,12 +15,15 @@ async function compressDirectory(directory) {
       const content = await readFile(path)
       await Promise.all([
         writeFile(`${path}.gz`, gzipSync(content, { level: 9 })),
-        writeFile(`${path}.br`, brotliCompressSync(content, {
-          params: {
-            [constants.BROTLI_PARAM_MODE]: constants.BROTLI_MODE_TEXT,
-            [constants.BROTLI_PARAM_QUALITY]: 11,
-          },
-        })),
+        writeFile(
+          `${path}.br`,
+          brotliCompressSync(content, {
+            params: {
+              [constants.BROTLI_PARAM_MODE]: constants.BROTLI_MODE_TEXT,
+              [constants.BROTLI_PARAM_QUALITY]: 11,
+            },
+          }),
+        ),
       ])
     }
   }

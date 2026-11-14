@@ -19,7 +19,12 @@ type StorageLook = {
   fill: string
 }
 
-const STORAGE_KINDS = ['videos', 'images', 'files', 'audio'] as const satisfies readonly StorageKind[]
+const STORAGE_KINDS = [
+  'videos',
+  'images',
+  'files',
+  'audio',
+] as const satisfies readonly StorageKind[]
 
 /** Storage colors follow the media kinds; the file color stays visible on white cards. */
 export const STORAGE_LOOKS: Readonly<Record<StorageKind, StorageLook>> = {

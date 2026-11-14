@@ -26,10 +26,13 @@ const SIZE_CASES: SizeCase[] = [
 afterEach(() => vi.unstubAllGlobals())
 
 describe('formatSize', () => {
-  test.each(SIZE_CASES)('formats $bytes bytes at both device bases', ({ bytes, decimal, binary }) => {
-    expect(formatSize(bytes, 1000)).toBe(decimal)
-    expect(formatSize(bytes, 1024)).toBe(binary)
-  })
+  test.each(SIZE_CASES)(
+    'formats $bytes bytes at both device bases',
+    ({ bytes, decimal, binary }) => {
+      expect(formatSize(bytes, 1000)).toBe(decimal)
+      expect(formatSize(bytes, 1024)).toBe(binary)
+    },
+  )
 
   test('distinguishes a known empty file from an unknown size', () => {
     expect(formatSize(0, 1000)).toBe('0 B')
@@ -57,9 +60,12 @@ describe('deviceSizeBase', () => {
     expect(deviceSizeBase('Mozilla/5.0 (Windows NT 10.0; Win64; x64)')).toBe(1024)
   })
 
-  test.each(['Macintosh', 'Linux', 'iPhone', 'Android', ''])('uses decimal units for %s', (userAgent) => {
-    expect(deviceSizeBase(userAgent)).toBe(1000)
-  })
+  test.each(['Macintosh', 'Linux', 'iPhone', 'Android', ''])(
+    'uses decimal units for %s',
+    (userAgent) => {
+      expect(deviceSizeBase(userAgent)).toBe(1000)
+    },
+  )
 
   test('works without a browser navigator', () => {
     vi.stubGlobal('navigator', undefined)

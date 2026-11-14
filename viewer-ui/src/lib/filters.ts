@@ -32,7 +32,7 @@ function text(value: unknown): string | undefined {
 export function parseFilters(search: Record<string, unknown>): Filters {
   return {
     q: text(search.q),
-    kind: KINDS.find(kind => kind === search.kind),
+    kind: KINDS.find((kind) => kind === search.kind),
     unseen: flag(search.unseen),
     fav: flag(search.fav),
     tag: text(search.tag),
@@ -55,8 +55,16 @@ export const NO_FILTERS: Filters = {
 }
 
 export function hasFilters(filters: Filters): boolean {
-  return Boolean(filters.q || filters.kind || filters.unseen || filters.fav
-    || filters.tag || filters.locked || filters.incomplete || filters.order)
+  return Boolean(
+    filters.q ||
+    filters.kind ||
+    filters.unseen ||
+    filters.fav ||
+    filters.tag ||
+    filters.locked ||
+    filters.incomplete ||
+    filters.order,
+  )
 }
 
 /** Supply every generated API field for stable query keys and request behavior. */

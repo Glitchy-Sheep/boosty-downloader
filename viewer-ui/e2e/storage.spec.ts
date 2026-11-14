@@ -1,7 +1,18 @@
-import { actualAuthors, checkStorage, EMPTY_STORAGE, expect, openAuthors, storage, test } from './fixtures'
+import {
+  actualAuthors,
+  checkStorage,
+  EMPTY_STORAGE,
+  expect,
+  openAuthors,
+  storage,
+  test,
+} from './fixtures'
 
 test('zero, single-kind and single-author storage have truthful summaries', async ({ page }) => {
-  const authors = (await actualAuthors(page)).map(author => ({ ...author, storage: { ...EMPTY_STORAGE } }))
+  const authors = (await actualAuthors(page)).map((author) => ({
+    ...author,
+    storage: { ...EMPTY_STORAGE },
+  }))
   await openAuthors(page, authors)
   await expect(storage(page)).toHaveCount(0)
   await expect(page.locator('[data-storage-bar]')).toHaveCount(0)
@@ -20,12 +31,23 @@ test('zero, single-kind and single-author storage have truthful summaries', asyn
 })
 
 test('tiny media kinds remain visible without changing the other proportions', async ({ page }) => {
-  const authors = (await actualAuthors(page)).map(author => ({ ...author, storage: {
-    videos: 900_000_000, images: 100_000_000, audio: 1, files: 1,
-  } }))
+  const authors = (await actualAuthors(page)).map((author) => ({
+    ...author,
+    storage: {
+      videos: 900_000_000,
+      images: 100_000_000,
+      audio: 1,
+      files: 1,
+    },
+  }))
   await page.setViewportSize({ width: 360, height: 1000 })
   await openAuthors(page, authors)
-  await checkStorage(storage(page), { videos: 2_700_000_000, images: 300_000_000, audio: 3, files: 3 })
+  await checkStorage(storage(page), {
+    videos: 2_700_000_000,
+    images: 300_000_000,
+    audio: 3,
+    files: 3,
+  })
   for (const author of authors) await checkStorage(storage(page, author), author.storage)
 })
 
@@ -53,12 +75,18 @@ for (const platform of [
     test('units follow the browser platform at rounding boundaries', async ({ page }) => {
       const [template] = await actualAuthors(page)
       const authors = boundaries.map((boundary, index) => ({
-        ...template, name: `boundary-${index}`, title: `Boundary ${index}`,
-        avatar_url: null, cover_url: null, storage: { ...EMPTY_STORAGE, images: boundary.bytes },
+        ...template,
+        name: `boundary-${index}`,
+        title: `Boundary ${index}`,
+        avatar_url: null,
+        cover_url: null,
+        storage: { ...EMPTY_STORAGE, images: boundary.bytes },
       }))
       await openAuthors(page, authors)
       for (const [index, author] of authors.entries()) {
-        await expect(storage(page, author).locator('p')).toHaveText(`${boundaries[index][platform.name]} of photos on disk`)
+        await expect(storage(page, author).locator('p')).toHaveText(
+          `${boundaries[index][platform.name]} of photos on disk`,
+        )
       }
     })
   })

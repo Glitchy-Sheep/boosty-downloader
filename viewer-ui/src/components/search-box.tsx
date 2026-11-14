@@ -11,7 +11,12 @@ type SearchBoxProps = {
 }
 
 /** Search follows the URL, publishing new text after typing pauses. */
-export function SearchBox({ value, onSearch, resetRevision = 0, navigationRevision = 0 }: SearchBoxProps) {
+export function SearchBox({
+  value,
+  onSearch,
+  resetRevision = 0,
+  navigationRevision = 0,
+}: SearchBoxProps) {
   const input = useRef<HTMLInputElement>(null)
   const [text, setText] = useState(value)
   const sent = useRef(value)
@@ -42,12 +47,15 @@ export function SearchBox({ value, onSearch, resetRevision = 0, navigationRevisi
 
   return (
     <div className="relative">
-      <Search aria-hidden="true" className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+      <Search
+        aria-hidden="true"
+        className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+      />
       <input
         ref={input}
         value={text}
-        onChange={event => setText(event.target.value)}
-        onKeyDown={event => {
+        onChange={(event) => setText(event.target.value)}
+        onKeyDown={(event) => {
           if (event.key !== 'Escape') return
           if (text) setText('')
           else event.currentTarget.blur()
@@ -60,7 +68,10 @@ export function SearchBox({ value, onSearch, resetRevision = 0, navigationRevisi
         <button
           type="button"
           aria-label="Clear the search"
-          onClick={() => { setText(''); input.current?.focus() }}
+          onClick={() => {
+            setText('')
+            input.current?.focus()
+          }}
           className="absolute top-1/2 right-2 grid size-5 -translate-y-1/2 place-items-center rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <X aria-hidden="true" className="size-3.5" />
