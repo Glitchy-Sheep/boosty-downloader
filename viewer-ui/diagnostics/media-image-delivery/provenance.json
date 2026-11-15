@@ -1,0 +1,52 @@
+{
+  "sourceHead": "260f011fa263e6bbd365fa32dcb6d9241a2ac09e",
+  "caseTitle": "slow Media moves its pill immediately and disables the outgoing post before the response",
+  "caseSha256": "d42faaaf32fd803f3b029af7dd5a85dcb96a2240ee035440996ce2168110d6a7",
+  "files": {
+    "viewer-ui/e2e/media-tabs.spec.ts": "b129305d0dbb890b3d07d9157015e523e09f9cfe0e7fa1a0d2a85dd9723e521a",
+    "viewer-ui/e2e/media-switch-recording.ts": "ab65f5521cfd7456df3130af50ae11dde0b6d1f997a16399eee77b6f43e3eeb3",
+    "viewer-ui/e2e/media-frames.ts": "42db16f305df5a45e8a43bea1d8b662441a5def805fbf011fe16cc69623ba72f",
+    "viewer-ui/src/components/author-shell.css": "d6375154b542dea199b7dcd6b72aa3bde7b0e605ffa55d2a98777a6672bab7b4",
+    "scripts/viewer_media_e2e_sample.py": "ae21c5676ca8f6f7a45c19bd4baa1649df3b56de2176a90c6b9139db6e588c4c",
+    "boosty_downloader/viewer/static/app/assets/index-BqsgoXC0.css": "5887179b5676a7f5b4675dfadc1a8681997f018600169287d4f7dd1f4a13c109",
+    "boosty_downloader/viewer/static/app/assets/index-BqsgoXC0.css.br": "15e5a9a7ebf7ade88e9958421f8f04effffb5668358f3288c74f0081f87b7192",
+    "boosty_downloader/viewer/static/app/assets/index-BqsgoXC0.css.gz": "f135567adfe6ed9f53bdab6b1e28163492fcb7ddcc80fb521a1b54d677b83693",
+    "boosty_downloader/viewer/static/app/assets/index-DHGER87K.js": "ca5a929e638cee2302fcfe515375d9860a975157bcedef92fcd6c65007bfa694",
+    "boosty_downloader/viewer/static/app/assets/index-DHGER87K.js.br": "f9eb7acdd57a2711dcb0819bc3ceb9429500013dc25e63bb35923c47760392f8",
+    "boosty_downloader/viewer/static/app/assets/index-DHGER87K.js.gz": "7d21ee9d2d8b11b8fa311312a707c4086774fcecd60cd391e2f9126a84a2ddfd",
+    "viewer-ui/e2e/media-fixtures.ts": "e272154005cbfd8c11b3ab753c54da332c5ab98d606579a74e0f53da668f5a83",
+    "viewer-ui/e2e/browser-fixture.ts": "acbef5419723588392b7ea2b7f16446574dbe11ade87bbe74a98e9c9615a8a62",
+    "viewer-ui/e2e/browser-diagnostics.ts": "9122857b168de2e107d650fc1b0f56b483cbc2b1b2f1c3be5a09aa06ccc5e912",
+    "viewer-ui/playwright.config.ts": "48fbb0fe44acdf89efc06f1e97e8e7116de4dae0ff5504d2025ddc32ba2c206b",
+    "scripts/library_sample/photo_png.py": "4f72314221c9b4078c938c8911ec4147fc9a2d97d9cf67917bb20f2dff35f809",
+    "viewer-ui/package-lock.json": "9693c29069512d204cd08b770e180c2d05f878daf4d4d7d32923f7f4b5143f8a",
+    ".github/workflows/ci.yaml": "15deb9162a4adbd3559f0c9d5bcf6034f53c782ba72264245d5b2b79ed821fbd"
+  },
+  "originalImages": [
+    {
+      "suffix": "/media/Photo 02 B !'() # 100%25.png",
+      "bytes": 4532573,
+      "sha256": "61355e812844767fa1277e2279fd6b1f38ad02ebee26f631a6ee75d008d82575"
+    },
+    {
+      "suffix": "/media/Photo 03 B !'() # 100%25.png",
+      "bytes": 4532573,
+      "sha256": "61355e812844767fa1277e2279fd6b1f38ad02ebee26f631a6ee75d008d82575"
+    },
+    {
+      "suffix": "/media/Photo 04 B !'() # 100%25.png",
+      "bytes": 4532573,
+      "sha256": "61355e812844767fa1277e2279fd6b1f38ad02ebee26f631a6ee75d008d82575"
+    },
+    {
+      "suffix": "/media/Photo 05 B !'() # 100%25.png",
+      "bytes": 4532573,
+      "sha256": "61355e812844767fa1277e2279fd6b1f38ad02ebee26f631a6ee75d008d82575"
+    },
+    {
+      "suffix": "/media/Photo 06 B !'() # 100%25.png",
+      "bytes": 4532573,
+      "sha256": "61355e812844767fa1277e2279fd6b1f38ad02ebee26f631a6ee75d008d82575"
+    }
+  ]
+}
