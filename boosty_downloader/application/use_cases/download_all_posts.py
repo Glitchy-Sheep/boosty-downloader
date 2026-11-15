@@ -1,9 +1,10 @@
 """Implements the use case for downloading all posts from a Boosty author, applying filters and caching as needed."""
 
-from pathlib import Path
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
-from boosty_downloader.application.download_context import DownloadContext
+from boosty_downloader.application.author_sync import refresh_author
 from boosty_downloader.application.exceptions.application_errors import (
     ApplicationTooManyFailuresError,
 )
@@ -12,9 +13,6 @@ from boosty_downloader.application.filtering import has_excluded_tag
 from boosty_downloader.application.post_retry import (
     PostDownloadRetrier,
     PostOutcome,
-)
-from boosty_downloader.infrastructure.boosty_api.core.client import (
-    BoostyAPIClient,
 )
 from boosty_downloader.infrastructure.boosty_api.models.unknown_content import (
     UnknownContent,
@@ -31,6 +29,11 @@ from boosty_downloader.infrastructure.boosty_api.utils.validation_errors import 
 CONSECUTIVE_FAILURES_LIMIT = 5
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
+    from boosty_downloader.application.download_context import DownloadContext
+    from boosty_downloader.infrastructure.boosty_api.core.client import BoostyAPIClient
+    from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
     from boosty_downloader.infrastructure.boosty_api.models.post.posts_request import (
         PostsResponse,
         SkippedPost,
@@ -71,8 +74,8 @@ class DownloadAllPostUseCase:
 
     def _note_page_anomalies(
         self,
-        page: 'PostsResponse',
-        all_skipped: list['SkippedPost'],
+        page: PostsResponse,
+        all_skipped: list[SkippedPost],
         unknown_content: set[UnknownContent],
     ) -> None:
         """Warn about skipped posts and collect everything unknown for the summary."""
@@ -83,6 +86,7 @@ class DownloadAllPostUseCase:
             self.context.progress_reporter.warn(format_skipped_post(skipped))
 
     async def execute(self) -> None:
+        await refresh_author(self.boosty_api, self.context)
         posts_iterator = self.boosty_api.iterate_over_posts(
             author_name=self.author_name
         )
@@ -111,30 +115,15 @@ class DownloadAllPostUseCase:
             )
 
             for post_dto in page.posts:
-                if has_excluded_tag(
-                    (tag.title for tag in post_dto.tags or ()),
-                    self.context.excluded_tags,
-                ):
-                    self.context.progress_reporter.info(
-                        f'Skip post (excluded tag): {post_dto.title}'
-                    )
-                    self.context.run_statistics.posts_without_content += 1
-                    self.context.progress_reporter.update_task(page_task_id, advance=1)
-                    continue
-                if not post_dto.has_access:
-                    self.context.progress_reporter.warn(
-                        f'Skip post ([red]no access to content[/red]): {post_dto.title}'
-                    )
-                    self.context.run_statistics.posts_locked += 1
-                    continue
-
                 self.context.progress_reporter.update_task(
                     page_task_id,
                     advance=1,
                     description=f'Processing page [bold]{current_page}[/bold]',
                 )
 
-                outcome = await self._post_retrier.download(post_dto, failed_posts)
+                outcome = await self._download_or_skip(post_dto, failed_posts)
+                if outcome is None:
+                    continue
                 if outcome is PostOutcome.downloaded:
                     processed_ok += 1
                     breaker.record_success()
@@ -158,6 +147,27 @@ class DownloadAllPostUseCase:
 
         self._print_run_summary(all_skipped, unknown_content, failed_posts)
 
+    async def _download_or_skip(
+        self, post: PostDTO, failed_posts: list[str]
+    ) -> PostOutcome | None:
+        if not await self._post_retrier.observe_access(post, failed_posts):
+            return PostOutcome.failed
+        if has_excluded_tag(
+            (tag.title for tag in post.tags or ()), self.context.excluded_tags
+        ):
+            self.context.progress_reporter.info(
+                f'Skip post (excluded tag): {post.title}'
+            )
+            self.context.run_statistics.posts_without_content += 1
+            return None
+        if not post.has_access:
+            self.context.progress_reporter.warn(
+                f'Skip post ([red]no access to content[/red]): {post.title}'
+            )
+            self.context.run_statistics.posts_locked += 1
+            return None
+        return await self._post_retrier.download(post, failed_posts)
+
     def _report_systemic_stop(self, processed_ok: int) -> None:
         self.context.progress_reporter.error(
             f'Stopped: {CONSECUTIVE_FAILURES_LIMIT} posts in a row failed - '
@@ -166,12 +176,12 @@ class DownloadAllPostUseCase:
             f'Posts processed before stopping: {processed_ok}. '
             'Details: failed_downloads.log\n'
             'Fix the cause and run the same command again - '
-            'downloaded posts are cached and will be skipped in seconds.'
+            'completed media remains saved and will not be downloaded again.'
         )
 
     def _print_run_summary(
         self,
-        all_skipped: 'list[SkippedPost]',
+        all_skipped: list[SkippedPost],
         unknown_content: set[UnknownContent],
         failed_posts: list[str],
     ) -> None:

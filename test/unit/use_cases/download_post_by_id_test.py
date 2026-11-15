@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 import pytest
+from support.memory_post_store import MemoryPostStore
 
 from boosty_downloader.application import post_retry as post_retry_module
 from boosty_downloader.application.download_context import DownloadContext
@@ -27,6 +28,7 @@ from boosty_downloader.infrastructure.boosty_api.core.client import (
     BoostyAPINoPostError,
     BoostyAPIValidationError,
 )
+from boosty_downloader.infrastructure.boosty_api.models.blog import BlogInfoDTO
 from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
 from boosty_downloader.infrastructure.boosty_api.models.post.post_overview import (
     PostTagDTO,
@@ -38,7 +40,6 @@ from boosty_downloader.infrastructure.file_downloader import (
 if TYPE_CHECKING:
     from aiohttp_retry import RetryClient
 
-    from boosty_downloader.application.ports import FailureLog, PostCache
     from boosty_downloader.infrastructure.boosty_api.core.client import (
         BoostyAPIClient,
     )
@@ -83,6 +84,14 @@ class _FakeReporter:
         self.errors.append(message)
 
 
+class _FakeFailureLog:
+    def __init__(self) -> None:
+        self.entries: dict[str, str] = {}
+
+    async def add_error(self, error_id: str, message: str) -> None:
+        self.entries[error_id] = message
+
+
 class _FakeApi:
     """Answers get_single_post with a prepared post or a prepared error."""
 
@@ -92,6 +101,10 @@ class _FakeApi:
         self._post = post
         self._error = error
         self.requests: list[tuple[str, str]] = []
+
+    async def get_blog_info(self, author_name: str) -> BlogInfoDTO:
+        del author_name
+        return BlogInfoDTO()
 
     async def get_single_post(self, author_name: str, post_id: str) -> PostDTO:
         self.requests.append((author_name, post_id))
@@ -118,11 +131,12 @@ def _use_case(api: _FakeApi, reporter: _FakeReporter) -> DownloadPostByIdUseCase
         author_name='author',
         downloader_session=cast('RetryClient', None),
         external_videos_downloader=cast('ExternalVideosDownloader', None),
-        post_cache=cast('PostCache', None),
+        post_store=MemoryPostStore(),
+        library_root=Path('unused'),
         filters=[],
         preferred_video_quality=BoostyOkVideoType.medium,
         progress_reporter=reporter,
-        failed_logger=cast('FailureLog', None),
+        failed_logger=_FakeFailureLog(),
     )
     return DownloadPostByIdUseCase(
         post_id=POST_UUID,
@@ -340,3 +354,26 @@ async def test_excluded_post_is_successfully_skipped_without_downloading(
         'Skip post (excluded tag): post' in message for message in reporter.infos
     )
     assert reporter.errors == []
+
+
+async def test_observation_failure_returns_failed_without_downloading(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reporter = _FakeReporter()
+    use_case = _use_case(_FakeApi(post=_post()), reporter)
+    calls = _script_download(monkeypatch)
+
+    def clear_locked(author: str, post_id: str) -> None:
+        del author, post_id
+        message = 'Observation cannot be saved'
+        raise OSError(message)
+
+    monkeypatch.setattr(use_case.context.post_store, 'clear_locked_post', clear_locked)
+    outcome = await use_case.execute()
+
+    assert outcome is PostOutcome.failed
+    assert calls == []
+    assert use_case.context.run_statistics.posts_failed == 1
+    assert any(
+        'Observation cannot be saved' in warning for warning in reporter.warnings
+    )

@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING
 from boosty_downloader.application.run_statistics import RunStatistics
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from aiohttp_retry import RetryClient
 
     from boosty_downloader.application.filtering import (
@@ -15,7 +17,7 @@ if TYPE_CHECKING:
     )
     from boosty_downloader.application.ports import (
         FailureLog,
-        PostCache,
+        PostStore,
         ProgressReporter,
     )
     from boosty_downloader.domain.content_types import DownloadContentTypeFilter
@@ -31,7 +33,8 @@ class DownloadContext:
     author_name: str
     downloader_session: RetryClient
     external_videos_downloader: ExternalVideosDownloader
-    post_cache: PostCache
+    post_store: PostStore
+    library_root: Path
     filters: list[DownloadContentTypeFilter]
     preferred_video_quality: BoostyOkVideoType
     progress_reporter: ProgressReporter
@@ -39,3 +42,4 @@ class DownloadContext:
     # Counters of this run, filled by the use cases and shown at the end.
     run_statistics: RunStatistics = field(default_factory=RunStatistics)
     excluded_tags: tuple[str, ...] = ()
+    restore_missing: bool = False

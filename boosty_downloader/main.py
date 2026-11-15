@@ -37,6 +37,7 @@ from boosty_downloader.infrastructure.boosty_api.utils.validation_errors import 
     format_validation_errors,
 )
 from boosty_downloader.infrastructure.loggers import logger_instances
+from boosty_downloader.infrastructure.loggers.debug_file import debug_logging
 from boosty_downloader.infrastructure.yaml_configuration.config import (
     DEFAULT_CONFIG_PATH,
 )
@@ -60,10 +61,12 @@ def _app_callback(  # pyright: ignore[reportUnusedFunction]
 
     Run [bold]boosty-downloader COMMAND --help[/bold] to see details about a specific command.
     """
-    ctx.obj = GlobalOptions(config_path=config)
+    ctx.obj = GlobalOptions(config_path=config, debug=_debug)
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
         raise typer.Exit
+    if ctx.invoked_subcommand != 'download':
+        ctx.with_resource(debug_logging(enabled=_debug))
 
 
 # Register all CLI commands

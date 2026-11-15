@@ -3,10 +3,13 @@
 from .models import (
     HtmlGenAudio,
     HtmlGenChunk,
+    HtmlGenDeleted,
     HtmlGenFile,
     HtmlGenImage,
     HtmlGenList,
     HtmlGenMedia,
+    HtmlGenNotDownloaded,
+    HtmlGenRemovedMedia,
     HtmlGenText,
     HtmlGenUnavailable,
     HtmlGenVideo,
@@ -16,15 +19,19 @@ from .models import (
     HtmlTextStyle,
     UnavailableKind,
 )
-from .renderer import render_html_to_file
+from .renderer import PAGE_TEMPLATE_VERSION, render_html_to_file
 
 __all__ = [
+    'PAGE_TEMPLATE_VERSION',
     'HtmlGenAudio',
     'HtmlGenChunk',
+    'HtmlGenDeleted',
     'HtmlGenFile',
     'HtmlGenImage',
     'HtmlGenList',
     'HtmlGenMedia',
+    'HtmlGenNotDownloaded',
+    'HtmlGenRemovedMedia',
     'HtmlGenText',
     'HtmlGenUnavailable',
     'HtmlGenVideo',

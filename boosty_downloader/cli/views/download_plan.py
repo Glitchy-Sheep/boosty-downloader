@@ -8,6 +8,7 @@ from rich.console import Group
 from rich.rule import Rule
 from rich.table import Table
 
+from boosty_downloader.application.blog_overview import MediaCounts
 from boosty_downloader.cli.views.media import media_table
 from boosty_downloader.cli.views.text import plural
 from boosty_downloader.infrastructure.human_readable_filesize import (
@@ -34,21 +35,17 @@ def render_download_plan(
         '[bold]Posts[/bold]',
         _posts_table(plan),
     ]
-    if plan.new_posts == 0 and plan.outdated_posts == 0:
-        message = (
-            'Nothing to download under the current filters.'
-            if plan.filtered_out_posts
-            else 'Nothing to download - everything is up to date.'
-        )
-        parts += ['', message]
-    else:
-        parts += [
-            '',
-            '[bold]Media to download[/bold]',
-            media_table(plan.media),
-            '',
-            _size_line(plan),
-        ]
+    parts += [
+        '',
+        '[bold]Media to download[/bold]',
+        media_table(plan.media),
+        '',
+        _size_line(plan),
+    ]
+    if plan.media == MediaCounts():
+        parts += ['', 'No media downloads planned.']
+    if plan.new_posts == 0 and plan.updated_posts == 0:
+        parts += ['', 'No changes under the selected content types.']
     parts.append(Rule(style='dim'))
     return Group(*parts)
 
@@ -57,11 +54,11 @@ def _posts_table(plan: DownloadPlan) -> Table:
     table = Table.grid(padding=(0, 2))
     table.add_column()
     table.add_column(justify='right', style='bold')
-    table.add_row('New', str(plan.new_posts))
-    table.add_row('Updated or partially downloaded', str(plan.outdated_posts))
-    table.add_row('Already complete', str(plan.complete_posts))
-    if plan.filtered_out_posts:
-        table.add_row('Nothing under these filters', str(plan.filtered_out_posts))
+    table.add_row('New records', str(plan.new_posts))
+    table.add_row('Existing posts to update', str(plan.updated_posts))
+    table.add_row('Existing posts unchanged', str(plan.unchanged_posts))
+    if plan.excluded_posts:
+        table.add_row('Excluded by tag', str(plan.excluded_posts))
     return table
 
 
