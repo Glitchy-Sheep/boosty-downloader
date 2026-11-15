@@ -7,6 +7,9 @@
 {% else %}
         <span class="unavailable-reason" data-page-generated="true">No reason recorded.</span>
 {% endif %}
+{% if duration is not none %}
+        <span class="unavailable-reason" data-page-generated="true">Duration: {{ duration }}</span>
+{% endif %}
 {% if item.source_url %}
         <a class="unavailable-link" href="{{ item.source_url }}">Open the original</a>
 {% endif %}

@@ -1,4 +1,4 @@
-"""CLI command: clean download cache for a user."""
+"""CLI command: remove a creator's legacy SQLite download cache."""
 
 # pyright: reportUnusedFunction=false
 from __future__ import annotations
@@ -38,8 +38,8 @@ def _clean_cache(
 
     def confirm() -> bool:
         return yes or typer.confirm(
-            f'Cache for {username} will be removed, '
-            'the next run downloads everything again. Continue?'
+            f'Legacy SQLite cache for {username} will be removed. '
+            'Saved post records and media will be kept. Continue?'
         )
 
     outcome = CleanCacheUseCase(
@@ -61,7 +61,7 @@ def register(app: typer.Typer) -> None:
 
     @app.command(
         'clean-cache',
-        short_help='Remove cached post data for a creator.',
+        short_help='Remove the legacy SQLite cache for a creator.',
     )
     def clean_cache_entrypoint(
         ctx: typer.Context,
@@ -71,11 +71,9 @@ def register(app: typer.Typer) -> None:
         yes: YesOption = False,
     ) -> None:
         """
-        Remove the posts cache for the selected username completely.
+        Remove the legacy SQLite cache for the selected username.
 
-        The cache is the only record of what was downloaded: after it is
-        removed, the next download run fetches every post again. The command
-        asks before removing; pass --yes to skip the question in scripts.
+        Downloads use saved post records; clearing this cache does not reset them or remove media. The command asks before removing; pass --yes to skip the question in scripts.
         """
         _clean_cache(
             username=username,

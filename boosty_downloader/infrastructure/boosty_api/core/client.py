@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from http import HTTPStatus
 from typing import TYPE_CHECKING, cast
 
-from aiohttp import ContentTypeError
+from aiohttp import ClientError, ContentTypeError
 from aiolimiter import AsyncLimiter
 from pydantic import ValidationError
 from yarl import URL
@@ -35,6 +36,10 @@ if TYPE_CHECKING:
 
 class BoostyAPIError(Exception):
     """Base class for all Boosty API related errors."""
+
+
+class BoostyAPITransportError(BoostyAPIError):
+    """Raised when a request or response cannot complete over the network."""
 
 
 class BoostyAPINoUsernameError(BoostyAPIError):
@@ -91,6 +96,33 @@ class BoostyAPIValidationError(BoostyAPIError):
     def __init__(self, errors: list[ErrorDetails]) -> None:
         super().__init__('Boosty API response validation error')
         self.errors = errors
+
+
+def _check_blog_status(response: ClientResponse, author_name: str) -> None:
+    if response.status == HTTPStatus.NOT_FOUND:
+        raise BoostyAPINoUsernameError(author_name)
+    if response.status == HTTPStatus.UNAUTHORIZED:
+        raise BoostyAPIUnauthorizedError
+    if response.status == HTTPStatus.BAD_REQUEST:
+        raise BoostyAPIInvalidUsernameError(author_name)
+    if response.status != HTTPStatus.OK:
+        raise BoostyAPIUnknownError(
+            response.status, f'Unexpected status code: {response.status}'
+        )
+
+
+async def _read_blog_info(response: ClientResponse, author_name: str) -> BlogInfoDTO:
+    _check_blog_status(response, author_name)
+    try:
+        data = await response.json()
+    except (ContentTypeError, json.JSONDecodeError) as error:
+        raise BoostyAPIUnknownError(
+            response.status, 'Non-JSON response from the API'
+        ) from error
+    try:
+        return BlogInfoDTO.model_validate(data)
+    except ValidationError as error:
+        raise BoostyAPIValidationError(errors=error.errors()) from error
 
 
 def _create_limiter(request_delay_seconds: float) -> AsyncLimiter | None:
@@ -150,27 +182,13 @@ class BoostyAPIClient:
 
     async def get_blog_info(self, author_name: str) -> BlogInfoDTO:
         """Read blog metadata, preserving valid fields when optional values are broken."""
-        response = await self._throttled_get(f'blog/{author_name}')
-        if response.status == HTTPStatus.NOT_FOUND:
-            raise BoostyAPINoUsernameError(author_name)
-        if response.status == HTTPStatus.UNAUTHORIZED:
-            raise BoostyAPIUnauthorizedError
-        if response.status == HTTPStatus.BAD_REQUEST:
-            raise BoostyAPIInvalidUsernameError(author_name)
-        if response.status != HTTPStatus.OK:
-            raise BoostyAPIUnknownError(
-                response.status, f'Unexpected status code: {response.status}'
-            )
         try:
-            data = await response.json()
-        except (ContentTypeError, json.JSONDecodeError) as error:
-            raise BoostyAPIUnknownError(
-                response.status, 'Non-JSON response from the API'
-            ) from error
-        try:
-            return BlogInfoDTO.model_validate(data)
-        except ValidationError as error:
-            raise BoostyAPIValidationError(errors=error.errors()) from error
+            response = await self._throttled_get(f'blog/{author_name}')
+            async with response:
+                return await _read_blog_info(response, author_name)
+        except (ClientError, asyncio.TimeoutError) as error:
+            message = 'Cannot read blog metadata from Boosty'
+            raise BoostyAPITransportError(message) from error
 
     async def get_author_posts(
         self,

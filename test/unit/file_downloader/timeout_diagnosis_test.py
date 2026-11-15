@@ -10,10 +10,11 @@ from aiohttp import SocketTimeoutError
 
 from boosty_downloader.infrastructure.file_downloader import (
     DownloadConnectionError,
-    DownloadFileConfig,
     DownloadTimeoutError,
-    download_file,
+    ReservedDownloadFileConfig,
+    download_reserved_file,
 )
+from boosty_downloader.infrastructure.media_transfer import MediaTarget
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -69,12 +70,14 @@ class _FakeSession:
         return _FakeRequestContext(self._response)
 
 
-def _config(error: BaseException, destination: Path) -> DownloadFileConfig:
-    return DownloadFileConfig(
+def _config(error: BaseException, destination: Path) -> ReservedDownloadFileConfig:
+    return ReservedDownloadFileConfig(
         session=cast('RetryClient', _FakeSession(_FakeResponse(error))),
         url=URL,
         filename='clip.mp4',
-        destination=destination,
+        reserve=lambda name: MediaTarget(
+            destination, 'author/post', f'files/{name}', 'file:clip'
+        ),
         guess_extension=False,
     )
 
@@ -87,20 +90,20 @@ def _config(error: BaseException, destination: Path) -> DownloadFileConfig:
 async def test_mid_download_timeout_is_reported_as_a_timeout(
     tmp_path: Path, error: BaseException
 ) -> None:
-    """The bug: a sock_read timeout surfaced as 'Failed during I/O operation',
-    sending the user to check their disk instead of their network.
-    """
+    """Read timeouts retain their network diagnosis and leave no final media."""
     with pytest.raises(DownloadTimeoutError) as exc_info:
-        await download_file(_config(error, tmp_path))
+        await download_reserved_file(_config(error, tmp_path))
 
     assert 'timed out' in exc_info.value.message
     assert exc_info.value.resource_url == URL
-    assert exc_info.value.file is not None, 'the partial file must be reported'
+    assert exc_info.value.file is None
+    assert exc_info.value.__cause__ is error
+    assert not (tmp_path / 'author/post/files/clip.mp4').exists()
 
 
 async def test_connection_reset_still_maps_to_connection_error(
     tmp_path: Path,
 ) -> None:
-    """The new timeout branch must not swallow genuine connection failures."""
+    """Connection failures retain their separate diagnosis."""
     with pytest.raises(DownloadConnectionError):
-        await download_file(_config(ConnectionResetError(), tmp_path))
+        await download_reserved_file(_config(ConnectionResetError(), tmp_path))

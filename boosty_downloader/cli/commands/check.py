@@ -21,6 +21,7 @@ from boosty_downloader.cli.cli_options import (
     global_options,
 )
 from boosty_downloader.cli.composition_root import load_settings, open_app
+from boosty_downloader.cli.error_reporting import report_command_errors
 from boosty_downloader.cli.update_check import notify_about_updates
 from boosty_downloader.cli.views.blog_overview import render_blog_overview
 from boosty_downloader.infrastructure.loggers import logger_instances
@@ -84,13 +85,14 @@ def register(app: typer.Typer) -> None:
         posts: ShowPostsOption = False,
     ) -> None:
         """Show what each subscription tier gives, where you stand and what the rest costs - without downloading."""
-        asyncio.run(
-            _check_handler(
-                username=username,
-                config_path=global_options(ctx).config_path,
-                request_delay_seconds=request_delay_seconds,
-                destination_directory=destination_directory,
-                cache_directory=cache_directory,
-                show_posts=posts,
-            ),
-        )
+        with report_command_errors():
+            asyncio.run(
+                _check_handler(
+                    username=username,
+                    config_path=global_options(ctx).config_path,
+                    request_delay_seconds=request_delay_seconds,
+                    destination_directory=destination_directory,
+                    cache_directory=cache_directory,
+                    show_posts=posts,
+                ),
+            )

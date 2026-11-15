@@ -34,6 +34,7 @@ def render_run_statistics(
             title,
             'Nothing new to download',
             f'Posts: {_posts_line(stats)}',
+            *_deleted_media_lines(stats),
             Rule(style='dim'),
         )
     return Group(
@@ -44,6 +45,7 @@ def render_run_statistics(
         media_table(stats.media),
         '',
         f'Total downloaded: [bold]{human_readable_size(stats.downloaded_bytes)}[/bold]',
+        *_deleted_media_lines(stats),
         Rule(style='dim'),
     )
 
@@ -60,3 +62,12 @@ def _posts_line(stats: RunStatistics) -> str:
     if stats.posts_locked:
         parts.append(f'{stats.posts_locked} locked')
     return ', '.join(parts)
+
+
+def _deleted_media_lines(stats: RunStatistics) -> list[str]:
+    if not stats.media_deleted:
+        return []
+    return [
+        f'Media deleted from disk: [bold]{stats.media_deleted}[/bold]',
+        'Use --restore-missing to download selected missing media again.',
+    ]

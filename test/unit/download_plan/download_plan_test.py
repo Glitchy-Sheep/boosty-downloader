@@ -1,9 +1,4 @@
-"""
-Tests for the download plan against a real SQLite cache.
-
-The plan must repeat the downloader's own decisions: same mapping,
-same cache answers, same filters - otherwise --dry-run lies.
-"""
+"""Dry-run observes complete saved records without changing the library."""
 
 from __future__ import annotations
 
@@ -17,28 +12,28 @@ from boosty_downloader.application.download_plan import (
     DownloadPlan,
     build_download_plan,
 )
+from boosty_downloader.application.post_preparation import PostPreparer
 from boosty_downloader.domain.content_types import DownloadContentTypeFilter
+from boosty_downloader.domain.stored_post import MediaStatus
 from boosty_downloader.infrastructure.boosty_api.models.post.post import PostDTO
 from boosty_downloader.infrastructure.boosty_api.models.post.post_data_types.post_data_ok_video import (
     BoostyOkVideoType,
 )
-from boosty_downloader.infrastructure.loggers.base import RichLogger
-from boosty_downloader.infrastructure.post_caching.post_cache import SQLitePostCache
+from boosty_downloader.infrastructure.html_generator import PAGE_TEMPLATE_VERSION
+from boosty_downloader.infrastructure.library.post_store import JsonPostStore
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
     from pathlib import Path
 
 _DAY = datetime(2026, 1, 2, tzinfo=timezone.utc)
 _EARLIER = datetime(2026, 1, 1, tzinfo=timezone.utc)
-
 ALL_FILTERS = list(DownloadContentTypeFilter)
 
 
 @pytest.fixture
-def cache(tmp_path: Path) -> Iterator[SQLitePostCache]:
-    with SQLitePostCache(tmp_path, RichLogger('plan-test')) as post_cache:
-        yield post_cache
+def preparer(tmp_path: Path) -> PostPreparer:
+    root = tmp_path / 'library'
+    return PostPreparer(root, JsonPostStore(root), 'writer', BoostyOkVideoType.medium)
 
 
 def _image(size: int = 10) -> dict[str, object]:
@@ -116,139 +111,155 @@ def _post(
 
 def _plan(
     posts: list[PostDTO],
-    cache: SQLitePostCache,
+    preparer: PostPreparer,
     filters: list[DownloadContentTypeFilter] = ALL_FILTERS,
     *,
     excluded_tags: tuple[str, ...] = (),
 ) -> DownloadPlan:
     return build_download_plan(
-        posts,
-        post_cache=cache,
-        filters=filters,
-        excluded_tags=excluded_tags,
-        preferred_video_quality=BoostyOkVideoType.medium,
+        posts, preparer=preparer, filters=filters, excluded_tags=excluded_tags, now=_DAY
     )
 
 
-def test_new_post_counts_every_media_kind_and_known_bytes(cache: SQLitePostCache):
-    post = _post(data=[_image(10), _file(20), _audio(30), _ok_video(), _ext_video()])
+def _save(
+    preparer: PostPreparer, post: PostDTO, downloaded: tuple[str, ...] = ()
+) -> str:
+    prepared = preparer.prepare(post, ALL_FILTERS, _EARLIER)
+    record = prepared.reconciliation.record
+    assert record is not None
+    folder = preparer.library_root / prepared.folder
+    folder.mkdir(parents=True)
+    for media_id in downloaded:
+        entry = record.media[media_id]
+        entry.status = MediaStatus.downloaded
+        entry.path = f'{media_id.replace(":", "_")}.bin'
+        entry.size = prepared.live.media[media_id].expected_size or 5
+        (folder / entry.path).write_bytes(b'x' * entry.size)
+    record.sync.page_template = PAGE_TEMPLATE_VERSION
+    preparer.store.save_post(prepared.folder, record)
+    (folder / 'post.html').write_text('saved page')
+    return prepared.folder
 
-    plan = _plan([post], cache)
 
+def test_new_post_counts_all_media_without_creating_library(preparer: PostPreparer):
+    post = _post(data=[_image(), _file(), _audio(), _ok_video(), _ext_video()])
+    plan = _plan([post], preparer)
     assert plan.new_posts == 1
     assert plan.media == MediaCounts(
-        images=1, files=1, boosty_videos=1, external_videos=1, audio=1
+        images=1, files=1, audio=1, boosty_videos=1, external_videos=1
     )
-    # Sizes the API reports; both videos land in the unknown-size bucket.
     assert plan.known_bytes == 60
     assert plan.unknown_size_videos == 2
+    assert not preparer.library_root.exists()
 
 
-def test_fully_cached_post_is_complete_and_adds_nothing(cache: SQLitePostCache):
-    post = _post(data=[_image(), _file()])
-    cache.cache_post(post.id, post.updated_at, ALL_FILTERS)
-
-    plan = _plan([post], cache)
-
-    assert plan.complete_posts == 1
-    assert plan.new_posts == 0
-    assert plan.media == MediaCounts()
-    assert plan.known_bytes == 0
-
-
-def test_author_update_makes_the_post_outdated_and_recounts_media(
-    cache: SQLitePostCache,
+def test_completed_record_is_unchanged_without_counting_sync_time(
+    preparer: PostPreparer,
 ):
-    """The cache promise: an updated post re-downloads fully."""
-    post = _post(updated_at=_DAY, data=[_image(10), _file(20)])
-    cache.cache_post(post.id, _EARLIER, ALL_FILTERS)
-
-    plan = _plan([post], cache)
-
-    assert plan.outdated_posts == 1
-    assert plan.new_posts == 0
-    assert plan.media == MediaCounts(images=1, files=1)
-    assert plan.known_bytes == 30
-
-
-def test_partially_cached_post_counts_only_the_missing_parts(cache: SQLitePostCache):
-    """Everything but audio is cached: only the audio may be fetched."""
-    post = _post(data=[_image(10), _audio(30)])
-    cached_parts = [
-        part for part in ALL_FILTERS if part is not DownloadContentTypeFilter.audio
-    ]
-    cache.cache_post(post.id, post.updated_at, cached_parts)
-
-    plan = _plan([post], cache)
-
-    assert plan.outdated_posts == 1
-    assert plan.media == MediaCounts(audio=1)
-    assert plan.known_bytes == 30
+    post = _post(data=[_file()])
+    folder = _save(preparer, post, ('file:f1',))
+    paths = list((preparer.library_root / folder).iterdir())
+    before = {path: (path.read_bytes(), path.stat().st_mtime_ns) for path in paths}
+    plan = _plan([post], preparer)
+    assert plan.unchanged_posts == 1
+    assert plan.media == MediaCounts()
+    assert before == {
+        path: (path.read_bytes(), path.stat().st_mtime_ns) for path in paths
+    }
 
 
-def test_filters_narrow_the_plan_like_the_real_run(cache: SQLitePostCache):
-    with_file = _post('has-file', data=[_file(20), _image(10)])
-    without_file = _post('no-file', data=[_image(10)])
+def test_author_text_update_needs_page_but_keeps_completed_media(
+    preparer: PostPreparer,
+):
+    post = _post(updated_at=_EARLIER, data=[_file()])
+    _save(preparer, post, ('file:f1',))
+    plan = _plan([_post(data=[_file()])], preparer)
+    assert plan.updated_posts == 1
+    assert plan.media == MediaCounts()
 
-    plan = _plan(
-        [with_file, without_file], cache, filters=[DownloadContentTypeFilter.files]
-    )
 
-    assert plan.new_posts == 1
-    assert plan.filtered_out_posts == 1
-    # The image is post_content and post_content is not requested.
+def test_partial_record_counts_only_missing_piece_of_same_kind(preparer: PostPreparer):
+    post = _post(data=[_file(), {**_file(41), 'id': 'f2'}])
+    _save(preparer, post, ('file:f1',))
+    plan = _plan([post], preparer)
+    assert plan.updated_posts == 1
     assert plan.media == MediaCounts(files=1)
-    assert plan.known_bytes == 20
+    assert plan.known_bytes == 41
 
 
-def test_unfinished_uploads_are_not_promised(cache: SQLitePostCache):
-    """The downloader skips complete=False media; the plan must not sell them."""
-    post = _post(
-        data=[_ok_video(complete=False), _audio(complete=False), _file(complete=False)]
+def test_content_filters_keep_new_record_and_limit_media(preparer: PostPreparer):
+    post = _post(data=[_file(), _image()])
+    plan = _plan([post], preparer, [DownloadContentTypeFilter.files])
+    assert plan.new_posts == 1
+    assert plan.excluded_posts == 0
+    assert plan.media == MediaCounts(files=1)
+
+
+def test_unselected_media_does_not_make_existing_post_complete(preparer: PostPreparer):
+    post = _post(data=[_file()])
+    _save(preparer, post)
+    plan = _plan([post], preparer, [DownloadContentTypeFilter.post_content])
+    assert plan.unchanged_posts == 1
+    assert plan.media == MediaCounts()
+
+
+def test_text_only_and_unfinished_posts_still_need_new_records(preparer: PostPreparer):
+    plan = _plan(
+        [
+            _post(),
+            _post(
+                'p2',
+                data=[
+                    _file(complete=False),
+                    _audio(complete=False),
+                    _ok_video(complete=False),
+                ],
+            ),
+        ],
+        preparer,
     )
-
-    plan = _plan([post], cache)
-
-    # Nothing mappable is left, so the run would skip this post entirely.
-    assert plan.filtered_out_posts == 1
-    assert plan.new_posts == 0
+    assert plan.new_posts == 2
     assert plan.media == MediaCounts()
     assert plan.known_bytes == 0
-    assert plan.unknown_size_videos == 0
 
 
-def test_locked_posts_are_not_planned(cache: SQLitePostCache):
-    post = _post(has_access=False, data=[_image(10)])
-
-    plan = _plan([post], cache)
-
+def test_locked_posts_are_not_planned(preparer: PostPreparer):
+    plan = _plan([_post(has_access=False, data=[_file()])], preparer)
     assert plan.new_posts == 0
     assert plan.media == MediaCounts()
+    assert not preparer.library_root.exists()
 
 
-def test_tag_exclusion_leaves_new_posts_eligible_for_a_later_run(
-    cache: SQLitePostCache,
-):
-    post = _post(data=[_image()], tags=[{'title': 'sample'}, {'title': 'sample tag'}])
+def test_excluded_tag_does_not_read_or_change_existing_record(preparer: PostPreparer):
+    post = _post(data=[_file()], tags=[{'id': 1, 'title': 'Skip'}])
+    folder = _save(preparer, post)
+    record_path = preparer.library_root / folder / 'post.json'
+    record_path.write_text('broken record')
+    before = record_path.stat().st_mtime_ns
+    plan = _plan([post], preparer, excluded_tags=('skip',))
+    assert plan.excluded_posts == 1
+    assert plan.new_posts == 0
+    assert record_path.read_text() == 'broken record'
+    assert record_path.stat().st_mtime_ns == before
 
-    plan = _plan([post], cache, excluded_tags=('SAMPLE',))
 
-    assert plan.filtered_out_posts == 1
-    assert plan.new_posts == plan.complete_posts == plan.outdated_posts == 0
+def test_excluded_new_post_is_eligible_on_later_run(preparer: PostPreparer):
+    post = _post(data=[_file()], tags=[{'id': 1, 'title': 'Skip'}])
+    assert _plan([post], preparer, excluded_tags=('skip',)).excluded_posts == 1
+    assert _plan([post], preparer).new_posts == 1
+    assert not preparer.library_root.exists()
+
+
+def test_missing_page_requires_update_without_media_download(preparer: PostPreparer):
+    post = _post(data=[_file()])
+    folder = _save(preparer, post, ('file:f1',))
+    (preparer.library_root / folder / 'post.html').unlink()
+    plan = _plan([post], preparer)
+    assert plan.updated_posts == 1
     assert plan.media == MediaCounts()
-    assert plan.known_bytes == plan.unknown_size_videos == 0
-    assert not cache.has_post(post.id)
-    assert _plan([post], cache).new_posts == 1
 
 
-def test_tag_exclusion_preserves_existing_cache_entries(cache: SQLitePostCache):
-    post = _post(data=[_image()], tags=[{'title': 'sample'}])
-    cache.cache_post(post.id, post.updated_at, ALL_FILTERS)
-
-    plan = _plan([post], cache, excluded_tags=('sample',))
-
-    assert plan.filtered_out_posts == 1
-    assert plan.complete_posts == 0
-    assert plan.media == MediaCounts()
-    assert cache.has_post(post.id)
-    assert _plan([post], cache).complete_posts == 1
+def test_pending_media_uses_current_api_estimate(preparer: PostPreparer):
+    _save(preparer, _post(data=[_file(20)]))
+    plan = _plan([_post(data=[_file(45)])], preparer)
+    assert plan.known_bytes == 45

@@ -8,16 +8,28 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from http import HTTPStatus
 from pathlib import Path
-from typing import Any, ClassVar, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from yt_dlp.networking.exceptions import HTTPError
 from yt_dlp.YoutubeDL import YoutubeDL
 from yt_dlp.utils import DownloadError, ExtractorError
 
+from boosty_downloader.infrastructure.external_videos_downloader.prepared_video import (
+    CaptureFinalFilePP,
+    PreparedExternalVideo,
+)
+from boosty_downloader.infrastructure.external_videos_downloader.reserved_download import (
+    download_reserved_video,
+)
 from boosty_downloader.infrastructure.path_sanitizer import (
+    compose_filename,
     MAX_NAME_BYTES,
     sanitize_filename,
 )
+
+if TYPE_CHECKING:
+    from boosty_downloader.infrastructure.media_publication import PublishedFile
+    from boosty_downloader.infrastructure.media_transfer import ReserveMediaPath
 
 # yt-dlp appends the real extension to the template ('.webm', '.mp4', ...):
 # the title byte budget leaves room for it.
@@ -106,7 +118,6 @@ class _HookState:
     """Internal state holder for tracking the status of an external video download."""
 
     last_downloaded: int = 0
-    final_filename: Path | None = None
 
 
 class _SilentLogger:
@@ -146,55 +157,76 @@ class ExternalVideosDownloader:
         'logger': _SilentLogger(),  # Suppress noisy error logging
     }
 
-    def download_video(
-        self,
-        url: str,
-        destination_directory: Path,
-        progress_hook: ExternalVideoDownloadProgressHook | None = None,
-    ) -> Path:
-        """Download video using yt-dlp and repeatedly report progress via progress_hook callback until completion."""
+    def prepare_video(self, url: str) -> PreparedExternalVideo:
+        """Resolve one video's metadata without creating media output."""
         info = self._probe_video(url)
         title = info.get('title')
-        if not isinstance(title, str) or not title.strip():
+        if (
+            not isinstance(title, str)
+            or not title.strip()
+            or info.get('_type', 'video') != 'video'
+            or info.get('additional_urls')
+        ):
             raise ExtVideoInfoError(url)
-
         clean_title = self._sanitize_title(title)
-        destination_directory.mkdir(parents=True, exist_ok=True)
+        extension = info.get('ext') or 'mp4'
+        if not isinstance(extension, str) or sanitize_filename(extension) != extension:
+            raise ExtVideoInfoError(url)
+        filename = compose_filename(clean_title, extension=f'.{extension}')
+        return PreparedExternalVideo(url, clean_title, filename, info)
 
-        outtmpl = self._build_outtmpl(destination_directory, clean_title)
-
-        state = _HookState()
-        internal_hook = self._make_progress_hook(outtmpl, progress_hook, state)
-
-        options: YtDlOptions = self._default_ydl_options.copy()
-        options['outtmpl'] = outtmpl
-        options['progress_hooks'] = [internal_hook]
-
+    def download_prepared(
+        self,
+        prepared: PreparedExternalVideo,
+        directory: Path,
+        progress_hook: ExternalVideoDownloadProgressHook | None = None,
+    ) -> Path:
+        """Process resolved metadata and return the actual postprocessed output."""
+        outtmpl = self._build_outtmpl(directory, prepared.title)
+        capture = CaptureFinalFilePP()
+        options = self._prepared_options(outtmpl, progress_hook)
         try:
             with YoutubeDL(params=cast('Any', options)) as ydl:
-                try:
-                    # yt-dlp isn't typed; cast to Any and coerce to int
-                    errors: int = int(cast('Any', ydl).download([url]))
-                except KeyboardInterrupt as e:
-                    raise ExtVideoInterruptedByUserError from e
+                ydl.add_post_processor(capture, when='after_move')
+                prepared.process(ydl)
+        except KeyboardInterrupt as error:
+            raise ExtVideoInterruptedByUserError(prepared.url) from error
+        except DownloadError as error:
+            raise _failure(error, prepared.url, ExtVideoDownloadError) from error
+        if capture.path is None:
+            raise ExtVideoDownloadError(prepared.url)
+        return capture.path
 
-            if errors != 0:
-                raise ExtVideoDownloadError(url)
+    def _prepared_options(
+        self, outtmpl: str, progress_hook: ExternalVideoDownloadProgressHook | None
+    ) -> YtDlOptions:
+        return {
+            **self._default_ydl_options,
+            'cachedir': False,
+            'noplaylist': True,
+            'outtmpl': outtmpl,
+            'progress_hooks': [
+                self._make_progress_hook(outtmpl, progress_hook, _HookState())
+            ],
+        }
 
-        except DownloadError as e:
-            raise _failure(e, url, ExtVideoDownloadError) from e
-
-        if state.final_filename is not None:
-            return state.final_filename
-
-        ext = info.get('ext')
-        guessed_ext = ext if isinstance(ext, str) and ext else 'mp4'
-        return destination_directory / f'{clean_title}.{guessed_ext}'
+    async def download_reserved_video(
+        self,
+        url: str,
+        reserve: ReserveMediaPath,
+        progress_hook: ExternalVideoDownloadProgressHook | None = None,
+    ) -> PublishedFile:
+        """Reserve on the event loop and publish only a stopped worker's output."""
+        return await download_reserved_video(self, url, reserve, progress_hook)
 
     def _probe_video(self, url: str) -> dict[str, Any]:
         # Extract metadata without downloading to validate and fetch title/ext.
         try:
-            opts = {**self._default_ydl_options, 'skip_download': True}
+            opts = {
+                **self._default_ydl_options,
+                'skip_download': True,
+                'noplaylist': True,
+            }
             with YoutubeDL(cast('Any', opts)) as ydl:
                 raw = cast('Any', ydl).extract_info(url, download=False)
         except DownloadError as e:
@@ -259,10 +291,5 @@ class ExternalVideosDownloader:
             if user_hook is not None:
                 with contextlib.suppress(Exception):
                     user_hook(status_payload)
-
-            if d.get('status') in {'finished', 'postprocessing'}:
-                f = d.get('filename')
-                if isinstance(f, str):
-                    state.final_filename = Path(f)
 
         return _hook
