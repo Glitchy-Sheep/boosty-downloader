@@ -75,7 +75,34 @@ jobs:
           fi
         timeout-minutes: 5
 
-  # Builds the wheel and the sdist and checks that the Jinja templates are inside the wheel.
+  ui:
+    name: 🎨 Viewer
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: viewer-ui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Install Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: viewer-ui/package-lock.json
+      - name: Install locked dependencies
+        run: npm ci
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm run test
+      - name: Build viewer assets
+        run: npm run build
+
+  # Builds distributions with the renderer templates and offline viewer assets.
   build:
     name: 📦 Build
     runs-on: ubuntu-latest
@@ -85,18 +112,14 @@ jobs:
         uses: actions/checkout@v7
       - name: Install Task, uv, Python and the dependencies
         uses: ./.github/actions/setup
-      - name: Build & verify
-        run: |
-          task build
-          ls dist/*.whl dist/*.tar.gz || { echo "❌ Build artifacts missing"; exit 1; }
-          echo "✅ Build artifacts created successfully"
-      # The renderer loads its Jinja templates from the installed package:
-      # a wheel without them builds fine and crashes at render time.
-      - name: Verify templates are inside the wheel
-        run: |
-          TEMPLATES=$(unzip -l dist/*.whl | grep -c 'html_generator/templates/.*\.html' || true)
-          echo "Templates found in wheel: $TEMPLATES"
-          [ "$TEMPLATES" -ge 7 ] || { echo "❌ Jinja templates missing from the wheel"; exit 1; }
+      - name: Install Node for viewer assets
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: viewer-ui/package-lock.json
+      - name: Build and verify runtime assets
+        run: task build
 
   # PR gate: the Unreleased section of CHANGELOG.md must gain lines, unless the PR opts out.
   changelog:

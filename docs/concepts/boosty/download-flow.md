@@ -6,7 +6,7 @@ Boosty Downloader saves each accessible post as a complete `post.json` record, i
 
 ```text
 CLI: validate arguments and check library compatibility without writes
-  -> config, initialize new library marker, filters, JsonPostStore
+  -> config, initialize new library marker, filters, indexed JSON store
   -> separate API and media sessions
   -> DownloadAllPostUseCase / DownloadPostByIdUseCase
   -> refresh_author: blog details and owned avatar/cover images
@@ -24,9 +24,9 @@ CLI: validate arguments and check library compatibility without writes
 ```
 
 1. **Fetch.** Each real run refreshes blog details once and updates the author's avatar and cover. Optional metadata/image failures warn and preserve saved data. `BoostyAPIClient` validates listing and single-post responses as `PostDTO` objects. The API session carries credentials; a separate session downloads media without account tokens or cookies.
-2. **Observe access and select posts.** Locked overviews are saved before tag filtering, without creating post folders. Confirmed access clears the stale locked observation. `--exclude-tag TAG` matches whole tag names, ignoring case and surrounding whitespace. Repeated options exclude multiple tags. Exclusions happen before post-record lookup, content preparation or downloading; they leave saved post content unchanged. Posts without access retain any saved content, page and viewing marks.
+2. **Observe access and select posts.** Locked overviews are saved before tag filtering, without creating post folders. Confirmed access clears the stale locked observation. `--exclude-tag TAG` matches whole tag names, ignoring case and surrounding whitespace. Repeated options exclude multiple tags. Exclusions prevent content preparation and downloading, leaving saved post content unchanged. Access observations may still read the saved record to refresh its index row before filtering. Posts without access retain any saved content, page and viewing marks.
 3. **Prepare.** `PostPreparer` maps the complete live body, locates the saved record and observes actual local file names and sizes. `reconcile` computes the updated record and individual media IDs eligible under the filters. Preparation also identifies missing video previews independently of those filters. `--restore-missing` also selects locally deleted pieces that are still in the current post and match the content filters. The preparation step only reads. A post's existing folder remains stable when its title changes.
-4. **Persist.** `PostDownloadState` owns the record during an attempt. It saves the updated content, reserves each destination before transfer, and saves each success or failure separately. Finished peers cannot lose their state when another piece fails.
+4. **Persist.** `PostDownloadState` owns the record during an attempt. It saves the updated content, reserves each destination before transfer, and saves each success or failure separately. Finished peers cannot lose their state when another piece fails. After each canonical save, the storage adapter updates the disposable library index. An index failure warns once and disables indexing for the rest of that run; it does not undo the JSON save or fail the download.
 5. **Download.** `PostMediaDownloader` uses aiohttp for images, attachments, audio and Boosty videos, and yt-dlp for external videos. At most four pieces of a post transfer concurrently. Media is published under its final name only after completion; existing files are not overwritten.
 6. **Retry and render.** Each retry prepares against saved progress and current files. After the final attempt outcome, `build_post_page` assembles a complete page from the saved record. Successful rendering records the current page template version. An unchanged post with a current page needs neither media transfers nor a page rewrite.
 
@@ -44,7 +44,7 @@ Missing Boosty video previews are fetched after the initial record save and stor
 
 Existing safe, nonempty image files are reused, including when the live URL changes or disappears. A missing image with an available URL is retried on a later run. Image request failures warn without failing primary content downloads; record-write failures remain post failures. Auxiliary image transfers are excluded from primary media totals and the deleted-content count.
 
-The pure cover selector reads the saved body order and a filesystem snapshot. It prefers the first current downloaded image, then the preview of the first current Boosty video. It returns no cover when that video's preview is unavailable; it does not choose a later video's preview. Locked-only posts use their saved teaser when the file is present. Cover choice is derived, not duplicated in the post record. The index/reader will consume this projection in its later stage.
+The pure cover selector reads the saved body order and a filesystem snapshot. It prefers the first current downloaded image, then the preview of the first current Boosty video. It returns no cover when that video's preview is unavailable; it does not choose a later video's preview. Locked-only posts use their saved teaser when the file is present. Cover choice is derived, not duplicated in the post record. The index and reader use this projection for library covers.
 
 ## Dry-run uses the same preparation
 
@@ -59,7 +59,7 @@ The pure cover selector reads the saved body order and a filesystem snapshot. It
 
 The overview reports inaccessible posts separately. Unfinished uploads and author-removed pieces are not counted as downloads. Unknown video sizes remain explicit rather than being guessed from older local files. After an unchanged successful download, the next preview reports no media work for that post.
 
-Preview startup also stays read-only: it does not create a library, SQLite cache, metadata, media, failure log or sample config. A missing config produces an error without creating its parent folder. `--debug` shows preview diagnostics on the console and does not create or truncate a debug log. Ordinary `download` retains sample-config setup and file diagnostics after the library compatibility check. `check` retains its existing setup behavior.
+Preview startup also stays read-only: it does not create a library, search index, metadata, media, failure log or sample config. A missing config produces an error without creating its parent folder. `--debug` shows preview diagnostics on the console and does not create or truncate a debug log. Ordinary `download` retains sample-config setup and file diagnostics after the library compatibility check. `check` retains its existing setup behavior.
 
 ## Failures and interruption
 
@@ -77,15 +77,17 @@ The summary counts remaining deleted media still present in the accessible, non-
 
 Media links from listing responses expire after 24 hours. The download walk uses pages of five posts to limit the time between fetching a signed URL and using it. Metadata-only walks for `check` and dry-run use pages of 100 because no media downloads occur between pages. If links expire during a long post download, the retrier fetches fresh post metadata once and preserves already completed media.
 
-## Storage boundary and remaining v5 work
+## Storage and offline commands
 
-Download state lives in `<destination>/<author>/<post folder>/post.json`. Author information, avatar/cover images and locked-post observations live under `<destination>/<author>/.boosty-downloader/`. `author.json` uses author-relative image paths; `locked.json` retains observations of posts not encountered during a partial run. Dry-run and `check` do not update these files. The downloader no longer opens SQLite. `--cache-dir` is only relevant to the legacy `clean-cache` command, which removes an old database without resetting records or removing media.
+Download state lives in `<destination>/<author>/<post folder>/post.json`. Author information, avatar/cover images and locked-post observations live under `<destination>/<author>/.boosty-downloader/`. `author.json` uses author-relative image paths; `locked.json` retains observations of posts not encountered during a partial run. Dry-run and `check` do not update these files. Downloads update a disposable SQLite search index, separate from canonical download state. Its default location is `<destination>/.boosty-downloader/index.db`; `--cache-dir PATH` moves only the index to `PATH/index.db`. `reindex` rebuilds the index from saved records without credentials or network access. The legacy `clean-cache` command has been removed; index maintenance preserves canonical records, viewing marks, pages and media. See [library storage](../library-storage.md) for the file layout, ownership, media states and common commands, and [the library index](../library-index.md) for rebuild and failure behavior.
 
 The first actual download creates the immutable `<destination>/.boosty-downloader/library.json` marker with `format_version: 5`. Dry-run checks compatibility without creating it. Before sample-config creation, debug-file setup or any network request, every download form checks an unmarked destination for recognized post folders under every author. If it finds one, the command names the destination, asks for another folder and explains why older downloads should be kept. It never reads the old post contents or SQLite cache. A malformed, unsupported or unsafe marker is an error rather than an invitation to overwrite it.
 
-There is no automatic migration or adoption of older downloads. Library indexing, standalone page rebuilding and the library viewer belong to later stages; each will use the same compatibility boundary when connected to the CLI.
+There is no automatic migration or adoption of older downloads. `render` and `reindex` use the same compatibility boundary before startup writes. `render` rebuilds complete pages from canonical records and current local files without using the index or contacting Boosty. The `view` command prepares the reader and serves the packaged viewer shell and compatibility or empty-library pages. Its `/api` and `/media` routes currently return 404; connected browsing, search, playback and mark editing are still future work. See the [viewer server foundation](../library-storage.md#viewer-server-foundation) for its command options.
 
-## Layers
+## Download layers
+
+These layers describe the download workflow:
 
 - `cli/`: Typer commands, concrete dependency composition and console output.
 - `application/`: use cases, mapping, shared preparation, reconciliation and post execution.

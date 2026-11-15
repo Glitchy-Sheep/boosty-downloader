@@ -64,7 +64,7 @@ The wizard offers to switch to `main` when you are still on another branch, pull
 The `v*` tag triggers `.github/workflows/release.yaml`:
 
 - **validate** - the tag matches `pyproject.toml`, the changelog has the `## X.Y.Z` section, the version is free on PyPI
-- **build** - wheel and sdist
+- **build** - Node 24 builds the offline viewer and its compressed assets; the wheel and sdist include them and pass runtime-asset verification
 - **release** - publish to PyPI (trusted publishing, no tokens stored) and create the GitHub Release with the changelog section as notes
 
 ### 6. Verify

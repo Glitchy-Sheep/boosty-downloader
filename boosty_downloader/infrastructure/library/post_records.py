@@ -1,22 +1,32 @@
-"""Find and save post records in stable folders within one library root."""
+"""Enumerate, find and save canonical post records within one library root."""
 
 from __future__ import annotations
 
+import os
 from pathlib import Path, PurePosixPath
-from stat import S_ISDIR
+from stat import S_ISDIR, S_ISREG
 from typing import TYPE_CHECKING, Final, TypeAlias
 
-from boosty_downloader.domain.library import LocatedPost
+from boosty_downloader.domain.library import LocatedPost, SavedPost
 from boosty_downloader.domain.post_folder import (
     compose_post_directory_name,
     get_post_id_prefix,
     parse_post_folder_id,
 )
+from boosty_downloader.infrastructure.library._media_paths import is_link
+from boosty_downloader.infrastructure.library._post_json import decode_post_record
 from boosty_downloader.infrastructure.library._record_paths import (
     check_containment,
     get_author_folder,
+    validate_author_name,
 )
-from boosty_downloader.infrastructure.library.errors import AmbiguousPostFolderError
+from boosty_downloader.infrastructure.library.author_records import (
+    AUTHOR_SERVICE_FOLDER,
+)
+from boosty_downloader.infrastructure.library.errors import (
+    AmbiguousPostFolderError,
+    InvalidPostRecordError,
+)
 from boosty_downloader.infrastructure.library.json_store import (
     POST_RECORD_FILENAME,
     read_post_record,
@@ -24,6 +34,9 @@ from boosty_downloader.infrastructure.library.json_store import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from os import stat_result
+
     from boosty_downloader.domain.stored_post import PostMetadata, StoredPost
 
 _PostFoldersByPrefix: TypeAlias = dict[str, list[Path]]
@@ -34,12 +47,18 @@ class JsonPostRecords:
     """
     Post-record lookup, folder choice and owned saves for one library run.
 
-    Each author's folders are indexed once after a successful scan. Only paths are cached; records are read afresh. A new instance discovers folders added or renamed outside this component.
+    Lookup caches each author's folder paths after a successful scan and reads records afresh. Enumeration always scans the current folders and returns independent records.
     """
 
     def __init__(self, root: Path) -> None:
         self._root = root.resolve()
         self._folders_by_author: dict[str, _PostFoldersByPrefix] = {}
+
+    def iter_saved_posts(self, author: str | None = None) -> Iterator[SavedPost]:
+        """Read canonical bodies afresh without browsing or viewing metadata."""
+        for folder in _saved_author_folders(self._root, author):
+            for candidates in _saved_post_groups(self._root, folder).values():
+                yield from _read_saved_group(self._root, candidates)
 
     def find_post(self, author: str, post_id: str) -> LocatedPost | None:
         """Find the full identity, or one surviving recordless folder, without writes."""
@@ -194,3 +213,109 @@ def _unique_post(
         msg = f'Multiple post folders for {author}/{post_id}: {paths}'
         raise AmbiguousPostFolderError(msg)
     return candidates[0]
+
+
+def _saved_author_folders(root: Path, author: str | None) -> Iterator[Path]:
+    if author is not None:
+        folder = get_author_folder(root, author)
+        if folder.name != AUTHOR_SERVICE_FOLDER and _is_saved_directory(root, folder):
+            yield folder
+        return
+    for folder in _children(root):
+        if folder.name != AUTHOR_SERVICE_FOLDER and _is_saved_directory(root, folder):
+            yield folder
+
+
+def _children(folder: Path) -> list[Path]:
+    try:
+        return sorted(folder.iterdir())
+    except FileNotFoundError:
+        return []
+
+
+def _saved_post_groups(root: Path, author: Path) -> _PostFoldersByPrefix:
+    folders: _PostFoldersByPrefix = {}
+    for folder in _children(author):
+        prefix = parse_post_folder_id(folder.name)
+        if prefix is not None and _is_saved_directory(root, folder):
+            folders.setdefault(prefix, []).append(folder)
+    return folders
+
+
+def _is_saved_directory(root: Path, path: Path) -> bool:
+    info = _saved_source_stat(root, path)
+    return info is not None and S_ISDIR(info.st_mode)
+
+
+def _saved_source_stat(root: Path, path: Path) -> stat_result | None:
+    check_containment(root, path)
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return None
+    if is_link(info):
+        target = _resolved_saved_source(root, path)
+        return target.stat()
+    return info
+
+
+def _resolved_saved_source(root: Path, path: Path) -> Path:
+    target = path.resolve(strict=True)
+    if not target.is_relative_to(root):
+        message = f'Path escapes the library root: {path}'
+        raise ValueError(message)
+    return target
+
+
+def _read_saved_group(root: Path, folders: list[Path]) -> list[SavedPost]:
+    posts: dict[str, SavedPost] = {}
+    for folder in folders:
+        saved = _read_saved_post(root, folder)
+        if saved is None:
+            continue
+        post_id = saved.record.post.id
+        if previous := posts.get(post_id):
+            message = (
+                f'Multiple post folders for {saved.record.post.author}/{post_id}: '
+                f'{previous.folder}, {saved.folder}'
+            )
+            raise AmbiguousPostFolderError(message)
+        posts[post_id] = saved
+    return list(posts.values())
+
+
+def _read_saved_post(root: Path, folder: Path) -> SavedPost | None:
+    path = folder / POST_RECORD_FILENAME
+    data = _read_saved_bytes(root, path)
+    if data is None:
+        return None
+    validate_author_name(folder.parent.name)
+    try:
+        record = decode_post_record(data)
+    except InvalidPostRecordError as error:
+        message = f'{path}: {error}'
+        raise type(error)(message) from error
+    if record.post.author != folder.parent.name or get_post_id_prefix(
+        record.post.id
+    ) != parse_post_folder_id(folder.name):
+        message = f'Post record does not match its author and folder: {folder}'
+        raise InvalidPostRecordError(message)
+    return SavedPost(folder.relative_to(root).as_posix(), record)
+
+
+def _read_saved_bytes(root: Path, path: Path) -> bytes | None:
+    expected = _saved_source_stat(root, path)
+    if expected is None:
+        return None
+    if not S_ISREG(expected.st_mode):
+        message = f'Post record must be an ordinary file: {path}'
+        raise InvalidPostRecordError(message)
+    target = _resolved_saved_source(root, path)
+    flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0)
+    descriptor = os.open(target, flags)
+    with os.fdopen(descriptor, 'rb') as source:
+        actual = os.fstat(source.fileno())
+        if not S_ISREG(actual.st_mode) or not os.path.samestat(expected, actual):
+            message = f'Post record changed while being read: {path}'
+            raise OSError(message)
+        return source.read()
