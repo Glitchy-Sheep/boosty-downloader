@@ -4,6 +4,7 @@ import type { PlaybackActivity, SavePosition } from '@/lib/playback-writes'
 
 const SAVE_INTERVAL_MS = 5_000
 type PositionAttempt = { position: PositionRequest; failed: boolean }
+type InitialSeekState = 'none' | 'pending' | 'completed'
 
 function samePosition(left: PositionRequest, right: PositionRequest): boolean {
   return left.seconds === right.seconds && left.duration === right.duration
@@ -27,6 +28,7 @@ export function attachPostPlayback(
   let active = true
   let initialized = false
   let hasActivity = false
+  let initialSeek: InitialSeekState = 'none'
   let initialPosition = 0
   let resumeSeekPending = false
   let latestSave = 0
@@ -58,7 +60,7 @@ export function attachPostPlayback(
   }
 
   const save = (): void => {
-    if (!hasActivity) return
+    if (!initialized || !hasActivity) return
     const position = playbackPosition(element.currentTime, element.duration)
     if (!position) return
     const previous = latestAttempt
@@ -92,10 +94,20 @@ export function attachPostPlayback(
     save()
   }
 
+  const finishSeek = (): void => {
+    hasActivity = true
+    activity?.claim()
+    latestAttempt = undefined
+    if (element.paused) save()
+  }
+
   const initialize = (): void => {
     if (initialized || !Number.isFinite(element.duration) || element.duration <= 0) return
     initialized = true
-    if (hasActivity && element.currentTime > 0) return
+    if (initialSeek !== 'none') {
+      if (initialSeek === 'completed' && element.paused) save()
+      return
+    }
     initialPosition = resumeAt(item, element.duration)
     if (!initialPosition) return
     resumeSeekPending = true
@@ -123,16 +135,20 @@ export function attachPostPlayback(
     stopTimer()
     save()
   }
+  const onSeeking = (): void => {
+    if (!initialized) initialSeek = 'pending'
+  }
   const onSeeked = (): void => {
-    if (!initialized) return
+    if (!initialized) {
+      initialSeek = 'completed'
+      finishSeek()
+      return
+    }
     if (resumeSeekPending) {
       resumeSeekPending = false
       if (element.currentTime === initialPosition) return
     }
-    hasActivity = true
-    activity?.claim()
-    latestAttempt = undefined
-    if (element.paused) save()
+    finishSeek()
   }
   const onHidden = (): void => {
     if (document.visibilityState === 'hidden') save()
@@ -143,6 +159,7 @@ export function attachPostPlayback(
   element.addEventListener('play', onPlay)
   element.addEventListener('pause', onStop)
   element.addEventListener('ended', onStop)
+  element.addEventListener('seeking', onSeeking)
   element.addEventListener('seeked', onSeeked)
   window.addEventListener('pagehide', save)
   document.addEventListener('visibilitychange', onHidden)
@@ -155,6 +172,7 @@ export function attachPostPlayback(
     element.removeEventListener('play', onPlay)
     element.removeEventListener('pause', onStop)
     element.removeEventListener('ended', onStop)
+    element.removeEventListener('seeking', onSeeking)
     element.removeEventListener('seeked', onSeeked)
     window.removeEventListener('pagehide', save)
     document.removeEventListener('visibilitychange', onHidden)

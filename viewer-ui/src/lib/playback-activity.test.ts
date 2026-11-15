@@ -196,6 +196,45 @@ test('late metadata cannot give an abandoned player new playback activity', asyn
   expect(save).not.toHaveBeenCalled()
 })
 
+test('late metadata cannot reclaim a completed seek from a newer player', async () => {
+  const writer = createPlaybackWriter()
+  const oldSave = vi.fn<SavePosition>().mockResolvedValue(undefined)
+  const currentSave = vi.fn<SavePosition>().mockResolvedValue(undefined)
+  const old = nativePlayer(document.body, 'audio')
+  Object.defineProperties(old, {
+    readyState: { configurable: true, value: 0 },
+    duration: { configurable: true, value: Number.NaN },
+  })
+  const cleanup = attachPostPlayback(
+    old,
+    playbackItem(),
+    oldSave,
+    undefined,
+    writer.activity(identity),
+  )
+  cleanups.push(cleanup)
+  old.currentTime = 3
+  fireEvent.seeking(old)
+  fireEvent.seeked(old)
+  expect(oldSave).not.toHaveBeenCalled()
+  const current = bind(writer, currentSave)
+  setPlaying(current)
+  current.currentTime = 75
+  current.pause()
+  await vi.advanceTimersByTimeAsync(0)
+  Object.defineProperty(old, 'duration', { configurable: true, value: 120 })
+  fireEvent.loadedMetadata(old)
+  cleanups.shift()?.()
+  await vi.advanceTimersByTimeAsync(0)
+  expect(old.currentTime).toBe(3)
+  expect(oldSave).not.toHaveBeenCalled()
+  expect(currentSave).toHaveBeenCalledExactlyOnceWith(
+    expect.anything(),
+    { seconds: 75, duration: 120 },
+    { keepalive: true },
+  )
+})
+
 test.each([
   { previousWrite: 'successful', fail: false, flush: 'pagehide' },
   { previousWrite: 'failed', fail: true, flush: 'cleanup' },

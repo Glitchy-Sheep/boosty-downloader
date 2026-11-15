@@ -92,6 +92,7 @@ describe('native post playback', () => {
     const video = nativePlayer(document.body)
     const save = vi.fn().mockResolvedValue(undefined)
     cleanup = attachPostPlayback(video, playbackItem(), save)
+    fireEvent.seeking(video)
     fireEvent.seeked(video)
     expect(save).not.toHaveBeenCalled()
     video.currentTime = 44
@@ -140,7 +141,70 @@ describe('native post playback', () => {
     expect(video.currentTime).toBe(12)
   })
 
-  it('keeps playback already advanced before metadata and ignores early seeks and visible-page events', () => {
+  it.each(['loadedmetadata', 'durationchange'])(
+    'restores autoplay progress on %s without saving an early pause',
+    (event) => {
+      const video = nativePlayer(document.body)
+      Object.defineProperty(video, 'readyState', { value: 0, writable: true })
+      const save = vi.fn().mockResolvedValue(undefined)
+      cleanup = attachPostPlayback(video, playbackItem({ position_s: 7 }), save)
+      setPlaying(video)
+      video.currentTime = 0.017531
+      Object.defineProperty(video, 'paused', { value: true, writable: true })
+      fireEvent.pause(video)
+      expect(save).not.toHaveBeenCalled()
+      fireEvent(video, new Event(event))
+      expect(video.currentTime).toBe(7)
+      expect(screen.getByText('Resumed at 0:07')).toBeInTheDocument()
+      fireEvent.pause(video)
+      expect(save).toHaveBeenCalledExactlyOnceWith(
+        expect.anything(),
+        { seconds: 7, duration: 120 },
+        { keepalive: true },
+      )
+    },
+  )
+
+  it.each([0, 3])('keeps an intentional seek to %s before metadata arrives', (seconds) => {
+    const video = nativePlayer(document.body)
+    Object.defineProperty(video, 'readyState', { value: 0, writable: true })
+    const save = vi.fn().mockResolvedValue(undefined)
+    cleanup = attachPostPlayback(video, playbackItem(), save)
+    video.currentTime = seconds
+    fireEvent.seeking(video)
+    fireEvent.loadedMetadata(video)
+    expect(video.currentTime).toBe(seconds)
+    expect(screen.queryByText(/Resumed at/)).not.toBeInTheDocument()
+    expect(save).not.toHaveBeenCalled()
+    fireEvent.seeked(video)
+    expect(save).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      { seconds, duration: 120 },
+      { keepalive: true },
+    )
+  })
+
+  it('saves a completed early paused seek once metadata is known', () => {
+    const video = nativePlayer(document.body)
+    Object.defineProperty(video, 'readyState', { value: 0, writable: true })
+    const save = vi.fn().mockResolvedValue(undefined)
+    cleanup = attachPostPlayback(video, playbackItem(), save)
+    video.currentTime = 3
+    fireEvent.seeking(video)
+    fireEvent.seeked(video)
+    expect(save).not.toHaveBeenCalled()
+    fireEvent.loadedMetadata(video)
+    expect(video.currentTime).toBe(3)
+    expect(save).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      { seconds: 3, duration: 120 },
+      { keepalive: true },
+    )
+    fireEvent.durationChange(video)
+    expect(save).toHaveBeenCalledOnce()
+  })
+
+  it('keeps a deliberate seek followed by playback before metadata and ignores visible-page events', () => {
     const video = nativePlayer(document.body)
     Object.defineProperty(video, 'readyState', { value: 0, writable: true })
     const save = vi.fn().mockResolvedValue(undefined)
