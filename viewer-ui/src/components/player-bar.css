@@ -1,0 +1,40 @@
+@layer components {
+  .player-bar-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'track close' 'controls controls' 'position position';
+    align-items: center;
+  }
+  .player-bar-track {
+    grid-area: track;
+  }
+  .player-bar-controls {
+    grid-area: controls;
+  }
+  .player-bar-position {
+    grid-area: position;
+  }
+  .player-bar-close {
+    grid-area: close;
+  }
+  .player-bar-notes .resume-note,
+  .player-bar-notes .playback-save-error {
+    padding: 0 0.75rem 0.5rem;
+    color: var(--muted-foreground);
+    font-size: 12px;
+  }
+  .player-bar-notes .resume-note button {
+    color: var(--foreground);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .player-bar-notes .playback-save-error {
+    color: var(--destructive);
+  }
+  @media (min-width: 768px) {
+    .player-bar-layout {
+      grid-template-columns: minmax(0, 1fr) auto minmax(110px, 1fr) auto;
+      grid-template-areas: 'track controls position close';
+    }
+  }
+}
