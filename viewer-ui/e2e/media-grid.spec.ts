@@ -355,10 +355,7 @@ for (const theme of ['dark', 'light'] as const) {
         Number(await art.evaluate((element) => getComputedStyle(element).opacity)),
       ).toBeLessThan(1)
       const row = page.locator('[data-media-id]').first()
-      const name =
-        (await row.getAttribute('aria-label')) ??
-        (await row.locator('[aria-label]').first().getAttribute('aria-label'))
-      expect(name).toContain('removed by the author')
+      expect(await row.ariaSnapshot()).toContain('removed by the author')
       await row.hover()
       await expect
         .poll(() => art.evaluate((element) => Number(getComputedStyle(element).opacity)))

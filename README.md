@@ -206,7 +206,11 @@ Switch between **Posts** and **Media** in the header. Each tab keeps its filters
 
 Open a photo or video tile for fullscreen viewing. Arrow keys move between pieces, Escape or Back closes the viewer, and a focused video keeps its seeking keys. Closing returns focus to the last piece. Hearts share the post's favorite mark, and a post link opens that post with cleared filters.
 
-Start audio from All or Audio to create a queue from that filtered list, including retained tracks. The bottom player keeps playing while you browse posts, tabs or authors. It offers play/pause, previous/next, 15-second jumps, a position slider and playback speed. Tracks resume after switching; the next starts when one ends or cannot load. Starting another audio or video pauses the current player. Files have download links in their list.
+Start audio from All or Audio to create a queue from that filtered list, including retained tracks. The bottom player keeps playing while you browse posts, tabs or authors. It offers play/pause, previous/next, 15-second jumps, a position slider and playback speed. Tracks resume after switching; the next starts when one ends or cannot load. Starting another audio or video pauses the current player.
+
+Files and post attachments show their names on disk, file types and sizes. On the same computer, use **Open in default app**, **Show in Finder/Explorer**, **Copy path** or **Download a copy**. Clicking the name or row does nothing. Narrow views and touch devices put actions in **More**; files, audio and media tiles also support right-click or long press. Fullscreen media offers the same actions, and opening a video or audio file in another app pauses its viewer player. The folder button beside a post's title opens its saved folder when the system supports it.
+
+Remote browsers offer downloads and **View in a new tab** for browser-readable formats. Local actions follow the server's available system tools. Programs and scripts have a visible type label and an explanation beside Open. If copying a path fails, the full path stays visible for manual copying. System errors remain visible until dismissed, including inside fullscreen viewing.
 
 After the viewer stops, the operating system can keep a fixed port temporarily unavailable while connections close. The default mode chooses another free port; with `--port`, wait or choose another value.
 

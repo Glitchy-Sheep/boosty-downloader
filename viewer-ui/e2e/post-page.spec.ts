@@ -47,7 +47,14 @@ for (const colorScheme of ['dark', 'light'] as const) {
         .locator('img, audio, video')
         .evaluateAll((nodes) => nodes.map((node) => node.tagName)),
     ).toEqual(['IMG', 'AUDIO', 'IMG', 'VIDEO', 'IMG'])
-    await expect(body.locator('.removed-media')).toContainText('Retained glossary')
+    const retainedFile = requireFixture(
+      post.media.find((item) => item.kind === 'files' && item.removed),
+    )
+    const retainedCard = body.locator('.removed-media [data-file-card]')
+    await expect(retainedCard).toHaveAttribute('data-media-id', retainedFile.id)
+    await expect(retainedCard.locator('.file-name')).toHaveText(
+      requireFixture(retainedFile.path.split('/').at(-1)),
+    )
     await expect(body).toContainText('File not downloaded: missing.txt')
     await expect(body.getByRole('link', { name: 'External reference' })).toHaveAttribute(
       'target',
@@ -247,7 +254,8 @@ test('body search walks two hits, folds text correctly and preserves a playing e
     { query: 'йо', matches: ['йога'] },
     { query: 'ио', matches: [] },
     { query: 'removed', matches: [] },
-    { query: 'retained', matches: ['Retained'] },
+    { query: 'retained', matches: [] },
+    { query: 'заметки', matches: ['Заметки', 'Заметки'] },
   ]
   for (const { query, matches } of searches) {
     await search.fill(query)
