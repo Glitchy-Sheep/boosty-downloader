@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
 from sqlalchemy import delete, select
-from sqlalchemy.orm import Session
 
 from boosty_downloader.domain.library import LocatedPost, PostAccess
 from boosty_downloader.domain.post_folder import (
@@ -15,14 +14,11 @@ from boosty_downloader.domain.post_folder import (
     get_post_id_prefix,
     parse_post_folder_id,
 )
-from boosty_downloader.infrastructure.library._db_engine import make_database_engine
 from boosty_downloader.infrastructure.library._db_models import (
-    DbAuthor,
     DbMarks,
     DbMedia,
     DbMediaMarks,
     DbPost,
-    DbPostTag,
 )
 from boosty_downloader.infrastructure.library._db_post_mapping import (
     read_saved_post,
@@ -37,6 +33,13 @@ from boosty_downloader.infrastructure.library._db_post_paths import (
     path_is_occupied,
     portable_path_key,
 )
+from boosty_downloader.infrastructure.library._db_records import (
+    ensure_author,
+    find_post_row,
+    read_session,
+    require_author_identity,
+    synchronize_post_tags,
+)
 from boosty_downloader.infrastructure.library._stored_validation import (
     validate_stored_post,
     validation_message,
@@ -49,6 +52,8 @@ from boosty_downloader.infrastructure.library.errors import (
 if TYPE_CHECKING:
     from collections.abc import Collection, Generator
     from pathlib import Path
+
+    from sqlalchemy.orm import Session
 
     from boosty_downloader.domain.stored_post import PostMetadata, StoredPost
     from boosty_downloader.infrastructure.library.db_store import LibraryDatabase
@@ -72,8 +77,8 @@ class DatabasePostRecords:
         prefix = get_post_id_prefix(post_id)
         author_folder = author_directory(self._root, author)
         with self._read_session() as session:
-            _require_author_identity(session, author)
-            row = _find_row(session, author, post_id)
+            require_author_identity(session, author)
+            row = find_post_row(session, author, post_id)
             if row is not None and (located := self._read_saved(session, row)):
                 return located
             return self._find_unowned(session, author_folder, post_id, prefix)
@@ -89,7 +94,7 @@ class DatabasePostRecords:
         reserved = {portable_path_key(folder) for folder in reserved_folders}
         collision = 0
         with self._read_session() as session:
-            _require_author_identity(session, post.author)
+            require_author_identity(session, post.author)
             while True:
                 name = compose_post_directory_name(
                     post.title,
@@ -124,7 +129,7 @@ class DatabasePostRecords:
         directories: CreatedPostDirectories,
     ) -> Path | None:
         with self._database.transaction() as session:
-            _require_author_identity(session, record.post.author)
+            require_author_identity(session, record.post.author)
             canonical = canonical_post_folder(
                 self._root, folder, record.post.author, record.post.id
             )
@@ -136,23 +141,16 @@ class DatabasePostRecords:
             update_saved_post(row, canonical, record)
             session.flush()
             _update_inventory(session, row, record)
-            _update_tags(session, row)
+            synchronize_post_tags(session, row)
         return target if publish else None
 
     @contextmanager
     def _read_session(self) -> Generator[Session, None, None]:
-        engine = make_database_engine(
-            self._database.path,
-            writable=False,
-            identity=self._database.identity,
-        )
         try:
-            with Session(engine) as session, session.begin():
+            with read_session(self._database) as session:
                 yield session
         except ValidationError as error:
             raise InvalidPostRecordError(validation_message(error)) from None
-        finally:
-            engine.dispose()
 
     def _saved_folder(self, row: DbPost) -> str | None:
         if row.folder is None:
@@ -214,7 +212,7 @@ class DatabasePostRecords:
     def _prepare_row(self, session: Session, folder: str, record: StoredPost) -> DbPost:
         post = record.post
         _require_ownership(session, folder, post.author, post.id)
-        row = _find_row(session, post.author, post.id)
+        row = find_post_row(session, post.author, post.id)
         if row is None:
             return _create_row(session, post)
         current = self._saved_folder(row)
@@ -224,12 +222,6 @@ class DatabasePostRecords:
         if row.folder is not None and current is None:
             _reset_generation(session, row)
         return row
-
-
-def _find_row(session: Session, author: str, post_id: str) -> DbPost | None:
-    return session.scalar(
-        select(DbPost).where(DbPost.author == author, DbPost.post_id == post_id)
-    )
 
 
 def _require_canonical_folder(root: Path, folder: str, post: PostMetadata) -> None:
@@ -252,14 +244,6 @@ def _foreign_owner(session: Session, folder: str, author: str, post_id: str) -> 
     )
 
 
-def _require_author_identity(session: Session, author: str) -> None:
-    key = portable_path_key(author)
-    authors = session.scalars(select(DbAuthor.author).where(DbAuthor.author != author))
-    if any(portable_path_key(existing) == key for existing in authors):
-        message = f'Author spelling aliases an existing library identity: {author}'
-        raise ValueError(message)
-
-
 def _require_ownership(
     session: Session, folder: str, author: str, post_id: str
 ) -> None:
@@ -276,9 +260,7 @@ def _unique_candidate(folders: set[str]) -> LocatedPost | None:
 
 
 def _create_row(session: Session, post: PostMetadata) -> DbPost:
-    if session.get(DbAuthor, post.author) is None:
-        session.add(DbAuthor(author=post.author))
-        session.flush()
+    ensure_author(session, post.author)
     row = DbPost(author=post.author, post_id=post.id, access=PostAccess.open)
     session.add(row)
     return row
@@ -303,19 +285,5 @@ def _update_inventory(session: Session, row: DbPost, record: StoredPost) -> None
             current = DbMedia(post_row_id=row.id, author=row.author, media_id=media_id)
             session.add(current)
         update_media_entry(current, entry)
-    for obsolete in existing.values():
-        session.delete(obsolete)
-
-
-def _update_tags(session: Session, row: DbPost) -> None:
-    existing = {
-        tag.tag: tag
-        for tag in session.scalars(
-            select(DbPostTag).where(DbPostTag.post_row_id == row.id),
-        )
-    }
-    for tag in set(row.tags):
-        if existing.pop(tag, None) is None:
-            session.add(DbPostTag(post_row_id=row.id, tag=tag))
     for obsolete in existing.values():
         session.delete(obsolete)

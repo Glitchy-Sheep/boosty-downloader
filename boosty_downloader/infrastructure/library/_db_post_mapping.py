@@ -77,10 +77,11 @@ def update_saved_post(row: DbPost, folder: str, record: StoredPost) -> None:
     row.page_template = record.sync.page_template
     row.body_text = post_body_text(record)
     if row.access != PostAccess.locked:
-        _update_overview(row, record.post)
+        update_post_overview(row, record.post)
 
 
-def _update_overview(row: DbPost, post: PostMetadata) -> None:
+def update_post_overview(row: DbPost, post: PostMetadata) -> None:
+    """Replace the effective overview independently of saved content and access."""
     row.url = post.url
     row.title = post.title
     row.created_at = post.created_at
