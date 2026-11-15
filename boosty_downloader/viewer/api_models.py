@@ -267,6 +267,7 @@ class MediaPost(_APIModel):
     """Display data shared by all media belonging to one post."""
 
     title: str
+    access: PostAccess
     cover_path: str | None = Field(
         default=None, description='Author-relative cover path.'
     )

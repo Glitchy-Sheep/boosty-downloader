@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, NamedTuple, TypeAlias
 
 from sqlalchemy import Select, and_, case, func, or_, select
 
-from boosty_downloader.domain.library import MediaCounts, PostOrder
+from boosty_downloader.domain.library import MediaCounts, PostAccess, PostOrder
 from boosty_downloader.domain.library_marks import PlaybackPosition
 from boosty_downloader.domain.library_media import (
     LibraryMediaItem,
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from sqlalchemy import ColumnElement, Connection
 
 _MediaQuery: TypeAlias = Select[
-    IndexMedia, str | None, datetime, str, str | None, datetime | None, bool
+    IndexMedia, str | None, datetime, str, str | None, datetime | None, bool, str
 ]
 
 
@@ -60,6 +60,7 @@ class _IndexedMediaRow(NamedTuple):
     cover_path: str | None
     seen_at: datetime | None
     favorite: bool
+    access: str
 
 
 class _MediaTotals(NamedTuple):
@@ -103,6 +104,7 @@ def _media_query(
             IndexPost.cover_path,
             IndexPost.seen_at,
             IndexPost.favorite,
+            IndexPost.access,
         )
         .join(IndexPost, IndexPost.id == IndexMedia.post_row_id)
         .where(
@@ -276,6 +278,7 @@ def _media_post(row: _IndexedMediaRow) -> LibraryMediaPost:
         _library_path(row.cover_path, row.author),
         row.seen_at,
         row.favorite,
+        PostAccess(row.access),
     )
 
 

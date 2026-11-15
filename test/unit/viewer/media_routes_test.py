@@ -162,6 +162,7 @@ async def test_complete_response_shares_post_data_and_preserves_unicode_paths(
     assert decode_media_identity(removed.id).media_id == _REMOVED_VIDEO
     assert page.posts[POST_ID] == api.MediaPost(
         title='Shader lesson',
+        access='open',
         cover_path=f'{folder}/{IMAGE_PATH}',
         seen=True,
         favorite=True,
@@ -254,7 +255,7 @@ async def test_retained_locked_downloads_stay_listed_and_counted(
     assert after.counts == before.counts
     assert after.missing == before.missing
     assert after.posts[POST_ID] == before.posts[POST_ID].model_copy(
-        update={'title': 'Currently locked'}
+        update={'title': 'Currently locked', 'access': 'locked'}
     )
 
 

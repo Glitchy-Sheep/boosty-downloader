@@ -152,7 +152,9 @@ def test_media_page_uses_opaque_ids_relative_paths_and_shared_post_data():
     item = _media(removed=True)
     page = MediaPage(
         items=[item],
-        posts={'post-id': MediaPost(title='Saved title', favorite=True)},
+        posts={
+            'post-id': MediaPost(title='Saved title', access='locked', favorite=True)
+        },
         counts=MediaViewCounts(all=1, audio=1),
         missing=2,
     )
@@ -179,6 +181,7 @@ def test_media_page_uses_opaque_ids_relative_paths_and_shared_post_data():
     assert body['posts'] == {
         'post-id': {
             'title': 'Saved title',
+            'access': 'locked',
             'cover_path': None,
             'seen': False,
             'favorite': True,
@@ -219,7 +222,7 @@ def test_default_containers_belong_to_each_model():
     first = MediaPage()
     second = MediaPage()
     first.items.append(_media())
-    first.posts['post-id'] = MediaPost(title='Saved title')
+    first.posts['post-id'] = MediaPost(title='Saved title', access='open')
     assert second.items == []
     assert second.posts == {}
 

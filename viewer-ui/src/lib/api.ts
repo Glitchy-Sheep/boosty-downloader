@@ -7,6 +7,7 @@ import type {
   FavoriteMarkRequest,
   MarkResult,
   MediaItem,
+  MediaPage,
   PositionRequest,
   PostDetail,
   PostList,
@@ -14,6 +15,7 @@ import type {
   TagCount,
 } from '@/lib/api.gen'
 import { filtersSearchParams, type Filters } from '@/lib/filters'
+import { mediaSearchParams, type MediaSearch } from '@/lib/media-filters'
 
 export class ApiError extends Error {
   readonly status: number
@@ -100,6 +102,15 @@ export function getPosts(
 
 export function getPost(author: string, postId: string, signal?: AbortSignal): Promise<PostDetail> {
   return getJson(`${authorPath(author)}/posts/${encodeURIComponent(postId)}`, signal)
+}
+
+export function getMedia(
+  author: string,
+  search: MediaSearch,
+  signal?: AbortSignal,
+): Promise<MediaPage> {
+  const query = mediaSearchParams(search).toString()
+  return getJson(`${authorPath(author)}/media${query ? `?${query}` : ''}`, signal)
 }
 
 export function getTags(author: string, signal?: AbortSignal): Promise<TagCount[]> {

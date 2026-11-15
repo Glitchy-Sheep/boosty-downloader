@@ -43,6 +43,7 @@ def media_page_response(author: str, page: LibraryMediaPage) -> api.MediaPage:
 def _media_post(author: str, post: LibraryMediaPost) -> api.MediaPost:
     return api.MediaPost(
         title=post.title,
+        access=post.access.value,
         cover_path=author_relative_path(author, post.cover_path),
         seen=post.seen_at is not None,
         favorite=post.favorite,

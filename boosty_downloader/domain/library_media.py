@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from boosty_downloader.domain.library import PostOrder
+from boosty_downloader.domain.library import PostAccess, PostOrder
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -64,6 +64,7 @@ class LibraryMediaPost:
     cover_path: str | None
     seen_at: datetime | None
     favorite: bool
+    access: PostAccess
 
 
 @dataclass(frozen=True, slots=True)

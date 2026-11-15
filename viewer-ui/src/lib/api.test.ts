@@ -4,6 +4,7 @@ import {
   ApiError,
   getAuthor,
   getAuthors,
+  getMedia,
   getPost,
   getPosts,
   getTags,
@@ -14,8 +15,35 @@ import {
   setSeenMany,
 } from '@/lib/api'
 import { toPostFilters, type Filters } from '@/lib/filters'
+import { savedMediaPage } from '@/test/media-fixtures'
 
 afterEach(() => vi.unstubAllGlobals())
+
+test('loads typed media with only its normalized filters and forwards cancellation', async () => {
+  const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json(savedMediaPage))
+  vi.stubGlobal('fetch', request)
+  const controller = new AbortController()
+  expect(
+    await getMedia(
+      'студия +',
+      { view: 'videos', order: 'oldest', unseen: 1, fav: 1, open: 'piece' },
+      controller.signal,
+    ),
+  ).toEqual(savedMediaPage)
+  expect(request).toHaveBeenCalledWith(
+    '/api/authors/%D1%81%D1%82%D1%83%D0%B4%D0%B8%D1%8F%20%2B/media?view=videos&order=oldest&unseen=1&fav=1',
+    {
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    },
+  )
+  request.mockResolvedValueOnce(Response.json(savedMediaPage))
+  await getMedia('studio', {})
+  expect(request).toHaveBeenLastCalledWith('/api/authors/studio/media', {
+    headers: { Accept: 'application/json' },
+    signal: null,
+  })
+})
 
 test('loads the same-origin authors contract and forwards cancellation', async () => {
   const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json([]))
