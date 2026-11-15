@@ -1,4 +1,4 @@
-export type PostShortcut = 'next' | 'previous' | 'search' | 'seen' | 'favorite'
+export type PostShortcut = 'next' | 'previous' | 'search' | 'sidebar' | 'seen' | 'favorite'
 
 /** Physical positions keep the reading keys available on other keyboard layouts. */
 export function postShortcut(code: string): PostShortcut | null {
@@ -9,6 +9,8 @@ export function postShortcut(code: string): PostShortcut | null {
       return 'previous'
     case 'Slash':
       return 'search'
+    case 'BracketLeft':
+      return 'sidebar'
     case 'KeyS':
       return 'seen'
     case 'KeyF':

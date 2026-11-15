@@ -16,6 +16,7 @@ import { AuthorAvatar } from '@/components/author-avatar'
 import { BulkMarks } from '@/components/bulk-marks'
 import { PostList } from '@/components/post-list'
 import { SearchBox } from '@/components/search-box'
+import { ControlTooltip } from '@/components/ui/control-tooltip'
 import { useElementWidth } from '@/hooks/use-element-width'
 import type { Author, PostList as PostPage, TagCount } from '@/lib/api.gen'
 import {
@@ -96,7 +97,7 @@ export function Sidebar(props: SidebarProps) {
   } = props
   const root = useRef<HTMLElement>(null)
   const [searchClearRevision, setSearchClearRevision] = useState(0)
-  const width = useElementWidth(root)
+  const width = useElementWidth(root, { synchronous: true })
   const setFilters: SetFilters = (patch, replace = false) =>
     onFilters({ ...filters, ...patch }, { replace })
   const clearFilters = (): void => {
@@ -268,7 +269,7 @@ function OrderFilter({ filters, setFilters }: FilterControls) {
 
 type ChipProps = { pressed: boolean; onClick: () => void; children: ReactNode; label?: string }
 function FilterChip({ pressed, onClick, children, label }: ChipProps) {
-  return (
+  const control = (
     <button
       type="button"
       aria-label={label}
@@ -279,6 +280,7 @@ function FilterChip({ pressed, onClick, children, label }: ChipProps) {
       {children}
     </button>
   )
+  return label ? <ControlTooltip label={label}>{control}</ControlTooltip> : control
 }
 
 function KindChip({

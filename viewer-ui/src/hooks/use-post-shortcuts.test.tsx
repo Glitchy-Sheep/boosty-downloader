@@ -112,13 +112,57 @@ test('ignores inactive routes, unsupported keys and keyboard owners', () => {
   fireEvent.keyDown(document, { code: 'Slash' })
   expect(onSearch).not.toHaveBeenCalled()
   expect(readContext).toHaveBeenCalledOnce()
-  fireEvent.keyDown(document, { code: 'BracketLeft' })
+  fireEvent.keyDown(document, { code: 'Unidentified' })
   const input = document.createElement('input')
   document.body.append(input)
   fireEvent.keyDown(input, { code: 'KeyJ' })
   expect(readContext).toHaveBeenCalledOnce()
   expect(onPost).not.toHaveBeenCalled()
   hook.unmount()
+})
+
+test('sidebar uses its physical key once per press and respects route and overlay ownership', () => {
+  const onSidebar = vi.fn()
+  let current: PostShortcutContext | null = context
+  const hook = renderHook(() =>
+    usePostShortcuts({
+      readContext: () => current,
+      onPost: vi.fn(),
+      onSearch: vi.fn(),
+      onSeen: vi.fn(),
+      onFavorite: vi.fn(),
+      onSidebar,
+    }),
+  )
+  expect(fireEvent.keyDown(document, { code: 'BracketLeft', key: 'х' })).toBe(false)
+  fireEvent.keyDown(document, { code: 'BracketLeft', repeat: true })
+  const input = document.createElement('input')
+  document.body.append(input)
+  fireEvent.keyDown(input, { code: 'BracketLeft' })
+  const dialog = document.createElement('dialog')
+  dialog.open = true
+  document.body.append(dialog)
+  fireEvent.keyDown(document, { code: 'BracketLeft' })
+  dialog.remove()
+  current = null
+  fireEvent.keyDown(document, { code: 'BracketLeft' })
+  expect(onSidebar).toHaveBeenCalledOnce()
+  hook.unmount()
+  fireEvent.keyDown(document, { code: 'BracketLeft' })
+  expect(onSidebar).toHaveBeenCalledOnce()
+})
+
+test('an unavailable sidebar leaves the bracket key unhandled', () => {
+  renderHook(() =>
+    usePostShortcuts({
+      readContext: () => context,
+      onPost: vi.fn(),
+      onSearch: vi.fn(),
+      onSeen: vi.fn(),
+      onFavorite: vi.fn(),
+    }),
+  )
+  expect(fireEvent.keyDown(document, { code: 'BracketLeft' })).toBe(true)
 })
 
 test.each([

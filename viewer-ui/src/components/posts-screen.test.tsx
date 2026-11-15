@@ -289,3 +289,40 @@ test('Posts search shortcut selects its text and hidden Posts ignores navigation
   unmount()
   client.clear()
 })
+
+test('desktop header and search shortcut share sidebar state without replacing the post', async () => {
+  const originalMedia = window.matchMedia
+  vi.stubGlobal('matchMedia', (query: string) => {
+    const media = originalMedia(query)
+    Object.defineProperty(media, 'matches', { value: query === '(min-width: 768px)' })
+    return media
+  })
+  const width = function (this: HTMLElement): number {
+    return this.hasAttribute('data-group') ? 1000 : 360
+  }
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(width)
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(width)
+  localStorage.clear()
+  serve()
+  const { client, container, unmount } = setup()
+  await screen.findByRole('heading', { name: savedPost.title })
+  const body = container.querySelector('.post-body')
+  const toggle = screen.getByRole('button', { name: 'Hide sidebar' })
+  expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  fireEvent.click(toggle)
+  await waitFor(() => expect(toggle).toHaveAttribute('aria-expanded', 'false'))
+  expect(toggle).toHaveAccessibleName('Show sidebar')
+  expect(container.querySelector('#author-post-sidebar')).toHaveAttribute('inert')
+  fireEvent.keyDown(document, { code: 'Slash' })
+  expect(screen.getByRole('textbox', { name: 'Search posts' })).toHaveFocus()
+  expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  expect(container.querySelector('.post-body')).toBe(body)
+  fireEvent.keyDown(document, { code: 'BracketLeft', key: 'х' })
+  expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  fireEvent.click(screen.getByRole('link', { name: 'Media' }))
+  await waitFor(() => expect(toggle).toBeDisabled())
+  expect(container.querySelector('.post-body')).toBe(body)
+  unmount()
+  client.clear()
+  localStorage.clear()
+})

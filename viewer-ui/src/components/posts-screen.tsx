@@ -3,12 +3,16 @@ import { useNavigate, useRouter } from '@tanstack/react-router'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { PostBody } from '@/components/post-body'
+import { DockedLayout } from '@/components/docked-layout'
 import { PostPage } from '@/components/post-page'
+import { PostPane } from '@/components/post-pane'
 import { Sidebar } from '@/components/sidebar'
+import { TooltipActive } from '@/lib/tooltip-activity'
 import { usePostMarkActions, usePostMarks } from '@/hooks/use-post-marks'
 import { usePostShortcuts } from '@/hooks/use-post-shortcuts'
 import { useRetainedData } from '@/hooks/use-retained-data'
 import type { SavePosition } from '@/hooks/use-post-playback'
+import type { DockedSidebar } from '@/hooks/use-docked-sidebar'
 import { isAuthorPosts, useTabActive } from '@/lib/author-tab'
 import { hasFilters, type Filters } from '@/lib/filters'
 import { saveMediaPosition } from '@/lib/playback-mutations'
@@ -41,11 +45,13 @@ export function PostsScreen({
   author,
   postId,
   filters,
+  sidebar,
   children,
 }: {
   author: string
   postId: string | undefined
   filters: Filters
+  sidebar: DockedSidebar
   children: ReactNode
 }) {
   const active = useTabActive()
@@ -60,10 +66,6 @@ export function PostsScreen({
   const posts = usePostList(author, filters, active)
   const postList = useRetainedData(posts.data)
   const tags = useQuery({ ...tagsQuery(author), subscribed: active, enabled: active })
-  const pane = useRef<HTMLElement>(null)
-  useEffect(() => {
-    if (pane.current) pane.current.scrollTop = 0
-  }, [author, postId])
   usePostShortcuts({
     readContext: () =>
       active ? readPostShortcutContext(client, router.history.location, author) : null,
@@ -75,9 +77,11 @@ export function PostsScreen({
       })
     },
     onSearch: () => {
+      sidebar.show()
       searchInput.current?.focus()
       searchInput.current?.select()
     },
+    onSidebar: sidebar.docked ? sidebar.toggle : undefined,
     onSeen: markActions.toggleSeen,
     onFavorite: markActions.toggleFavorite,
   })
@@ -115,38 +119,39 @@ export function PostsScreen({
 
   if (!summary) return <LoadingAuthor />
   return (
-    <div className="flex h-full min-h-0 flex-col md:flex-row">
-      <div className="h-[52%] min-h-0 shrink-0 border-b md:h-full md:w-[360px] md:border-r md:border-b-0">
-        <Sidebar
-          key={author}
-          author={summary}
-          filters={filters}
-          searchResetRevision={searchResetRevision}
-          searchInputRef={searchInput}
-          posts={postList}
-          tags={tags.data ?? []}
-          currentId={postId}
-          loading={posts.isPending}
-          updating={posts.isPlaceholderData}
-          error={posts.error}
-          onRetry={retryPosts}
-          tagsError={tags.error}
-          onRetryTags={() => {
-            void tags.refetch()
-          }}
-          onFilters={changeFilters}
-          onPost={openPost}
-          postHref={postHref}
-        />
-      </div>
-      <section
-        ref={pane}
-        aria-label="Selected post"
-        className="@container/main min-h-0 min-w-0 flex-1 overflow-y-auto"
-      >
-        {children}
-      </section>
-    </div>
+    <DockedLayout
+      controller={sidebar}
+      sidebar={
+        <TooltipActive value={active && sidebar.isOpen}>
+          <Sidebar
+            key={author}
+            author={summary}
+            filters={filters}
+            searchResetRevision={searchResetRevision}
+            searchInputRef={searchInput}
+            posts={postList}
+            tags={tags.data ?? []}
+            currentId={postId}
+            loading={posts.isPending}
+            updating={posts.isPlaceholderData}
+            error={posts.error}
+            onRetry={retryPosts}
+            tagsError={tags.error}
+            onRetryTags={() => {
+              void tags.refetch()
+            }}
+            onFilters={changeFilters}
+            onPost={openPost}
+            postHref={postHref}
+          />
+        </TooltipActive>
+      }
+      pane={
+        <PostPane author={author} postId={postId}>
+          {children}
+        </PostPane>
+      }
+    />
   )
 }
 

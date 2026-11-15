@@ -1,12 +1,15 @@
 import { getRouteApi, Link, useLocation, useMatch } from '@tanstack/react-router'
 import { cn } from 'cn'
-import { Images, Newspaper } from 'lucide-react'
+import { Images, Newspaper, PanelLeft } from 'lucide-react'
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 import { MediaScreen } from '@/components/media-screen'
 import { EmptyPostList, LoadingPost, PostReader, PostsScreen } from '@/components/posts-screen'
 import { LoadError } from '@/components/route-screens'
+import { ControlTooltip } from '@/components/ui/control-tooltip'
+import { useDockedSidebar } from '@/hooks/use-docked-sidebar'
+import { useMediaQuery } from '@/hooks/use-media-query'
 import {
   pendingPostPlace,
   retainAuthorPlace,
@@ -19,6 +22,7 @@ import { NO_FILTERS } from '@/lib/filters'
 import { useHeaderSlots } from '@/lib/header-slots'
 import { NO_MEDIA_FILTERS } from '@/lib/media-filters'
 import { readPostAddress } from '@/lib/post-address'
+import { DOCKED_QUERY } from '@/lib/sidebar-layout'
 
 const authorRoute = getRouteApi('/a/$author')
 
@@ -42,21 +46,52 @@ function AuthorTabs({ author }: { author: string }) {
   if (places !== kept) setKept(places)
   const { posts, media, shown } = places
   const { start } = useHeaderSlots()
+  const toggleRef = useRef<HTMLButtonElement>(null)
+  const docked = useMediaQuery(DOCKED_QUERY)
+  const postsActive = shown === 'posts' && addressTab === 'posts'
+  const sidebar = useDockedSidebar({ active: postsActive, docked, toggleRef })
+  const sidebarLabel = sidebar.isOpen ? 'Hide sidebar' : 'Show sidebar'
 
   return (
     <>
       <HeaderTabs author={author} tab={addressTab} places={places} />
-      {start && createPortal(<span aria-hidden="true" className="w-7" />, start)}
+      {start &&
+        createPortal(
+          <ControlTooltip label={`${sidebarLabel} ([)`} active={postsActive && docked}>
+            <button
+              ref={toggleRef}
+              type="button"
+              aria-label={sidebarLabel}
+              aria-expanded={sidebar.isOpen}
+              aria-controls="author-post-sidebar"
+              aria-keyshortcuts="["
+              disabled={!postsActive || !docked}
+              onClick={sidebar.toggle}
+              className={cn(
+                'flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50',
+                (!postsActive || !docked) && 'invisible',
+              )}
+            >
+              <PanelLeft aria-hidden="true" className="size-4" />
+            </button>
+          </ControlTooltip>,
+          start,
+        )}
       <div className="relative h-full overflow-clip">
         {!shown && <LoadingPost />}
         {posts && (
           <AuthorPane
             tab="posts"
             shown={shown === 'posts'}
-            active={shown === 'posts' && addressTab === 'posts'}
+            active={postsActive}
             slidesIn={firstTab !== 'posts'}
           >
-            <PostsScreen author={author} postId={posts.postId} filters={posts.filters}>
+            <PostsScreen
+              author={author}
+              postId={posts.postId}
+              filters={posts.filters}
+              sidebar={sidebar}
+            >
               <PostContent author={author} place={posts} />
             </PostsScreen>
           </AuthorPane>
