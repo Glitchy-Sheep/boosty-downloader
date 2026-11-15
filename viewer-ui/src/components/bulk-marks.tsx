@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 
 import { useBulkMarks, type BulkMarkSelection } from '@/hooks/use-bulk-marks'
 import type { BulkMarksProgressResponse, PostFilters, PostList } from '@/lib/api.gen'
+import { useTabActive } from '@/lib/author-tab'
 import { toPostFilters, type Filters, type Kind } from '@/lib/filters'
 import { formatCount, plural } from '@/lib/format'
 import { countMarkChanges } from '@/lib/post-marks'
@@ -36,8 +37,12 @@ const KIND_LABELS: Record<Kind, string> = {
 
 /** Bulk actions keep the confirmed filters while the reader continues browsing. */
 export function BulkMarks({ author, filters, posts, disabled }: BulkMarksProps) {
+  const active = useTabActive()
   const bulk = useBulkMarks(author)
   const [dialog, setDialog] = useState<BulkDialog>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  if (!active && dialog !== null) setDialog(null)
+  if (!active && menuOpen) setMenuOpen(false)
   const trigger = useRef<HTMLButtonElement>(null)
   const seenCount = countMarkChanges(posts?.rows ?? [], true)
   const unseenCount = countMarkChanges(posts?.rows ?? [], false)
@@ -77,7 +82,7 @@ export function BulkMarks({ author, filters, posts, disabled }: BulkMarksProps) 
           {progressLabel(bulk)}
         </button>
       ) : (
-        <DropdownMenu.Root>
+        <DropdownMenu.Root open={active && menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenu.Trigger asChild>
             <button
               ref={trigger}
@@ -96,7 +101,7 @@ export function BulkMarks({ author, filters, posts, disabled }: BulkMarksProps) 
               align="end"
               sideOffset={6}
               onCloseAutoFocus={(event) => {
-                if (dialog) event.preventDefault()
+                if (dialog || !active) event.preventDefault()
               }}
               className="z-40 min-w-48 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg"
             >
@@ -132,7 +137,7 @@ export function BulkMarks({ author, filters, posts, disabled }: BulkMarksProps) 
         </span>
       )}
       <Dialog.Root
-        open={dialog !== null}
+        open={active && dialog !== null}
         onOpenChange={(open) => {
           if (!open) setDialog(null)
         }}
@@ -142,7 +147,7 @@ export function BulkMarks({ author, filters, posts, disabled }: BulkMarksProps) 
           <Dialog.Content
             onCloseAutoFocus={(event) => {
               event.preventDefault()
-              if (trigger.current?.isConnected) trigger.current.focus()
+              if (active && trigger.current?.isConnected) trigger.current.focus()
             }}
             className="fixed top-1/2 left-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border bg-card p-6 text-card-foreground shadow-xl outline-none"
           >

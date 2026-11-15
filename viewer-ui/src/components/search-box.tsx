@@ -1,6 +1,8 @@
 import { Search, X } from 'lucide-react'
 import { useEffect, useEffectEvent, useRef, useState, type RefObject } from 'react'
 
+import { useTabActive } from '@/lib/author-tab'
+
 const DEBOUNCE_MS = 200
 
 type SearchBoxProps = {
@@ -19,6 +21,7 @@ export function SearchBox({
   navigationRevision = 0,
   inputRef,
 }: SearchBoxProps) {
+  const active = useTabActive()
   const localInput = useRef<HTMLInputElement>(null)
   const input = inputRef ?? localInput
   const [text, setText] = useState(value)
@@ -38,15 +41,16 @@ export function SearchBox({
   }, [value, resetRevision, navigationRevision])
 
   const send = useEffectEvent((next: string) => {
+    if (!active) return
     sent.current = next
     onSearch(next)
   })
 
   useEffect(() => {
-    if (text === sent.current) return
+    if (!active || text === sent.current) return
     const timer = window.setTimeout(() => send(text), DEBOUNCE_MS)
     return () => window.clearTimeout(timer)
-  }, [text, resetRevision, navigationRevision])
+  }, [text, active, resetRevision, navigationRevision])
 
   return (
     <div className="relative">

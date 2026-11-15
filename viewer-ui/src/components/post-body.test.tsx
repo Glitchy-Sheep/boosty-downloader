@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PostBody } from '@/components/post-body'
+import { TabActive } from '@/lib/author-tab'
 
 vi.mock('@/hooks/use-post-playback', () => ({ usePostPlayback: vi.fn() }))
 const defaults = {
@@ -117,5 +118,52 @@ describe('PostBody', () => {
   it('presents an empty body without fabricating content', () => {
     render(<PostBody {...defaults} html="  " />)
     expect(screen.getByText('This post has no text or media.')).toBeInTheDocument()
+  })
+
+  it('closes a hidden tab image portal without returning focus to its retained image', async () => {
+    const body = (active: boolean) => (
+      <TabActive value={active}>
+        <PostBody {...defaults} html='<img src="/media/writer/photo.jpg" alt="Drawing">' />
+      </TabActive>
+    )
+    const { rerender } = render(body(true))
+    const trigger = screen.getByRole('button', { name: 'Open image: Drawing' })
+    fireEvent.click(trigger)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    const focus = vi.spyOn(trigger, 'focus')
+    rerender(body(false))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(trigger.isConnected).toBe(true)
+    expect(focus).not.toHaveBeenCalled()
+    rerender(body(true))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('keeps linked images outside the gallery and respects modified keys and gallery bounds', async () => {
+    render(
+      <PostBody
+        {...defaults}
+        html='<a href="https://example.test"><img alt="Linked" src="/linked.jpg"></a><button type="button">Authored action</button><img src="/first.jpg" alt="First"><img src="/last.jpg" alt="Last">'
+      />,
+    )
+    expect(screen.getByRole('img', { name: 'Linked' })).not.toHaveAttribute('role', 'button')
+    const trigger = screen.getByRole('button', { name: 'Open image: First' })
+    fireEvent.keyDown(trigger, { key: 'Enter', ctrlKey: true })
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Authored action' }), { key: ' ' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    fireEvent.keyDown(trigger, { key: ' ' })
+    const dialog = screen.getByRole('dialog')
+    fireEvent.keyDown(dialog, { key: 'ArrowRight', altKey: true })
+    fireEvent.keyDown(dialog, { key: 'ArrowLeft' })
+    expect(within(dialog).getByText('1 / 2')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Next image' }))
+    fireEvent.keyDown(dialog, { key: 'ArrowRight' })
+    expect(within(dialog).getByText('2 / 2')).toBeInTheDocument()
+    fireEvent.keyDown(dialog, { key: 'ArrowLeft' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Next image' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Previous image' }))
+    expect(within(dialog).getByText('1 / 2')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close image viewer' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 })

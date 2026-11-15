@@ -4,6 +4,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 
 import { BulkMarks } from '@/components/bulk-marks'
 import type { PostList } from '@/lib/api.gen'
+import { TabActive } from '@/lib/author-tab'
 import { toPostFilters, type Filters } from '@/lib/filters'
 import { createQueryClient } from '@/lib/queries'
 import { savedRow } from '@/test/post-fixtures'
@@ -32,9 +33,11 @@ function pendingResponse() {
 function setup(filters: Filters = { tag: 'stream' }) {
   const client = createQueryClient()
   const props = { author: 'studio', filters, posts: listing, disabled: false }
-  const element = (next = props) => (
+  const element = (next = props, active = true) => (
     <QueryClientProvider client={client}>
-      <BulkMarks {...next} />
+      <TabActive value={active}>
+        <BulkMarks {...next} />
+      </TabActive>
     </QueryClientProvider>
   )
   const rendered = render(element())
@@ -264,6 +267,54 @@ test('unknown totals stay indeterminate and a progress read failure does not sto
   expect(screen.queryByText(/^Marked /)).not.toBeInTheDocument()
   pending.resolve(Response.json({ count: 2 }))
   expect(await screen.findByText('Marked 2 posts as seen.')).toBeVisible()
+  unmount()
+  client.clear()
+})
+
+test('leaving Posts dismisses its confirmation without writing or restoring hidden focus', async () => {
+  const request = vi.fn()
+  vi.stubGlobal('fetch', request)
+  const { client, props, element, rerender, unmount } = setup()
+  const trigger = screen.getByRole('button', { name: 'Mark posts' })
+  await choose()
+  const focus = vi.spyOn(trigger, 'focus')
+  rerender(element(props, false))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(focus).not.toHaveBeenCalled()
+  expect(request).not.toHaveBeenCalled()
+  rerender(element())
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  unmount()
+  client.clear()
+})
+
+test('a hidden bulk operation keeps running and its unseen result can be reopened with its original filters', async () => {
+  const pending = pendingResponse()
+  const request = vi.fn(async (_url: string, init?: RequestInit) =>
+    init?.method === 'POST'
+      ? pending.response
+      : Response.json({ active: true, total: 3, completed: 1, changed: 1 }),
+  )
+  vi.stubGlobal('fetch', request)
+  const { client, props, element, rerender, unmount } = setup()
+  await choose(false)
+  fireEvent.click(screen.getByRole('button', { name: 'Mark as unseen' }))
+  await screen.findByRole('progressbar')
+  rerender(element(props, false))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(client.isMutating()).toBe(1)
+  rerender(element({ ...props, filters: { tag: 'another' } }))
+  fireEvent.click(screen.getByRole('button', { name: 'Show marking progress' }))
+  expect(screen.getByRole('dialog')).toHaveTextContent('#stream')
+  pending.resolve(Response.json({ count: 2 }))
+  expect(await screen.findByText('Marked 2 posts as unseen.')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  fireEvent.keyDown(screen.getByRole('button', { name: 'Mark posts' }), { key: 'Enter' })
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Last marking result' }))
+  expect(screen.getByRole('dialog')).toHaveTextContent('Marked 2 posts as unseen.')
+  expect(screen.getByRole('dialog')).toHaveTextContent('#stream')
+  expect(request.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1)
   unmount()
   client.clear()
 })

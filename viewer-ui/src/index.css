@@ -2,6 +2,9 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import './components/post-body.css';
+@import './components/author-shell.css';
+@import './components/media-viewer.css';
+@import './components/player-bar.css';
 
 /* Dark is the default; the light palette follows the system setting. */
 @custom-variant dark {

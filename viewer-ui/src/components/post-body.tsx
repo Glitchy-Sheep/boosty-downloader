@@ -4,6 +4,7 @@ import { memo, useEffect, useLayoutEffect, useRef, useState, type RefObject } fr
 import { PostImageViewer, type PostImage } from '@/components/post-image-viewer'
 import { usePostPlayback, type SavePosition } from '@/hooks/use-post-playback'
 import type { MediaItem } from '@/lib/api.gen'
+import { useTabActive } from '@/lib/author-tab'
 import { postNavigation, preparePostLinks } from '@/lib/post-body-links'
 import { markHits, searchWords, unmarkHits, type SearchHit } from '@/lib/post-search'
 
@@ -29,6 +30,7 @@ export function PostBody({
   savePosition,
   onNavigate,
 }: PostBodyProps) {
+  const active = useTabActive()
   const rootRef = useRef<HTMLDivElement>(null)
   const [search, setSearch] = useState<{ revision: number; hits: SearchHit[] }>({
     revision: 0,
@@ -36,6 +38,8 @@ export function PostBody({
   })
   const [images, setImages] = useState<PostImage[]>([])
   const [imageIndex, setImageIndex] = useState<number | null>(null)
+
+  if (!active && imageIndex !== null) setImageIndex(null)
 
   useLayoutEffect(() => {
     const root = rootRef.current
