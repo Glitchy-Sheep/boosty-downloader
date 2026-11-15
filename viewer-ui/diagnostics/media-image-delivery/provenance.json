@@ -48,5 +48,17 @@
       "bytes": 4532573,
       "sha256": "61355e812844767fa1277e2279fd6b1f38ad02ebee26f631a6ee75d008d82575"
     }
+  ],
+  "gzipPolicies": [
+    {
+      "path": "boosty_downloader/viewer/static/app/assets/index-BqsgoXC0.css.gz",
+      "canonicalSha256": "4fd2417dd9859759f69c1dc3519770eeaba54eecb4365a65326c4657196ae024",
+      "payloadPath": "boosty_downloader/viewer/static/app/assets/index-BqsgoXC0.css"
+    },
+    {
+      "path": "boosty_downloader/viewer/static/app/assets/index-DHGER87K.js.gz",
+      "canonicalSha256": "2614145060226ad03dea3800f43ad08fabe713d3e8e2929dc82222196702856e",
+      "payloadPath": "boosty_downloader/viewer/static/app/assets/index-DHGER87K.js"
+    }
   ]
 }

@@ -3,11 +3,13 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { gzipProvenance } from './gzip-provenance.mjs'
 import provenance from './provenance.json' with { type: 'json' }
 
 /** @typedef {{id: string, order: number, variant: 'normal' | 'delayed'}} Cell */
 /** @typedef {{cell: Cell, validity: 'valid' | 'invalid', reasons: string[], result: string, workerPid: number | null, settleMs: number | null}} Outcome */
 /** @typedef {{title: unknown, results: unknown[]}} ReportCase */
+/** @typedef {{expected: string, actual: string | null, matches: boolean, comparison: 'exact-bytes' | 'gzip-os-byte', gzip?: ReturnType<typeof gzipProvenance>}} FileEvidence */
 
 /** @type {readonly Cell[]} */
 export const CELLS = [
@@ -80,11 +82,22 @@ export function originalCase(source) {
 }
 
 export async function sourceSnapshot() {
-  /** @type {Record<string, {expected: string, actual: string | null, matches: boolean}>} */
+  /** @type {Record<string, FileEvidence>} */
   const files = {}
-  for (const [name, expected] of Object.entries(provenance.files)) {
-    const actual = await readFile(path.join(repository, name)).then(hash, () => null)
-    files[name] = { expected, actual, matches: actual === expected }
+  /** @type {Record<string, string>} */
+  const pinnedFiles = provenance.files
+  for (const [name, expected] of Object.entries(pinnedFiles)) {
+    const body = await readFile(path.join(repository, name)).catch(() => null)
+    const actual = body ? hash(body) : null
+    const policy = provenance.gzipPolicies.find((item) => item.path === name)
+    if (!policy) {
+      files[name] = { expected, actual, matches: actual === expected, comparison: 'exact-bytes' }
+      continue
+    }
+    const payloadExpected = pinnedFiles[policy.payloadPath]
+    if (!payloadExpected) throw new Error('Gzip payload must have an existing raw asset pin')
+    const gzip = gzipProvenance(body, policy.canonicalSha256, payloadExpected)
+    files[name] = { expected, actual, matches: gzip.matches, comparison: 'gzip-os-byte', gzip }
   }
   let caseMatches = false
   try {

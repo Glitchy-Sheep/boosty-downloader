@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
+import { gzipSync } from 'node:zlib'
+
+import { gzipProvenance } from './gzip-provenance.mjs'
 
 import { CELLS, classifyCell, originalCase, sourceSnapshot, summarize } from './protocol.mjs'
 import provenance from './provenance.json' with { type: 'json' }
@@ -200,5 +204,135 @@ await test('aggregation preserves later cells after a failed assertion and a cor
     )
   } finally {
     await rm(directory, { recursive: true, force: true })
+  }
+})
+
+/** @param {Buffer} body */
+function sha256(body) {
+  return createHash('sha256').update(body).digest('hex')
+}
+
+function gzipFixture() {
+  const payload = Buffer.from('synthetic diagnostic asset\n'.repeat(10))
+  const mac = gzipSync(payload, { level: 9 })
+  mac[9] = 19
+  const unix = Buffer.from(mac)
+  unix[9] = 3
+  const canonical = Buffer.from(mac)
+  canonical[9] = 255
+  return {
+    payload,
+    mac,
+    unix,
+    canonicalExpected: sha256(canonical),
+    payloadExpected: sha256(payload),
+  }
+}
+
+await test('Mac and Unix gzip streams share canonical provenance while their original bytes stay intact', () => {
+  const sample = gzipFixture()
+  assert.notEqual(sha256(sample.mac), sha256(sample.unix))
+  for (const { body, osByte } of [
+    { body: sample.mac, osByte: 19 },
+    { body: sample.unix, osByte: 3 },
+  ]) {
+    const original = Buffer.from(body)
+    const result = gzipProvenance(body, sample.canonicalExpected, sample.payloadExpected)
+    assert.equal(result.matches, true)
+    assert.equal(result.error, null)
+    assert.equal(result.osByte, osByte)
+    assert.equal(result.canonicalActual, sample.canonicalExpected)
+    assert.equal(result.payloadActual, sample.payloadExpected)
+    assert.deepEqual(body, original)
+  }
+})
+
+await test('timestamp and compression-header changes fail even when the decoded payload is identical', () => {
+  const sample = gzipFixture()
+  for (const offset of [4, 5, 6, 7, 8]) {
+    const changed = Buffer.from(sample.mac)
+    changed[offset] = (changed[offset] ?? 0) ^ 1
+    const result = gzipProvenance(changed, sample.canonicalExpected, sample.payloadExpected)
+    assert.equal(result.matches, false)
+    assert.equal(result.error, null)
+    assert.notEqual(result.canonicalActual, sample.canonicalExpected)
+    assert.equal(result.payloadActual, sample.payloadExpected)
+  }
+})
+
+await test('gzip CRC and decoded-size trailer corruption fails integrity validation', () => {
+  const sample = gzipFixture()
+  for (const offset of [sample.mac.length - 8, sample.mac.length - 4]) {
+    const changed = Buffer.from(sample.mac)
+    changed[offset] = (changed[offset] ?? 0) ^ 1
+    const result = gzipProvenance(changed, sample.canonicalExpected, sample.payloadExpected)
+    assert.equal(result.matches, false)
+    assert.equal(result.error, 'invalid-stream')
+    assert.notEqual(result.canonicalActual, sample.canonicalExpected)
+    assert.equal(result.payloadActual, null)
+  }
+})
+
+await test('changed gzip payload cannot pass the raw asset pin even with a matching canonical pin', () => {
+  const sample = gzipFixture()
+  const changed = gzipSync(Buffer.from('different synthetic asset'), { level: 9 })
+  const canonical = Buffer.from(changed)
+  canonical[9] = 255
+  const originalPins = gzipProvenance(changed, sample.canonicalExpected, sample.payloadExpected)
+  assert.equal(originalPins.matches, false)
+  assert.notEqual(originalPins.canonicalActual, sample.canonicalExpected)
+  assert.notEqual(originalPins.payloadActual, sample.payloadExpected)
+  const canonicalOnly = gzipProvenance(changed, sha256(canonical), sample.payloadExpected)
+  assert.equal(canonicalOnly.canonicalActual, canonicalOnly.canonicalExpected)
+  assert.notEqual(canonicalOnly.payloadActual, sample.payloadExpected)
+  assert.equal(canonicalOnly.matches, false)
+})
+
+await test('missing, truncated and malformed gzip streams never match', () => {
+  const sample = gzipFixture()
+  assert.equal(
+    gzipProvenance(null, sample.canonicalExpected, sample.payloadExpected).error,
+    'missing',
+  )
+  for (const length of [0, 9, 17, sample.mac.length - 1]) {
+    const result = gzipProvenance(
+      sample.mac.subarray(0, length),
+      sample.canonicalExpected,
+      sample.payloadExpected,
+    )
+    assert.equal(result.matches, false)
+    assert.ok(result.error)
+  }
+  for (const offset of [0, 1, 2, 3]) {
+    const changed = Buffer.from(sample.mac)
+    changed[offset] = (changed[offset] ?? 0) ^ 1
+    const result = gzipProvenance(changed, sample.canonicalExpected, sample.payloadExpected)
+    assert.equal(result.matches, false)
+    assert.equal(result.error, 'invalid-header')
+  }
+})
+
+await test('compressed payload damage fails the complete stream pin', () => {
+  const sample = gzipFixture()
+  const changed = Buffer.from(sample.mac)
+  changed[12] = (changed[12] ?? 0) ^ 1
+  const result = gzipProvenance(changed, sample.canonicalExpected, sample.payloadExpected)
+  assert.equal(result.matches, false)
+  assert.notEqual(result.canonicalActual, sample.canonicalExpected)
+})
+
+await test('gzip policies cover only the two packaged gzip files and reuse their existing raw pins', () => {
+  const pinnedFiles = /** @type {Record<string, string>} */ (provenance.files)
+  assert.equal(provenance.gzipPolicies.length, 2)
+  assert.deepEqual(
+    provenance.gzipPolicies.map((policy) => policy.path).sort(),
+    Object.keys(pinnedFiles)
+      .filter((filename) => filename.endsWith('.gz'))
+      .sort(),
+  )
+  for (const policy of provenance.gzipPolicies) {
+    assert.equal(policy.path, policy.payloadPath + '.gz')
+    assert.match(pinnedFiles[policy.payloadPath] ?? '', /^[a-f0-9]{64}$/)
+    assert.match(policy.canonicalSha256, /^[a-f0-9]{64}$/)
   }
 })
