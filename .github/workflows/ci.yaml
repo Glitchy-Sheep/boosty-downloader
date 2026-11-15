@@ -134,6 +134,13 @@ jobs:
           key: ${{ runner.os }}-playwright-${{ hashFiles('viewer-ui/package-lock.json') }}
       - name: Install browser binaries and system dependencies
         run: npx playwright install --with-deps chromium firefox
+      - name: Configure virtual audio output
+        run: |
+          sudo apt-get install --yes pulseaudio pulseaudio-utils
+          pulseaudio --start --exit-idle-time=-1
+          pactl load-module module-null-sink sink_name=viewer_ci
+          pactl set-default-sink viewer_ci
+          test "$(pactl get-default-sink)" = viewer_ci
       - name: Browser tests against the packaged viewer
         run: npm run e2e
       - name: Upload browser diagnostics
