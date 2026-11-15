@@ -20,7 +20,7 @@ from boosty_downloader.infrastructure.library._db_models import DbMeta, LibraryB
 from boosty_downloader.infrastructure.library._db_runtime import (
     require_supported_sqlite,
 )
-from boosty_downloader.infrastructure.library._db_snapshot import schema_snapshot
+from boosty_downloader.infrastructure.library._db_snapshot import database_snapshot
 from boosty_downloader.infrastructure.library.db_library_format import (
     DATABASE_FORMAT_VERSION,
     DatabaseInitialization,
@@ -94,7 +94,7 @@ def _create_or_resume_database(
 
 def _validate_empty_snapshot(paths: DatabaseLibraryPaths, library_id: UUID) -> None:
     with (
-        schema_snapshot(paths.database) as snapshot,
+        database_snapshot(paths.database) as snapshot,
         LibraryDatabase.open(snapshot, expected_library_id=library_id) as database,
         database.transaction() as session,
     ):

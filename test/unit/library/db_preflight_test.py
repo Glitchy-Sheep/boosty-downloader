@@ -58,7 +58,9 @@ def test_preflight_refuses_unstable_copies(
                 writer.execute('PRAGMA wal_checkpoint(TRUNCATE)')
 
     monkeypatch.setattr(_db_snapshot, 'copyfile', copy_and_change)
-    with pytest.raises(LibraryDatabaseError, match='changed during schema inspection'):
+    with pytest.raises(
+        LibraryDatabaseError, match='changed while preparing a stable snapshot'
+    ):
         LibraryDatabase.open(path, writable=True)
     assert copies == 3
     assert not path.with_name('library.db.bak').exists()

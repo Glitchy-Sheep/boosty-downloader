@@ -29,7 +29,7 @@ def _start_backup(path: Path) -> None:
 
 
 def _take_snapshot(path: Path) -> None:
-    with _db_snapshot.schema_snapshot(path):
+    with _db_snapshot.database_snapshot(path):
         pass
 
 

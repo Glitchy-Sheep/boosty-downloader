@@ -1,4 +1,4 @@
-"""Non-mutating schema preflight, including committed pages still in the WAL."""
+"""Stable private database copies, including committed pages still in the WAL."""
 
 from __future__ import annotations
 
@@ -42,16 +42,16 @@ def _file_version(path: Path) -> _FileVersion | None:
 
 
 @contextmanager
-def schema_snapshot(source: Path) -> Generator[Path, None, None]:
-    """Inspect a stable private copy without creating sidecars beside the primary."""
+def database_snapshot(source: Path) -> Generator[Path, None, None]:
+    """Keep one private copy alive without creating sidecars beside the primary."""
     require_supported_sqlite()
     for _ in range(_SNAPSHOT_ATTEMPTS):
-        with TemporaryDirectory(prefix='boosty-db-check-') as directory:
+        with TemporaryDirectory(prefix='boosty-db-snapshot-') as directory:
             snapshot = Path(directory).resolve() / source.name
             if _copy_stable_files(source, snapshot):
                 yield snapshot
                 return
-    message = f'Library database changed during schema inspection: {source}. Stop other library processes and retry.'
+    message = f'Library database changed while preparing a stable snapshot: {source}. Stop other library processes and retry.'
     raise LibraryDatabaseError(message)
 
 

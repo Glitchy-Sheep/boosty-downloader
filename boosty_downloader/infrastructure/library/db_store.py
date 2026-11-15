@@ -32,7 +32,7 @@ from boosty_downloader.infrastructure.library._db_schema import (
     inspect_schema,
     migrate_schema,
 )
-from boosty_downloader.infrastructure.library._db_snapshot import schema_snapshot
+from boosty_downloader.infrastructure.library._db_snapshot import database_snapshot
 
 if TYPE_CHECKING:
     import sqlite3
@@ -91,18 +91,43 @@ class LibraryDatabase:
         """Validate a private copy without connecting SQLite to the primary file."""
         require_supported_sqlite()
         path = path.absolute()
-        validate_database_path(path)
-        if not path.is_file():
-            message = f'Primary library database is missing: {path}; restore {backup_path(path)}'
-            raise LibraryDatabaseError(message)
+        _require_existing_database(path)
         identity = _read_identity(path)
-        if (
-            expected_library_id is not None
-            and identity.library_id != expected_library_id
-        ):
-            message = f'Primary library identity does not match its marker: {path}'
-            raise UnsupportedLibraryDatabaseError(message)
+        _require_expected_identity(path, identity, expected_library_id)
         return identity
+
+    @classmethod
+    @contextmanager
+    def preview_snapshot(
+        cls, path: Path, *, expected_library_id: UUID
+    ) -> Generator[LibraryDatabase, None, None]:
+        """Borrow a private read-only snapshot; source files never enter SQLite."""
+        require_supported_sqlite()
+        path = path.absolute()
+        _require_existing_database(path)
+        with database_snapshot(path) as snapshot:
+            try:
+                identity = _inspect_snapshot(snapshot)
+                _require_expected_identity(path, identity, expected_library_id)
+            except UnsupportedLibraryDatabaseError as error:
+                message = f'Cannot preview primary library {path}: {error}. Recovery backup: {backup_path(path)}'
+                raise UnsupportedLibraryDatabaseError(message) from error
+            except LibraryDatabaseError as error:
+                message = f'Cannot validate primary library {path} for preview. Recovery backup: {backup_path(path)}'
+                raise LibraryDatabaseError(message) from error
+            except DatabaseError as error:
+                message = (
+                    f'Cannot validate a read-only snapshot of {path}. '
+                    'A writable run may be needed for journal recovery. '
+                    f'The preview did not modify the source or {backup_path(path)}.'
+                )
+                raise LibraryDatabaseError(message) from error
+            if identity.version != SCHEMA_VERSION:
+                message = f'Primary library {path} requires a writable schema upgrade before preview. Recovery backup: {backup_path(path)}'
+                raise UnsupportedLibraryDatabaseError(message)
+            engine = make_database_engine(snapshot, writable=False, identity=identity)
+            with cls(snapshot, engine, identity) as database:
+                yield database
 
     @classmethod
     def open_for_initialization(
@@ -185,10 +210,27 @@ class LibraryDatabase:
 
 def _read_identity(path: Path) -> SchemaIdentity:
     try:
-        with schema_snapshot(path) as snapshot:
+        with database_snapshot(path) as snapshot:
             return _inspect_snapshot(snapshot)
     except DatabaseError as error:
         raise _database_error(path, error) from error
+
+
+def _require_existing_database(path: Path) -> None:
+    validate_database_path(path)
+    if not path.is_file():
+        message = (
+            f'Primary library database is missing: {path}; restore {backup_path(path)}'
+        )
+        raise LibraryDatabaseError(message)
+
+
+def _require_expected_identity(
+    path: Path, identity: SchemaIdentity, expected: UUID | None
+) -> None:
+    if expected is not None and identity.library_id != expected:
+        message = f'Primary library identity does not match its marker: {path}'
+        raise UnsupportedLibraryDatabaseError(message)
 
 
 def _inspect_snapshot(path: Path) -> SchemaIdentity:
