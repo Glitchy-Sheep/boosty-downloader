@@ -30,7 +30,7 @@ export default defineConfig({
     host: '127.0.0.1',
     port: 5174,
     strictPort: true,
-    proxy: { '/api': backendProxy(), '/media': backendProxy() },
+    proxy: { '/api': backendProxy(), '/media': backendProxy(), '/thumbs': backendProxy() },
   },
   build: {
     outDir: '../boosty_downloader/viewer/static/app',
@@ -40,5 +40,20 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        'src/**/*.test.{ts,tsx}',
+        'src/test/**',
+        'src/**/*.d.ts',
+        'src/lib/api.gen.ts',
+        'src/lib/api.gen.typecheck.ts',
+      ],
+      reporter: ['text-summary', 'json-summary', 'lcov', 'html'],
+      reportOnFailure: true,
+      // Negative thresholds cap uncovered counts as the codebase grows.
+      thresholds: { statements: -136, branches: -128, functions: -38, lines: -94 },
+    },
   },
 })

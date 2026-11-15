@@ -2,11 +2,24 @@
 
 ### Added
 
+- The viewer supports explicit seen marks, Updated badges, row favorites and physical `s`/`f` shortcuts. Filtered bulk marking confirms the number of changes and shows progress; opening a post never marks it seen.
+
+- The viewer can jump to any month in the filtered post timeline without changing the open post, filters or viewing marks. The month selector follows manual scrolling and groups long histories by year.
+
+- The viewer supports physical `j`/`k` keys to browse posts and `/` to focus search, including the Russian keyboard layout. Fast presses preserve every step and keep current filters; typing, dialogs and native media controls keep their keys.
+
+- The viewer reads complete saved posts with text search, filtered Previous/Next navigation, tag filters, page favorites and fullscreen photos. Retained content remains readable after access closes.
+- Inline video and audio resume from saved positions, offer Start over, and save progress during playback and on leaving the page. Opening or playing a post keeps its seen mark unchanged.
+
+- Author cards open a virtual post timeline with month headings, local thumbnails and access states. Search, media kind, unseen, favorites, tag, locked, incomplete and sort filters stay in the URL, including after reload and browser navigation.
+
+- The viewer shows author cards with saved artwork, post counts and downloaded-media storage by kind, plus a library total. Cards adapt to narrow screens and include descriptions for screen readers.
+
 - Downloads save small thumbnails for post images and locked teasers. Later runs fill missing thumbnails without downloading originals again; thumbnail failures warn once and preserve primary download results. Viewer thumbnail URLs fall back to local originals when needed.
 
 - Authored links between saved posts open local copies. Downloads resolve links to posts saved later in the same run; `render` and later downloads refresh processed pages when more targets become available. Viewer body links use local post routes.
 
-- `view` starts the local viewer server with the packaged shell, optional LAN access, and empty-library or compatibility pages. Read APIs expose authors, filtered posts, search context and complete post bodies; local media support seeking with Range requests. Data screens and mark editing are not connected to the shell yet.
+- `view` starts the local viewer server with the packaged shell, optional LAN access, and empty-library or compatibility pages. Read APIs expose authors, filtered posts, search context and complete post bodies; local media support seeking with Range requests.
 
 - Viewer APIs save seen marks, favorites and playback positions across downloads, index rebuilds and library moves. Bulk marking respects the selected post filters and reports numerical progress. Playback near the end of a video or track counts as finished.
 

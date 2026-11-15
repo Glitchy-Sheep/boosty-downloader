@@ -139,7 +139,7 @@ def test_attachment_groups_stay_inside_the_removed_section() -> None:
     assert 'href="files/after.zip"' not in section
 
 
-def test_search_markers_exclude_only_the_section_explanation() -> None:
+def test_search_markers_exclude_generated_text_and_keep_media_titles() -> None:
     title = 'Lesson <script> & "notes"'
     filename = 'Sources <script> & "examples".zip'
     html = render_html_chunk(
@@ -156,7 +156,11 @@ def test_search_markers_exclude_only_the_section_explanation() -> None:
     section.feed(html)
     section.close()
 
-    assert section.generated == ['Removed by the author', 'Your copies stay on disk.']
+    assert section.generated == [
+        'Removed by the author',
+        'Your copies stay on disk.',
+        'File · ZIP',
+    ]
     assert title in section.authored
     assert filename in section.authored
     assert 'Spoken lesson' in section.authored
@@ -188,6 +192,6 @@ def test_saved_empty_page_also_records_its_template_version(tmp_path: Path) -> N
 
     html = output.read_text(encoding='utf-8')
     head = html.partition('</head>')[0]
-    assert '<meta name="boosty-downloader-page-template" content="6"' in head
+    assert '<meta name="boosty-downloader-page-template" content="7"' in head
     assert html.count('name="boosty-downloader-page-template"') == 1
     assert '<section class="removed-media">' not in html
