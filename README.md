@@ -150,7 +150,7 @@ Posts observed without access are listed in `.boosty-downloader/locked.json` wit
 
 Video previews are saved under each post's `previews/` directory, even when video downloads are filtered out or the video is not ready yet. Locked-post teasers live in the creator's `.boosty-downloader/teasers/` directory. Existing usable previews and teasers are reused; missing ones are fetched on a later run without `--restore-missing`. Excluded tags prevent these image downloads too. Their transfers do not count as downloaded post media.
 
-Library cover selection uses the first current downloaded image, then the preview of the first current Boosty video. A locked post uses its teaser. Removed media cannot become the cover. These images and cover rules prepare the saved records for the library viewer; they do not add a new viewer command yet.
+Library cover selection uses the first current downloaded image, then the preview of the first current Boosty video. A locked post uses its teaser. Removed media cannot become the cover. The viewer uses saved thumbnails where available and falls back to local originals.
 
 This development version uses `post.json` instead of the v4 SQLite cache. Choose a fresh destination for v5. The first actual download marks it with `.boosty-downloader/library.json`; dry-run never creates the marker. If an unmarked destination contains post folders from any creator, `download` in every mode, `render` and `reindex` stop before network requests, sample configuration or log writes. Keep the old destination while it contains posts that Boosty no longer serves. Existing downloads are not migrated or adopted automatically.
 
@@ -185,6 +185,22 @@ boosty-downloader view -o ./downloads --lan
 ```
 
 The viewer needs no Boosty credentials. Global `--config` selects the settings file; `view --cache-dir` overrides the disposable index location. By default it listens on localhost at port 8314, choosing the next available port if needed; an explicit busy `--port` fails. `--lan` also permits devices on your local network and prints their addresses. Stop it with Ctrl+C.
+
+The authors page shows saved artwork, post counts and recorded downloaded-media sizes. Bars and labels show videos, photos, audio and files from largest to smallest; retained downloaded copies count too. These totals exclude pages, records and auxiliary images, and do not scan the disk when opening the page. Windows uses 1024 bytes per KB; other devices use 1000, with three significant digits.
+
+Opening an author selects its newest post and shows a virtual timeline with month headings and local thumbnails. Search titles and post text, combine filters for media kind, unseen, favorites, tag, locked or incomplete posts, and change the order. The address preserves these choices across reload and browser navigation. A selected post remains available when filters hide it from the list.
+
+The post pane shows its complete saved text and media in the author's order. Use tags to filter, Previous/Next to follow the filtered timeline, and the heart to save favorites. Search highlights have their own match navigation. Open a photo for a full-screen view with arrow keys and Escape. Saved content stays readable after access closes; locked posts have no editable heart. Opening or playing a post does not mark it seen.
+
+Use `j` for the next post, `k` for the previous post and `/` to focus and select the search text. Press `s` to toggle the open post's seen mark and `f` to toggle its heart. These shortcuts follow physical key positions, so they also work with the Russian layout. Fast navigation advances from the previous chosen post and preserves the current filters and order. Text fields, menus, dialogs and native audio/video controls keep their own keys; shortcuts with modifiers are ignored.
+
+Choose **Mark as seen** or press `s` to mark a post seen. New media added after you marked it seen brings back its unseen dot and an **Updated** badge; marking it seen again acknowledges the update. Hearts on list rows work without opening the post and stay available on touch screens. Marks and author counts update immediately; a failed save reports an error and refreshes the saved state.
+
+Use **Mark posts** beside the result count to mark the current filtered list seen or unseen. Confirmation states how many posts will change; locked posts keep their marks. While the operation runs, the viewer reports processed and changed counts. Closing the dialog or browsing another post does not cancel the operation. A failure preserves completed changes and lets you retry the same filters.
+
+Use **Jump to month** above the timeline to browse older posts. It lists the months present in the current filtered results, grouped by year, and follows manual scrolling. The adjacent **Jump to month start** button returns to the first post of the current month. These controls move the list while keeping the open post, filters and viewing marks unchanged.
+
+Video and audio resume from their saved position, with a Start over action. Playback saves every five seconds while playing and on pause, seeking while paused and leaving the page. A piece played into its last 10 seconds, or last 5 percent when shorter, starts from the beginning next time. Final page-close requests use browser keepalive; delivery still depends on the browser and the local server remaining available. A failed save is shown beside the player.
 
 After the viewer stops, the operating system can keep a fixed port temporarily unavailable while connections close. The default mode chooses another free port; with `--port`, wait or choose another value.
 

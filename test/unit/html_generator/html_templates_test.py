@@ -290,7 +290,10 @@ def test_attachment_meta_names_what_is_known(
 ) -> None:
     html = render_html_chunk(HtmlGenFile(url='files/x', filename=filename, size=size))
 
-    assert f'<span class="attachment-meta">{meta}</span>' in html
+    assert (
+        f'<span class="attachment-meta" data-page-generated="true">{meta}</span>'
+        in html
+    )
 
 
 def test_neighbouring_attachments_share_one_block() -> None:
@@ -320,9 +323,12 @@ def test_a_missing_video_names_itself_and_links_to_the_original() -> None:
         )
     )
 
-    assert 'Video not downloaded: Stream &lt;part 2&gt;' in html
+    assert 'Video not downloaded: </span>Stream &lt;part 2&gt;' in html
     assert 'Unexpected status code: 403' in html
-    assert 'href="https://www.youtube.com/watch?v=gone">Open the original</a>' in html
+    assert (
+        'href="https://www.youtube.com/watch?v=gone" '
+        'data-page-generated="true">Open the original</a>' in html
+    )
 
 
 def test_a_missing_image_has_no_name_and_no_link() -> None:
@@ -330,7 +336,7 @@ def test_a_missing_image_has_no_name_and_no_link() -> None:
         HtmlGenUnavailable(kind=UnavailableKind.IMAGE, reason='connection lost')
     )
 
-    assert '<span class="unavailable-title">Image not downloaded</span>' in html
+    assert '<span data-page-generated="true">Image not downloaded</span>' in html
     assert 'Open the original' not in html
 
 
@@ -367,12 +373,12 @@ SHOWCASE_MARKERS = [
     '<div class="media-title">Exclusive Behind the Scenes</div>',
     '<source src="https://example.com/video.mp4" type="video/mp4">',
     '<source src="https://www.youtube.com/watch?v=dQw4w9WgXcQ">',
-    'Video not downloaded: https://www.youtube.com/watch?v=gone',
-    '<span class="unavailable-title">Image not downloaded</span>',
+    'Video not downloaded: </span>https://www.youtube.com/watch?v=gone',
+    '<span data-page-generated="true">Image not downloaded</span>',
     '<h2>Thanks for <strong>reading</strong>!</h2>',
     '<div class="attachments">',
     'release &lt;v2&gt; &amp; notes.zip',
-    '<span class="attachment-meta">File · MP4</span>',
+    '<span class="attachment-meta" data-page-generated="true">File · MP4</span>',
     '<source src="audio/fixture-song.mp3">',
 ]
 

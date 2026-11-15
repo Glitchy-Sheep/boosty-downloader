@@ -45,7 +45,7 @@ from boosty_downloader.infrastructure.library._atomic_write import write_atomica
 from boosty_downloader.infrastructure.library._media_paths import is_link
 
 # Bump when the generated page structure or styling changes.
-PAGE_TEMPLATE_VERSION: Final[int] = 6
+PAGE_TEMPLATE_VERSION: Final[int] = 7
 
 
 # Load all templates as a package files
@@ -179,12 +179,6 @@ def _group_attachments(
         yield run
 
 
-def _unavailable_title(item: HtmlGenUnavailable) -> str:
-    """'Video not downloaded: <title>' or, without a name, 'Image not downloaded'."""
-    title = f'{item.kind.value.capitalize()} not downloaded'
-    return f'{title}: {item.label}' if item.label else title
-
-
 def _format_duration(duration: timedelta | None) -> str | None:
     """Whole seconds as M:SS or H:MM:SS; negative durations display zero."""
     if duration is None:
@@ -204,7 +198,7 @@ def _render_missing_media(
         case HtmlGenUnavailable():
             return env.get_template('unavailable.html').render(
                 item=item,
-                title=_unavailable_title(item),
+                kind=item.kind.value.capitalize(),
                 duration=_format_duration(item.duration),
                 safe_href=safe_href,
             )

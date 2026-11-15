@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 100,
+  "tabWidth": 2,
+  "useTabs": false,
+  "singleQuote": true,
+  "semi": false,
+  "endOfLine": "lf",
+  "proseWrap": "never",
+  "sortImports": false,
+  "sortTailwindcss": false,
+  "sortPackageJson": false,
+  "ignorePatterns": [
+    "node_modules/",
+    "package-lock.json",
+    "src/lib/api.gen.ts",
+    "dist/",
+    "coverage/",
+    "reports/",
+    "playwright-report/",
+    "test-results/"
+  ]
+}

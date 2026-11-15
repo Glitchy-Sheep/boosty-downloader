@@ -1,9 +1,9 @@
 <div class="unavailable">
-    <span class="unavailable-icon">⚠️</span>
+    <span class="unavailable-icon" aria-hidden="true">⚠️</span>
     <span class="unavailable-text">
-        <span class="unavailable-title">{{ title }}</span>
+        <span class="unavailable-title"><span data-page-generated="true">{{ kind }} not downloaded{% if item.label %}: {% endif %}</span>{{ item.label }}</span>
 {% if item.reason %}
-        <span class="unavailable-reason">{{ item.reason }}</span>
+        <span class="unavailable-reason" data-page-generated="true">{{ item.reason }}</span>
 {% else %}
         <span class="unavailable-reason" data-page-generated="true">No reason recorded.</span>
 {% endif %}
@@ -13,9 +13,9 @@
 {% if item.source_url %}
 {% set href = safe_href(item.source_url) %}
 {% if href %}
-        <a class="unavailable-link" href="{{ href }}">Open the original</a>
+        <a class="unavailable-link" href="{{ href }}" data-page-generated="true">Open the original</a>
 {% else %}
-        <span class="unavailable-reason">Open the original</span>
+        <span class="unavailable-reason" data-page-generated="true">Open the original</span>
 {% endif %}
 {% endif %}
     </span>
