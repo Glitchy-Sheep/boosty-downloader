@@ -1,3 +1,5 @@
+import type { Page, TestInfo } from '@playwright/test'
+
 import { expect, openPost, pane, POSTS, sidebar, test } from './post-fixtures'
 import { requireFixture } from './required-fixture'
 import {
@@ -19,6 +21,7 @@ import {
   toggle,
   width,
   widthFrames,
+  type WidthFrame,
 } from './sidebar-fixtures'
 
 const MAX_INPUT_ATTEMPTS = 3
@@ -54,7 +57,7 @@ test('toggle and reset glide through intermediate widths while reduced motion is
   await seedPreference(page, JSON.stringify({ width: 500, collapsed: false }))
   await openPost(page, corpus, POSTS.reader)
   await expectWidth(page, 500)
-  const collapsed = await widthFrames(page, 'toggle')
+  const collapsed = await recordWidthFrames(page, 'toggle', info, 'collapse')
   expect(collapsed.at(-1)?.width).toBeLessThanOrEqual(0.5)
   expect(
     new Set(
@@ -63,21 +66,31 @@ test('toggle and reset glide through intermediate widths while reduced motion is
         .map((sample) => Math.round(sample.width)),
     ).size,
   ).toBeGreaterThanOrEqual(3)
-  const expanded = await widthFrames(page, 'toggle')
+  const expanded = await recordWidthFrames(page, 'toggle', info, 'expand')
   expect(Math.abs(requireFixture(expanded.at(-1)).width - 500)).toBeLessThanOrEqual(0.5)
   expect(expanded.some((sample) => sample.width > 1 && sample.width < 499)).toBe(true)
-  const reset = await widthFrames(page, 'reset')
+  const reset = await recordWidthFrames(page, 'reset', info, 'reset')
   expect(reset.some((sample) => sample.width > 361 && sample.width < 499)).toBe(true)
   await expectWidth(page, 360)
-  await info.attach('sidebar-glide.json', {
-    body: JSON.stringify({ collapsed, expanded, reset }),
-    contentType: 'application/json',
-  })
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  const immediate = await widthFrames(page, 'toggle')
+  const immediate = await recordWidthFrames(page, 'toggle', info, 'reduced-motion')
   expect(immediate.slice(1).every((sample) => sample.width <= 0.5)).toBe(true)
   await expect(layout(page)).not.toHaveAttribute('data-animating')
 })
+
+async function recordWidthFrames(
+  page: Page,
+  action: 'toggle' | 'reset',
+  info: TestInfo,
+  name: string,
+): Promise<WidthFrame[]> {
+  const readings = await widthFrames(page, action)
+  await info.attach(`sidebar-${name}-frames.json`, {
+    body: JSON.stringify(readings),
+    contentType: 'application/json',
+  })
+  return readings
+}
 
 test('reduced-motion button, bracket, Enter and arrow changes preserve the reading offset', async ({
   page,

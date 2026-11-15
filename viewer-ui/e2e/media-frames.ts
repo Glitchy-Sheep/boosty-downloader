@@ -3,21 +3,28 @@ import type { Page } from '@playwright/test'
 import { expect } from './media-fixtures'
 import {
   captureSwitch,
+  type SwitchCaptureWindow,
   type SwitchFrame,
   type SwitchRecording,
   type TabAction,
   type TabName,
 } from './media-switch-recording'
 
-export type { SwitchFrame, SwitchRecording, TabAction, TabName } from './media-switch-recording'
+export type {
+  SwitchCaptureWindow,
+  SwitchFrame,
+  SwitchRecording,
+  TabAction,
+  TabName,
+} from './media-switch-recording'
 
 /** Record rendered frames, including the delayed response and the first mounted pane. */
 export async function switchFrames(
   page: Page,
   action: TabAction,
-  duration = 550,
+  capture: SwitchCaptureWindow = {},
 ): Promise<SwitchRecording> {
-  return page.evaluate(captureSwitch, { action, duration })
+  return page.evaluate(captureSwitch, { action, ...capture })
 }
 
 export function verifySwitch(frames: SwitchFrame[], destination: TabName): void {
