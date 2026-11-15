@@ -159,7 +159,7 @@ test('restores a chosen width after temporary compression without saving the squ
   hook.unmount()
 })
 
-test('mobile callbacks cannot change the saved desktop layout or hide the temporary split', () => {
+test('mobile callbacks cannot change the saved desktop layout or occupy post space', () => {
   saveSidebarLayout({ width: 550, collapsed: true })
   const hook = mountController()
   act(() => hook.result.current.restoreLayout())
@@ -173,8 +173,8 @@ test('mobile callbacks cannot change the saved desktop layout or hide the tempor
     hook.result.current.show()
     hook.result.current.reset()
   })
-  expect(hook.result.current.isOpen).toBe(true)
-  expect(hook.panel.resize).toHaveBeenLastCalledWith('52%')
+  expect(hook.result.current.isOpen).toBe(false)
+  expect(hook.panel.resize).toHaveBeenLastCalledWith(0)
   expect(loadSidebarLayout()).toEqual({ width: 550, collapsed: true })
   hook.rerender({ active: true, docked: true })
   act(() => {

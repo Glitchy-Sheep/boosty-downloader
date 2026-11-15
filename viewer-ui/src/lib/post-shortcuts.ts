@@ -40,7 +40,11 @@ function isOpenOverlay(overlay: Element): boolean {
 }
 
 /** Editors, native playback controls, menus and dialogs retain their own keyboard actions. */
-export function acceptsPostShortcut(event: KeyboardEvent, document: Document): boolean {
+export function acceptsPostShortcut(
+  event: KeyboardEvent,
+  document: Document,
+  owner?: Element,
+): boolean {
   if (
     event.defaultPrevented ||
     event.isComposing ||
@@ -53,5 +57,5 @@ export function acceptsPostShortcut(event: KeyboardEvent, document: Document): b
     return false
   return !Array.from(
     document.querySelectorAll('dialog, [role="dialog"], [role="alertdialog"], [role="menu"]'),
-  ).some(isOpenOverlay)
+  ).some((overlay) => overlay !== owner && isOpenOverlay(overlay))
 }

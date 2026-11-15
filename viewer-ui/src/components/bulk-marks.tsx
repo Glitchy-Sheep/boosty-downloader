@@ -1,12 +1,13 @@
 import { CheckCheck, ChevronDown, LoaderCircle } from 'lucide-react'
 import { Dialog, DropdownMenu } from 'radix-ui'
-import { useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 
 import { useBulkMarks, type BulkMarkSelection } from '@/hooks/use-bulk-marks'
 import type { BulkMarksProgressResponse, PostFilters, PostList } from '@/lib/api.gen'
 import { useTabActive } from '@/lib/author-tab'
 import { toPostFilters, type Filters, type Kind } from '@/lib/filters'
 import { formatCount, plural } from '@/lib/format'
+import { dismissLayerOnEscape } from '@/lib/keyboard-layer'
 import { countMarkChanges } from '@/lib/post-marks'
 
 type BulkMarksProps = {
@@ -41,9 +42,25 @@ export function BulkMarks({ author, filters, posts, disabled }: BulkMarksProps) 
   const bulk = useBulkMarks(author)
   const [dialog, setDialog] = useState<BulkDialog>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const focusReturn = useRef({ active: false, dialog: false })
+  useLayoutEffect(() => {
+    focusReturn.current = { active, dialog: dialog !== null }
+    return () => {
+      focusReturn.current = { active: false, dialog: false }
+    }
+  }, [active, dialog])
   if (!active && dialog !== null) setDialog(null)
   if (!active && menuOpen) setMenuOpen(false)
   const trigger = useRef<HTMLButtonElement>(null)
+  const content = useRef<HTMLDivElement>(null)
+  const dialogKind = dialog?.kind ?? null
+  const previousDialogKind = useRef(dialogKind)
+  useLayoutEffect(() => {
+    const previous = previousDialogKind.current
+    previousDialogKind.current = dialogKind
+    if (previous === null || dialogKind === null || previous === dialogKind) return
+    content.current?.focus({ preventScroll: true })
+  }, [dialogKind])
   const seenCount = countMarkChanges(posts?.rows ?? [], true)
   const unseenCount = countMarkChanges(posts?.rows ?? [], false)
   const unavailable = disabled || posts === undefined || bulk.blocked
@@ -100,8 +117,10 @@ export function BulkMarks({ author, filters, posts, disabled }: BulkMarksProps) 
             <DropdownMenu.Content
               align="end"
               sideOffset={6}
+              onKeyDownCapture={(event) => dismissLayerOnEscape(event, () => setMenuOpen(false))}
               onCloseAutoFocus={(event) => {
-                if (dialog || !active) event.preventDefault()
+                if (focusReturn.current.dialog || !focusReturn.current.active)
+                  event.preventDefault()
               }}
               className="z-40 min-w-48 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg"
             >
@@ -145,9 +164,12 @@ export function BulkMarks({ author, filters, posts, disabled }: BulkMarksProps) 
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60" />
           <Dialog.Content
+            ref={content}
+            onKeyDownCapture={(event) => dismissLayerOnEscape(event, () => setDialog(null))}
             onCloseAutoFocus={(event) => {
               event.preventDefault()
-              if (active && trigger.current?.isConnected) trigger.current.focus()
+              if (focusReturn.current.active && trigger.current?.isConnected)
+                trigger.current.focus()
             }}
             className="fixed top-1/2 left-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border bg-card p-6 text-card-foreground shadow-xl outline-none"
           >

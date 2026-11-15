@@ -1,5 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { Dialog } from 'radix-ui'
 import { afterEach, expect, test, vi } from 'vitest'
 
 import { BulkMarks } from '@/components/bulk-marks'
@@ -132,6 +133,46 @@ test('closing progress keeps the write pending and offers the same operation whe
   client.clear()
 })
 
+test('replacing confirmation keeps focus in progress without stealing it on completion', async () => {
+  const pending = pendingResponse()
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (_url: string, init?: RequestInit) =>
+      init?.method === 'POST'
+        ? pending.response
+        : Response.json({ active: true, total: 3, completed: 1, changed: 1 }),
+    ),
+  )
+  const client = createQueryClient()
+  const view = render(
+    <QueryClientProvider client={client}>
+      <Dialog.Root open>
+        <Dialog.Portal>
+          <Dialog.Content aria-describedby={undefined}>
+            <Dialog.Title>Posts</Dialog.Title>
+            <BulkMarks author="studio" filters={{}} posts={listing} disabled={false} />
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    </QueryClientProvider>,
+  )
+  fireEvent.keyDown(screen.getByRole('button', { name: 'Mark posts' }), { key: 'Enter' })
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Mark all as seen' }))
+  const confirm = await screen.findByRole('dialog', { name: 'Mark 2 posts as seen?' })
+  const submit = within(confirm).getByRole('button', { name: 'Mark as seen' })
+  submit.focus()
+  fireEvent.click(submit)
+  const progress = await screen.findByRole('dialog', { name: 'Marking posts' })
+  expect(progress.contains(document.activeElement)).toBe(true)
+  const close = within(progress).getByRole('button', { name: 'Close' })
+  close.focus()
+  pending.resolve(Response.json({ count: 2 }))
+  await screen.findByRole('dialog', { name: 'Posts marked' })
+  expect(close).toHaveFocus()
+  view.unmount()
+  client.clear()
+})
+
 test('an inactive or unavailable progress response never claims completion', async () => {
   const pending = pendingResponse()
   const request = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
@@ -185,6 +226,7 @@ test('failure retry permits a zero-change repair and retains the original scope'
   rerender(element({ ...props, posts: saved }))
   fireEvent.click(screen.getByRole('button', { name: 'Retry marking' }))
   expect(screen.getByRole('heading')).toHaveTextContent('Mark 0 posts as seen?')
+  expect(screen.getByRole('dialog')).toHaveFocus()
   expect(screen.getByRole('button', { name: 'Mark as seen' })).toBeEnabled()
   fireEvent.click(screen.getByRole('button', { name: 'Mark as seen' }))
   expect(await screen.findByText('Marked 0 posts as seen.')).toBeVisible()
@@ -287,6 +329,28 @@ test('leaving Posts dismisses its confirmation without writing or restoring hidd
   unmount()
   client.clear()
 })
+
+test.each(['menu', 'confirmation'])(
+  'a closing %s uses the latest tab activity for deferred focus restoration',
+  async (layer) => {
+    const { client, props, element, rerender, unmount } = setup()
+    const trigger = screen.getByRole('button', { name: 'Mark posts' })
+    if (layer === 'confirmation') await choose()
+    else {
+      fireEvent.keyDown(trigger, { key: 'Enter' })
+      await screen.findByRole('menu')
+    }
+    const focus = vi.spyOn(trigger, 'focus')
+    if (layer === 'confirmation') fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    else fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
+    rerender(element(props, false))
+    await act(() => new Promise((resolve) => window.setTimeout(resolve, 10)))
+    expect(focus).not.toHaveBeenCalled()
+    focus.mockRestore()
+    unmount()
+    client.clear()
+  },
+)
 
 test('a hidden bulk operation keeps running and its unseen result can be reopened with its original filters', async () => {
   const pending = pendingResponse()

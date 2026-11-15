@@ -21,7 +21,7 @@ type DockedLayoutProps = {
   pane: ReactNode
 }
 
-/** Preserve the post and its native players while the sidebar changes orientation. */
+/** Preserve the post and its native players while the sidebar changes placement. */
 export function DockedLayout({ controller, sidebar, pane }: DockedLayoutProps) {
   const edgeRef = useRef<HTMLDivElement>(null)
   const { docked, active, groupRef } = controller
@@ -78,7 +78,7 @@ export function DockedLayout({ controller, sidebar, pane }: DockedLayoutProps) {
     <ResizablePanelGroup
       className="docked-layout"
       data-sidebar-layout={docked ? 'docked' : 'mobile'}
-      orientation={docked ? 'horizontal' : 'vertical'}
+      orientation="horizontal"
       disabled={!docked || !active}
       elementRef={groupRef}
       resizeTargetMinimumSize={EDGE_GRAB}
@@ -91,16 +91,18 @@ export function DockedLayout({ controller, sidebar, pane }: DockedLayoutProps) {
         className="docked-layout-panel"
         elementRef={controller.sidebarRef}
         panelRef={controller.panelRef}
-        defaultSize={docked ? controller.initialWidth : '52%'}
-        minSize={docked ? SIDEBAR_WIDTH.min : '52%'}
-        maxSize={docked ? SIDEBAR_WIDTH.max : '52%'}
+        defaultSize={docked ? controller.initialWidth : 0}
+        minSize={docked ? SIDEBAR_WIDTH.min : 0}
+        maxSize={docked ? SIDEBAR_WIDTH.max : 0}
         collapsible={docked}
         collapsedSize={0}
-        groupResizeBehavior={docked ? 'preserve-pixel-size' : 'preserve-relative-size'}
+        groupResizeBehavior="preserve-pixel-size"
       >
-        <div id="author-post-sidebar" inert={!controller.isOpen} className="h-full">
-          {sidebar}
-        </div>
+        {docked && (
+          <div id="author-post-sidebar" inert={!controller.isOpen} className="h-full">
+            {sidebar}
+          </div>
+        )}
       </ResizablePanel>
       <ResizableHandle
         disableDoubleClick

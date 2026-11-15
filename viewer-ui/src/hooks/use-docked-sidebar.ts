@@ -114,7 +114,7 @@ export function useDockedSidebar({
       panel.resize(preference.current.width)
       if (preference.current.collapsed) panel.collapse()
     } else {
-      panel.resize('52%')
+      panel.resize(0)
     }
     restoredDocked.current = docked
   }
@@ -155,7 +155,7 @@ export function useDockedSidebar({
   return {
     active,
     docked,
-    isOpen: !docked || !collapsed,
+    isOpen: docked && !collapsed,
     initialWidth: saved.width,
     toggle,
     show: () => {

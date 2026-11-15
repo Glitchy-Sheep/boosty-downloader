@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { PostBody } from '@/components/post-body'
 import { DockedLayout } from '@/components/docked-layout'
+import { MobileSidebar } from '@/components/mobile-sidebar'
 import { PostPage } from '@/components/post-page'
 import { PostPane } from '@/components/post-pane'
 import { Sidebar } from '@/components/sidebar'
@@ -12,13 +13,15 @@ import { usePostMarkActions, usePostMarks } from '@/hooks/use-post-marks'
 import { usePostShortcuts } from '@/hooks/use-post-shortcuts'
 import { useRetainedData } from '@/hooks/use-retained-data'
 import type { SavePosition } from '@/hooks/use-post-playback'
-import type { DockedSidebar } from '@/hooks/use-docked-sidebar'
+import type { AuthorSidebar } from '@/hooks/use-author-sidebar'
+import { useSearchController } from '@/hooks/use-search-controller'
 import { isAuthorPosts, useTabActive } from '@/lib/author-tab'
 import { hasFilters, type Filters } from '@/lib/filters'
 import { saveMediaPosition } from '@/lib/playback-mutations'
 import { readPostShortcutContext } from '@/lib/post-shortcut-context'
 import { authorQuery, postQuery, tagsQuery, usePostList } from '@/lib/queries'
 import { stringifyViewerSearch } from '@/lib/url-search'
+import type { TimelineSnapshot } from '@/lib/timeline-session'
 
 function useSearchHistoryReset(author: string): number {
   const router = useRouter()
@@ -51,7 +54,7 @@ export function PostsScreen({
   author: string
   postId: string | undefined
   filters: Filters
-  sidebar: DockedSidebar
+  sidebar: AuthorSidebar
   children: ReactNode
 }) {
   const active = useTabActive()
@@ -60,6 +63,7 @@ export function PostsScreen({
   const searchResetRevision = useSearchHistoryReset(author)
   const client = useQueryClient()
   const searchInput = useRef<HTMLInputElement>(null)
+  const timelineSession = useRef<TimelineSnapshot | null>(null)
   const markActions = usePostMarkActions(author)
   const authorState = useQuery({ ...authorQuery(author), subscribed: active, enabled: active })
   const summary = useRetainedData(authorState.data)
@@ -76,12 +80,8 @@ export function PostsScreen({
         search: target.filters,
       })
     },
-    onSearch: () => {
-      sidebar.show()
-      searchInput.current?.focus()
-      searchInput.current?.select()
-    },
-    onSidebar: sidebar.docked ? sidebar.toggle : undefined,
+    onSearch: () => sidebar.search(searchInput),
+    onSidebar: sidebar.toggle,
     onSeen: markActions.toggleSeen,
     onFavorite: markActions.toggleFavorite,
   })
@@ -105,8 +105,15 @@ export function PostsScreen({
     })
   }
   const openPost = (id: string): void => {
+    sidebar.mobile.close()
     void navigate({ to: '/a/$author/p/$postId', params: { author, postId: id }, search: filters })
   }
+  const searchController = useSearchController({
+    value: filters.q ?? '',
+    onSearch: (q) => changeFilters({ ...filters, q: q || undefined }, { replace: true }),
+    active,
+    navigationRevision: searchResetRevision,
+  })
   const postHref = (id: string): string =>
     `/a/${encodeURIComponent(author)}/p/${encodeURIComponent(id)}${stringifyViewerSearch(filters)}`
   const retryPosts = (): void => {
@@ -118,40 +125,47 @@ export function PostsScreen({
   }
 
   if (!summary) return <LoadingAuthor />
+  const postSidebar = (
+    <TooltipActive value={active && sidebar.isOpen}>
+      <Sidebar
+        key={author}
+        author={summary}
+        filters={filters}
+        searchController={searchController}
+        timelineSession={timelineSession}
+        searchInputRef={searchInput}
+        posts={postList}
+        tags={tags.data ?? []}
+        currentId={postId}
+        loading={posts.isPending}
+        updating={posts.isPlaceholderData}
+        error={posts.error}
+        onRetry={retryPosts}
+        tagsError={tags.error}
+        onRetryTags={() => {
+          void tags.refetch()
+        }}
+        onFilters={changeFilters}
+        onPost={openPost}
+        postHref={postHref}
+      />
+    </TooltipActive>
+  )
   return (
-    <DockedLayout
-      controller={sidebar}
-      sidebar={
-        <TooltipActive value={active && sidebar.isOpen}>
-          <Sidebar
-            key={author}
-            author={summary}
-            filters={filters}
-            searchResetRevision={searchResetRevision}
-            searchInputRef={searchInput}
-            posts={postList}
-            tags={tags.data ?? []}
-            currentId={postId}
-            loading={posts.isPending}
-            updating={posts.isPlaceholderData}
-            error={posts.error}
-            onRetry={retryPosts}
-            tagsError={tags.error}
-            onRetryTags={() => {
-              void tags.refetch()
-            }}
-            onFilters={changeFilters}
-            onPost={openPost}
-            postHref={postHref}
-          />
-        </TooltipActive>
-      }
-      pane={
-        <PostPane author={author} postId={postId}>
-          {children}
-        </PostPane>
-      }
-    />
+    <>
+      <DockedLayout
+        controller={sidebar.layout}
+        sidebar={postSidebar}
+        pane={
+          <PostPane author={author} postId={postId}>
+            {children}
+          </PostPane>
+        }
+      />
+      <MobileSidebar controller={sidebar} searchInput={searchInput}>
+        {postSidebar}
+      </MobileSidebar>
+    </>
   )
 }
 

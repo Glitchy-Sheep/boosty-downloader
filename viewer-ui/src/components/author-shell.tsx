@@ -8,7 +8,7 @@ import { MediaScreen } from '@/components/media-screen'
 import { EmptyPostList, LoadingPost, PostReader, PostsScreen } from '@/components/posts-screen'
 import { LoadError } from '@/components/route-screens'
 import { ControlTooltip } from '@/components/ui/control-tooltip'
-import { useDockedSidebar } from '@/hooks/use-docked-sidebar'
+import { useAuthorSidebar } from '@/hooks/use-author-sidebar'
 import { useMediaQuery } from '@/hooks/use-media-query'
 import {
   pendingPostPlace,
@@ -49,7 +49,7 @@ function AuthorTabs({ author }: { author: string }) {
   const toggleRef = useRef<HTMLButtonElement>(null)
   const docked = useMediaQuery(DOCKED_QUERY)
   const postsActive = shown === 'posts' && addressTab === 'posts'
-  const sidebar = useDockedSidebar({ active: postsActive, docked, toggleRef })
+  const sidebar = useAuthorSidebar({ active: postsActive, docked, toggleRef })
   const sidebarLabel = sidebar.isOpen ? 'Hide sidebar' : 'Show sidebar'
 
   return (
@@ -57,7 +57,10 @@ function AuthorTabs({ author }: { author: string }) {
       <HeaderTabs author={author} tab={addressTab} places={places} />
       {start &&
         createPortal(
-          <ControlTooltip label={`${sidebarLabel} ([)`} active={postsActive && docked}>
+          <ControlTooltip
+            label={`${sidebarLabel} ([)`}
+            active={postsActive && !sidebar.mobile.isOpen}
+          >
             <button
               ref={toggleRef}
               type="button"
@@ -65,11 +68,11 @@ function AuthorTabs({ author }: { author: string }) {
               aria-expanded={sidebar.isOpen}
               aria-controls="author-post-sidebar"
               aria-keyshortcuts="["
-              disabled={!postsActive || !docked}
+              disabled={!postsActive}
               onClick={sidebar.toggle}
               className={cn(
                 'flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50',
-                (!postsActive || !docked) && 'invisible',
+                !postsActive && 'invisible',
               )}
             >
               <PanelLeft aria-hidden="true" className="size-4" />

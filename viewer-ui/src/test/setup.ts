@@ -12,7 +12,7 @@ beforeEach(() => {
     },
   )
   vi.stubGlobal('matchMedia', (media: string): MediaQueryList => ({
-    matches: media === '(hover: hover)' || media === '(min-width: 640px)',
+    matches: ['(hover: hover)', '(min-width: 640px)', '(min-width: 768px)'].includes(media),
     media,
     onchange: null,
     addListener() {},
