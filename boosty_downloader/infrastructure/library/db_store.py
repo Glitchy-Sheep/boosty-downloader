@@ -85,6 +85,39 @@ class LibraryDatabase:
         )
 
     @classmethod
+    def inspect(
+        cls, path: Path, *, expected_library_id: UUID | None = None
+    ) -> SchemaIdentity:
+        """Validate a private copy without connecting SQLite to the primary file."""
+        require_supported_sqlite()
+        path = path.absolute()
+        validate_database_path(path)
+        if not path.is_file():
+            message = f'Primary library database is missing: {path}; restore {backup_path(path)}'
+            raise LibraryDatabaseError(message)
+        identity = _read_identity(path)
+        if (
+            expected_library_id is not None
+            and identity.library_id != expected_library_id
+        ):
+            message = f'Primary library identity does not match its marker: {path}'
+            raise UnsupportedLibraryDatabaseError(message)
+        return identity
+
+    @classmethod
+    def open_for_initialization(
+        cls, path: Path, *, expected_library_id: UUID
+    ) -> LibraryDatabase:
+        """Lock a current-schema pending library without migration or journal changes."""
+        path = path.absolute()
+        identity = cls.inspect(path, expected_library_id=expected_library_id)
+        if identity.version != SCHEMA_VERSION:
+            message = 'An unfinished library requires the current schema; initialization cannot migrate it'
+            raise UnsupportedLibraryDatabaseError(message)
+        engine = make_database_engine(path, writable=True, identity=identity)
+        return cls(path, engine, identity)
+
+    @classmethod
     def open(
         cls,
         path: Path,
@@ -99,17 +132,7 @@ class LibraryDatabase:
             message = 'A run-start backup requires writable library preparation'
             raise ValueError(message)
         path = path.absolute()
-        validate_database_path(path)
-        if not path.is_file():
-            message = f'Primary library database is missing: {path}; restore {backup_path(path)}'
-            raise LibraryDatabaseError(message)
-        identity = _read_identity(path)
-        if (
-            expected_library_id is not None
-            and identity.library_id != expected_library_id
-        ):
-            message = f'Primary library identity does not match its marker: {path}'
-            raise UnsupportedLibraryDatabaseError(message)
+        identity = cls.inspect(path, expected_library_id=expected_library_id)
         if not writable and identity.version != SCHEMA_VERSION:
             message = 'The primary library requires a writable schema upgrade'
             raise UnsupportedLibraryDatabaseError(message)
