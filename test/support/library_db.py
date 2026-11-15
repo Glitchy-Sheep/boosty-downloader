@@ -16,7 +16,7 @@ def previous_database(path: Path) -> Path:
     path = path.resolve()
     fixture = Path(__file__).parents[1] / 'unit/library/fixtures/db_v1.sql'
     with closing(connect(path)) as connection:
-        connection.executescript(fixture.read_text())
+        connection.executescript(fixture.read_text(encoding='utf-8'))
     return path
 
 
