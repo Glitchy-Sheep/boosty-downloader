@@ -2,10 +2,10 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, feat/v5]
+    branches: [main, feat/v5, v5-db]
     types: [opened, synchronize, reopened, labeled]
   push:
-    branches: [main, feat/v5]
+    branches: [main, feat/v5, v5-db]
 
 permissions:
   contents: read
