@@ -21,6 +21,7 @@ import {
   toggle,
   width,
   widthFrames,
+  WIDTH,
   type WidthFrame,
 } from './sidebar-fixtures'
 
@@ -89,6 +90,17 @@ async function recordWidthFrames(
     body: JSON.stringify(readings),
     contentType: 'application/json',
   })
+  expect(
+    readings.every((sample) => {
+      const minimum = sample.animating ? WIDTH.min : 0
+      return Math.abs(sample.contentWidth - Math.max(minimum, sample.width)) <= 0.5
+    }),
+    'Sidebar contents keep a usable width throughout the glide',
+  ).toBe(true)
+  expect(
+    readings.every((sample) => Math.abs(sample.contentHeight - sample.panelHeight) <= 0.5),
+    'Clipped contents do not introduce a horizontal scrollbar',
+  ).toBe(true)
   return readings
 }
 

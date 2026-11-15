@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test'
 
 import { expect, origin, test } from './fixtures'
 import { requireFixture } from './required-fixture'
-import { expectWidth, frames, seedPreference, separator } from './sidebar-fixtures'
+import { expectWidth, frames, seedPreference, separator, toggle } from './sidebar-fixtures'
 import { expectSelected, installTimeline, largeRows, postPath, sidebar } from './timeline-fixtures'
 
 type AnchorFrame = {
@@ -162,3 +162,55 @@ for (const position of ['middle', 'end'] as const) {
     })
   }
 }
+
+test('collapse clips the narrow timeline without changing its row anchor', async ({
+  page,
+}, info) => {
+  await seedPreference(page, JSON.stringify({ width: 260, collapsed: false }))
+  const posts = largeRows(3000)
+  await installTimeline(page, posts)
+  const first = requireFixture(posts[0])
+  await page.goto(`${origin()}${postPath(first.id)}`)
+  await expectSelected(page, first)
+  await expectWidth(page, 260)
+  await sidebar(page)
+    .locator('[data-post-list]')
+    .evaluate((element) => {
+      element.scrollTop = (element.scrollHeight - element.clientHeight) / 2
+    })
+  await frames(page, 4)
+  await beginCapture(page)
+  const baseline = await snapshot(page)
+  let captured: AnchorFrame[] = []
+  try {
+    for (const width of [0, 260]) {
+      await toggle(page).click()
+      await expectWidth(page, width)
+    }
+    await frames(page, 3)
+  } finally {
+    captured = await endCapture(page)
+    await info.attach('sidebar-collapse-anchor-frames.json', {
+      body: JSON.stringify({ baseline, captured }),
+      contentType: 'application/json',
+    })
+  }
+  expect(baseline.id).not.toBeNull()
+  expect(captured.some((frame) => frame.width <= 0.5)).toBe(true)
+  const reopened = requireFixture(captured.at(-1))
+  expect(Math.abs(reopened.width - 260)).toBeLessThanOrEqual(0.5)
+  expect(reopened.clientHeight).toBeGreaterThan(0)
+  expect(reopened.id).toBe(baseline.id)
+  expect(
+    Math.abs(requireFixture(reopened.offset) - requireFixture(baseline.offset)),
+  ).toBeLessThanOrEqual(1)
+  const visible = captured.filter((frame) => frame.width > 0.5)
+  expect(visible.length).toBeGreaterThan(1)
+  expect(visible.every((frame) => frame.clientHeight > 0)).toBe(true)
+  expect(visible.every((frame) => frame.id === baseline.id)).toBe(true)
+  expect(
+    visible.every(
+      (frame) => Math.abs(requireFixture(frame.offset) - requireFixture(baseline.offset)) <= 1,
+    ),
+  ).toBe(true)
+})
