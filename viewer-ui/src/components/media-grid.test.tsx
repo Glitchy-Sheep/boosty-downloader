@@ -1,10 +1,11 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import { createRef, useState, type Ref } from 'react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { MediaGrid, type MediaGridHandle } from '@/components/media-grid'
 import type { MediaPage } from '@/lib/api.gen'
 import { mediaAnchorAt, mediaGridLayout, mediaRowHeight, mediaRowIndex } from '@/lib/media-layout'
+import { renderWithMediaActions as render } from '@/test/file-actions'
 import { savedPost, savedVideo } from '@/test/post-fixtures'
 
 let width = 1140

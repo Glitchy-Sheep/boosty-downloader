@@ -1,9 +1,10 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
 import { expect, test, vi } from 'vitest'
 
 import { FavoriteButton } from '@/components/favorite-button'
 import { MediaTile } from '@/components/media-tile'
 import { MediaSection } from '@/components/removed-media'
+import { renderWithMediaActions as render } from '@/test/file-actions'
 import { savedPost, savedVideo } from '@/test/post-fixtures'
 
 test('opens a video and keeps its favorite action separate while showing resume state', () => {

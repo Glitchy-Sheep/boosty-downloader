@@ -11,10 +11,13 @@ import {
 } from 'react'
 
 import { FavoriteButton } from '@/components/favorite-button'
+import { FileActions } from '@/components/file-actions'
+import { useFileNoticeHost, useMediaFileActions } from '@/hooks/use-file-actions'
 import { useFavorite } from '@/hooks/use-favorite'
 import { usePostPlayback, type SavePosition } from '@/hooks/use-post-playback'
 import type { MediaItem, MediaPage, MediaPost } from '@/lib/api.gen'
 import { formatDate } from '@/lib/dates'
+import { displayFileName, fileNameOnDisk } from '@/lib/file-presentation'
 import { mediaPath, mediaThumbnailPath } from '@/lib/media-paths'
 import { saveMediaPosition } from '@/lib/playback-mutations'
 
@@ -49,6 +52,7 @@ export function MediaViewer({
   const previous = items[index - 1]
   const next = items[index + 1]
   const content = useRef<HTMLDivElement>(null)
+  const noticeHost = useFileNoticeHost()
   const lastShown = useRef<string | undefined>(undefined)
   const latest = useRef({ active, onRestoreFocus })
   useLayoutEffect(() => {
@@ -113,6 +117,13 @@ export function MediaViewer({
                 onPost={onPost}
               />
               {post.access === 'open' && <MediaFavorite author={author} item={item} post={post} />}
+              <MediaFileActions
+                key={item.id}
+                author={author}
+                item={item}
+                active={active}
+                onOpen={() => content.current?.querySelector('video')?.pause()}
+              />
               <Dialog.Close asChild>
                 <button
                   type="button"
@@ -138,6 +149,7 @@ export function MediaViewer({
               {previous && <MediaStep direction="previous" onClick={() => onShow(previous.id)} />}
               {next && <MediaStep direction="next" onClick={() => onShow(next.id)} />}
             </div>
+            <div ref={noticeHost} />
           </Dialog.Content>
         )}
       </Dialog.Portal>
@@ -177,6 +189,29 @@ function MediaPostLink({
         {item.removed && ' · Removed by the author'}
       </div>
     </div>
+  )
+}
+
+function MediaFileActions({
+  author,
+  item,
+  active,
+  onOpen,
+}: {
+  author: string
+  item: MediaItem
+  active: boolean
+  onOpen: () => void
+}) {
+  const { actions, local } = useMediaFileActions(author, item, { onOpen })
+  const visible = local ? actions : actions.filter((action) => action.id === 'download')
+  return (
+    <FileActions
+      actions={visible}
+      mode="media"
+      label={displayFileName(fileNameOnDisk(item))}
+      active={active}
+    />
   )
 }
 

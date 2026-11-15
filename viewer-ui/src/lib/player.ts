@@ -59,6 +59,10 @@ export function createPlayerStore() {
         })
       } else element.pause()
     },
+    pause(): void {
+      element?.pause()
+      if (state?.playing) publish({ ...state, playing: false })
+    },
     setPlaying(playing: boolean): void {
       if (state && state.playing !== playing) publish({ ...state, playing })
     },

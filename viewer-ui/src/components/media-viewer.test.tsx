@@ -1,11 +1,10 @@
-import { QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { MediaViewer } from '@/components/media-viewer'
 import * as api from '@/lib/api'
 import type { MediaItem, MediaPage } from '@/lib/api.gen'
-import { createQueryClient } from '@/lib/queries'
+import { createFileActionsTestApp } from '@/test/file-actions'
 import { savedRow, savedVideo } from '@/test/post-fixtures'
 
 const marks = vi.hoisted(() => ({ pending: false, error: null as string | null, toggle: vi.fn() }))
@@ -54,11 +53,11 @@ const defaults = () => ({
 })
 
 function setup(props = defaults()) {
-  const client = createQueryClient()
+  const { client, Wrapper } = createFileActionsTestApp()
   const tree = (current: ReturnType<typeof defaults>) => (
-    <QueryClientProvider client={client}>
+    <Wrapper>
       <MediaViewer {...current} />
-    </QueryClientProvider>
+    </Wrapper>
   )
   const view = render(tree(props))
   return {

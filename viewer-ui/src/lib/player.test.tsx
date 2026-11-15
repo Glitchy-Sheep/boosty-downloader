@@ -90,6 +90,33 @@ test('play controls use the attached element and report rejected play requests',
   store.attach(null)
 })
 
+test('opening a file pauses the player without changing its queue or requesting playback', () => {
+  const store = createPlayerStore()
+  store.pause()
+  expect(store.getSnapshot()).toBeNull()
+  store.start('author', page, first.id)
+  store.setPlaying(true)
+  const state = store.getSnapshot()!
+  const audio = document.createElement('audio')
+  audio.currentTime = 42
+  const pause = vi.spyOn(audio, 'pause').mockImplementation(() => store.setPlaying(false))
+  const play = vi.spyOn(audio, 'play').mockResolvedValue()
+  store.attach(audio)
+  store.pause()
+  expect(pause).toHaveBeenCalledOnce()
+  expect(store.getSnapshot()).toEqual({ ...state, playing: false })
+  expect(store.getSnapshot()?.queue).toBe(state.queue)
+  const paused = store.getSnapshot()
+  store.pause()
+  expect(store.getSnapshot()).toBe(paused)
+  expect(audio.currentTime).toBe(42)
+  expect(play).not.toHaveBeenCalled()
+  store.attach(null)
+  store.setPlaying(true)
+  store.pause()
+  expect(store.getSnapshot()?.playing).toBe(false)
+})
+
 function Consumer() {
   const store = usePlayerStore()
   const state = usePlayerState()
