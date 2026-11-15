@@ -4,6 +4,7 @@ import { attachPostPlayback } from '@/lib/playback-controller'
 import { findPlaybackMedia, playerSource } from '@/lib/playback-media'
 import { pendingPlaybackMark } from '@/lib/playback-position'
 import {
+  createPlaybackActivity,
   pendingPlaybackPosition,
   writePlaybackPosition,
   type SavePosition,
@@ -45,7 +46,15 @@ export function usePostPlayback(options: PostPlaybackOptions): void {
         const owner = current.author === author && current.postId === postId ? current : initial
         return writePlaybackPosition(identity, savedItem, position, owner.savePosition)
       }
-      cleanups.push(attachPostPlayback(element, resumedItem, save, pending?.completion))
+      cleanups.push(
+        attachPostPlayback(
+          element,
+          resumedItem,
+          save,
+          pending?.completion,
+          createPlaybackActivity(identity),
+        ),
+      )
     }
     return () => cleanups.forEach((cleanup) => cleanup())
   }, [rootRef, author, postId, html, inventory])

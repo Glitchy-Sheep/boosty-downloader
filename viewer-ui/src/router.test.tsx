@@ -4,8 +4,9 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import type { Author, PostDetail, PostList, PostRow } from '@/lib/api.gen'
-import { createQueryClient } from '@/lib/queries'
+import { createQueryClient, openerQuery } from '@/lib/queries'
 import { createViewerRouter } from '@/router'
+import { remoteFileCapabilities } from '@/test/file-actions'
 
 beforeEach(() => {
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
@@ -23,8 +24,9 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-function renderViewer(address = '/') {
+function renderViewer(address = '/', cachedCapabilities = true) {
   const queryClient = createQueryClient()
+  if (cachedCapabilities) queryClient.setQueryData(openerQuery().queryKey, remoteFileCapabilities)
   const router = createViewerRouter(queryClient, createMemoryHistory({ initialEntries: [address] }))
   const view = render(
     <QueryClientProvider client={queryClient}>
@@ -33,6 +35,22 @@ function renderViewer(address = '/') {
   )
   return { ...view, queryClient, router }
 }
+
+test('the application reads opener capabilities once across route changes', async () => {
+  const request = vi.fn(async (input: string) => {
+    if (input === '/api/opener') return Response.json(remoteFileCapabilities)
+    if (input === '/api/authors') return Response.json([])
+    throw new Error(`Unexpected ${input}`)
+  })
+  vi.stubGlobal('fetch', request)
+  const { queryClient, router } = renderViewer('/unknown', false)
+  await screen.findByRole('heading', { name: 'Page not found' })
+  await act(() => router.navigate({ to: '/' }))
+  await screen.findByRole('heading', { name: 'Authors' })
+  expect(request.mock.calls.filter(([input]) => input === '/api/opener')).toHaveLength(1)
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  queryClient.clear()
+})
 
 test('shows progress while authors load and then the real empty state', async () => {
   let finish: (value: Response) => void = () => {

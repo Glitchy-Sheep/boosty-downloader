@@ -4,18 +4,49 @@ import {
   ApiError,
   getAuthor,
   getAuthors,
+  getMedia,
   getPost,
   getPosts,
   getTags,
   getMarksProgress,
+  getOpener,
+  openMedia,
+  openPostFolder,
   savePlaybackPosition,
   setFavorite,
   setSeen,
   setSeenMany,
 } from '@/lib/api'
 import { toPostFilters, type Filters } from '@/lib/filters'
+import { savedMediaPage } from '@/test/media-fixtures'
 
 afterEach(() => vi.unstubAllGlobals())
+
+test('loads typed media with only its normalized filters and forwards cancellation', async () => {
+  const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json(savedMediaPage))
+  vi.stubGlobal('fetch', request)
+  const controller = new AbortController()
+  expect(
+    await getMedia(
+      'студия +',
+      { view: 'videos', order: 'oldest', unseen: 1, fav: 1, open: 'piece' },
+      controller.signal,
+    ),
+  ).toEqual(savedMediaPage)
+  expect(request).toHaveBeenCalledWith(
+    '/api/authors/%D1%81%D1%82%D1%83%D0%B4%D0%B8%D1%8F%20%2B/media?view=videos&order=oldest&unseen=1&fav=1',
+    {
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    },
+  )
+  request.mockResolvedValueOnce(Response.json(savedMediaPage))
+  await getMedia('studio', {})
+  expect(request).toHaveBeenLastCalledWith('/api/authors/studio/media', {
+    headers: { Accept: 'application/json' },
+    signal: null,
+  })
+})
 
 test('loads the same-origin authors contract and forwards cancellation', async () => {
   const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json([]))
@@ -259,4 +290,80 @@ test('preserves the bulk conflict response rather than reporting zero changes', 
     code: 'bulk_busy',
     message: 'Another operation is running.',
   })
+})
+
+test('loads opener capabilities with cancellation and accepts empty successful writes', async () => {
+  const capabilities = {
+    open: true,
+    reveal: false,
+    folders: false,
+    system: 'android',
+    root: '/library',
+    sep: '/',
+  }
+  const empty = new Response(null, { status: 204 })
+  const readEmptyBody = vi.spyOn(empty, 'json')
+  const request = vi.fn<typeof fetch>().mockResolvedValue(empty)
+  request.mockResolvedValueOnce(Response.json(capabilities))
+  vi.stubGlobal('fetch', request)
+  const controller = new AbortController()
+  expect(await getOpener(controller.signal)).toEqual(capabilities)
+  expect(request).toHaveBeenNthCalledWith(1, '/api/opener', {
+    headers: { Accept: 'application/json' },
+    signal: controller.signal,
+  })
+  await expect(openMedia('автор %2F', 'opaque/#%', false)).resolves.toBeUndefined()
+  await openMedia('автор %2F', 'opaque/#%', true)
+  await openPostFolder('автор %2F', 'post/#%')
+  const author = '/api/authors/%D0%B0%D0%B2%D1%82%D0%BE%D1%80%20%252F'
+  expect(request.mock.calls.slice(1)).toEqual([
+    [
+      `${author}/media/opaque%2F%23%25/open`,
+      {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: '{"reveal":false}',
+      },
+    ],
+    [
+      `${author}/media/opaque%2F%23%25/open`,
+      {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: '{"reveal":true}',
+      },
+    ],
+    [
+      `${author}/posts/post%2F%23%25/open`,
+      {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: '{}',
+      },
+    ],
+  ])
+  expect(readEmptyBody).not.toHaveBeenCalled()
+})
+
+test('preserves native opener errors and transport failures', async () => {
+  const request = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(
+      Response.json(
+        { error: { code: 'open_failed', message: 'No default application.' } },
+        { status: 409 },
+      ),
+    )
+  vi.stubGlobal('fetch', request)
+  await expect(openMedia('author', 'media', false)).rejects.toMatchObject({
+    status: 409,
+    code: 'open_failed',
+    message: 'No default application.',
+  })
+  request.mockResolvedValueOnce(new Response('Gateway error', { status: 502 }))
+  await expect(openPostFolder('author', 'post')).rejects.toEqual(
+    new ApiError(502, 'The library request failed (502).'),
+  )
+  request.mockRejectedValueOnce(new Error('Connection closed'))
+  await expect(openMedia('author', 'media', true)).rejects.toThrow('Connection closed')
 })

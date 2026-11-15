@@ -177,7 +177,11 @@ def test_views_include_retained_downloads_and_count_only_current_missing(
     assert page.missing == missing
     assert list(page.posts) == ['post']
     assert page.posts['post'] == LibraryMediaPost(
-        'Title post', 'writer/post/cover.jpg', None, favorite=False
+        'Title post',
+        'writer/post/cover.jpg',
+        None,
+        favorite=False,
+        access=PostAccess.open,
     )
     assert [item.entry.removed_at is not None for item in page.items] == [False] * len(
         kinds
@@ -285,6 +289,9 @@ def test_filters_use_individual_added_and_finished_marks_even_for_locked_posts(
     assert page.counts == MediaCounts(videos=len(expected), audio=1)
     assert page.missing == 0
     assert page.posts['favorite'].seen_at == NOW
+    assert page.posts['favorite'].access is PostAccess.locked
+    if not favorites:
+        assert page.posts['unmarked'].access is PostAccess.open
     images = reader.list_media('writer', LibraryMediaView.image, filters)
     assert images.items == []
     assert images.posts == {}

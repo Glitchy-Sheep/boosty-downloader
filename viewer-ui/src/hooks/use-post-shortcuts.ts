@@ -7,6 +7,7 @@ export type PostShortcutOptions = {
   readContext: () => PostShortcutContext | null
   onPost: (target: PostShortcutTarget) => void
   onSearch: () => void
+  onSidebar?: (() => void) | undefined
   onSeen: (postId: string) => void
   onFavorite: (postId: string) => void
 }
@@ -16,6 +17,7 @@ export function usePostShortcuts({
   readContext,
   onPost,
   onSearch,
+  onSidebar,
   onSeen,
   onFavorite,
 }: PostShortcutOptions): void {
@@ -24,6 +26,12 @@ export function usePostShortcuts({
     if (!action || !acceptsPostShortcut(event, document)) return
     const context = readContext()
     if (!context) return
+    if (action === 'sidebar') {
+      if (!onSidebar || event.repeat) return
+      event.preventDefault()
+      onSidebar()
+      return
+    }
     if (action === 'search') {
       event.preventDefault()
       onSearch()

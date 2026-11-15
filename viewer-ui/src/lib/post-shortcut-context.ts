@@ -1,37 +1,18 @@
 import type { QueryClient } from '@tanstack/react-query'
-import type { HistoryLocation } from '@tanstack/react-router'
-
-import { parseFilters, type Filters } from '@/lib/filters'
+import type { Filters } from '@/lib/filters'
+import { readPostAddress, type PostAddress, type PostLocation } from '@/lib/post-address'
 import { postNeighbours, type PostNeighbours } from '@/lib/post-neighbours'
 import { postQuery, postsQuery } from '@/lib/queries'
-import { parseViewerSearch } from '@/lib/url-search'
-
-type PostAddress = { author: string; postId: string | null; filters: Filters }
 export type PostShortcutContext = PostAddress & { neighbours: PostNeighbours | null }
 export type PostShortcutTarget = { author: string; postId: string; filters: Filters }
-type ShortcutLocation = Pick<HistoryLocation, 'pathname' | 'search'>
-
-function postAddress(location: ShortcutLocation): PostAddress | null {
-  const match = /^\/a\/([^/]+)(?:\/p\/([^/]+))?\/?$/.exec(location.pathname)
-  if (!match?.[1]) return null
-  try {
-    return {
-      author: decodeURIComponent(match[1]),
-      postId: match[2] ? decodeURIComponent(match[2]) : null,
-      filters: parseFilters(parseViewerSearch(location.search)),
-    }
-  } catch {
-    return null
-  }
-}
 
 /** Resolve each press against the latest address and its exact filtered list. */
 export function readPostShortcutContext(
   client: QueryClient,
-  location: ShortcutLocation,
+  location: PostLocation,
   activeAuthor: string,
 ): PostShortcutContext | null {
-  const address = postAddress(location)
+  const address = readPostAddress(location)
   if (!address || address.author !== activeAuthor) return null
   const context: PostShortcutContext = { ...address, neighbours: null }
   if (!address.postId) return context

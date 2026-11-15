@@ -1,8 +1,27 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render as renderView, screen, within } from '@testing-library/react'
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRouter,
+  RouterContextProvider,
+} from '@tanstack/react-router'
+import type { ReactElement } from 'react'
 import { expect, test } from 'vitest'
 
 import { AuthorsPage } from '@/components/authors-page'
 import type { Author } from '@/lib/api.gen'
+
+function render(view: ReactElement) {
+  const router = createRouter({
+    routeTree: createRootRoute(),
+    history: createMemoryHistory({ initialEntries: ['/'] }),
+  })
+  return renderView(view, {
+    wrapper: ({ children }) => (
+      <RouterContextProvider router={router}>{children}</RouterContextProvider>
+    ),
+  })
+}
 
 function author(overrides: Partial<Author> = {}): Author {
   return {

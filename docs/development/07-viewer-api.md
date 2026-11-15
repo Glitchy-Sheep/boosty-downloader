@@ -1,6 +1,6 @@
 # Viewer API
 
-Start `boosty-downloader view -o LIBRARY --no-open`. The server exposes the following read routes without Boosty credentials. The packaged UI consumes authors, filtered post lists, tags and complete post details, with body search, fullscreen images, favorites and inline playback. The Media screen and local file action controls follow in subsequent stages.
+Start `boosty-downloader view -o LIBRARY --no-open`. The server exposes the following read routes without Boosty credentials. The packaged UI consumes authors, filtered post lists, tags and complete post details, with body search, fullscreen images, favorites and inline playback. The Media screen lists saved media and provides local file actions when the server reports support.
 
 | GET route | Result |
 | --- | --- |
@@ -89,7 +89,7 @@ Each mark is saved to canonical storage before its index projection. If an index
 
 ## Local file actions
 
-`GET /api/opener` reports `open`, `reveal`, `folders`, `system`, `root` and the system path separator `sep`. It is not cached. Ineligible requests receive disabled capabilities and no root path. The packaged shell does not yet show the action buttons.
+`GET /api/opener` reports `open`, `reveal`, `folders`, `system`, `root` and the system path separator `sep`. It is not cached. Ineligible requests receive disabled capabilities and no root path. The UI shows file actions according to these capabilities.
 
 | POST route | Required JSON body |
 | --- | --- |

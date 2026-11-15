@@ -126,7 +126,15 @@ test('an older favorite response cannot erase a pending seen mark or newer playb
     expect(client.getQueryData(key)).toMatchObject({ favorite: false, seen: true }),
   )
   expect(fetcher).toHaveBeenCalledOnce()
-  act(() => acceptPosition(client, 'studio', savedRow.id, { ...savedVideo, position_s: 48 }))
+  act(() =>
+    acceptPosition(
+      client,
+      'studio',
+      savedRow.id,
+      { ...savedVideo, position_s: 48 },
+      savedVideo.finished,
+    ),
+  )
   favorite.resolve(
     Response.json({
       post: { ...savedRow, favorite: false },

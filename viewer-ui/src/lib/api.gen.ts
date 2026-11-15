@@ -249,6 +249,7 @@ export interface MediaViewCounts {
  * Display data shared by all media belonging to one post.
  */
 export interface MediaPost {
+  access: 'open' | 'locked'
   /**
    * Author-relative cover path.
    */

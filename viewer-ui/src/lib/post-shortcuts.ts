@@ -1,4 +1,4 @@
-export type PostShortcut = 'next' | 'previous' | 'search' | 'seen' | 'favorite'
+export type PostShortcut = 'next' | 'previous' | 'search' | 'sidebar' | 'seen' | 'favorite'
 
 /** Physical positions keep the reading keys available on other keyboard layouts. */
 export function postShortcut(code: string): PostShortcut | null {
@@ -9,6 +9,8 @@ export function postShortcut(code: string): PostShortcut | null {
       return 'previous'
     case 'Slash':
       return 'search'
+    case 'BracketLeft':
+      return 'sidebar'
     case 'KeyS':
       return 'seen'
     case 'KeyF':
@@ -38,7 +40,11 @@ function isOpenOverlay(overlay: Element): boolean {
 }
 
 /** Editors, native playback controls, menus and dialogs retain their own keyboard actions. */
-export function acceptsPostShortcut(event: KeyboardEvent, document: Document): boolean {
+export function acceptsPostShortcut(
+  event: KeyboardEvent,
+  document: Document,
+  owner?: Element,
+): boolean {
   if (
     event.defaultPrevented ||
     event.isComposing ||
@@ -51,5 +57,5 @@ export function acceptsPostShortcut(event: KeyboardEvent, document: Document): b
     return false
   return !Array.from(
     document.querySelectorAll('dialog, [role="dialog"], [role="alertdialog"], [role="menu"]'),
-  ).some(isOpenOverlay)
+  ).some((overlay) => overlay !== owner && isOpenOverlay(overlay))
 }

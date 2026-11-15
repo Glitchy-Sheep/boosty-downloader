@@ -49,6 +49,7 @@ export function PostPage({
   return (
     <article className="mx-auto w-full max-w-[760px] px-5 pt-6 pb-12 @2xl/main:px-10 @2xl/main:pt-9 @2xl/main:pb-16">
       <PostHeader
+        author={author}
         post={post}
         selectedTag={filters.tag}
         favoritePending={favoritePending}

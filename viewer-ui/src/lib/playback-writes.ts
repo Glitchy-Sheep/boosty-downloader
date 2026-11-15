@@ -22,6 +22,12 @@ export interface PendingPlaybackSave {
   readonly completion: Promise<void>
 }
 
+export interface PlaybackActivity {
+  claim: () => void
+  owns: () => boolean
+  release: () => void
+}
+
 interface PlaybackWriteState {
   tail: Promise<void>
   pending: PendingPlaybackSave
@@ -39,6 +45,20 @@ function identityKey(identity: PlaybackIdentity): string {
 /** Active writes share an order across player remounts; idle queues retain nothing. */
 export function createPlaybackWriter() {
   const active = new Map<string, PlaybackWriteState>()
+  const owners = new Map<string, symbol>()
+  const activity = (identity: PlaybackIdentity): PlaybackActivity => {
+    const key = identityKey(identity)
+    const owner = Symbol('playback activity')
+    return {
+      claim: () => {
+        owners.set(key, owner)
+      },
+      owns: () => owners.get(key) === owner,
+      release: () => {
+        if (owners.get(key) === owner) owners.delete(key)
+      },
+    }
+  }
   const write = (
     identity: PlaybackIdentity,
     media: MediaItem,
@@ -60,10 +80,11 @@ export function createPlaybackWriter() {
   }
   const pending = (identity: PlaybackIdentity): PendingPlaybackSave | undefined =>
     active.get(identityKey(identity))?.pending
-  return { write, pending }
+  return { write, pending, activity }
 }
 
 export type PlaybackWriter = ReturnType<typeof createPlaybackWriter>
 const playbackWriter = createPlaybackWriter()
 export const writePlaybackPosition = playbackWriter.write
 export const pendingPlaybackPosition = playbackWriter.pending
+export const createPlaybackActivity = playbackWriter.activity

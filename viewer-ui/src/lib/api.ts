@@ -7,6 +7,10 @@ import type {
   FavoriteMarkRequest,
   MarkResult,
   MediaItem,
+  MediaPage,
+  OpenMediaRequest,
+  OpenPostRequest,
+  OpenerCapabilities,
   PositionRequest,
   PostDetail,
   PostList,
@@ -14,6 +18,7 @@ import type {
   TagCount,
 } from '@/lib/api.gen'
 import { filtersSearchParams, type Filters } from '@/lib/filters'
+import { mediaSearchParams, type MediaSearch } from '@/lib/media-filters'
 
 export class ApiError extends Error {
   readonly status: number
@@ -76,6 +81,32 @@ async function writeJson<T>(
   return response.json() as Promise<T>
 }
 
+async function postWithoutResponse(
+  url: string,
+  body: OpenMediaRequest | OpenPostRequest,
+): Promise<void> {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) throw await responseError(response)
+}
+
+export function getOpener(signal?: AbortSignal): Promise<OpenerCapabilities> {
+  return getJson('/api/opener', signal)
+}
+
+export function openMedia(author: string, mediaId: string, reveal: boolean): Promise<void> {
+  return postWithoutResponse(`${authorPath(author)}/media/${encodeURIComponent(mediaId)}/open`, {
+    reveal,
+  })
+}
+
+export function openPostFolder(author: string, postId: string): Promise<void> {
+  return postWithoutResponse(`${authorPath(author)}/posts/${encodeURIComponent(postId)}/open`, {})
+}
+
 function authorPath(author: string): string {
   return `/api/authors/${encodeURIComponent(author)}`
 }
@@ -100,6 +131,15 @@ export function getPosts(
 
 export function getPost(author: string, postId: string, signal?: AbortSignal): Promise<PostDetail> {
   return getJson(`${authorPath(author)}/posts/${encodeURIComponent(postId)}`, signal)
+}
+
+export function getMedia(
+  author: string,
+  search: MediaSearch,
+  signal?: AbortSignal,
+): Promise<MediaPage> {
+  const query = mediaSearchParams(search).toString()
+  return getJson(`${authorPath(author)}/media${query ? `?${query}` : ''}`, signal)
 }
 
 export function getTags(author: string, signal?: AbortSignal): Promise<TagCount[]> {

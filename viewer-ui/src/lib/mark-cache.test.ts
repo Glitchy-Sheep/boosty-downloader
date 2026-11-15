@@ -44,7 +44,13 @@ test('rollback preserves later playback, metadata, seen and another post favorit
   const detailKey = postQuery('studio', savedPost.id).queryKey
   const request = createPostMarkRequest(client, 'studio', savedRow, 'favorite')
   const context = applyPostMark(client, request)
-  acceptPosition(client, 'studio', savedPost.id, { ...savedVideo, position_s: 42 })
+  acceptPosition(
+    client,
+    'studio',
+    savedPost.id,
+    { ...savedVideo, position_s: 42 },
+    savedVideo.finished,
+  )
   client.setQueryData<PostDetail>(
     detailKey,
     (post) => post && { ...post, seen: true, title: 'Fresh title' },
@@ -119,13 +125,19 @@ test('late position responses preserve newer metadata and cannot recreate evicte
     favorite: false,
     media: [{ ...savedVideo, title: 'New title', removed: true }],
   })
-  acceptPosition(client, 'studio', savedPost.id, { ...savedVideo, position_s: 32, duration_s: 101 })
+  acceptPosition(
+    client,
+    'studio',
+    savedPost.id,
+    { ...savedVideo, position_s: 32, duration_s: 101 },
+    savedVideo.finished,
+  )
   expect(client.getQueryData(key)).toMatchObject({
     favorite: false,
     media: [{ title: 'New title', removed: true, position_s: 32, duration_s: 101 }],
   })
   client.removeQueries({ queryKey: key })
-  acceptPosition(client, 'studio', savedPost.id, savedVideo)
+  acceptPosition(client, 'studio', savedPost.id, savedVideo, savedVideo.finished)
   expect(client.getQueryData(key)).toBeUndefined()
   client.clear()
 })

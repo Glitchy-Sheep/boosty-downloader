@@ -1,0 +1,116 @@
+.file-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  outline: none;
+}
+
+.file-action-button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--muted-foreground);
+  outline: none;
+}
+
+.file-actions[data-mode='media'] .file-action-button {
+  color: inherit;
+}
+
+.file-action-button:hover,
+.file-action-button[aria-expanded='true'] {
+  background: color-mix(in oklab, currentColor 8%, transparent);
+}
+
+.file-action-button:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
+}
+
+.file-action-button:disabled {
+  opacity: 0.45;
+}
+
+.file-action-button svg,
+.file-action-menu-item svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  pointer-events: none;
+}
+
+.file-action-divider {
+  width: 1px;
+  height: 16px;
+  margin-inline: 4px;
+  background: currentColor;
+  opacity: 0.2;
+}
+
+.file-action-menu,
+.file-action-tooltip {
+  z-index: 70;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+}
+
+.file-action-menu {
+  min-width: 192px;
+  max-width: calc(100vw - 16px);
+  max-height: min(
+    var(--radix-dropdown-menu-content-available-height, 100dvh),
+    var(--radix-context-menu-content-available-height, 100dvh)
+  );
+  padding: 4px;
+  overflow-y: auto;
+  outline: none;
+}
+
+.file-action-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: default;
+  outline: none;
+}
+
+.file-action-menu-item[data-highlighted] {
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
+}
+
+.file-action-menu-item[data-disabled] {
+  opacity: 0.45;
+}
+
+.file-action-menu-item small,
+.file-action-tooltip span {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.file-action-menu-divider {
+  height: 1px;
+  margin: 4px;
+  background: var(--border);
+}
+
+.file-action-tooltip {
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+[data-file-context] a {
+  -webkit-touch-callout: default;
+}

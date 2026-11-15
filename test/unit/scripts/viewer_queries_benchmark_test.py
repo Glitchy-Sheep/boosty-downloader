@@ -21,7 +21,7 @@ from library_benchmark.viewer_media import (
     validate_media_workload,
 )
 
-from boosty_downloader.domain.library import MediaCounts
+from boosty_downloader.domain.library import MediaCounts, PostAccess
 from boosty_downloader.domain.library_media import (
     LibraryMediaItem,
     LibraryMediaPage,
@@ -67,7 +67,11 @@ def _item(kind: MediaKind) -> LibraryMediaItem:
 @pytest.fixture
 def pages() -> MediaPages:
     items = [_item(kind) for kind in MediaKind]
-    posts = {'complete-post-id': LibraryMediaPost('Шейдеры', None, _NOW, favorite=True)}
+    posts = {
+        'complete-post-id': LibraryMediaPost(
+            'Шейдеры', None, _NOW, favorite=True, access=PostAccess.open
+        )
+    }
     return MediaPages(
         all=LibraryMediaPage(
             [item for item in items if item.entry.kind != MediaKind.file],

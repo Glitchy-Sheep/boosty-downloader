@@ -1,14 +1,17 @@
-import { ArrowUpRight, CalendarDays, Lock } from 'lucide-react'
+import { ArrowUpRight, CalendarDays, FolderOpen, Lock } from 'lucide-react'
 
 import { FavoriteButton } from '@/components/favorite-button'
+import { FileActionButton } from '@/components/file-actions'
 import { SeenButton } from '@/components/seen-button'
 import { UpdatedBadge } from '@/components/updated-badge'
+import { usePostFolderAction } from '@/hooks/use-file-actions'
 import type { PostDetail } from '@/lib/api.gen'
 import { formatDate } from '@/lib/dates'
 import { isPostUnread } from '@/lib/post-marks'
 import { displayedPostTitle, safeHttpUrl } from '@/lib/post-presentation'
 
 type PostHeaderProps = {
+  author: string
   post: PostDetail
   selectedTag?: string | undefined
   favoritePending: boolean
@@ -21,6 +24,7 @@ type PostHeaderProps = {
 }
 
 export function PostHeader({
+  author,
   post,
   selectedTag,
   favoritePending,
@@ -32,6 +36,7 @@ export function PostHeader({
   onTag,
 }: PostHeaderProps) {
   const boostyUrl = safeHttpUrl(post.boosty_url)
+  const folder = usePostFolderAction(author, post)
   const errors = [...new Set([favoriteError, seenError].filter((error) => error !== null))]
 
   return (
@@ -67,6 +72,7 @@ export function PostHeader({
           </a>
         )}
         <div className="ml-auto flex items-center gap-1.5">
+          {folder && <FileActionButton key={post.id} action={folder} icon={FolderOpen} />}
           {post.access === 'locked' ? (
             <span className="inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[12.5px]">
               <Lock aria-hidden="true" className="size-3.5" />
