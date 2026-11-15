@@ -2,39 +2,17 @@
 
 ### Added
 
-- On phones, the viewer's post fills the screen and the sidebar opens as a modal panel. Search drafts and timeline positions survive closing the panel and switching between mobile and desktop layouts. Opening the panel preserves playback; selecting a post closes it.
-
-- The viewer's desktop sidebar can be resized or collapsed, remembers its width and restores it after temporary window compression. A header button and physical `[` key toggle the sidebar; `/` opens it before focusing search. Resizing preserves the open post and playback.
-
-- The viewer can open saved files in their default apps, reveal them in Finder/Explorer, copy their paths and open post folders. Files and post attachments show their names on disk and type; compact menus, media context menus and fullscreen actions share the same behavior. Remote browsers retain downloads and supported browser previews.
-
-- The viewer keeps Posts and Media in separate tabs with their own filters and scroll positions. Media offers All, Photos, Videos, Audio and Files views, missing-file counts, retained removed media and fullscreen photo/video navigation.
-- Audio plays in a persistent queue while browsing posts or authors, with resume, speed and seek controls. Files can be downloaded from their list; favorites and saved positions stay shared across the viewer.
-
-- The viewer supports explicit seen marks, Updated badges, row favorites and physical `s`/`f` shortcuts. Filtered bulk marking confirms the number of changes and shows progress; opening a post never marks it seen.
-
-- The viewer can jump to any month in the filtered post timeline without changing the open post, filters or viewing marks. The month selector follows manual scrolling and groups long histories by year.
-
-- The viewer supports physical `j`/`k` keys to browse posts and `/` to focus search, including the Russian keyboard layout. Fast presses preserve every step and keep current filters; typing, dialogs and native media controls keep their keys.
-
-- The viewer reads complete saved posts with text search, filtered Previous/Next navigation, tag filters, page favorites and fullscreen photos. Retained content remains readable after access closes.
-- Inline video and audio resume from saved positions, offer Start over, and save progress during playback and on leaving the page. Opening or playing a post keeps its seen mark unchanged.
-
-- Author cards open a virtual post timeline with month headings, local thumbnails and access states. Search, media kind, unseen, favorites, tag, locked, incomplete and sort filters stay in the URL, including after reload and browser navigation.
-
-- The viewer shows author cards with saved artwork, post counts and downloaded-media storage by kind, plus a library total. Cards adapt to narrow screens and include descriptions for screen readers.
+- Browse a saved v5 library with `view`, including author artwork, post counts, recorded media sizes and optional access from trusted local-network devices. Browsing needs no Boosty credentials or Internet connection.
+- Read complete saved posts with searchable text, local post links, a virtual month timeline, URL-preserved filters and fullscreen photos. Retained content stays readable after remote access closes.
+- Browse Media as All, Photos, Videos, Audio and Files, with Favorites and per-piece Unseen filters, missing-file counts, retained author-removed copies and fullscreen photo/video navigation. Posts and Media keep their own filters and positions.
+- Mark posts seen or favorite explicitly, acknowledge new content with Updated badges, and apply seen/unseen to filtered results with confirmation and progress. Opening or playing a post never marks it seen.
+- Resume audio and video from saved positions. A persistent audio queue follows navigation and provides seeking, speed, previous/next and automatic advance; marks and positions survive downloads, index rebuilds and library moves.
+- Open saved files in default applications, reveal them in Finder/Explorer, copy paths and open post folders, with visible program/script labels and compact touch/context menus. Remote devices retain supported browser viewing and downloads.
+- Resize or collapse the desktop sidebar with remembered width and use physical-key navigation, search and mark shortcuts across keyboard layouts. On phones, open the sidebar over the post while preserving playback, search drafts and timeline position; selecting a post closes it.
 
 - Downloads save small thumbnails for post images and locked teasers. Later runs fill missing thumbnails without downloading originals again; thumbnail failures warn once and preserve primary download results. Viewer thumbnail URLs fall back to local originals when needed.
 
 - Authored links between saved posts open local copies. Downloads resolve links to posts saved later in the same run; `render` and later downloads refresh processed pages when more targets become available. Viewer body links use local post routes.
-
-- `view` starts the local viewer server with the packaged shell, optional LAN access, and empty-library or compatibility pages. Read APIs expose authors, filtered posts, search context and complete post bodies; local media support seeking with Range requests.
-
-- Viewer APIs save seen marks, favorites and playback positions across downloads, index rebuilds and library moves. Bulk marking respects the selected post filters and reports numerical progress. Playback near the end of a video or track counts as finished.
-
-- Viewer APIs list downloaded images, videos, audio and files with favorite and per-piece unseen filters. Lists keep retained copies from removed or locked posts, include view counts and report current missing media.
-
-- Viewer APIs can open saved files in their default applications, reveal them in the file manager and open post folders for a browser on the same computer. Remote browsers keep download access; local actions are unavailable over SSH and on Linux without a desktop opener.
 
 - `render [AUTHOR]` rebuilds saved post pages offline from complete records and current local media. It works without credentials or a search index and preserves media files and viewing marks.
 
