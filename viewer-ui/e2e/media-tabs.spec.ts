@@ -1,5 +1,7 @@
 import { setTimeout as delay } from 'node:timers/promises'
 
+import type { Page, TestInfo } from '@playwright/test'
+
 import {
   expect,
   test,
@@ -15,7 +17,12 @@ import {
   scroller,
   tab,
 } from './media-fixtures'
-import { switchFrames, verifySwitch } from './media-frames'
+import { switchFrames, verifySwitch, type SwitchFrame, type TabAction } from './media-frames'
+
+// DOM snapshot tracing copies image response bodies and distorts frame timings.
+test.use({
+  trace: { mode: 'retain-on-failure', snapshots: false, screenshots: true, sources: true },
+})
 
 test('tabs retain the same DOM, post/list/grid scroll and independent filters through Back and Forward', async ({
   page,
@@ -38,18 +45,23 @@ test('tabs retain the same DOM, post/list/grid scroll and independent filters th
   }
   expect(before.post).toBeGreaterThan(0)
   expect(before.list).toBeGreaterThan(0)
-  const first = await switchFrames(page, 'media')
+  const first = await recordSwitch(page, 'media', info, 'tab-first')
   verifySwitch(first, 'media')
-  await pane(page, 'media')
-    .getByRole('button', { name: /^Photos / })
-    .click()
+  const photos = pane(page, 'media').getByRole('button', { name: /^Photos / })
+  await photos.click()
   await expect(page).toHaveURL(/view=images/)
-  await pane(page, 'media').getByRole('button', { name: 'Unseen', exact: true }).click()
+  await expect(photos).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('status', { name: 'Updating media' })).toHaveCount(0)
+  const unseen = pane(page, 'media').getByRole('button', { name: 'Unseen', exact: true })
+  await unseen.click()
   await expect(page).toHaveURL(/unseen=1/)
+  await expect(unseen).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('status', { name: 'Updating media' })).toHaveCount(0)
   await scroller(page).evaluate((element) => {
     element.scrollTop = 370
   })
   const mediaTop = await scroller(page).evaluate((element) => element.scrollTop)
+  expect(mediaTop).toBeGreaterThan(0)
   const mediaAddress = page.url()
   const grid = await page.locator('[data-media-grid]').elementHandle()
   await expect
@@ -69,7 +81,7 @@ test('tabs retain the same DOM, post/list/grid scroll and independent filters th
         ),
     )
     .toBe(true)
-  const back = await switchFrames(page, 'posts')
+  const back = await recordSwitch(page, 'posts', info, 'tab-return')
   verifySwitch(back, 'posts')
   expect(page.url()).toBe(`${corpus.origin}${postPath(6, 'kind=videos')}`)
   expect(
@@ -80,7 +92,7 @@ test('tabs retain the same DOM, post/list/grid scroll and independent filters th
   expect(await postScroller.evaluate((element) => element.scrollTop)).toBe(before.post)
   expect(await listScroller.evaluate((element) => element.scrollTop)).toBe(before.list)
   expect(back.every((frame) => frame.articleOpacity === 1)).toBe(true)
-  const again = await switchFrames(page, 'media')
+  const again = await recordSwitch(page, 'media', info, 'tab-media-again')
   verifySwitch(again, 'media')
   expect(page.url()).toBe(mediaAddress)
   expect(await scroller(page).evaluate((element) => element.scrollTop)).toBe(mediaTop)
@@ -102,8 +114,8 @@ test('tabs retain the same DOM, post/list/grid scroll and independent filters th
           ),
       ),
   ).toBe(true)
-  verifySwitch(await switchFrames(page, 'back'), 'posts')
-  verifySwitch(await switchFrames(page, 'forward'), 'media')
+  verifySwitch(await recordSwitch(page, 'back', info, 'tab-history-back'), 'posts')
+  verifySwitch(await recordSwitch(page, 'forward', info, 'tab-history-forward'), 'media')
   await info.attach('tab-frames.json', {
     body: JSON.stringify({ first, back, again }),
     contentType: 'application/json',
@@ -134,7 +146,7 @@ test('slow Media moves its pill immediately and disables the outgoing post befor
     await delay(650)
     await route.continue()
   })
-  const recording = switchFrames(page, 'media', 1100)
+  const recording = recordSwitch(page, 'media', info, 'slow-tab', 1100)
   await expect.poll(() => requested).toBe(true)
   await expect(pane(page, 'posts')).toHaveAttribute('inert', '')
   const text = await pane(page, 'posts').innerText()
@@ -162,10 +174,6 @@ test('slow Media moves its pill immediately and disables the outgoing post befor
       () => document.activeElement?.closest('.author-pane[data-tab="posts"]') !== null,
     ),
   ).toBe(false)
-  await info.attach('slow-tab-frames.json', {
-    body: JSON.stringify(frames),
-    contentType: 'application/json',
-  })
 })
 
 test('hidden post players pause, shortcuts stay quiet and a search draft resumes only on return', async ({
@@ -221,7 +229,10 @@ test('hidden image and bulk portals close even when history leaves their tab', a
 })
 
 for (const state of ['error', 'empty'] as const) {
-  test(`${state} post content remains during exit and returns intact`, async ({ page, corpus }) => {
+  test(`${state} post content remains during exit and returns intact`, async ({
+    page,
+    corpus,
+  }, info) => {
     if (state === 'error') {
       await page.goto(`${corpus.origin}/a/${AUTHOR}/p/missing`)
       await expect(pane(page, 'posts').getByRole('alert')).toBeVisible()
@@ -230,10 +241,10 @@ for (const state of ['error', 'empty'] as const) {
       await expect(pane(page, 'posts')).toContainText('No posts match these filters.')
     }
     const text = await page.getByRole('region', { name: 'Selected post' }).textContent()
-    const exit = await switchFrames(page, 'media')
+    const exit = await recordSwitch(page, 'media', info, `${state}-exit`)
     verifySwitch(exit, 'media')
     expect(exit.every((frame) => frame.textLength === text!.length)).toBe(true)
-    verifySwitch(await switchFrames(page, 'posts'), 'posts')
+    verifySwitch(await recordSwitch(page, 'posts', info, `${state}-return`), 'posts')
     expect(await page.getByRole('region', { name: 'Selected post' }).textContent()).toBe(text)
   })
 }
@@ -241,10 +252,10 @@ for (const state of ['error', 'empty'] as const) {
 test('reduced motion reveals the destination in one frame and new author discards retained places', async ({
   page,
   corpus,
-}) => {
+}, info) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await openPost(page, corpus)
-  const frames = await switchFrames(page, 'media', 180)
+  const frames = await recordSwitch(page, 'media', info, 'reduced-motion', 180)
   const appeared = frames.find((frame) => frame.panes.some((part) => part.tab === 'media'))!
   expect(appeared.panes.find((part) => part.tab === 'media')).toMatchObject({
     opacity: 1,
@@ -256,3 +267,18 @@ test('reduced motion reveals the destination in one frame and new author discard
   await expect(pane(page, 'media')).toBeVisible()
   expect(await pane(page, 'posts').count()).toBe(0)
 })
+
+async function recordSwitch(
+  page: Page,
+  action: TabAction,
+  info: TestInfo,
+  name: string,
+  duration?: number,
+): Promise<SwitchFrame[]> {
+  const frames = await switchFrames(page, action, duration)
+  await info.attach(`${name}-frames.json`, {
+    body: JSON.stringify(frames),
+    contentType: 'application/json',
+  })
+  return frames
+}
