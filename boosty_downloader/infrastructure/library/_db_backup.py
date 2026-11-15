@@ -43,7 +43,7 @@ def make_migration_backup(path: Path, identity: SchemaIdentity) -> None:
     temporary = Path(filename)
     try:
         _copy_database(path, temporary, identity)
-        with temporary.open('rb') as stream:
+        with temporary.open('r+b') as stream:
             fsync(stream.fileno())
         validate_database_path(path)
         _require_idle_backup(path)
