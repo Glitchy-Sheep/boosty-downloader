@@ -12,6 +12,7 @@ from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Final
 
 from aiohttp import ClientConnectionError, ClientPayloadError
+from yarl import URL
 
 from boosty_downloader.infrastructure.media_publication import publish_completed_file
 from boosty_downloader.infrastructure.media_workspace import (
@@ -197,12 +198,13 @@ async def download_reserved_file(config: ReservedDownloadFileConfig) -> Publishe
 
 @asynccontextmanager
 async def open_download_response(
-    session: RetryClient, url: str
+    session: RetryClient, url: str, *, encoded_url: bool = False
 ) -> AsyncGenerator[ClientResponse, None]:
     """Acquire an accepted HTTP response without translating errors from its consumer."""
     async with AsyncExitStack() as stack:
         with download_errors(url):
-            response = await stack.enter_async_context(session.get(url))
+            request_url = URL(url, encoded=True) if encoded_url else url
+            response = await stack.enter_async_context(session.get(request_url))
             _require_success(response, url)
         yield response
 

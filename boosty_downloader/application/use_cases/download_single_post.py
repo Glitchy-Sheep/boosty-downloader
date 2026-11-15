@@ -17,14 +17,21 @@ from boosty_downloader.application.filtering import (
     has_excluded_tag,
 )
 from boosty_downloader.application.mappers.post_mapper import map_post_dto_to_domain
-from boosty_downloader.application.page_builder import build_post_page
 from boosty_downloader.application.post_access import observe_post_access
 from boosty_downloader.application.post_download_state import (
     PostDownloadState,
     PostRunProgress,
 )
+from boosty_downloader.application.post_link_tracker import PostPageLocation
+from boosty_downloader.application.post_links import has_post_links
+from boosty_downloader.application.post_pages import render_post_page
 from boosty_downloader.application.post_preparation import PostPreparer
 from boosty_downloader.application.preview_sync import ensure_post_previews
+from boosty_downloader.application.thumbnail_sync import (
+    ensure_image_thumbnail,
+    ensure_saved_thumbnails,
+)
+from boosty_downloader.domain.library import PostIdentity
 from boosty_downloader.domain.post_data_chunks import (
     PostDataChunkAudio,
     PostDataChunkBoostyVideo,
@@ -35,11 +42,8 @@ from boosty_downloader.domain.post_data_chunks import (
 from boosty_downloader.domain.stored_post import MediaKind, MediaStatus
 from boosty_downloader.infrastructure.file_downloader import is_expired_link_error
 from boosty_downloader.infrastructure.html_generator import PAGE_TEMPLATE_VERSION
-from boosty_downloader.infrastructure.html_generator.renderer import render_html_to_file
 from boosty_downloader.infrastructure.human_readable_filesize import human_readable_size
-from boosty_downloader.infrastructure.media_output_paths import (
-    resolve_media_destination,
-)
+from boosty_downloader.infrastructure.library.page_links import SavedPageLinkResolver
 from boosty_downloader.infrastructure.post_media_downloader import (
     MediaDownloadError,
     PostMediaDownloader,
@@ -99,6 +103,7 @@ class DownloadSinglePostUseCase:
         self._needs_render = False
         self._unchanged = False
         self._excluded = False
+        self._links_deferred = False
         self._media = PostMediaDownloader(
             http=self.context.downloader_session,
             external_videos=self.context.external_videos_downloader,
@@ -122,7 +127,7 @@ class DownloadSinglePostUseCase:
             )
         preparer = PostPreparer(
             self.context.library_root,
-            self.context.post_store,
+            self.context.post_locations,
             self.context.author_name,
             self.context.preferred_video_quality,
             restore_missing=self.context.restore_missing,
@@ -133,6 +138,7 @@ class DownloadSinglePostUseCase:
             datetime.now(timezone.utc),
             checked_unavailable_ids=self.run_progress.checked_unavailable_ids,
         )
+        self.context.post_locations.reserve(prepared.live.post, prepared.folder)
         self.destination = self.context.library_root / prepared.folder
         state = PostDownloadState(
             self.context.library_root,
@@ -148,6 +154,7 @@ class DownloadSinglePostUseCase:
             state.save_initial()
             self._needs_render = True
         await ensure_post_previews(self.context, state, prepared)
+        await ensure_saved_thumbnails(self.context, state, prepared)
         post_task = self.context.progress_reporter.create_task(
             f'[bold]POST: {self.post_dto.title}[/bold]',
             total=len(prepared.reconciliation.download_ids),
@@ -166,17 +173,34 @@ class DownloadSinglePostUseCase:
 
     def finalize(self) -> None:
         """Render current complete state after the terminal attempt outcome."""
-        if not self._needs_render or self._state is None:
+        state = self._state
+        if state is None or self._excluded:
             return
-        record = self._state.record
-        render_html_to_file(
-            build_post_page(record),
-            out_path=resolve_media_destination(
-                self.context.library_root, self._state.folder, 'post.html'
+        if self._needs_render:
+            self._publish_page(state)
+            return
+        if self._unchanged and has_post_links(state.record):
+            self.context.page_links.defer_render(_page_location(state))
+            self._links_deferred = True
+
+    def _publish_page(self, state: PostDownloadState) -> None:
+        record = state.record
+        result = render_post_page(
+            record,
+            root=self.context.library_root,
+            folder=state.folder,
+            link_resolver=SavedPageLinkResolver(
+                self.context.library_root, self.context.post_store.find_post
             ),
-            page_title=record.post.title.strip() or self.destination.name,
         )
-        self._state.mark_rendered(PAGE_TEMPLATE_VERSION)
+        if record.sync.page_template != PAGE_TEMPLATE_VERSION:
+            state.mark_rendered(PAGE_TEMPLATE_VERSION)
+        self.context.page_links.record_render(
+            _page_location(state),
+            result.unresolved,
+        )
+        if result.written:
+            self._unchanged = False
         self._needs_render = False
 
     def record_success(self) -> None:
@@ -187,13 +211,21 @@ class DownloadSinglePostUseCase:
                 f'Skip post (excluded tag): {self.post_dto.title}'
             )
         elif self._unchanged:
-            self.context.run_statistics.posts_cached += 1
-            self.context.progress_reporter.notice(
-                'SKIP (unchanged): ' + self.destination.name
-            )
+            self._record_cached_post()
         else:
             self.context.run_statistics.posts_downloaded += 1
             self.context.progress_reporter.success('Finished: ' + self.destination.name)
+
+    def _record_cached_post(self) -> None:
+        if self._links_deferred:
+            self.context.run_statistics.record_pending_post(
+                PostIdentity(self.context.author_name, self.post_dto.id)
+            )
+            message = 'Reusing saved content: '
+        else:
+            self.context.run_statistics.posts_cached += 1
+            message = 'SKIP (unchanged): '
+        self.context.progress_reporter.notice(message + self.destination.name)
 
     def _record_deleted_media(self, record: StoredPost) -> None:
         """Replace this post's contribution when a retry observes changed state."""
@@ -289,6 +321,7 @@ class DownloadSinglePostUseCase:
                 self.context.run_statistics.add_media(
                     _media_counts(media.kind), result.size
                 )
+            await ensure_image_thumbnail(self.context, state, media_id, media)
         finally:
             self.context.progress_reporter.complete_task(task_id)
 
@@ -343,6 +376,11 @@ class DownloadSinglePostUseCase:
                     entry.error or 'Media unavailable',
                     retryable=False,
                 )
+
+
+def _page_location(state: PostDownloadState) -> PostPageLocation:
+    post = state.record.post
+    return PostPageLocation(PostIdentity(post.author, post.id), state.folder)
 
 
 def _retry_failure(

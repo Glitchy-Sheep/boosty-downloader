@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, TypeAlias, cast
+from typing import TYPE_CHECKING, NamedTuple, TypeAlias, cast
 
 from sqlalchemy import (
     Integer,
@@ -17,7 +17,6 @@ from sqlalchemy import (
     select,
     table,
 )
-from sqlalchemy.orm import Session
 
 from boosty_downloader.domain.library import (
     MediaCounts,
@@ -29,10 +28,13 @@ from boosty_downloader.domain.library import (
     PostOverview,
     PostRow,
 )
-from boosty_downloader.domain.stored_post import MediaKind, PostMetadata
+from boosty_downloader.domain.library_summary import (
+    remote_media_counts,
+    saved_media_counts,
+)
+from boosty_downloader.domain.stored_post import PostMetadata
 from boosty_downloader.infrastructure.library._index_models import IndexPost
 from boosty_downloader.infrastructure.library._reader_predicates import (
-    RemoteCounter,
     post_predicates,
 )
 from boosty_downloader.infrastructure.library._reader_search import (
@@ -43,6 +45,8 @@ from boosty_downloader.infrastructure.library._reader_search import (
 from boosty_downloader.infrastructure.library._reader_snippets import search_match
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from sqlalchemy import ColumnElement, Connection
 
     from boosty_downloader.domain.library import SearchMatch
@@ -56,6 +60,37 @@ _FTS = table(
 )
 
 
+class _IndexedPostRow(NamedTuple):
+    """Columns needed for a detached browsing snapshot and original-text matches."""
+
+    author: str
+    post_id: str
+    folder: str | None
+    url: str
+    title: str
+    created_at: datetime
+    updated_at: datetime
+    published_at: datetime | None
+    access: str
+    tier: str | None
+    tier_price_rub: float | None
+    post_price_rub: float | None
+    likes: int
+    comments: int
+    tags: list[str]
+    content_counters: dict[str, int]
+    current_counts: dict[str, int]
+    downloaded_counts: dict[str, int]
+    cover_path: str | None
+    pieces_added_at: datetime | None
+    seen_at: datetime | None
+    favorite: bool
+    title_hits: str | None
+    body_hits: str | None
+    original_title: str | None
+    original_body: str | None
+
+
 @dataclass(frozen=True, slots=True)
 class IndexedPostLocation:
     """A known identity, with a folder only when its body was saved."""
@@ -65,13 +100,14 @@ class IndexedPostLocation:
 
 def read_posts(connection: Connection, author: str, filters: PostFilters) -> PostList:
     """Read filtered post rows and derive the matching month totals without extra SQL."""
-    with Session(connection) as session:
-        rows = [
-            _post_row(post, _search_match(title, body, original_title, original_body))
-            for post, title, body, original_title, original_body in session.execute(
-                posts_query(author, filters)
-            )
-        ]
+    query = posts_query(author, filters)
+    selected = query.with_only_columns(
+        *(query.selected_columns[name] for name in _IndexedPostRow._fields),
+        maintain_column_froms=True,
+    )
+    rows = [
+        _post_row(_IndexedPostRow._make(row)) for row in connection.execute(selected)
+    ]
     counts = Counter(_post_month(row) for row in rows)
     return PostList(
         rows, [MonthCount(month, count) for month, count in counts.items()], len(rows)
@@ -96,12 +132,22 @@ def posts_query(author: str, filters: PostFilters) -> PostQuery:
 def _search_query(expression: str) -> PostQuery:
     if not expression:
         empty = cast('ColumnElement[str | None]', literal(None, String))
-        return select(IndexPost, empty, empty, empty, empty)
+        return select(
+            IndexPost,
+            empty.label('title_hits'),
+            empty.label('body_hits'),
+            empty.label('original_title'),
+            empty.label('original_body'),
+        )
     return (
         select(
             IndexPost,
-            func.highlight(literal_column('posts_fts'), 0, HIT_START, HIT_END),
-            func.highlight(literal_column('posts_fts'), 1, HIT_START, HIT_END),
+            func.highlight(literal_column('posts_fts'), 0, HIT_START, HIT_END).label(
+                'title_hits'
+            ),
+            func.highlight(literal_column('posts_fts'), 1, HIT_START, HIT_END).label(
+                'body_hits'
+            ),
             _FTS.c.original_title,
             _FTS.c.original_body,
         )
@@ -123,6 +169,19 @@ def read_post_location(
     return IndexedPostLocation(row[0])
 
 
+def read_post_id_by_folder(
+    connection: Connection, author: str, folder: str
+) -> str | None:
+    """Return the sole full identity owning this folder; ambiguity proves nothing."""
+    query = (
+        select(IndexPost.post_id)
+        .where(IndexPost.author == author, IndexPost.folder == folder)
+        .limit(2)
+    )
+    identities = connection.scalars(query).all()
+    return identities[0] if len(identities) == 1 else None
+
+
 def _search_match(
     title: str | None,
     body: str | None,
@@ -134,7 +193,7 @@ def _search_match(
     return search_match(title, body, original_title, original_body)
 
 
-def _post_row(row: IndexPost, match: SearchMatch | None) -> PostRow:
+def _post_row(row: _IndexedPostRow) -> PostRow:
     return PostRow(
         overview=_post_overview(row),
         cover_path=row.cover_path,
@@ -143,37 +202,25 @@ def _post_row(row: IndexPost, match: SearchMatch | None) -> PostRow:
         seen_at=row.seen_at,
         favorite=row.favorite,
         pieces_added_at=row.pieces_added_at,
-        match=match,
+        match=_search_match(
+            row.title_hits, row.body_hits, row.original_title, row.original_body
+        ),
     )
 
 
-def _missing_media(row: IndexPost) -> int:
+def _missing_media(row: _IndexedPostRow) -> int:
     if row.folder is None:
         return 0
     return sum(row.current_counts.values()) - sum(row.downloaded_counts.values())
 
 
-def _media_counts(row: IndexPost) -> MediaCounts:
+def _media_counts(row: _IndexedPostRow) -> MediaCounts:
     if row.folder is None:
-        counts = row.content_counters
-        return MediaCounts(
-            counts.get(RemoteCounter.image.value, 0),
-            counts.get(RemoteCounter.platform_video.value, 0)
-            + counts.get(RemoteCounter.external_video.value, 0),
-            counts.get(RemoteCounter.file.value, 0),
-            counts.get(RemoteCounter.audio.value, 0),
-        )
-    counts = row.current_counts
-    return MediaCounts(
-        counts.get(MediaKind.image.value, 0),
-        counts.get(MediaKind.boosty_video.value, 0)
-        + counts.get(MediaKind.external_video.value, 0),
-        counts.get(MediaKind.file.value, 0),
-        counts.get(MediaKind.audio.value, 0),
-    )
+        return remote_media_counts(row.content_counters)
+    return saved_media_counts(row.current_counts)
 
 
-def _post_overview(row: IndexPost) -> PostOverview:
+def _post_overview(row: _IndexedPostRow) -> PostOverview:
     metadata = PostMetadata(
         id=row.post_id,
         author=row.author,

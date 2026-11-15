@@ -1,27 +1,40 @@
 """
 Ports of the application layer: what the use cases need from the outside.
 
-Implementations live in cli and infrastructure. They match structurally, without importing this module; conformance is checked where the app is put together. Shared argument and result types live in domain.
+Ports describe dependencies without selecting their implementations. Conformance is checked where the app is put together. Shared argument and result types live in domain.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Protocol, TypeAlias
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Collection, Iterator
     from uuid import UUID
 
     from boosty_downloader.domain.library import (
         LibraryAuthor,
-        LibraryPost,
+        LibraryPostDetails,
         LocatedPost,
         PostFilters,
         PostList,
+        SavedPage,
         SavedPost,
         TagCount,
     )
     from boosty_downloader.domain.library_marks import PostMarks
+    from boosty_downloader.domain.library_media import (
+        LibraryMediaItem,
+        LibraryMediaPage,
+        LibraryMediaView,
+        MediaFilters,
+        MediaIdentity,
+    )
+    from boosty_downloader.domain.library_mutations import (
+        BulkMarkProgress,
+        PostMarkResult,
+    )
     from boosty_downloader.domain.stored_post import (
         AuthorInfo,
         LockedPost,
@@ -64,12 +77,8 @@ class FailureLog(Protocol):
     async def add_error(self, error_id: str, message: str) -> None: ...
 
 
-class PostStore(Protocol):
-    """
-    Persistent post records for one library root, keyed by author and full post ID.
-
-    Folders are portable POSIX paths relative to the library root. Saved inputs and returned records are independent snapshots, including nested mutable values.
-    """
+class PostLocator(Protocol):
+    """Read canonical locations and choose portable library-relative folders."""
 
     def find_post(self, author: str, post_id: str) -> LocatedPost | None:
         """
@@ -79,9 +88,19 @@ class PostStore(Protocol):
         """
         ...
 
-    def choose_post_folder(self, post: PostMetadata) -> str:
-        """Choose a new post's folder without creating or reserving it."""
+    def choose_post_folder(
+        self, post: PostMetadata, *, reserved_folders: Collection[str] = ()
+    ) -> str:
+        """Choose a free folder, excluding caller reservations, without writes."""
         ...
+
+
+class PostStore(PostLocator, Protocol):
+    """
+    Persistent post records for one library root, keyed by author and full post ID.
+
+    Folders are portable POSIX paths relative to the library root. Saved inputs and returned records are independent snapshots, including nested mutable values.
+    """
 
     def save_post(self, folder: str, record: StoredPost) -> None:
         """
@@ -140,8 +159,38 @@ class StoredPostCollection(Protocol):
         """Read fresh independent records for one author or the entire library."""
         ...
 
+    def find_post(self, author: str, post_id: str) -> LocatedPost | None:
+        """Read a fresh canonical record by full identity, or None if absent."""
+        ...
+
     def save_post(self, folder: str, record: StoredPost) -> None:
         """Atomically save a record in its confirmed folder, preserving other files."""
+        ...
+
+
+MediaUrl: TypeAlias = Callable[[str], str]
+LinkUrl: TypeAlias = Callable[[str], str]
+
+
+class LinkResolver(Protocol):
+    """Locate an eligible saved target by author and full post identity."""
+
+    def post_folder(self, author: str, post_id: str) -> str | None:
+        """Return its portable library-relative folder, or None if unavailable."""
+        ...
+
+
+class PostBodyRenderer(Protocol):
+    """Render a saved body with URLs for its post-relative media paths."""
+
+    def render(
+        self,
+        record: StoredPost,
+        *,
+        media_url: MediaUrl,
+        link_url: LinkUrl | None = None,
+    ) -> str:
+        """Return the shared post body without changing records or writing a page."""
         ...
 
 
@@ -150,6 +199,10 @@ class LibraryReader(Protocol):
     Library queries and user marks for one library root.
 
     Posts are identified by author and full post ID. Results and saved mark inputs are independent snapshots, including nested mutable values. Content updates belong to PostStore.
+
+    Read methods raise domain LibraryReadError when storage cannot provide valid data. Missing resources return None or empty collections; corrupt records remain errors.
+
+    Mutation methods raise LibraryWriteError on failed persistence or projection, and LibraryMarkConflictError when the saved state forbids a change. A durable canonical mark can survive a failed projection; repeating the request repairs it.
     """
 
     def authors(self) -> list[LibraryAuthor]:
@@ -172,8 +225,26 @@ class LibraryReader(Protocol):
         """Query indexed rows and totals without loading full bodies."""
         ...
 
-    def post(self, author: str, post_id: str) -> LibraryPost | None:
-        """Return current access and any saved body, or None for an unknown post."""
+    def list_media(
+        self, author: str, view: LibraryMediaView, filters: MediaFilters
+    ) -> LibraryMediaPage:
+        """Query downloaded pieces, shared posts and filtered totals from one snapshot."""
+        ...
+
+    def post(self, author: str, post_id: str) -> LibraryPostDetails | None:
+        """Read fresh content, access, marks and cover, or None for an unknown post."""
+        ...
+
+    def media_path(self, author: str, identity: MediaIdentity) -> str | None:
+        """Return a downloaded piece's recorded library-relative path, or None."""
+        ...
+
+    def post_folder(self, author: str, post_id: str) -> str | None:
+        """Return a post's recorded library-relative folder, or None if unsaved."""
+        ...
+
+    def saved_page(self, author: str, author_relative_path: str) -> SavedPage | None:
+        """Confirm a generated page's stored ownership without granting file access."""
         ...
 
     def get_marks(self, author: str, post_id: str) -> PostMarks | None:
@@ -190,4 +261,37 @@ class LibraryReader(Protocol):
             LookupError: The post has no confirmed saved folder.
 
         """
+        ...
+
+    def set_seen(
+        self, author: str, post_id: str, *, seen: bool
+    ) -> PostMarkResult | None:
+        """Acknowledge or clear seen content; unknown posts return None."""
+        ...
+
+    def set_favorite(
+        self, author: str, post_id: str, *, favorite: bool
+    ) -> PostMarkResult | None:
+        """Change only favorite state; unknown posts return None."""
+        ...
+
+    def set_seen_many(
+        self,
+        author: str,
+        filters: PostFilters,
+        *,
+        seen: bool,
+        progress: Callable[[BulkMarkProgress], None] | None = None,
+    ) -> int | None:
+        """Mark a fixed selection, reporting changes; unknown authors return None."""
+        ...
+
+    def set_position(
+        self,
+        author: str,
+        identity: MediaIdentity,
+        seconds: float,
+        duration: float,
+    ) -> LibraryMediaItem | None:
+        """Update retained playable media; unknown posts or pieces return None."""
         ...

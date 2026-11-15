@@ -21,6 +21,7 @@ CLI: validate arguments and check library compatibility without writes
         -> ensure_post_previews: save missing video preview paths
         -> PostMediaDownloader: up to four concurrent media transfers
      -> final page: build_post_page(StoredPost), then render HTML
+  -> normal completion: refresh deferred pages and links to later saved posts
 ```
 
 1. **Fetch.** Each real run refreshes blog details once and updates the author's avatar and cover. Optional metadata/image failures warn and preserve saved data. `BoostyAPIClient` validates listing and single-post responses as `PostDTO` objects. The API session carries credentials; a separate session downloads media without account tokens or cookies.
@@ -28,7 +29,8 @@ CLI: validate arguments and check library compatibility without writes
 3. **Prepare.** `PostPreparer` maps the complete live body, locates the saved record and observes actual local file names and sizes. `reconcile` computes the updated record and individual media IDs eligible under the filters. Preparation also identifies missing video previews independently of those filters. `--restore-missing` also selects locally deleted pieces that are still in the current post and match the content filters. The preparation step only reads. A post's existing folder remains stable when its title changes.
 4. **Persist.** `PostDownloadState` owns the record during an attempt. It saves the updated content, reserves each destination before transfer, and saves each success or failure separately. Finished peers cannot lose their state when another piece fails. After each canonical save, the storage adapter updates the disposable library index. An index failure warns once and disables indexing for the rest of that run; it does not undo the JSON save or fail the download.
 5. **Download.** `PostMediaDownloader` uses aiohttp for images, attachments, audio and Boosty videos, and yt-dlp for external videos. At most four pieces of a post transfer concurrently. Media is published under its final name only after completion; existing files are not overwritten.
-6. **Retry and render.** Each retry prepares against saved progress and current files. After the final attempt outcome, `build_post_page` assembles a complete page from the saved record. Successful rendering records the current page template version. An unchanged post with a current page needs neither media transfers nor a page rewrite.
+6. **Retry and render.** Each retry prepares against saved progress and current files. After the final attempt outcome, `build_post_page` assembles a complete page from the saved record. Successful rendering records the current page template version. Otherwise unchanged posts with authored Boosty post links defer their page comparison until normal run completion, when later downloaded targets are available. Identical HTML needs no rewrite.
+7. **Resolve local links.** After normal completion, affected pages are rebuilt from fresh saved records. Links to usable saved pages become relative local links; missing targets remain on Boosty. A previously unchanged post counts as updated only when its final HTML bytes change. Deferred pages remain pending until their final comparison succeeds. This pass runs before the success summary and never runs after cancellation, a listing error or a systemic failure stop. If completion fails, the CLI shows partial results and any pending page checks instead of a normal success summary.
 
 ## One post, two runs
 
@@ -48,16 +50,22 @@ The pure cover selector reads the saved body order and a filesystem snapshot. It
 
 ## Dry-run uses the same preparation
 
-`download --dry-run` walks the full blog and calls the same `PostPreparer` as the downloader. It counts unique planned primary media IDs and their current API sizes. A missing preview can make a post need an update without adding a video transfer to those counts. It does not execute transfers, persist records or render pages. `--dry-run` with `--post-url` is a usage error.
+`download --dry-run` walks the full blog and calls the same `PostPreparer` as the downloader. It counts unique planned primary media IDs and their current API sizes. A missing preview can make a post need an update without adding a video transfer to those counts. It does not execute transfers, persist records or write pages. `--dry-run` with `--post-url` is a usage error.
 
 | Post category | Meaning |
 | --- | --- |
 | New records | No saved record exists, including a new text-only post |
-| Existing posts to update | Selected media needs downloading, meaningful content or local state changed, or the page is missing or uses an older template |
+| Existing posts to update | Selected media needs downloading, meaningful content or local state changed, the page is missing or uses an older template, or its final local post links change |
 | Existing posts unchanged | None of those changes is needed under the selected filters; this does not imply that every media item is present |
 | Excluded by tag | The post matches an excluded tag and is not prepared |
 
 The overview reports inaccessible posts separately. Unfinished uploads and author-removed pieces are not counted as downloads. Unknown video sizes remain explicit rather than being guessed from older local files. After an unchanged successful download, the next preview reports no media work for that post.
+
+For otherwise unchanged posts with authored Boosty links, the preview prepares final HTML in memory and compares its bytes with the saved page. It includes the pages that accessible, non-excluded posts would publish, using the same folder-choice rules with temporary reservations in memory. This predicts normal completion; later transfer or write failures can prevent planned work from finishing. A target whose page is restored later in the run does not cause a needless update when the source already has the correct local link.
+
+Both modes reserve new post folders for the duration of the run. Names differing only by case or Unicode normalization use separate collision suffixes, so the forecast remains portable across filesystems. Existing saved posts retain their recorded folders.
+
+If pagination repeats a full post ID, both modes process only its first occurrence in that listing. Repeated entries do not allocate another folder, download media again or increase post counts. Media retries still use the same post's retry workflow.
 
 Preview startup also stays read-only: it does not create a library, search index, metadata, media, failure log or sample config. A missing config produces an error without creating its parent folder. `--debug` shows preview diagnostics on the console and does not create or truncate a debug log. Ordinary `download` retains sample-config setup and file diagnostics after the library compatibility check. `check` retains its existing setup behavior.
 
@@ -71,6 +79,8 @@ Media transfers use private temporary directories. An incomplete transfer never 
 
 At the terminal post outcome, the page shows the full saved body and the current state of downloaded, failed, unavailable or missing media, including attachments. A rendering failure leaves completed media durable and makes the post unsuccessful. If transfer and rendering both fail, both causes are reported. Cancellation may leave the previous page until a later run rebuilds it.
 
+A failure while refreshing deferred links stops run finalization without a normal success summary. Completed media and previously published pages remain saved. This is a page-finalization error, not another media retry.
+
 The summary counts remaining deleted media still present in the accessible, non-excluded posts processed by the run. Content filters restrict restoration, while the count includes deleted pieces of other kinds. Retries replace the post's contribution instead of counting it again.
 
 ## Page size and signed links
@@ -83,7 +93,7 @@ Download state lives in `<destination>/<author>/<post folder>/post.json`. Author
 
 The first actual download creates the immutable `<destination>/.boosty-downloader/library.json` marker with `format_version: 5`. Dry-run checks compatibility without creating it. Before sample-config creation, debug-file setup or any network request, every download form checks an unmarked destination for recognized post folders under every author. If it finds one, the command names the destination, asks for another folder and explains why older downloads should be kept. It never reads the old post contents or SQLite cache. A malformed, unsupported or unsafe marker is an error rather than an invitation to overwrite it.
 
-There is no automatic migration or adoption of older downloads. `render` and `reindex` use the same compatibility boundary before startup writes. `render` rebuilds complete pages from canonical records and current local files without using the index or contacting Boosty. The `view` command prepares the reader and serves the packaged viewer shell and compatibility or empty-library pages. Its `/api` and `/media` routes currently return 404; connected browsing, search, playback and mark editing are still future work. See the [viewer server foundation](../library-storage.md#viewer-server-foundation) for its command options.
+There is no automatic migration or adoption of older downloads. `render` and `reindex` use the same compatibility boundary before startup writes. `render` rebuilds complete pages from canonical records and current local files without using the index or contacting Boosty. The `view` command prepares the reader and serves the packaged viewer shell and compatibility or empty-library pages. Its APIs provide library queries, media and viewing marks; the shell's data screens and controls remain future work. See the [viewer server foundation](../library-storage.md#viewer-server-foundation) for its command options.
 
 ## Download layers
 

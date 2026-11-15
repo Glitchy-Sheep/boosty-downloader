@@ -33,6 +33,7 @@ from boosty_downloader.infrastructure.html_generator.models import (
 )
 
 if TYPE_CHECKING:
+    from boosty_downloader.application.ports import LinkUrl, MediaUrl
     from boosty_downloader.domain.stored_post import (
         MediaEntry,
         StoredPost,
@@ -48,24 +49,38 @@ class InvalidStoredPostError(ValueError):
     """Stored content cannot be represented as a complete page."""
 
 
-def build_post_page(record: StoredPost) -> list[HtmlGenChunk]:
+def build_post_page(
+    record: StoredPost,
+    *,
+    media_url: MediaUrl | None = None,
+    link_url: LinkUrl | None = None,
+) -> list[HtmlGenChunk]:
     """
     Project current content and retained copies into independently owned page elements.
 
-    The caller reconciles disk state first. A reserved path alone does not make a file downloaded. Rendering and recording the page template version belong to the caller.
+    A reserved path alone does not make a file downloaded. Media URLs receive the stored post-relative path before URL encoding. Without a media callback, media paths stay relative to the saved page.
+
+    Authored text links use the link callback when supplied and otherwise keep their targets. Rendering and recording the page template version belong to the caller.
 
     Raises:
         InvalidStoredPostError: A body reference is missing or downloaded media has no path.
 
     """
-    chunks = _build_body(record)
-    removed = _build_removed_media(record)
+    resolve_media_url = media_url if media_url is not None else _relative_media_url
+    chunks = _build_body(record, resolve_media_url, link_url)
+    removed = _build_removed_media(record, resolve_media_url)
     if removed:
         chunks.append(HtmlGenRemovedMedia(media=removed))
     return chunks
 
 
-def _build_body(record: StoredPost) -> list[HtmlGenChunk]:
+def _relative_media_url(path: str) -> str:
+    return quote(path, safe='/')
+
+
+def _build_body(
+    record: StoredPost, media_url: MediaUrl, link_url: LinkUrl | None
+) -> list[HtmlGenChunk]:
     chunks: list[HtmlGenChunk] = []
     text: list[TextContent] = []
     for block in record.blocks:
@@ -73,20 +88,27 @@ def _build_body(record: StoredPost) -> list[HtmlGenChunk]:
             case TextBlock() | ParagraphBreak():
                 text.append(block)
             case ListBlock() | MediaBlock():
-                chunks.extend(build_text_blocks(text))
+                chunks.extend(build_text_blocks(text, link_url=link_url))
                 text.clear()
-                chunks.append(_build_non_text(record, block))
-    chunks.extend(build_text_blocks(text))
+                chunks.append(_build_non_text(record, block, media_url, link_url))
+    chunks.extend(build_text_blocks(text, link_url=link_url))
     return chunks
 
 
-def _build_non_text(record: StoredPost, block: ListBlock | MediaBlock) -> HtmlGenChunk:
+def _build_non_text(
+    record: StoredPost,
+    block: ListBlock | MediaBlock,
+    media_url: MediaUrl,
+    link_url: LinkUrl | None,
+) -> HtmlGenChunk:
     match block:
         case ListBlock():
-            return build_textual_list(block)
+            return build_textual_list(block, link_url=link_url)
         case MediaBlock():
             entry = _get_media(record, block.media_id)
-            return _build_current_media(block.media_id, entry, record.post.url)
+            return _build_current_media(
+                block.media_id, entry, record.post.url, media_url
+            )
 
 
 def _get_media(record: StoredPost, media_id: str) -> MediaEntry:
@@ -98,13 +120,13 @@ def _get_media(record: StoredPost, media_id: str) -> MediaEntry:
 
 
 def _build_current_media(
-    media_id: str, entry: MediaEntry, post_url: str
+    media_id: str, entry: MediaEntry, post_url: str, media_url: MediaUrl
 ) -> HtmlGenChunk:
     kind = _unavailable_kind(entry.kind)
     label = _media_label(media_id, entry)
     match entry.status:
         case MediaStatus.downloaded:
-            return _build_saved_media(media_id, entry)
+            return _build_saved_media(media_id, entry, media_url)
         case MediaStatus.pending:
             return HtmlGenNotDownloaded(
                 kind=kind, label=label, duration=entry.duration, post_url=post_url
@@ -121,11 +143,13 @@ def _build_current_media(
             )
 
 
-def _build_saved_media(media_id: str, entry: MediaEntry) -> HtmlGenMedia:
+def _build_saved_media(
+    media_id: str, entry: MediaEntry, media_url: MediaUrl
+) -> HtmlGenMedia:
     if not entry.path:
         message = f'Downloaded media has no saved path: {media_id}'
         raise InvalidStoredPostError(message)
-    src = quote(entry.path, safe='/')
+    src = media_url(entry.path)
     label = _media_label(media_id, entry)
     match entry.kind:
         case MediaKind.image:
@@ -135,10 +159,11 @@ def _build_saved_media(media_id: str, entry: MediaEntry) -> HtmlGenMedia:
         case MediaKind.audio:
             return convert_audio_to_html(src, title=label)
         case MediaKind.boosty_video | MediaKind.external_video:
-            return convert_video_to_html(src, title=label)
+            poster_url = media_url(entry.preview_path) if entry.preview_path else None
+            return convert_video_to_html(src, title=label, poster_url=poster_url)
 
 
-def _build_removed_media(record: StoredPost) -> list[HtmlGenMedia]:
+def _build_removed_media(record: StoredPost, media_url: MediaUrl) -> list[HtmlGenMedia]:
     removed_ids = [
         media_id
         for media_id, entry in record.media.items()
@@ -146,7 +171,8 @@ def _build_removed_media(record: StoredPost) -> list[HtmlGenMedia]:
     ]
     removed_ids.sort(key=lambda media_id: record.media[media_id].position)
     return [
-        _build_saved_media(media_id, record.media[media_id]) for media_id in removed_ids
+        _build_saved_media(media_id, record.media[media_id], media_url)
+        for media_id in removed_ids
     ]
 
 

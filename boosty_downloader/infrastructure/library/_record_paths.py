@@ -1,6 +1,7 @@
 """Author directory and containment checks for library records."""
 
 import re
+from errno import ELOOP
 from pathlib import Path, PureWindowsPath
 from stat import S_ISDIR
 
@@ -29,7 +30,11 @@ def check_containment(root: Path, path: Path) -> None:
 
 def resolve_contained_path(root: Path, path: Path, *, strict: bool = False) -> Path:
     """Return the resolved path only when it stays within the library root."""
-    resolved = path.resolve(strict=strict)
+    try:
+        resolved = path.resolve(strict=strict)
+    except RuntimeError as error:
+        # Python before 3.13 reports symlink loops as RuntimeError.
+        raise OSError(ELOOP, 'Cannot resolve library path', str(path)) from error
     if not resolved.is_relative_to(root):
         msg = f'Path escapes the library root: {path}'
         raise ValueError(msg)

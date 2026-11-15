@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from boosty_downloader.application.author_sync import refresh_author
 from boosty_downloader.application.filtering import has_excluded_tag
+from boosty_downloader.application.post_link_repair import repair_download_links
 from boosty_downloader.application.post_retry import (
     PostDownloadRetrier,
     PostOutcome,
@@ -130,6 +131,7 @@ class DownloadPostByIdUseCase:
         if outcome is not PostOutcome.downloaded:
             self.context.run_statistics.posts_failed += 1
 
+        repair_download_links(self.context)
         summary = format_run_summary([], collect_unknown_content(post), failed_posts)
         if summary:
             self.context.progress_reporter.warn(summary)

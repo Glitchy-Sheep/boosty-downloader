@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from enum import Enum
 from typing import TYPE_CHECKING, Final
 
 from sqlalchemy import and_, func, or_, select
 
+from boosty_downloader.domain.content_counters import RemoteCounter
 from boosty_downloader.domain.library import LibraryContentKind, PostAccess
 from boosty_downloader.domain.stored_post import MediaKind
 from boosty_downloader.infrastructure.library._index_models import (
@@ -18,16 +18,6 @@ if TYPE_CHECKING:
     from sqlalchemy import ColumnElement
 
     from boosty_downloader.domain.library import PostFilters
-
-
-class RemoteCounter(str, Enum):
-    """Boosty content-counter names, distinct from stored media kinds."""
-
-    platform_video = 'ok_video'
-    external_video = 'video'
-    image = 'image'
-    file = 'file'
-    audio = 'audio'
 
 
 _SAVED_KINDS: Final = {

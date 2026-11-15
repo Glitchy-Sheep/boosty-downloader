@@ -70,6 +70,7 @@ def _save_post(
         folder = store.choose_post_folder(post.record.post)
         store.save_post(folder, post.record)
         _place_files(root / folder, post.files)
+        _place_files(root / post.record.post.author, post.author_files)
         if post.marks is not None:
             marks.save_marks(post.record.post.author, post.record.post.id, post.marks)
     if post.locked is not None:

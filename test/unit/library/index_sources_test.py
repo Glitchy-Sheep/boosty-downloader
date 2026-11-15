@@ -557,3 +557,19 @@ def test_canonical_author_sources_require_portable_folder_names(
     _write(path, data)
     with pytest.raises(ValueError, match='portable directory name'):
         list(scan_authors(root))
+
+
+@pytest.mark.parametrize('saved', [False, True])
+def test_locked_thumbnail_reaches_content_snapshot_without_disk_copy(
+    root: Path, record: StoredPost, *, saved: bool
+) -> None:
+    if saved:
+        _save(root, record)
+    thumbnail = '.boosty-downloader/thumbs/locked.png'
+    JsonPostStore(root).save_locked_post(
+        LockedPost(record.post, LATER, teaser_thumbnail_path=thumbnail)
+    )
+    source = next(scan_posts(root, next(scan_authors(root))))
+    assert source.post.teaser_thumbnail_path == thumbnail
+    assert source.cover_path is None
+    assert not (root / 'writer' / thumbnail).exists()

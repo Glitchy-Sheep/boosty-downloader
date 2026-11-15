@@ -118,4 +118,7 @@ async def test_json_guard_error_is_compressed_too(
     )
     assert response.status == 421
     assert response.headers['Content-Encoding'] == 'gzip'
-    assert json.loads(gzip.decompress(await response.read()))['error']
+    assert json.loads(gzip.decompress(await response.read())) == {
+        'error': {'code': 'host_not_allowed', 'message': 'This Host is not allowed.'}
+    }
+    assert response.headers['X-Content-Type-Options'] == 'nosniff'

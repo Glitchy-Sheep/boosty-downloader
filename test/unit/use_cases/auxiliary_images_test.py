@@ -19,7 +19,7 @@ from support.synthetic_post import (
     synthetic_post,
 )
 
-from boosty_downloader.application import post_access, preview_sync
+from boosty_downloader.application import post_access, preview_sync, thumbnail_sync
 from boosty_downloader.application.download_context import DownloadContext
 from boosty_downloader.application.exceptions.application_errors import (
     ApplicationCancelledError,
@@ -65,6 +65,7 @@ VIDEO_MEDIA_ID = f'{MediaKind.boosty_video.value}:{VIDEO_ID}'
 PREVIEW_PATH = f'previews/{VIDEO_ID}.png'
 TEASER_PATH = f'.boosty-downloader/teasers/{POST_ID}.png'
 PREVIOUS_TEASER = '.boosty-downloader/teasers/previous.jpg'
+TEASER_THUMBNAIL_PATH = '.boosty-downloader/thumbs/teaser.png'
 
 
 def _post(*, locked: bool = False) -> PostDTO:
@@ -79,6 +80,7 @@ class _Transfers:
         self.preview_calls: list[str] = []
         self.preview_reservations: list[frozenset[str]] = []
         self.teaser_urls: list[str] = []
+        self.thumbnail_urls: list[str] = []
         self.error: BaseException | None = None
 
     async def preview(  # noqa: PLR0913 - mirrors the image adapter contract
@@ -119,6 +121,25 @@ class _Transfers:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b'teaser image')
         return TEASER_PATH
+
+    async def thumbnail(
+        self,
+        *,
+        session: RetryClient,
+        library_root: Path,
+        author: str,
+        post_id: str,
+        url: str,
+    ) -> str:
+        del session
+        assert post_id == POST_ID
+        self.thumbnail_urls.append(url)
+        if self.error is not None:
+            raise self.error
+        path = library_root / author / TEASER_THUMBNAIL_PATH
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b'teaser thumbnail')
+        return TEASER_THUMBNAIL_PATH
 
 
 @dataclass
@@ -188,6 +209,9 @@ def run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _Run:
     transfers = _Transfers()
     monkeypatch.setattr(preview_sync, 'download_post_preview', transfers.preview)
     monkeypatch.setattr(post_access, 'download_locked_teaser', transfers.teaser)
+    monkeypatch.setattr(
+        thumbnail_sync, 'download_teaser_thumbnail', transfers.thumbnail
+    )
     return _Run(context, store, reporter, transfers)
 
 
@@ -277,6 +301,8 @@ async def test_locked_metadata_is_saved_before_its_signed_teaser(run: _Run) -> N
     saved = run.store.load_locked_post(AUTHOR, POST_ID)
     assert saved is not None
     assert saved.teaser_path == TEASER_PATH
+    assert saved.teaser_thumbnail_path == TEASER_THUMBNAIL_PATH
+    assert run.transfers.thumbnail_urls == run.transfers.teaser_urls
     assert run.transfers.teaser_urls == [
         f'https://images.example/teaser/{TEASER_ID}{SIGNED_QUERY}'
     ]
@@ -302,6 +328,8 @@ async def test_existing_teaser_is_reused_while_locked_metadata_changes(
     assert saved is not None
     assert saved.post.title == post.title
     assert saved.teaser_path == PREVIOUS_TEASER
+    assert saved.teaser_thumbnail_path == (TEASER_THUMBNAIL_PATH if has_url else None)
+    assert len(run.transfers.thumbnail_urls) == int(has_url)
     assert run.transfers.teaser_urls == []
     assert (
         run.context.library_root / AUTHOR / PREVIOUS_TEASER

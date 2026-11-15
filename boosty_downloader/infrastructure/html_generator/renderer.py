@@ -7,15 +7,18 @@ Current implementation uses Jinja2 templates to render HTML with a little stylin
 """
 
 import mimetypes
+import os
 import re
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
+from stat import S_ISREG
 from typing import Final
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
+from boosty_downloader.infrastructure.html_generator.links import safe_href
 from boosty_downloader.infrastructure.html_generator.models import (
     HtmlGenAudio,
     HtmlGenChunk,
@@ -42,7 +45,7 @@ from boosty_downloader.infrastructure.library._atomic_write import write_atomica
 from boosty_downloader.infrastructure.library._media_paths import is_link
 
 # Bump when the generated page structure or styling changes.
-PAGE_TEMPLATE_VERSION: Final[int] = 1
+PAGE_TEMPLATE_VERSION: Final[int] = 6
 
 
 # Load all templates as a package files
@@ -203,12 +206,14 @@ def _render_missing_media(
                 item=item,
                 title=_unavailable_title(item),
                 duration=_format_duration(item.duration),
+                safe_href=safe_href,
             )
         case HtmlGenNotDownloaded():
             return env.get_template('not_downloaded.html').render(
                 item=item,
                 kind=item.kind.value.capitalize(),
                 duration=_format_duration(item.duration),
+                safe_href=safe_href,
             )
         case HtmlGenDeleted():
             return env.get_template('deleted.html').render(
@@ -222,7 +227,7 @@ def _is_line_break(fragment: HtmlInline) -> bool:
 
 def _render_structured_text(block: HtmlGenParagraph | HtmlGenHeading, tag: str) -> str:
     return env.get_template('structured_text.html').render(
-        block=block, tag=tag, is_line_break=_is_line_break
+        block=block, tag=tag, is_line_break=_is_line_break, safe_href=safe_href
     )
 
 
@@ -236,6 +241,7 @@ def _render_media(chunk: HtmlGenMedia) -> str:
             return env.get_template('video.html').render(
                 video=chunk,
                 src=_media_src(chunk.url),
+                poster_src=_media_src(chunk.poster_url) if chunk.poster_url else None,
                 mime_type=_media_mime_type(chunk.url),
             )
         case HtmlGenAudio():
@@ -258,7 +264,7 @@ def render_html_chunk(chunk: HtmlGenChunk) -> str:  # noqa: PLR0911 - one templa
     """Render a single HtmlGenChunk to its HTML representation."""
     match chunk:
         case HtmlGenText():
-            return env.get_template('text.html').render(text=chunk)
+            return env.get_template('text.html').render(text=chunk, safe_href=safe_href)
         case HtmlGenParagraph():
             return _render_structured_text(chunk, 'p')
         case HtmlGenHeading():
@@ -289,30 +295,88 @@ def _render_chunks(chunks: Iterable[HtmlGenChunk]) -> str:
     return '\n'.join(parts)
 
 
+def render_html_body(chunks: Iterable[HtmlGenChunk]) -> str:
+    """Render post content without a document wrapper or the page's theme script."""
+    return _render_chunks(chunks)
+
+
 def render_html(chunks: list[HtmlGenChunk], page_title: str) -> str:
     """Render a list of HTML chunks to a full HTML page."""
     return env.get_template('base.html').render(
-        content=_render_chunks(chunks),
+        content=render_html_body(chunks),
         title=page_title,
         page_template_version=PAGE_TEMPLATE_VERSION,
     )
 
 
 def render_html_to_file(
-    chunks: list[HtmlGenChunk], out_path: Path, page_title: str
-) -> None:
-    """Render HTML chunks to HTML file."""
-    html = render_html(chunks, page_title)
+    chunks: list[HtmlGenChunk],
+    out_path: Path,
+    page_title: str,
+    *,
+    only_if_changed: bool = False,
+) -> bool:
+    """Publish complete HTML; optionally keep an identical regular page unchanged."""
+    content = render_html(chunks, page_title).encode('utf-8')
+    return write_html_page(out_path, content, only_if_changed=only_if_changed)
+
+
+def write_html_page(
+    out_path: Path, content: bytes, *, only_if_changed: bool = False
+) -> bool:
+    """Atomically publish prepared HTML at a caller-validated destination."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    _check_page_destination(out_path)
-    write_atomically(out_path, html.encode('utf-8'))
+    info = _check_page_destination(out_path)
+    if only_if_changed and info is not None and _matches_page(out_path, info, content):
+        return False
+    write_atomically(out_path, content)
+    return True
 
 
-def _check_page_destination(path: Path) -> None:
+def page_matches(out_path: Path, content: bytes) -> bool:
+    """Compare a caller-validated page without writing or following the final link."""
+    info = _check_page_destination(out_path)
+    return info is not None and _matches_page(out_path, info, content)
+
+
+def _check_page_destination(path: Path) -> os.stat_result | None:
     try:
         info = path.lstat()
     except FileNotFoundError:
-        return
+        return None
     if is_link(info):
         message = f'Post page destination is a link: {path}'
         raise ValueError(message)
+    if not S_ISREG(info.st_mode):
+        message = f'Post page destination is not a regular file: {path}'
+        raise ValueError(message)
+    return info
+
+
+def _matches_page(path: Path, expected: os.stat_result, data: bytes) -> bool:
+    if expected.st_size != len(data):
+        return False
+    flags = os.O_RDONLY
+    for option in ('O_BINARY', 'O_NOFOLLOW', 'O_NONBLOCK'):
+        flags |= getattr(os, option, 0)
+    try:
+        descriptor = os.open(path, flags)
+    except FileNotFoundError:
+        return False
+    with os.fdopen(descriptor, 'rb') as stream:
+        opened = os.fstat(stream.fileno())
+        if not _is_current_page(path, expected, opened):
+            return False
+        return stream.read() == data
+
+
+def _is_current_page(
+    path: Path, expected: os.stat_result, opened: os.stat_result
+) -> bool:
+    current = _check_page_destination(path)
+    return (
+        current is not None
+        and S_ISREG(opened.st_mode)
+        and os.path.samestat(expected, opened)
+        and os.path.samestat(current, opened)
+    )

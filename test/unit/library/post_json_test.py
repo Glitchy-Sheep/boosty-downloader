@@ -162,7 +162,10 @@ def _record_section(
 def test_encoding_matches_independent_full_json_and_readable_format(
     record: StoredPost,
 ) -> None:
-    expected = dumps(loads(GOLDEN_RECORD), ensure_ascii=False, indent=2) + '\n'
+    document = loads(GOLDEN_RECORD)
+    document['schema_version'] = 2
+    document['media'][AUDIO_ID]['thumbnail_path'] = None
+    expected = dumps(document, ensure_ascii=False, indent=2) + '\n'
 
     assert encode_post_record(record) == expected.encode('utf-8')
 
@@ -297,7 +300,7 @@ def test_schema_version_requires_an_exact_integer(version: object) -> None:
     assert not isinstance(error.value, UnsupportedPostSchemaError)
 
 
-@pytest.mark.parametrize('version', [0, -1, 2])
+@pytest.mark.parametrize('version', [0, -1, 3])
 def test_unsupported_version_is_detected_before_reading_its_body(version: int) -> None:
     with pytest.raises(UnsupportedPostSchemaError):
         decode_post_record(
@@ -321,9 +324,11 @@ def test_malformed_json_utf8_and_non_object_roots_are_invalid(document: bytes) -
         decode_post_record(document)
 
 
+@pytest.mark.parametrize('version', [1, 2])
 @pytest.mark.parametrize('section', ['root', 'post', 'sync', 'media'])
-def test_unknown_fields_are_not_silently_lost(section: str) -> None:
+def test_unknown_fields_are_not_silently_lost(section: str, version: int) -> None:
     document = loads(GOLDEN_RECORD)
+    document['schema_version'] = version
     target = document if section == 'root' else _json_section(document, section)
     target['future_field'] = 'must not disappear'
 

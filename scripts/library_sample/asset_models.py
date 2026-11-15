@@ -36,11 +36,12 @@ class AttachmentType(str, Enum):
 
 @dataclass(frozen=True, slots=True)
 class ImageAsset:
-    """One raster image and its pixel dimensions."""
+    """One raster image, its pixel dimensions and an optional small copy."""
 
     path: Path
     width: int
     height: int
+    thumbnail_path: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)

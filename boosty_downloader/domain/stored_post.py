@@ -145,6 +145,8 @@ class MediaEntry:
     # Post-relative, including when the full video is not downloaded.
     preview_path: str | None = None
     error: str | None = None
+    # Author-relative; retained when the original is deleted or removed.
+    thumbnail_path: str | None = None
 
 
 @dataclass
@@ -166,6 +168,7 @@ class LockedPost:
     synced_at: datetime
     # Relative to the author folder.
     teaser_path: str | None = None
+    teaser_thumbnail_path: str | None = None
 
 
 @dataclass

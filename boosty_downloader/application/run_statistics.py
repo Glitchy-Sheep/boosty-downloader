@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass, field
 
 from boosty_downloader.application.blog_overview import MediaCounts
+from boosty_downloader.domain.library import PostIdentity
 
 
 @dataclass(slots=True)
@@ -24,6 +25,28 @@ class RunStatistics:
     media: MediaCounts = field(default_factory=MediaCounts)
     downloaded_bytes: int = 0
     media_deleted: int = 0
+    _pending_posts: set[PostIdentity] = field(
+        default_factory=set[PostIdentity], init=False, repr=False
+    )
+
+    @property
+    def posts_pending(self) -> int:
+        """Posts whose final page comparison has not completed."""
+        return len(self._pending_posts)
+
+    def record_pending_post(self, identity: PostIdentity) -> None:
+        """Wait for the final page check before classifying an otherwise cached post."""
+        self._pending_posts.add(identity)
+
+    def finish_pending_post(self, identity: PostIdentity, *, written: bool) -> None:
+        """Count each completed page check once, preserving partial run results."""
+        if identity not in self._pending_posts:
+            return
+        self._pending_posts.remove(identity)
+        if written:
+            self.posts_downloaded += 1
+        else:
+            self.posts_cached += 1
 
     def add_media(self, media: MediaCounts, downloaded_bytes: int) -> None:
         """Count one finished media download."""

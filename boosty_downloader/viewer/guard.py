@@ -5,11 +5,18 @@ from __future__ import annotations
 import ipaddress
 import socket
 from dataclasses import dataclass
+from http import HTTPStatus
 from typing import TYPE_CHECKING, Final, TypeAlias, cast
 from urllib.parse import urlsplit
 
 from aiohttp import web
 
+from boosty_downloader.viewer.api_models import (
+    ERROR_HOST_NOT_ALLOWED,
+    ERROR_WRITE_NOT_ALLOWED,
+    ErrorBody,
+    ErrorResponse,
+)
 from boosty_downloader.viewer.pages import LibraryNotice, notice_page
 
 if TYPE_CHECKING:
@@ -22,6 +29,19 @@ _APP_POLICY: Final = (
 )
 _WRITE_METHODS: Final = frozenset({'POST', 'PUT', 'PATCH', 'DELETE'})
 SocketAddressValues: TypeAlias = tuple[object, ...]
+_IPAddress: TypeAlias = ipaddress.IPv4Address | ipaddress.IPv6Address
+_PROXY_HEADERS: Final = frozenset(
+    {
+        'forwarded',
+        'via',
+        'x-real-ip',
+        'x-client-ip',
+        'x-cluster-client-ip',
+        'cf-connecting-ip',
+        'true-client-ip',
+        'fastly-client-ip',
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +108,62 @@ def is_host_allowed(request: web.Request) -> bool:
     return name in {machine, f'{machine}.local'}
 
 
+def is_address_host(request: web.Request) -> bool:
+    """Allow local actions only through a literal address or localhost."""
+    authority = _request_authority(request)
+    if authority is None:
+        return False
+    name = authority.host.removesuffix('.')
+    return name == 'localhost' or _is_ip(name)
+
+
+def _ip_address(value: str | None) -> _IPAddress | None:
+    if value is None:
+        return None
+    try:
+        address = ipaddress.ip_address(value.split('%', 1)[0])
+    except ValueError:
+        return None
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        return address.ipv4_mapped
+    return address
+
+
+def _connection_address(request: web.Request) -> _IPAddress | None:
+    if request.transport is None:
+        return None
+    address: object = request.transport.get_extra_info('sockname')
+    if not isinstance(address, tuple):
+        return None
+    values = cast('SocketAddressValues', address)
+    if not values or not isinstance(values[0], str):
+        return None
+    return _ip_address(values[0])
+
+
+def is_same_machine(request: web.Request) -> bool:
+    """Accept loopback or the connected local address without proxy headers."""
+    if any(
+        name.lower() in _PROXY_HEADERS or name.lower().startswith('x-forwarded-')
+        for name in request.headers
+    ):
+        return False
+    peer = _ip_address(request.remote)
+    if peer is None:
+        return False
+    return peer.is_loopback or peer == _connection_address(request)
+
+
+def is_open_allowed(request: web.Request) -> bool:
+    """Require the local viewer's explicit origin before any desktop action."""
+    return (
+        is_origin_allowed(request, required=True)
+        and is_write_allowed(request)
+        and is_address_host(request)
+        and is_same_machine(request)
+    )
+
+
 def _origin_authority(origin: str, scheme: str) -> _Authority | None:
     if _has_whitespace_or_controls(origin):
         return None
@@ -125,7 +201,14 @@ def is_write_allowed(request: web.Request) -> bool:
         or request.content_type != 'application/json'
     ):
         return False
+    return is_origin_allowed(request)
+
+
+def is_origin_allowed(request: web.Request, *, required: bool = False) -> bool:
+    """Check explicit origin and fetch metadata without requiring a request body."""
     origins = request.headers.getall('Origin', [])
+    if required and not origins:
+        return False
     if len(origins) > 1 or (origins and not _is_same_origin(request, origins[0])):
         return False
     fetch_sites = request.headers.getall('Sec-Fetch-Site', [])
@@ -154,7 +237,12 @@ def _wrong_host(request: web.Request) -> web.Response:
             content_type='text/html',
             headers={'Cache-Control': 'no-store'},
         )
-    return web.json_response({'error': 'This Host is not allowed.'}, status=421)
+    body = ErrorResponse(
+        error=ErrorBody(
+            code=ERROR_HOST_NOT_ALLOWED, message='This Host is not allowed.'
+        )
+    )
+    return web.json_response(body.model_dump(mode='json'), status=421)
 
 
 @web.middleware
@@ -166,15 +254,31 @@ async def guard_requests(
     if not is_host_allowed(request):
         return _wrong_host(request)
     if request.method in _WRITE_METHODS and not is_write_allowed(request):
-        return web.json_response({'error': 'This write is not allowed.'}, status=403)
+        body = ErrorResponse(
+            error=ErrorBody(
+                code=ERROR_WRITE_NOT_ALLOWED, message='This write is not allowed.'
+            )
+        )
+        return web.json_response(body.model_dump(mode='json'), status=403)
     return await handler(request)
+
+
+def _media_resource_policy(response: web.StreamResponse) -> str:
+    if response.status >= HTTPStatus.BAD_REQUEST:
+        return 'same-origin'
+    return response.headers.get('Cross-Origin-Resource-Policy', 'same-origin')
 
 
 async def secure_response(request: web.Request, response: web.StreamResponse) -> None:
     """Set headers at publication time, including errors and streamed files."""
-    del request
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Referrer-Policy'] = 'no-referrer'
+    if request.path in {'/media', '/thumbs'} or request.path.startswith(
+        ('/media/', '/thumbs/')
+    ):
+        response.headers['Cross-Origin-Resource-Policy'] = _media_resource_policy(
+            response
+        )
     if 'Content-Security-Policy' not in response.headers:
         response.headers['Content-Security-Policy'] = _APP_POLICY
         response.headers['X-Frame-Options'] = 'DENY'
