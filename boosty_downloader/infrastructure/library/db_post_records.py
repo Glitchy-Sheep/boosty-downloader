@@ -21,7 +21,6 @@ from boosty_downloader.infrastructure.library._db_models import (
     DbPost,
 )
 from boosty_downloader.infrastructure.library._db_post_mapping import (
-    read_saved_post,
     update_media_entry,
     update_saved_post,
 )
@@ -39,6 +38,12 @@ from boosty_downloader.infrastructure.library._db_records import (
     read_session,
     require_author_identity,
     synchronize_post_tags,
+)
+from boosty_downloader.infrastructure.library._db_saved_post import (
+    has_foreign_folder_owner,
+    read_saved_location,
+    require_folder_ownership,
+    saved_post_folder,
 )
 from boosty_downloader.infrastructure.library._stored_validation import (
     validate_stored_post,
@@ -79,7 +84,9 @@ class DatabasePostRecords:
         with self._read_session() as session:
             require_author_identity(session, author)
             row = find_post_row(session, author, post_id)
-            if row is not None and (located := self._read_saved(session, row)):
+            if row is not None and (
+                located := read_saved_location(session, self._root, row)
+            ):
                 return located
             return self._find_unowned(session, author_folder, post_id, prefix)
 
@@ -106,7 +113,9 @@ class DatabasePostRecords:
                 if (
                     portable_path_key(relative) not in reserved
                     and not path_is_occupied(author_folder / name)
-                    and not _foreign_owner(session, relative, post.author, post.id)
+                    and not has_foreign_folder_owner(
+                        session, relative, post.author, post.id
+                    )
                 ):
                     return relative
                 collision += 1
@@ -152,35 +161,6 @@ class DatabasePostRecords:
         except ValidationError as error:
             raise InvalidPostRecordError(validation_message(error)) from None
 
-    def _saved_folder(self, row: DbPost) -> str | None:
-        if row.folder is None:
-            return None
-        canonical = canonical_post_folder(
-            self._root, row.folder, row.author, row.post_id
-        )
-        if canonical != row.folder:
-            message = (
-                f'Saved post folder redirects its canonical location: {row.folder}'
-            )
-            raise ValueError(message)
-        if not directory_exists(self._root / canonical):
-            return None
-        return canonical
-
-    def _read_saved(self, session: Session, row: DbPost) -> LocatedPost | None:
-        folder = self._saved_folder(row)
-        if folder is None:
-            return None
-        _require_ownership(session, folder, row.author, row.post_id)
-        media = list(
-            session.scalars(
-                select(DbMedia)
-                .where(DbMedia.post_row_id == row.id)
-                .order_by(DbMedia.position, DbMedia.media_id)
-            )
-        )
-        return LocatedPost(folder, read_saved_post(row, media))
-
     def _find_unowned(
         self,
         session: Session,
@@ -200,7 +180,9 @@ class DatabasePostRecords:
                 author_folder.name,
                 post_id,
             )
-            if directory_exists(self._root / canonical) and not _foreign_owner(
+            if directory_exists(
+                self._root / canonical
+            ) and not has_foreign_folder_owner(
                 session,
                 canonical,
                 author_folder.name,
@@ -211,11 +193,11 @@ class DatabasePostRecords:
 
     def _prepare_row(self, session: Session, folder: str, record: StoredPost) -> DbPost:
         post = record.post
-        _require_ownership(session, folder, post.author, post.id)
+        require_folder_ownership(session, folder, post.author, post.id)
         row = find_post_row(session, post.author, post.id)
         if row is None:
             return _create_row(session, post)
-        current = self._saved_folder(row)
+        current = saved_post_folder(self._root, row)
         if current is not None and current != folder:
             message = f'Post {post.author}/{post.id} already occupies {current}'
             raise ValueError(message)
@@ -227,28 +209,6 @@ class DatabasePostRecords:
 def _require_canonical_folder(root: Path, folder: str, post: PostMetadata) -> None:
     if canonical_post_folder(root, folder, post.author, post.id) != folder:
         message = 'Post folder changed its canonical location during save'
-        raise ValueError(message)
-
-
-def _foreign_owner(session: Session, folder: str, author: str, post_id: str) -> bool:
-    reservations = session.scalars(
-        select(DbPost.folder).where(
-            DbPost.author == author,
-            DbPost.post_id != post_id,
-            DbPost.folder.is_not(None),
-        )
-    )
-    key = portable_path_key(folder)
-    return any(
-        path is not None and portable_path_key(path) == key for path in reservations
-    )
-
-
-def _require_ownership(
-    session: Session, folder: str, author: str, post_id: str
-) -> None:
-    if _foreign_owner(session, folder, author, post_id):
-        message = f'Post folder belongs to another post: {folder}'
         raise ValueError(message)
 
 

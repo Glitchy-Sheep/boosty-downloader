@@ -15,6 +15,7 @@ from boosty_downloader.infrastructure.library._author_validation import (
     validate_author_snapshot,
     validate_locked_snapshot,
 )
+from boosty_downloader.infrastructure.library._db_locked_post import read_locked_post
 from boosty_downloader.infrastructure.library._db_models import (
     DbAuthor,
     DbMarks,
@@ -77,7 +78,7 @@ class DatabaseAuthorRecords:
             row = find_post_row(session, author, post_id)
             if row is None or row.access != PostAccess.locked:
                 return None
-            return _read_locked(row)
+            return read_locked_post(row)
 
     def save_locked_post(self, post: LockedPost) -> None:
         """Update one access observation while retaining saved content and all marks."""
@@ -91,7 +92,7 @@ class DatabaseAuthorRecords:
                 row = DbPost(author=post.post.author, post_id=post.post.id)
                 session.add(row)
             elif row.access == PostAccess.locked:
-                _read_locked(row)
+                read_locked_post(row)
             _update_locked(row, post)
             session.flush()
             synchronize_post_tags(session, row)
@@ -104,7 +105,7 @@ class DatabaseAuthorRecords:
             row = find_post_row(session, author, post_id)
             if row is None or row.access != PostAccess.locked:
                 return
-            _read_locked(row)
+            read_locked_post(row)
             if row.saved_metadata is None:
                 _require_no_marks(session, row.id)
                 session.delete(row)
@@ -168,39 +169,6 @@ def _update_author(row: DbAuthor, info: AuthorInfo) -> None:
     row.cover_path = info.cover_path
     row.synced_at = info.synced_at
     row.remote_post_count = info.remote_post_count
-
-
-def _read_locked(row: DbPost) -> LockedPost:
-    if row.locked_synced_at is None:
-        message = 'Locked overview has no synchronization time'
-        raise InvalidAuthorRecordError(message)
-    return validate_locked_snapshot(
-        LockedPost(
-            _read_overview(row),
-            row.locked_synced_at,
-            teaser_path=row.teaser_path,
-            teaser_thumbnail_path=row.teaser_thumbnail_path,
-        )
-    )
-
-
-def _read_overview(row: DbPost) -> PostMetadata:
-    return PostMetadata(
-        id=row.post_id,
-        author=row.author,
-        url=row.url,
-        title=row.title,
-        created_at=row.created_at,
-        updated_at=row.updated_at,
-        published_at=row.published_at,
-        tags=row.tags,
-        tier=row.tier,
-        tier_price_rub=row.tier_price_rub,
-        post_price_rub=row.post_price_rub,
-        likes=row.likes,
-        comments=row.comments,
-        content_counters=row.content_counters,
-    )
 
 
 def _update_locked(row: DbPost, post: LockedPost) -> None:
