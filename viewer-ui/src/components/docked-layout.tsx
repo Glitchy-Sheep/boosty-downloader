@@ -3,6 +3,7 @@ import {
   useEffectEvent,
   useLayoutEffect,
   useRef,
+  type CSSProperties,
   type KeyboardEvent,
   type ReactNode,
 } from 'react'
@@ -89,6 +90,7 @@ export function DockedLayout({ controller, sidebar, pane }: DockedLayoutProps) {
       <ResizablePanel
         id="sidebar"
         className="docked-layout-panel"
+        style={{ overflowX: 'hidden' }}
         elementRef={controller.sidebarRef}
         panelRef={controller.panelRef}
         defaultSize={docked ? controller.initialWidth : 0}
@@ -99,7 +101,12 @@ export function DockedLayout({ controller, sidebar, pane }: DockedLayoutProps) {
         groupResizeBehavior="preserve-pixel-size"
       >
         {docked && (
-          <div id="author-post-sidebar" inert={!controller.isOpen} className="h-full">
+          <div
+            id="author-post-sidebar"
+            inert={!controller.isOpen}
+            className="h-full"
+            style={{ '--sidebar-min-width': `${SIDEBAR_WIDTH.min}px` } as CSSProperties}
+          >
             {sidebar}
           </div>
         )}

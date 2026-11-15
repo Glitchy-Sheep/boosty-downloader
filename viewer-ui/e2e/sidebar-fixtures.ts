@@ -6,7 +6,14 @@ import { requireFixture } from './required-fixture'
 export const SIDEBAR_STORAGE = 'boosty-viewer.sidebar'
 export const WIDTH = { min: 260, default: 360, max: 640 } as const
 export type SidebarPreference = { width: number; collapsed: boolean }
-export type WidthFrame = { time: number; width: number }
+export type WidthFrame = {
+  time: number
+  width: number
+  contentWidth: number
+  animating: boolean
+  panelHeight: number
+  contentHeight: number
+}
 
 export function panel(page: Page): Locator {
   return page.locator('#sidebar[data-panel]')
@@ -105,11 +112,22 @@ export async function physicalBracket(page: Page, key = 'х'): Promise<void> {
 export async function widthFrames(page: Page, action: 'toggle' | 'reset'): Promise<WidthFrame[]> {
   return page.evaluate(async (action) => {
     const panel = document.querySelector('#sidebar[data-panel]')
-    if (!panel) throw new Error('No sidebar panel')
+    const content = document.querySelector('#author-post-sidebar')
+    const group = document.querySelector('[data-sidebar-layout]')
+    if (!panel || !content || !group) throw new Error('No sidebar panel, content or layout')
     const began = performance.now()
     const readings: WidthFrame[] = []
     const read = (): void => {
-      readings.push({ time: performance.now() - began, width: panel.getBoundingClientRect().width })
+      const panelBounds = panel.getBoundingClientRect()
+      const contentBounds = content.getBoundingClientRect()
+      readings.push({
+        time: performance.now() - began,
+        width: panelBounds.width,
+        contentWidth: contentBounds.width,
+        animating: group.hasAttribute('data-animating'),
+        panelHeight: panelBounds.height,
+        contentHeight: contentBounds.height,
+      })
     }
     read()
     if (action === 'toggle')
