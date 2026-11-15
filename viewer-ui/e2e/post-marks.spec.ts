@@ -12,6 +12,7 @@ import type {
 } from '../src/lib/api.gen'
 import { expect, test } from './marks-fixtures'
 import { pane, type PostCorpus } from './post-fixtures'
+import { openMobileSidebar } from './mobile-sidebar-fixtures'
 import { requireFixture } from './required-fixture'
 
 const AUTHOR = 'marks_checks'
@@ -284,6 +285,7 @@ test.describe('touch row hearts', () => {
     }, info) => {
       await page.emulateMedia({ colorScheme })
       await openPost(page, marks, POST.unseen, 'tag=notes')
+      await openMobileSidebar(page)
       const address = page.url()
       const heart = row(page, POST.unopened).getByRole('button', { name: 'Add to favorites' })
       await expect(heart).toHaveCSS('opacity', '1')

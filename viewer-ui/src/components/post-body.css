@@ -139,6 +139,38 @@
   .post-body .attachment:hover {
     background: var(--muted);
   }
+  .post-body [data-file-card] {
+    align-items: flex-start;
+    min-width: 0;
+  }
+  .post-body [data-file-card]:is(:hover, :focus-within) {
+    background: color-mix(in srgb, var(--foreground) 3%, transparent);
+  }
+  .post-body .attachment-title {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  .post-body [data-file-card] .file-name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    white-space: break-spaces;
+  }
+  .post-body [data-file-card] [data-page-slot] {
+    flex: none;
+  }
+  .post-body .attachment-execution {
+    display: inline-block;
+    margin-top: 2px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0 4px;
+    color: var(--muted-foreground);
+    font-size: 10px;
+    font-weight: 400;
+    line-height: 16px;
+    user-select: none;
+  }
   .post-body .attachment + .attachment {
     border-top: 1px solid var(--border);
   }

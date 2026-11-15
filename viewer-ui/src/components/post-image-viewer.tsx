@@ -1,6 +1,9 @@
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { Dialog } from 'radix-ui'
-import { useEffect, useRef, type KeyboardEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, type KeyboardEvent } from 'react'
+
+import { useTabActive } from '@/lib/author-tab'
+import { useFileNoticeHost } from '@/hooks/use-file-actions'
 
 export type PostImage = { src: string; alt: string; trigger: HTMLImageElement }
 type PostImageViewerProps = {
@@ -12,8 +15,14 @@ type PostImageViewerProps = {
 
 /** The saved images in reading order, including retained images removed by the author. */
 export function PostImageViewer({ images, index, onShow, onClose }: PostImageViewerProps) {
+  const active = useTabActive()
+  const activity = useRef(active)
+  useLayoutEffect(() => {
+    activity.current = active
+  }, [active])
   const image = index === null ? undefined : images[index]
   const content = useRef<HTMLDivElement>(null)
+  const noticeHost = useFileNoticeHost()
   const lastTrigger = useRef<HTMLImageElement | null>(null)
   const wasOpen = useRef(false)
   useEffect(() => {
@@ -31,7 +40,7 @@ export function PostImageViewer({ images, index, onShow, onClose }: PostImageVie
 
   return (
     <Dialog.Root
-      open={Boolean(image)}
+      open={active && Boolean(image)}
       onOpenChange={(open) => {
         if (!open) onClose()
       }}
@@ -49,7 +58,7 @@ export function PostImageViewer({ images, index, onShow, onClose }: PostImageVie
             }}
             onCloseAutoFocus={(event) => {
               event.preventDefault()
-              if (lastTrigger.current?.isConnected) lastTrigger.current.focus()
+              if (activity.current && lastTrigger.current?.isConnected) lastTrigger.current.focus()
             }}
             className="fixed inset-0 z-50 flex flex-col text-white outline-none"
           >
@@ -82,6 +91,7 @@ export function PostImageViewer({ images, index, onShow, onClose }: PostImageVie
                 <ImageStep direction="next" onClick={() => onShow(index + 1)} />
               )}
             </div>
+            <div ref={noticeHost} />
           </Dialog.Content>
         )}
       </Dialog.Portal>

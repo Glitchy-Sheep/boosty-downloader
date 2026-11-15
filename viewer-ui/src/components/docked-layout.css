@@ -1,0 +1,24 @@
+.docked-layout[data-sidebar-layout='docked'][data-animating] > [data-panel] {
+  transition: flex-grow 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* A glide clips usable content; settled panels keep their normal mount geometry. */
+.docked-layout[data-sidebar-layout='docked'][data-animating] #author-post-sidebar {
+  min-width: var(--sidebar-min-width);
+}
+
+/* The disabled mobile group leaves touch scrolling to the browser. */
+.docked-layout[data-sidebar-layout='mobile'],
+.docked-layout[data-sidebar-layout='mobile'] > [data-panel] > .docked-layout-panel {
+  touch-action: auto !important;
+}
+
+.docked-layout[data-sidebar-layout='mobile'] > [data-slot='resizable-handle'] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .docked-layout[data-animating] > [data-panel] {
+    transition: none;
+  }
+}

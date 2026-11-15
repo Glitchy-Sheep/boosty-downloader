@@ -60,7 +60,8 @@ export function provenPostRow(request: PostMarkRequest, filters: PostFilters): P
   if (membership) return membership.row
   if (filters.q || filters.tag || filters.kind || filters.locked || filters.incomplete)
     return undefined
-  return { ...postSummary(request.source, request.source), match: null }
+  if (request.source.kind !== 'post') return undefined
+  return { ...postSummary(request.source.row, request.source.row), match: null }
 }
 
 export function projectPostMarks<T extends PostRow>(
@@ -97,7 +98,7 @@ export function projectPostList(
   for (const request of pending) {
     const row = list.rows.find((post) => post.id === request.postId)
     if (!row) continue
-    request.source = row
+    request.source = { kind: 'post', row }
     const previous = request.memberships.findIndex((item) => hashKey(item.key) === queryHash)
     const membership = { key, row }
     if (previous === -1) request.memberships.push(membership)
@@ -110,7 +111,8 @@ export function projectPostList(
     if (rows.some((row) => row.id === request.postId)) continue
     const proven = provenPostRow(request, filters)
     if (!proven) continue
-    const row = withPendingMarks(postSummary(proven, request.source), pending)
+    const source = request.source.kind === 'post' ? request.source.row : proven
+    const row = withPendingMarks(postSummary(proven, source), pending)
     if (matchesMarkFilters(row, filters)) rows.push(row)
   }
   rows.sort((left, right) => comparePosts(left, right, filters.order))

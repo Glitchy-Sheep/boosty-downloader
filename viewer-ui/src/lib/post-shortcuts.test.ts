@@ -21,7 +21,7 @@ test.each([
   ['Slash', 'search'],
   ['KeyS', 'seen'],
   ['KeyF', 'favorite'],
-  ['BracketLeft', null],
+  ['BracketLeft', 'sidebar'],
   ['Unidentified', null],
 ])('maps physical key %s to %s', (code, expected) => {
   expect(postShortcut(code)).toBe(expected)

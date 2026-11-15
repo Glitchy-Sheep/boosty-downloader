@@ -3,10 +3,37 @@ import { createRef } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { SearchBox } from '@/components/search-box'
+import { TabActive } from '@/lib/author-tab'
 
 afterEach(() => vi.useRealTimers())
 
 describe('SearchBox', () => {
+  it('holds an unsent draft while hidden and publishes it once the tab returns', () => {
+    vi.useFakeTimers()
+    const search = vi.fn()
+    const box = (active: boolean) => (
+      <TabActive value={active}>
+        <SearchBox value="" onSearch={search} />
+      </TabActive>
+    )
+    const { rerender } = render(box(true))
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'retained draft' } })
+    act(() => {
+      vi.advanceTimersByTime(100)
+    })
+    rerender(box(false))
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(search).not.toHaveBeenCalled()
+    expect(screen.getByRole('textbox')).toHaveValue('retained draft')
+    rerender(box(true))
+    act(() => {
+      vi.advanceTimersByTime(200)
+    })
+    expect(search).toHaveBeenCalledExactlyOnceWith('retained draft')
+  })
+
   it('shares its input with keyboard navigation and keeps clear-button focus', () => {
     const input = createRef<HTMLInputElement>()
     const { unmount } = render(<SearchBox value="needle" onSearch={vi.fn()} inputRef={input} />)

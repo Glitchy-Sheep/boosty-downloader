@@ -1,10 +1,13 @@
 import { QueryClient, queryOptions, useQuery } from '@tanstack/react-query'
 
-import { getAuthor, getAuthors, getPost, getPosts, getTags } from '@/lib/api'
+import { getAuthor, getAuthors, getMedia, getOpener, getPost, getPosts, getTags } from '@/lib/api'
 import { toPostFilters, type Filters } from '@/lib/filters'
 import { projectAuthorMarks, projectPostList, projectPostMarks } from '@/lib/mark-projection'
 import { markMutationKeys } from '@/lib/mark-keys'
-import { readAfterMarkWrites } from '@/lib/mark-reads'
+import { readAfterWrites } from '@/lib/mutation-reads'
+import { toMediaFilters, type MediaSearch } from '@/lib/media-filters'
+import { projectMediaMarks } from '@/lib/media-mark-cache'
+import { playbackMutationKeys } from '@/lib/playback-keys'
 
 export function createQueryClient(): QueryClient {
   return new QueryClient({
@@ -14,13 +17,27 @@ export function createQueryClient(): QueryClient {
   })
 }
 
+export function openerQuery(origin = window.location.origin) {
+  return queryOptions({
+    queryKey: ['opener', origin],
+    // Capabilities belong to this app origin and survive development StrictMode remounts.
+    queryFn: () => getOpener(),
+    staleTime: Infinity,
+    gcTime: Infinity,
+    retry: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+  })
+}
+
 export function authorsQuery() {
   return queryOptions({
     queryKey: ['authors'],
     queryFn: async ({ signal, client }) =>
-      (
-        await readAfterMarkWrites(client, [markMutationKeys.all], signal, () => getAuthors(signal))
-      ).map((author) => projectAuthorMarks(client, author)),
+      (await readAfterWrites(client, [markMutationKeys.all], signal, () => getAuthors(signal))).map(
+        (author) => projectAuthorMarks(client, author),
+      ),
   })
 }
 
@@ -30,7 +47,7 @@ export function authorQuery(author: string) {
     queryFn: async ({ signal, client }) =>
       projectAuthorMarks(
         client,
-        await readAfterMarkWrites(client, [markMutationKeys.author(author)], signal, () =>
+        await readAfterWrites(client, [markMutationKeys.author(author)], signal, () =>
           getAuthor(author, signal),
         ),
       ),
@@ -45,7 +62,7 @@ export function postsQuery(author: string, filters: Filters) {
         client,
         author,
         toPostFilters(filters),
-        await readAfterMarkWrites(client, [markMutationKeys.author(author)], signal, () =>
+        await readAfterWrites(client, [markMutationKeys.author(author)], signal, () =>
           getPosts(author, filters, signal),
         ),
       ),
@@ -59,9 +76,13 @@ export function postQuery(author: string, postId: string) {
       projectPostMarks(
         client,
         author,
-        await readAfterMarkWrites(
+        await readAfterWrites(
           client,
-          [markMutationKeys.post(author, postId), markMutationKeys.bulk(author)],
+          [
+            markMutationKeys.post(author, postId),
+            markMutationKeys.bulk(author),
+            playbackMutationKeys.post(author, postId),
+          ],
           signal,
           () => getPost(author, postId, signal),
         ),
@@ -76,9 +97,28 @@ export function tagsQuery(author: string) {
   })
 }
 
-export function usePostList(author: string, filters: Filters) {
+export function mediaQuery(author: string, search: MediaSearch) {
+  return queryOptions({
+    queryKey: ['media', author, toMediaFilters(search)],
+    queryFn: async ({ signal, client }) =>
+      projectMediaMarks(
+        client,
+        author,
+        await readAfterWrites(
+          client,
+          [markMutationKeys.author(author), playbackMutationKeys.author(author)],
+          signal,
+          () => getMedia(author, search, signal),
+        ),
+      ),
+  })
+}
+
+export function usePostList(author: string, filters: Filters, active = true) {
   return useQuery({
     ...postsQuery(author, filters),
+    subscribed: active,
+    enabled: active,
     placeholderData: (previous, query) => (query?.queryKey[1] === author ? previous : undefined),
   })
 }

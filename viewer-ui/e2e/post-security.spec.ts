@@ -1,4 +1,5 @@
 import { API_PATH, POSTS, expect, openPost, pane, test } from './post-fixtures'
+import { requireFixture } from './required-fixture'
 
 test('canonical post metadata and authored HTML-looking text remain inert', async ({
   page,
@@ -11,9 +12,25 @@ test('canonical post metadata and authored HTML-looking text remain inert', asyn
     pane(page).getByRole('button', { name: '#<svg onload="window.__postAttack=2">', exact: true }),
   ).toBeVisible()
   await expect(pane(page).getByText('Unsafe destination', { exact: true })).toBeVisible()
-  await expect(
-    pane(page).getByText('<img src=x onerror="window.__postAttack=5">', { exact: true }),
-  ).toBeVisible()
+  const attachment = requireFixture(
+    post.media.find((item) => item.kind === 'files' && !item.removed),
+  )
+  const card = pane(page).locator(`[data-file-card="${attachment.id}"]`)
+  await expect(card).toHaveAttribute('data-media-id', attachment.id)
+  await expect(card.locator('.file-name')).toHaveText(
+    requireFixture(attachment.path.split('/').at(-1)),
+  )
+  const canonicalAttachments = await page.evaluate((html) => {
+    const document = new DOMParser().parseFromString(html, 'text/html')
+    return {
+      labels: [...document.querySelectorAll('a.attachment .attachment-name')].map(
+        (name) => name.textContent,
+      ),
+      executableNodes: document.querySelectorAll('script, [onerror], [onload]').length,
+    }
+  }, post.body_html)
+  expect(canonicalAttachments.labels).toContain('<img src=x onerror="window.__postAttack=5">')
+  expect(canonicalAttachments.executableNodes).toBe(0)
   await expect(pane(page).locator('a[href^="javascript:"]')).toHaveCount(0)
   await expect(pane(page).locator('script, iframe, [onerror], [onload]')).toHaveCount(0)
   expect(await page.evaluate((): unknown => Reflect.get(window, '__postAttack'))).toBeUndefined()

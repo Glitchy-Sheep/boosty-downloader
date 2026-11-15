@@ -16,7 +16,9 @@ import { AuthorAvatar } from '@/components/author-avatar'
 import { BulkMarks } from '@/components/bulk-marks'
 import { PostList } from '@/components/post-list'
 import { SearchBox } from '@/components/search-box'
+import { ControlTooltip } from '@/components/ui/control-tooltip'
 import { useElementWidth } from '@/hooks/use-element-width'
+import type { SearchController } from '@/hooks/use-search-controller'
 import type { Author, PostList as PostPage, TagCount } from '@/lib/api.gen'
 import {
   filtersSearchParams,
@@ -27,6 +29,7 @@ import {
   type Kind,
 } from '@/lib/filters'
 import { formatCount, plural } from '@/lib/format'
+import type { TimelineSession } from '@/lib/timeline-session'
 
 export type SidebarProps = {
   author: Author
@@ -36,6 +39,8 @@ export type SidebarProps = {
   currentId?: string | undefined
   searchResetRevision?: number
   searchInputRef?: RefObject<HTMLInputElement | null> | undefined
+  searchController?: SearchController | undefined
+  timelineSession?: TimelineSession | undefined
   loading: boolean
   updating: boolean
   error: Error | null
@@ -76,7 +81,7 @@ const SELECT =
 const RETRY =
   'rounded-sm text-primary underline outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
 
-/** Filters and the timeline stay mounted while another post opens. */
+/** Author filters and a responsive virtual timeline share the current post selection. */
 export function Sidebar(props: SidebarProps) {
   const {
     author,
@@ -96,10 +101,11 @@ export function Sidebar(props: SidebarProps) {
   } = props
   const root = useRef<HTMLElement>(null)
   const [searchClearRevision, setSearchClearRevision] = useState(0)
-  const width = useElementWidth(root)
+  const width = useElementWidth(root, { synchronous: true })
   const setFilters: SetFilters = (patch, replace = false) =>
     onFilters({ ...filters, ...patch }, { replace })
   const clearFilters = (): void => {
+    props.searchController?.reset()
     setSearchClearRevision((revision) => revision + 1)
     onFilters({ ...NO_FILTERS })
   }
@@ -114,6 +120,7 @@ export function Sidebar(props: SidebarProps) {
       <div className="flex shrink-0 flex-col gap-3 border-b px-4 pt-4 pb-3">
         <AuthorSummary author={author} />
         <SearchBox
+          controller={props.searchController}
           value={filters.q ?? ''}
           onSearch={(q) => setFilters({ q: q || undefined }, true)}
           resetRevision={searchClearRevision}
@@ -172,6 +179,7 @@ export function Sidebar(props: SidebarProps) {
       )}
       {width !== null && (!error || posts) && (
         <PostList
+          timelineSession={props.timelineSession}
           author={author.name}
           posts={posts?.rows}
           currentId={currentId}
@@ -268,7 +276,7 @@ function OrderFilter({ filters, setFilters }: FilterControls) {
 
 type ChipProps = { pressed: boolean; onClick: () => void; children: ReactNode; label?: string }
 function FilterChip({ pressed, onClick, children, label }: ChipProps) {
-  return (
+  const control = (
     <button
       type="button"
       aria-label={label}
@@ -279,6 +287,7 @@ function FilterChip({ pressed, onClick, children, label }: ChipProps) {
       {children}
     </button>
   )
+  return label ? <ControlTooltip label={label}>{control}</ControlTooltip> : control
 }
 
 function KindChip({

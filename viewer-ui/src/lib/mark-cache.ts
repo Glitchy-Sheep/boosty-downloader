@@ -9,8 +9,10 @@ import {
   provenPostRow,
 } from '@/lib/mark-projection'
 import { pendingPostMarks } from '@/lib/mark-state'
+import { cachedMediaPost, patchMediaMarks } from '@/lib/media-mark-cache'
 import {
   applyMarkFields,
+  applySourceMark,
   isPostUnread,
   postMarkChange,
   type PostMarkChange,
@@ -46,7 +48,7 @@ export function createPostMarkRequest(
   return {
     author,
     postId: source.id,
-    source,
+    source: { kind: 'post', row: source },
     change: postMarkChange(source, kind),
     memberships: [...memberships.values()],
   }
@@ -64,7 +66,31 @@ export function cachedPostRow(
     if (row) return projectPostMarks(client, author, row)
   }
   const pending = pendingPostMarks(client, author).find((request) => request.postId === postId)
-  return pending && projectPostMarks(client, author, pending.source)
+  return pending?.source.kind === 'post'
+    ? projectPostMarks(client, author, pending.source.row)
+    : undefined
+}
+
+/** A direct Media visit needs only its real shared post data to toggle a heart. */
+export function cachedPostMarkRequest(
+  client: QueryClient,
+  author: string,
+  postId: string,
+  kind: PostMarkKind,
+): PostMarkRequest | undefined {
+  const row = cachedPostRow(client, author, postId)
+  if (row)
+    return row.access === 'open' ? createPostMarkRequest(client, author, row, kind) : undefined
+  if (kind !== 'favorite') return undefined
+  const post = cachedMediaPost(client, author, postId)
+  if (!post || post.access === 'locked') return undefined
+  return {
+    author,
+    postId,
+    source: { kind: 'media', post },
+    change: { kind: 'favorite', previous: post.favorite, next: !post.favorite },
+    memberships: [],
+  }
 }
 
 function changeAuthorCounts(client: QueryClient, author: string, delta: AuthorMarkDelta): void {
@@ -92,7 +118,8 @@ function patchRows(
     const existing = list.rows.find((row) => row.id === request.postId)
     const proven = existing ?? provenPostRow(request, filters)
     if (!proven) continue
-    const latest = cachedPostRow(client, request.author, request.postId) ?? request.source
+    const source = request.source.kind === 'post' ? request.source.row : proven
+    const latest = cachedPostRow(client, request.author, request.postId) ?? source
     const next = update(existing ?? postSummary(proven, latest))
     const rows = list.rows.filter((row) => row.id !== request.postId)
     if (matchesMarkFilters(next, filters)) rows.push(next)
@@ -106,16 +133,20 @@ function patchRows(
 
 export function applyPostMark(client: QueryClient, request: PostMarkRequest): AppliedPostMark {
   const { author, postId, source, change } = request
-  const next = applyMarkFields(source, change)
+  const unseenDelta =
+    source.kind === 'post'
+      ? Number(isPostUnread(applyMarkFields(source.row, change))) - Number(isPostUnread(source.row))
+      : 0
   const delta = {
-    unseen: Number(isPostUnread(next)) - Number(isPostUnread(source)),
-    favorites: Number(next.favorite) - Number(source.favorite),
+    unseen: unseenDelta,
+    favorites: change.kind === 'favorite' ? Number(change.next) - Number(change.previous) : 0,
   }
   client.setQueryData(
     postQuery(author, postId).queryKey,
     (post) => post && applyMarkFields(post, change),
   )
   patchRows(client, request, (row) => applyMarkFields(row, change))
+  patchMediaMarks(client, request, change)
   changeAuthorCounts(client, author, delta)
   return { phase: 'writing', delta }
 }
@@ -128,11 +159,11 @@ function settlePostMark(
   direction: 'next' | 'previous' = 'next',
 ): void {
   context.phase = 'refreshing'
-  request.source = applyMarkFields(request.source, change, direction)
+  request.source = applySourceMark(request.source, change, direction)
   // A sibling may need this field after both marks remove their only cached row.
   for (const pending of pendingPostMarks(client, request.author)) {
     if (pending.postId === request.postId)
-      pending.source = applyMarkFields(pending.source, change, direction)
+      pending.source = applySourceMark(pending.source, change, direction)
   }
 }
 
@@ -150,6 +181,7 @@ export function rollbackPostMark(
   patchRows(client, request, (row) =>
     projectPostMarks(client, author, applyMarkFields(row, change, 'previous'), change.kind),
   )
+  patchMediaMarks(client, request, change, 'previous')
   changeAuthorCounts(client, author, {
     unseen: -context.delta.unseen,
     favorites: -context.delta.favorites,
@@ -176,6 +208,7 @@ export function acceptPostMark(
   patchRows(client, request, (row) =>
     projectPostMarks(client, author, applyMarkFields(row, confirmed), change.kind),
   )
+  patchMediaMarks(client, request, confirmed)
   if (!updateCounts) return
   const update = (value: Author): Author => ({
     ...value,

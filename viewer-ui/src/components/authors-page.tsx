@@ -1,10 +1,12 @@
 import { Lock } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import { useId } from 'react'
 
 import { AuthorArtwork } from '@/components/author-artwork'
 import { AuthorAvatar } from '@/components/author-avatar'
 import { StorageBar, StorageLegend } from '@/components/storage'
 import type { Author } from '@/lib/api.gen'
+import { NO_FILTERS } from '@/lib/filters'
 import { formatCount, formatSize, plural } from '@/lib/format'
 import {
   libraryStorage,
@@ -99,8 +101,10 @@ function AuthorCard({ author, alone }: { author: Author; alone: boolean }) {
   const { total, parts } = storageParts(author.storage)
 
   return (
-    <a
-      href={`/a/${encodeURIComponent(author.name)}`}
+    <Link
+      to="/a/$author"
+      params={{ author: author.name }}
+      search={NO_FILTERS}
       aria-labelledby={`${id}-title`}
       aria-describedby={`${id}-about`}
       className="group relative row-span-3 grid grid-cols-1 grid-rows-subgrid gap-y-0 overflow-hidden rounded-lg border bg-card outline-none transition duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-[0_18px_40px_-20px_rgb(0_0_0/0.55)] focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
@@ -131,7 +135,7 @@ function AuthorCard({ author, alone }: { author: Author; alone: boolean }) {
       </span>
       <AuthorStorage author={author} alone={alone} total={total} parts={parts} />
       <AuthorCounts author={author} />
-    </a>
+    </Link>
   )
 }
 

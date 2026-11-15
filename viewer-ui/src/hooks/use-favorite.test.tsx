@@ -45,7 +45,15 @@ test('failed favorite restores its own changes while a newer playback position s
   expect(hook.result.current.pending).toBe(true)
   act(() => hook.result.current.toggle())
   expect(request).toHaveBeenCalledTimes(1)
-  act(() => acceptPosition(client, 'studio', savedPost.id, { ...savedVideo, position_s: 44 }))
+  act(() =>
+    acceptPosition(
+      client,
+      'studio',
+      savedPost.id,
+      { ...savedVideo, position_s: 44 },
+      savedVideo.finished,
+    ),
+  )
   pending.resolve(
     Response.json(
       { error: { code: 'write_failed', message: 'Could not save favorite.' } },

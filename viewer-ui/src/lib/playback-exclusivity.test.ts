@@ -1,0 +1,31 @@
+import { expect, test, vi } from 'vitest'
+
+import { attachPlaybackExclusivity } from '@/lib/playback-exclusivity'
+
+test('a captured native play pauses every other playing piece and detaches cleanly', () => {
+  const bar = document.createElement('audio')
+  const post = document.createElement('video')
+  const idle = document.createElement('audio')
+  const ordinary = document.createElement('div')
+  document.body.append(bar, post, idle, ordinary)
+  Object.defineProperty(bar, 'paused', { value: false })
+  Object.defineProperty(post, 'paused', { value: false })
+  const pauseBar = vi.spyOn(bar, 'pause').mockImplementation(() => {})
+  const pausePost = vi.spyOn(post, 'pause').mockImplementation(() => {})
+  const pauseIdle = vi.spyOn(idle, 'pause').mockImplementation(() => {})
+  const detach = attachPlaybackExclusivity(document)
+  ordinary.dispatchEvent(new Event('play'))
+  post.dispatchEvent(new Event('play'))
+  expect(pauseBar).toHaveBeenCalledOnce()
+  expect(pausePost).not.toHaveBeenCalled()
+  expect(pauseIdle).not.toHaveBeenCalled()
+  bar.dispatchEvent(new Event('play'))
+  expect(pausePost).toHaveBeenCalledOnce()
+  detach()
+  post.dispatchEvent(new Event('play'))
+  expect(pauseBar).toHaveBeenCalledOnce()
+  bar.remove()
+  post.remove()
+  idle.remove()
+  ordinary.remove()
+})

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import struct
 import zlib
+from functools import lru_cache
 from random import Random
 from typing import TYPE_CHECKING
 
@@ -14,6 +15,7 @@ if TYPE_CHECKING:
 
 THUMBNAIL_WIDTH = 480
 _TEXTURE_LEVELS = 65
+_CHANNEL_LEVELS = 256
 
 
 def write_photo_png(image: ImageAsset, top: str, bottom: str, seed: int) -> Path:
@@ -33,12 +35,16 @@ def _row(width: int, ratio: float, first: bytes, last: bytes, draw: Random) -> b
     row = bytearray(width * 3)
     for channel, (start, end) in enumerate(zip(first, last, strict=True)):
         base = round(start + (end - start) * ratio)
-        palette = bytes(
-            max(0, min(255, base + value % _TEXTURE_LEVELS - _TEXTURE_LEVELS // 2))
-            for value in range(256)
-        )
-        row[channel::3] = noise.translate(palette)
+        row[channel::3] = noise.translate(_texture_palette(base))
     return bytes(row)
+
+
+@lru_cache(maxsize=_CHANNEL_LEVELS)
+def _texture_palette(base: int) -> bytes:
+    return bytes(
+        max(0, min(255, base + value % _TEXTURE_LEVELS - _TEXTURE_LEVELS // 2))
+        for value in range(_CHANNEL_LEVELS)
+    )
 
 
 def _write_thumbnail(image: ImageAsset, rows: list[bytes]) -> Path:

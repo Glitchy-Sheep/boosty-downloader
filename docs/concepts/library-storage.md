@@ -111,15 +111,17 @@ boosty-downloader reindex -o LIBRARY --cache-dir LOCAL_INDEX_DIRECTORY
 
 Reindexing needs no credentials or network access. It changes only the disposable index and its SQLite sidecar files; canonical records, viewing marks, pages and media are preserved. Omit `--cache-dir` to use the configured index location or, by default, `LIBRARY/.boosty-downloader/index.db`.
 
-## Viewer server foundation
+## Library viewer
 
 ```bash
 boosty-downloader view -o LIBRARY
 ```
 
-`view` prepares the library reader and serves the packaged authors page, with pages for an empty or incompatible library. It needs no Boosty credentials. By default it binds to the local machine on port 8314, tries the next free port if needed and opens the browser. `--port` chooses an exact port, `--no-open` suppresses the browser launch, and `--lan` enables the local-network listener.
+`view` synchronizes the disposable index and serves saved posts and media without Boosty credentials. Seen marks, favorites and playback positions are saved separately in each post's `viewer.json`; browsing does not download missing content from Boosty. Empty and incompatible libraries show an explanation. Saved `post.html` pages can also be opened directly without the viewer server.
 
-Read APIs provide authors, filtered post lists, tags and complete post bodies. Local media support seeking, while author-supplied HTML and SVG download and generated post pages run in an opaque sandbox. The authors page displays artwork, counts and indexed downloaded-media storage by kind, including retained copies. It excludes pages, records and auxiliary images. It performs no media-file scan; deleted or re-encoded files affect totals after reconciliation updates their records. The author timeline shows filtered rows and search snippets; the selected post displays its saved metadata independently of those filters. The viewer reads complete posts and provides seen marks, favorites and filtered bulk marking. Saved `post.html` pages can also be opened directly. See the [read API contract](../development/07-viewer-api.md).
+Author storage totals come from recorded downloaded-media sizes, including retained copies. They exclude pages, records and auxiliary images and do not scan every media file when opening the page. Deleted or re-encoded files affect these totals after reconciliation updates their records.
+
+See the [viewer guide](viewer.md) for Posts and Media, playback, keyboard controls, local file actions and the trust rules for `--lan`. The [read API contract](../development/07-viewer-api.md) describes the server routes and media handling.
 
 ## Moving from v4
 

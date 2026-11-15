@@ -177,7 +177,7 @@ function LockedTier({ tier }: { tier: string | null }) {
 
 function MediaIcons({ counts }: { counts: MediaCounts }) {
   return (
-    <span className="flex min-w-0 items-center gap-2">
+    <span className="flex min-w-0 items-center gap-2 overflow-hidden">
       {MEDIA.filter(({ kind }) => counts[kind] > 0).map(({ kind, icon: Icon, one, many }) => (
         <span
           key={kind}

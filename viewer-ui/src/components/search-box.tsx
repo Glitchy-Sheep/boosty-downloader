@@ -1,7 +1,8 @@
 import { Search, X } from 'lucide-react'
-import { useEffect, useEffectEvent, useRef, useState, type RefObject } from 'react'
+import { useRef, type RefObject } from 'react'
 
-const DEBOUNCE_MS = 200
+import { useSearchController, type SearchController } from '@/hooks/use-search-controller'
+import { useTabActive } from '@/lib/author-tab'
 
 type SearchBoxProps = {
   value: string
@@ -9,44 +10,32 @@ type SearchBoxProps = {
   resetRevision?: number
   navigationRevision?: number | undefined
   inputRef?: RefObject<HTMLInputElement | null> | undefined
+  controller?: SearchController | undefined
 }
 
 /** Search follows the URL, publishing new text after typing pauses. */
-export function SearchBox({
-  value,
-  onSearch,
-  resetRevision = 0,
-  navigationRevision = 0,
+export function SearchBox(props: SearchBoxProps) {
+  if (props.controller)
+    return <SearchInput controller={props.controller} inputRef={props.inputRef} />
+  return <LocalSearchBox {...props} />
+}
+
+function LocalSearchBox(props: SearchBoxProps) {
+  const active = useTabActive()
+  const controller = useSearchController({ ...props, active })
+  return <SearchInput controller={controller} inputRef={props.inputRef} />
+}
+
+function SearchInput({
+  controller,
   inputRef,
-}: SearchBoxProps) {
+}: {
+  controller: SearchController
+  inputRef: RefObject<HTMLInputElement | null> | undefined
+}) {
   const localInput = useRef<HTMLInputElement>(null)
   const input = inputRef ?? localInput
-  const [text, setText] = useState(value)
-  const sent = useRef(value)
-  const lastReset = useRef(resetRevision)
-  const lastNavigation = useRef(navigationRevision)
-
-  useEffect(() => {
-    const cleared = lastReset.current !== resetRevision
-    const navigated = lastNavigation.current !== navigationRevision
-    lastReset.current = resetRevision
-    lastNavigation.current = navigationRevision
-    if (!cleared && !navigated && value === sent.current) return
-    const next = cleared ? '' : value
-    sent.current = next
-    setText(next)
-  }, [value, resetRevision, navigationRevision])
-
-  const send = useEffectEvent((next: string) => {
-    sent.current = next
-    onSearch(next)
-  })
-
-  useEffect(() => {
-    if (text === sent.current) return
-    const timer = window.setTimeout(() => send(text), DEBOUNCE_MS)
-    return () => window.clearTimeout(timer)
-  }, [text, resetRevision, navigationRevision])
+  const { text, setText } = controller
 
   return (
     <div className="relative">
