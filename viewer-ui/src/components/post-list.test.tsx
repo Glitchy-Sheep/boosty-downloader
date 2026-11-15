@@ -1,10 +1,11 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render as renderUi, screen, waitFor } from '@testing-library/react'
-import type { ReactElement } from 'react'
+import { createRef, type ReactElement } from 'react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { PostList } from '@/components/post-list'
 import { createQueryClient } from '@/lib/queries'
+import type { TimelineSnapshot } from '@/lib/timeline-session'
 import { savedRow } from '@/test/post-fixtures'
 
 const originalScrollTo = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTo')
@@ -126,6 +127,110 @@ test('keeps remaining rows visible when the anchored post leaves the same filter
   expect(timeline.scrollTop).toBeLessThanOrEqual(lastOffset)
   expect(remaining.some((post) => post.id === firstUnobscuredPost(timeline).id)).toBe(true)
   expect(input.onPost).not.toHaveBeenCalled()
+})
+
+test.each([false, true])(
+  'restores a saved row across remount and width change, snippets=%s',
+  (snippets) => {
+    const viewport = { width: 360, height: 240 }
+    responsiveViewport(viewport)
+    const timelineSession = createRef<TimelineSnapshot | null>()
+    const input = {
+      ...props(),
+      timelineSession,
+      posts: posts.map((post) => ({
+        ...post,
+        match: snippets
+          ? { title: [], text: [{ text: 'A matching snippet', matched: true }] }
+          : null,
+      })),
+    }
+    const view = render(<PostList {...input} />)
+    const timeline = screen.getByLabelText('Post timeline')
+    act(() => timeline.scrollTo({ top: 2647 }))
+    const before = firstUnobscuredPost(timeline)
+    expect(timelineSession.current?.anchor).not.toBeNull()
+
+    view.rerender(<></>)
+    viewport.width = 310
+    view.rerender(<PostList {...input} width={viewport.width} />)
+
+    const after = firstUnobscuredPost(screen.getByLabelText('Post timeline'))
+    expect(after.id).toBe(before.id)
+    expect(after.top).toBeCloseTo(before.top, 5)
+    expect(after.id).not.toBe(input.currentId)
+  },
+)
+
+test('restores an end anchor into a taller sidebar without losing the virtual rows', () => {
+  const viewport = { width: 360, height: 240 }
+  responsiveViewport(viewport)
+  const timelineSession = createRef<TimelineSnapshot | null>()
+  const input = { ...props(), timelineSession }
+  const view = render(<PostList {...input} />)
+  const timeline = screen.getByLabelText('Post timeline')
+  act(() => timeline.scrollTo({ top: timeline.scrollHeight - timeline.clientHeight }))
+  const before = firstUnobscuredPost(timeline)
+
+  view.rerender(<></>)
+  viewport.height = 600
+  viewport.width = 310
+  view.rerender(<PostList {...input} width={viewport.width} />)
+
+  const restored = screen.getByLabelText('Post timeline')
+  expect(firstUnobscuredPost(restored)).toEqual(before)
+  expect(restored.querySelectorAll('[data-post-id]').length).toBeGreaterThan(0)
+})
+
+test.each(['selection', 'filters'])('ignores a saved anchor after %s changes', (change) => {
+  const timelineSession = createRef<TimelineSnapshot | null>()
+  const input = { ...props(), timelineSession }
+  const view = render(<PostList {...input} />)
+  act(() => screen.getByLabelText('Post timeline').scrollTo({ top: 2647 }))
+  view.rerender(<></>)
+  const next =
+    change === 'selection'
+      ? { ...input, currentId: '2026-11-15' }
+      : { ...input, listKey: 'studio|kind=images' }
+
+  view.rerender(<PostList {...next} />)
+
+  expect(screen.getByLabelText('Post timeline').scrollTop).toBeLessThan(200)
+  expect(timelineSession.current?.currentId).toBe(next.currentId)
+  expect(timelineSession.current?.listKey).toBe(next.listKey)
+})
+
+test('keeps a saved anchor until replacement data finishes loading', () => {
+  const timelineSession = createRef<TimelineSnapshot | null>()
+  const input = { ...props(), timelineSession }
+  const view = render(<PostList {...input} />)
+  act(() => screen.getByLabelText('Post timeline').scrollTo({ top: 2647 }))
+  const saved = timelineSession.current
+  view.rerender(<></>)
+  view.rerender(<PostList {...input} isStale />)
+  expect(timelineSession.current).toBe(saved)
+
+  view.rerender(<PostList {...input} />)
+
+  expect(screen.getByLabelText('Post timeline').scrollTop).toBe(2647)
+  expect(timelineSession.current?.anchor).toEqual(saved?.anchor)
+})
+
+test('keeps rows visible when the saved row disappears while the sidebar is closed', () => {
+  const timelineSession = createRef<TimelineSnapshot | null>()
+  const input = { ...props(), timelineSession }
+  const view = render(<PostList {...input} />)
+  const timeline = screen.getByLabelText('Post timeline')
+  act(() => timeline.scrollTo({ top: timeline.scrollHeight - timeline.clientHeight }))
+  view.rerender(<></>)
+  const remaining = posts.slice(0, 3)
+
+  view.rerender(<PostList {...input} posts={remaining} />)
+
+  const restored = screen.getByLabelText('Post timeline')
+  expect(restored.scrollTop).toBeLessThanOrEqual(restored.scrollHeight - restored.clientHeight)
+  expect(remaining.some((post) => post.id === firstUnobscuredPost(restored).id)).toBe(true)
+  expect(timelineSession.current?.anchor?.key).toBe(`post:${remaining[0]?.id}`)
 })
 
 test('omits the month selector for loading and empty results', () => {

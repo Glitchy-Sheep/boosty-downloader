@@ -30,6 +30,7 @@ import {
   timelineExtent,
   type TimelineAnchor,
 } from '@/lib/timeline-anchor'
+import type { TimelineSession } from '@/lib/timeline-session'
 
 const MONTH_HEIGHT = 32
 
@@ -44,6 +45,7 @@ type PostListProps = {
   emptyMessage: string
   postHref: (id: string) => string
   onPost: (id: string) => void
+  timelineSession?: TimelineSession | undefined
 }
 
 type ShownSelection = { listKey: string; currentId: string | undefined }
@@ -63,6 +65,7 @@ export function PostList({
   emptyMessage,
   postHref,
   onPost,
+  timelineSession,
 }: PostListProps) {
   'use no memo'
 
@@ -74,6 +77,14 @@ export function PostList({
   const restoredOffset = useRef<number | null>(null)
   const restoring = useRef(false)
   const notifyOffset = useRef<TimelineOffsetListener | null>(null)
+  const shown = useRef<ShownSelection | null>(null)
+  const restoredSession = useRef(false)
+  const rememberTimeline = useCallback(
+    (anchor: TimelineAnchor | null): void => {
+      if (timelineSession && shown.current) timelineSession.current = { ...shown.current, anchor }
+    },
+    [timelineSession],
+  )
   const { rows, monthIndexes, monthTargets, rowIndexById } = useMemo(
     () => buildTimeline(posts ?? []),
     [posts],
@@ -111,32 +122,36 @@ export function PostList({
     },
     [rowAt],
   )
-  const observeOffset = useCallback<TimelineOffsetObserver>((instance, notify) => {
-    notifyOffset.current = notify
-    const disconnect = observeElementOffset(instance, (offset, scrolling) => {
-      const element = instance.scrollElement
-      const previous = applied.current
-      const isRestoredOffset =
-        restoredOffset.current !== null && Math.abs(offset - restoredOffset.current) <= 1
-      const sameGeometry =
-        element &&
-        previous &&
-        element.offsetWidth === previous.width &&
-        element.clientHeight === previous.height
-      const readerScroll = !restoring.current && !isRestoredOffset && sameGeometry
-      // Native clamping during reflow must not replace the last stable row anchor.
-      if (readerScroll) {
-        keptAnchor.current = timelineAnchorAt(instance.measurementsCache, offset, MONTH_HEIGHT)
-        restoredOffset.current = null
-        setMinimumOffset(offset)
+  const observeOffset = useCallback<TimelineOffsetObserver>(
+    (instance, notify) => {
+      notifyOffset.current = notify
+      const disconnect = observeElementOffset(instance, (offset, scrolling) => {
+        const element = instance.scrollElement
+        const previous = applied.current
+        const isRestoredOffset =
+          restoredOffset.current !== null && Math.abs(offset - restoredOffset.current) <= 1
+        const sameGeometry =
+          element &&
+          previous &&
+          element.offsetWidth === previous.width &&
+          element.clientHeight === previous.height
+        const readerScroll = !restoring.current && !isRestoredOffset && sameGeometry
+        // Native clamping during reflow must not replace the last stable row anchor.
+        if (readerScroll) {
+          keptAnchor.current = timelineAnchorAt(instance.measurementsCache, offset, MONTH_HEIGHT)
+          rememberTimeline(keptAnchor.current)
+          restoredOffset.current = null
+          setMinimumOffset(offset)
+        }
+        notify(offset, Boolean(scrolling && readerScroll))
+      })
+      return () => {
+        notifyOffset.current = null
+        disconnect?.()
       }
-      notify(offset, Boolean(scrolling && readerScroll))
-    })
-    return () => {
-      notifyOffset.current = null
-      disconnect?.()
-    }
-  }, [])
+    },
+    [rememberTimeline],
+  )
   // Virtualizer methods read mutable state; this component opts out of compiler memoization.
   // oxlint-disable-next-line react/incompatible-library
   const virtualizer = useVirtualizer({
@@ -156,7 +171,18 @@ export function PostList({
     if (!element || !inner || element.offsetWidth !== width || element.clientHeight <= 0) return
     const previous = applied.current
     const geometry = { width, height: element.clientHeight, metrics, rows }
+    let resumed = false
+    if (!restoredSession.current && !isStale) {
+      restoredSession.current = true
+      const saved = timelineSession?.current
+      if (saved?.listKey === listKey && saved.currentId === currentId) {
+        keptAnchor.current = saved.anchor
+        shown.current = { listKey, currentId }
+        resumed = true
+      }
+    }
     if (
+      !resumed &&
       previous?.width === width &&
       previous.height === geometry.height &&
       previous.metrics === metrics &&
@@ -184,6 +210,7 @@ export function PostList({
       target === null
         ? timelineAnchorAt(virtualizer.measurementsCache, element.scrollTop, MONTH_HEIGHT)
         : anchor
+    rememberTimeline(keptAnchor.current)
     // The restored viewport needs its virtual rows before the browser's scroll event.
     notifyOffset.current?.(element.scrollTop, false)
     restoring.current = false
@@ -209,13 +236,13 @@ export function PostList({
     move()
     const offset = scrollRef.current?.scrollTop ?? 0
     keptAnchor.current = timelineAnchorAt(virtualizer.measurementsCache, offset, MONTH_HEIGHT)
+    rememberTimeline(keptAnchor.current)
     restoredOffset.current = offset
     setMinimumOffset(offset)
     notifyOffset.current?.(offset, false)
     restoring.current = false
   }
 
-  const shown = useRef<ShownSelection | null>(null)
   const currentIndex = currentId === undefined ? undefined : rowIndexById.get(currentId)
   useLayoutEffect(() => {
     if (!posts?.length || isStale) return
