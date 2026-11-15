@@ -2,6 +2,8 @@
 
 ### Added
 
+- On phones, the viewer's post fills the screen and the sidebar opens as a modal panel. Search drafts and timeline positions survive closing the panel and switching between mobile and desktop layouts. Opening the panel preserves playback; selecting a post closes it.
+
 - The viewer's desktop sidebar can be resized or collapsed, remembers its width and restores it after temporary window compression. A header button and physical `[` key toggle the sidebar; `/` opens it before focusing search. Resizing preserves the open post and playback.
 
 - The viewer can open saved files in their default apps, reveal them in Finder/Explorer, copy their paths and open post folders. Files and post attachments show their names on disk and type; compact menus, media context menus and fullscreen actions share the same behavior. Remote browsers retain downloads and supported browser previews.

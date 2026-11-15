@@ -4,8 +4,10 @@ import path from 'node:path'
 import type { Locator, Page } from '@playwright/test'
 
 import type { PostList, PostRow } from '../src/lib/api.gen'
-import { expect, pane, test, type PostCorpus } from './post-fixtures'
+import { expect, test, type PostCorpus } from './post-fixtures'
 import { requireFixture } from './required-fixture'
+
+import { openMobileSidebar, postElement as pane } from './mobile-sidebar-fixtures'
 
 const AUTHOR = 'month_checks'
 const API = `/api/authors/${AUTHOR}`
@@ -47,7 +49,10 @@ async function posts(page: Page, corpus: PostCorpus, search = ''): Promise<PostR
 
 async function openPost(page: Page, corpus: PostCorpus, post: PostRow, search = '') {
   await page.goto(`${corpus.origin}${postPath(post.id)}${search ? `?${search}` : ''}`)
-  await expect(pane(page).getByRole('heading', { level: 1 })).toHaveText(post.title)
+  await expect(pane(page).getByRole('heading', { level: 1, includeHidden: true })).toHaveText(
+    post.title,
+  )
+  await openMobileSidebar(page)
   await expect(scrubber(page)).toBeEnabled()
   await expect(sidebar(page).getByLabel('Updating posts')).toHaveCount(0)
 }
@@ -149,7 +154,9 @@ for (const order of ['newest', 'oldest'] as const) {
         for (const month of ['2021-03', monthOf(requireFixture(rows.at(-1))), monthOf(selected)]) {
           await jump(page, rows, month)
           await expect(page).toHaveURL(address)
-          await expect(pane(page).getByRole('heading', { level: 1 })).toHaveText(selected.title)
+          await expect(
+            pane(page).getByRole('heading', { level: 1, includeHidden: true }),
+          ).toHaveText(selected.title)
           expect(await body.evaluate((element) => element.isConnected)).toBe(true)
           expect(await pane(page).evaluate((element) => element.scrollTop)).toBe(paneScroll)
         }
@@ -191,7 +198,9 @@ for (const order of ['newest', 'oldest'] as const) {
       expect(Object.fromEntries(new URL(page.url()).searchParams)).toEqual(
         Object.fromEntries(filteredSearch),
       )
-      await expect(pane(page).getByRole('heading', { level: 1 })).toHaveText(selected.title)
+      await expect(pane(page).getByRole('heading', { level: 1, includeHidden: true })).toHaveText(
+        selected.title,
+      )
     }
     const nextOrder = order === 'newest' ? 'oldest' : 'newest'
     await sidebar(page).getByRole('combobox', { name: 'Sort order' }).selectOption(nextOrder)
@@ -205,7 +214,9 @@ for (const order of ['newest', 'oldest'] as const) {
     expect(Object.fromEntries(new URL(page.url()).searchParams)).toEqual(
       Object.fromEntries(filteredSearch),
     )
-    await expect(pane(page).getByRole('heading', { level: 1 })).toHaveText(selected.title)
+    await expect(pane(page).getByRole('heading', { level: 1, includeHidden: true })).toHaveText(
+      selected.title,
+    )
   })
 
   test(`${order}: wheel scrolling updates the current month and permits another jump`, async ({
@@ -265,7 +276,9 @@ test('pending and failed filters cannot use stale month choices', async ({ page,
   }
   await expect(sidebar(page).getByRole('alert')).toHaveText('Month list unavailable.')
   if (await scrubber(page).count()) await expect(scrubber(page)).toBeDisabled()
-  await expect(pane(page).getByRole('heading', { level: 1 })).toHaveText(selected.title)
+  await expect(pane(page).getByRole('heading', { level: 1, includeHidden: true })).toHaveText(
+    selected.title,
+  )
   await page.unroute(`**${API}/posts?*`)
   await sidebar(page).getByRole('button', { name: 'Retry posts' }).click()
   await expect(scrubber(page)).toBeEnabled()
@@ -289,7 +302,9 @@ test('empty results hide the control and one populated month remains navigable',
     .fill('no-matching-archive-98765')
   await expect(sidebar(page)).toContainText('No posts match the filters.')
   await expect(scrubber(page)).toHaveCount(0)
-  await expect(pane(page).getByRole('heading', { level: 1 })).toHaveText(selected.title)
+  await expect(pane(page).getByRole('heading', { level: 1, includeHidden: true })).toHaveText(
+    selected.title,
+  )
 })
 
 test('native month selection owns its keyboard input without changing the open post', async ({
@@ -324,7 +339,7 @@ test('the month-start button returns to the current month by click and Enter', a
   page,
   corpus,
 }) => {
-  await page.setViewportSize({ width: 390, height: 1000 })
+  await page.setViewportSize({ width: 390, height: 600 })
   const rows = await posts(page, corpus, 'tag=month-2021-03')
   const first = requireFixture(rows[0])
   const before = await savedMarks(corpus)
@@ -333,6 +348,9 @@ test('the month-start button returns to the current month by click and Enter', a
   const body = requireFixture(await pane(page).locator('.post-body').elementHandle())
   const start = sidebar(page).getByRole('button', { name: 'Jump to month start' })
   await expectMonth(page, first)
+  await expect
+    .poll(() => scroller(page).evaluate((element) => element.scrollHeight - element.clientHeight))
+    .toBeGreaterThan(30)
   for (const action of ['click', 'Enter'] as const) {
     await scroller(page).hover()
     await page.mouse.wheel(0, 90)
@@ -350,7 +368,9 @@ test('the month-start button returns to the current month by click and Enter', a
     }
     await expectMonth(page, first)
     await expect(page).toHaveURL(address)
-    await expect(pane(page).getByRole('heading', { level: 1 })).toHaveText(first.title)
+    await expect(pane(page).getByRole('heading', { level: 1, includeHidden: true })).toHaveText(
+      first.title,
+    )
     expect(await body.evaluate((element) => element.isConnected)).toBe(true)
   }
   expect(await savedMarks(corpus)).toEqual(before)

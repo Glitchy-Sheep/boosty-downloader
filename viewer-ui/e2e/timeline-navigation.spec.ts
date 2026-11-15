@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 
+import { openMobileSidebar } from './mobile-sidebar-fixtures'
 import { requireFixture } from './required-fixture'
 import { expect, openAuthors, origin, test } from './fixtures'
 import {
@@ -58,12 +59,13 @@ for (const width of [1440, 390]) {
       await openAuthors(page)
       await page.getByRole('link', { name: 'Pixel Forge', exact: true }).click()
       await expectSelected(page, requireFixture(posts.rows[0]))
+      await openMobileSidebar(page)
       await expect(row(page, requireFixture(posts.rows[0]).id)).toHaveAttribute(
         'aria-current',
         'page',
       )
       await expectRows(page, posts.rows)
-      await expect(page.getByRole('main')).toHaveCount(1)
+      await expect(page.getByRole('main', { includeHidden: true })).toHaveCount(1)
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       )

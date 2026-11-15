@@ -1,4 +1,5 @@
 import { expect, API_PATH, AUTHOR, openPost, pane, POSTS, readyPlayer, test } from './post-fixtures'
+import { expectFullMobilePost, sheet } from './mobile-sidebar-fixtures'
 import { requireFixture } from './required-fixture'
 import {
   blurControl,
@@ -6,7 +7,6 @@ import {
   expectWidth,
   frames,
   layout,
-  panel,
   physicalBracket,
   savedPreference,
   seedPreference,
@@ -74,18 +74,13 @@ for (const sequence of ['rapid', 'paused'] as const) {
         ).toBe(true)
         expect(await savedPreference(page)).toEqual({ width: 500, collapsed })
         if (width < 768) {
-          await expect(toggle(page)).toBeDisabled()
-          await expect(toggle(page)).toBeHidden()
+          await expect(toggle(page)).toBeEnabled()
+          await expect(toggle(page)).toHaveAccessibleName('Show sidebar')
+          await expect(toggle(page)).toHaveAttribute('aria-expanded', 'false')
           await expect(separator(page)).toHaveCount(0)
-          const ratio = await panel(page).evaluate((element) => {
-            if (!element.parentElement) throw new Error('Panel has no layout group')
-            return (
-              element.getBoundingClientRect().height /
-              element.parentElement.getBoundingClientRect().height
-            )
-          })
-          expect(Math.abs(ratio - 0.52)).toBeLessThanOrEqual(0.005)
-          await expect(content(page)).not.toHaveAttribute('inert')
+          await expectFullMobilePost(page)
+          await expect(sheet(page)).toHaveCount(0)
+          await expect(content(page)).toHaveCount(0)
         }
       }
       await expectWidth(page, collapsed ? 0 : 500)
@@ -180,7 +175,7 @@ test('loading, errors and direct Media keep one fixed header slot', async ({ pag
   ).toEqual(slot)
 })
 
-test.describe('temporary mobile split', () => {
+test.describe('full-page mobile reader', () => {
   test.use({ hasTouch: true, viewport: { width: 390, height: 844 } })
 
   test('vertical content can scroll and every disabled panel permits native touch panning', async ({
@@ -189,6 +184,7 @@ test.describe('temporary mobile split', () => {
   }) => {
     await openPost(page, corpus, POSTS.reader)
     await expect(layout(page)).toHaveAttribute('data-sidebar-layout', 'mobile')
+    await expectFullMobilePost(page)
     const ancestors = await pane(page).evaluate((element: HTMLElement) => {
       const touch: string[] = []
       for (let current: HTMLElement | null = element; current; current = current.parentElement) {
@@ -203,7 +199,7 @@ test.describe('temporary mobile split', () => {
     await expect.poll(() => pane(page).evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
   })
 
-  test('a native Chromium touch swipe scrolls the selected post inside the vertical panels', async ({
+  test('a native Chromium touch swipe scrolls the selected post inside the full-page mobile layout', async ({
     page,
     corpus,
     browserName,
