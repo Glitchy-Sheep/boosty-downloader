@@ -28,10 +28,11 @@ runs:
         enable-cache: true
         python-version: ${{ inputs.python-version }}
 
+    # Runner-provided Python may link an unsupported SQLite build.
     - name: Install dependencies
-      run: uv sync
+      run: uv sync --managed-python
       shell: bash
 
     - name: Verify the primary-library SQLite runtime
-      run: uv run python scripts/check_sqlite_runtime.py
+      run: uv run --managed-python python scripts/check_sqlite_runtime.py
       shell: bash
