@@ -8,6 +8,9 @@ import type {
   MarkResult,
   MediaItem,
   MediaPage,
+  OpenMediaRequest,
+  OpenPostRequest,
+  OpenerCapabilities,
   PositionRequest,
   PostDetail,
   PostList,
@@ -76,6 +79,32 @@ async function writeJson<T>(
   })
   if (!response.ok) throw await responseError(response)
   return response.json() as Promise<T>
+}
+
+async function postWithoutResponse(
+  url: string,
+  body: OpenMediaRequest | OpenPostRequest,
+): Promise<void> {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) throw await responseError(response)
+}
+
+export function getOpener(signal?: AbortSignal): Promise<OpenerCapabilities> {
+  return getJson('/api/opener', signal)
+}
+
+export function openMedia(author: string, mediaId: string, reveal: boolean): Promise<void> {
+  return postWithoutResponse(`${authorPath(author)}/media/${encodeURIComponent(mediaId)}/open`, {
+    reveal,
+  })
+}
+
+export function openPostFolder(author: string, postId: string): Promise<void> {
+  return postWithoutResponse(`${authorPath(author)}/posts/${encodeURIComponent(postId)}/open`, {})
 }
 
 function authorPath(author: string): string {

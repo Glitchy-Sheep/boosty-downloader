@@ -1,6 +1,6 @@
 import { QueryClient, queryOptions, useQuery } from '@tanstack/react-query'
 
-import { getAuthor, getAuthors, getMedia, getPost, getPosts, getTags } from '@/lib/api'
+import { getAuthor, getAuthors, getMedia, getOpener, getPost, getPosts, getTags } from '@/lib/api'
 import { toPostFilters, type Filters } from '@/lib/filters'
 import { projectAuthorMarks, projectPostList, projectPostMarks } from '@/lib/mark-projection'
 import { markMutationKeys } from '@/lib/mark-keys'
@@ -14,6 +14,20 @@ export function createQueryClient(): QueryClient {
     defaultOptions: {
       queries: { staleTime: 30_000, retry: false, refetchOnWindowFocus: false },
     },
+  })
+}
+
+export function openerQuery(origin = window.location.origin) {
+  return queryOptions({
+    queryKey: ['opener', origin],
+    // Capabilities belong to this app origin and survive development StrictMode remounts.
+    queryFn: () => getOpener(),
+    staleTime: Infinity,
+    gcTime: Infinity,
+    retry: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
   })
 }
 
