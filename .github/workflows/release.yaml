@@ -72,6 +72,13 @@ jobs:
       - name: Setup environment
         uses: ./.github/actions/setup
 
+      - name: Install Node for viewer assets
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: viewer-ui/package-lock.json
+
       - name: Build
         run: task build
         timeout-minutes: 10

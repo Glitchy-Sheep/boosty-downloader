@@ -9,16 +9,17 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    from datetime import datetime
+    from collections.abc import Iterator
     from uuid import UUID
 
-    from boosty_downloader.domain.content_types import DownloadContentTypeFilter
     from boosty_downloader.domain.library import (
         LibraryAuthor,
         LibraryPost,
         LocatedPost,
         PostFilters,
-        PostOverview,
+        PostList,
+        SavedPost,
+        TagCount,
     )
     from boosty_downloader.domain.library_marks import PostMarks
     from boosty_downloader.domain.stored_post import (
@@ -57,40 +58,10 @@ class ProgressReporter(Protocol):
     def notice(self, message: str) -> None: ...
 
 
-class PostCache(Protocol):
-    """Which parts of a post an earlier run already saved."""
-
-    def has_post(self, post_uuid: str) -> bool: ...
-
-    def get_post_missing_parts(
-        self,
-        post_uuid: str,
-        updated_at: datetime,
-        required: list[DownloadContentTypeFilter],
-    ) -> list[DownloadContentTypeFilter]: ...
-
-    def cache_post(
-        self,
-        post_uuid: str,
-        updated_at: datetime,
-        was_downloaded: list[DownloadContentTypeFilter],
-    ) -> None: ...
-
-    def commit(self) -> None: ...
-
-
 class FailureLog(Protocol):
     """Where failed downloads are recorded for the user to act on later."""
 
     async def add_error(self, error_id: str, message: str) -> None: ...
-
-
-class CacheStorage(Protocol):
-    """The cache of one creator as it sits on disk, without opening it."""
-
-    def exists(self) -> bool: ...
-
-    def remove(self) -> None: ...
 
 
 class PostStore(Protocol):
@@ -162,6 +133,18 @@ class PostStore(Protocol):
         ...
 
 
+class StoredPostCollection(Protocol):
+    """Enumerate and save canonical records independently of the browsing index."""
+
+    def iter_saved_posts(self, author: str | None = None) -> Iterator[SavedPost]:
+        """Read fresh independent records for one author or the entire library."""
+        ...
+
+    def save_post(self, folder: str, record: StoredPost) -> None:
+        """Atomically save a record in its confirmed folder, preserving other files."""
+        ...
+
+
 class LibraryReader(Protocol):
     """
     Library queries and user marks for one library root.
@@ -173,8 +156,20 @@ class LibraryReader(Protocol):
         """List authors, including those whose posts have no saved blog information."""
         ...
 
-    def list_posts(self, author: str, filters: PostFilters) -> list[PostOverview]:
-        """Query one author's post overviews without loading full bodies."""
+    def author(self, author: str) -> LibraryAuthor | None:
+        """Read one author's details and totals, or None for an unknown author."""
+        ...
+
+    def has_author(self, author: str) -> bool:
+        """Check whether the author belongs to this library without loading totals."""
+        ...
+
+    def tags(self, author: str) -> list[TagCount]:
+        """List exact tags and distinct post counts for one author."""
+        ...
+
+    def list_posts(self, author: str, filters: PostFilters) -> PostList:
+        """Query indexed rows and totals without loading full bodies."""
         ...
 
     def post(self, author: str, post_id: str) -> LibraryPost | None:

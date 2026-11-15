@@ -178,7 +178,10 @@ async def _download_handler(  # noqa: PLR0913
     await notify_about_updates(logger)
 
     async with open_app(
-        settings, request_delay_seconds=request_delay_seconds, logger=logger
+        settings,
+        request_delay_seconds=request_delay_seconds,
+        logger=logger,
+        update_index=not dry_run,
     ) as app:
         if dry_run:
             await _dry_run_handler(
@@ -298,7 +301,7 @@ def register(app: typer.Typer) -> None:
             - Updated text and metadata refresh the page without downloading unchanged media.
             - Files you remove locally stay removed unless you use --restore-missing.
             - --restore-missing restores selected missing media still present in the post; combine it with --dry-run to preview.
-            - The legacy --cache-dir option does not control these records.
+            - --cache-dir moves the disposable search index; saved records remain in the destination.
 
         """
         try:

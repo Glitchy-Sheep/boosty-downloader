@@ -35,7 +35,7 @@ def test_full_run(
         [
             'Run finished in 4m 12s',
             (
-                'Posts: 5 downloaded, 3 already cached, 1 skipped by filters, '
+                'Posts: 5 downloaded, 3 unchanged, 1 skipped by filters, '
                 '2 failed, 4 locked'
             ),
             'Media downloaded',
@@ -63,7 +63,7 @@ def test_run_with_nothing_new_stays_short(
         [
             'Run finished in 12s',
             'Nothing new to download',
-            'Posts: 0 downloaded, 12 already cached',
+            'Posts: 0 downloaded, 12 unchanged',
         ],
     )
     assert 'Media downloaded' not in text

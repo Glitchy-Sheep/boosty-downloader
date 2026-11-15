@@ -198,3 +198,16 @@ poetry.toml
 
 # task api:changes output
 api-changes.json
+
+# Task checksum cache
+.task/
+
+# Viewer source and generated frontend assets
+viewer-ui/node_modules/
+viewer-ui/coverage/
+viewer-ui/*.tsbuildinfo
+boosty_downloader/viewer/static/app/
+!viewer-ui/src/lib/
+
+# Generated viewer development library
+/.sample/

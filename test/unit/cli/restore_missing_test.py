@@ -59,12 +59,19 @@ def _flow_args(flow: _Flow) -> list[str]:
 
 
 @pytest.fixture
-def application(monkeypatch: pytest.MonkeyPatch) -> None:
+def application(monkeypatch: pytest.MonkeyPatch) -> list[bool]:
+    index_updates: list[bool] = []
+
     @asynccontextmanager
     async def open_test_app(
-        settings: AppSettings, *, request_delay_seconds: float, logger: RichLogger
+        settings: AppSettings,
+        *,
+        request_delay_seconds: float,
+        logger: RichLogger,
+        update_index: bool,
     ) -> AsyncGenerator[App, None]:
         del settings, request_delay_seconds, logger
+        index_updates.append(update_index)
         yield App(
             api=cast('BoostyAPIClient', None),
             media_http=cast('RetryClient', None),
@@ -80,15 +87,16 @@ def application(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(download_command, 'open_app', open_test_app)
     monkeypatch.setattr(download_command, 'notify_about_updates', no_update_check)
+    return index_updates
 
 
-@pytest.mark.usefixtures('application')
 @pytest.mark.parametrize('flow', list(_Flow))
 @pytest.mark.parametrize('restore_missing', [False, True], ids=['default', 'restore'])
 def test_restore_missing_reaches_the_run_dependencies(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     flow: _Flow,
+    application: list[bool],
     *,
     restore_missing: bool,
 ) -> None:
@@ -124,3 +132,4 @@ def test_restore_missing_reaches_the_run_dependencies(
 
     assert result.exit_code == 0, result.output
     assert observed == [restore_missing]
+    assert application == [flow is not _Flow.preview]

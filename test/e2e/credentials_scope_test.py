@@ -40,7 +40,6 @@ async def test_only_the_api_session_carries_credentials(tmp_path: Path) -> None:
         settings = AppSettings(
             author_name='author',
             destination_dir=tmp_path / 'author',
-            cache_dir=tmp_path / 'author',
             auth_header=TOKEN,
             cookie='session=secret',
         )

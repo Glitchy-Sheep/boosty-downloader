@@ -182,7 +182,7 @@ def _removed_entry(previous: MediaEntry, position: int, now: datetime) -> MediaE
 
 def observe_recorded_files(record: StoredPost, disk: DiskSnapshot) -> StoredPost:
     """
-    Observe downloaded/deleted copies of an accessible post in an independent record.
+    Observe downloaded/deleted copies of a saved post in an independent record.
 
     Missing copies keep their paths and last known sizes. Existing copies keep their actual sizes, including zero, even when the author removed the piece.
     """

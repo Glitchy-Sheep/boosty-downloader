@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 import aiohttp
 from aiohttp_retry import ExponentialRetry, RetryClient
+from rich.markup import escape
 
 from boosty_downloader.cli.console_progress_reporter import (
     ConsoleProgressReporter,
@@ -23,6 +24,10 @@ from boosty_downloader.infrastructure.boosty_api.core.client import BoostyAPICli
 from boosty_downloader.infrastructure.boosty_api.utils.auth_parsers import (
     parse_auth_header,
     parse_session_cookie,
+)
+from boosty_downloader.infrastructure.library.index import INDEX_FILENAME, LibraryIndex
+from boosty_downloader.infrastructure.library.indexed_post_store import (
+    IndexedJsonPostStore,
 )
 from boosty_downloader.infrastructure.library.library_format import (
     LibraryCompatibilityError,
@@ -53,17 +58,16 @@ class AppSettings:
     """
     Resolved once from config.yaml and the CLI overrides on top of it.
 
-    Plain values only: the aiohttp objects built from them need a running
-    event loop, and sync commands (clean-cache) load settings without one.
+    Plain values only; the HTTP sessions and storage adapters are opened separately.
     """
 
     author_name: str
     # <target>/<author>: where the posts of this creator land.
     destination_dir: Path
-    # <cache or target>/<author>: where the post cache of this creator lives.
-    cache_dir: Path
     auth_header: str
     cookie: str
+    # None keeps the disposable index inside the library.
+    index_path: Path | None = None
 
     @property
     def library_root(self) -> Path:
@@ -71,17 +75,14 @@ class AppSettings:
         return self.destination_dir.parent
 
 
-def _cache_dir(
-    paths: DownloadSettings,
-    *,
-    username: str,
-    destination_directory: Path | None,
-    cache_directory: Path | None,
-) -> Path:
-    """<cache or target>/<author>; a CLI directory wins over the config value."""
-    target = destination_directory or paths.target_directory
+def _index_path(
+    paths: DownloadSettings, *, cache_directory: Path | None
+) -> Path | None:
+    """Place the entire library index in an explicitly configured cache directory."""
     cache_root = cache_directory or paths.cache_directory
-    return (cache_root or target).absolute() / username
+    if cache_root is None:
+        return None
+    return cache_root.absolute() / INDEX_FILENAME
 
 
 def load_settings(
@@ -99,14 +100,9 @@ def load_settings(
     return AppSettings(
         author_name=username,
         destination_dir=target.absolute() / username,
-        cache_dir=_cache_dir(
-            paths,
-            username=username,
-            destination_directory=destination_directory,
-            cache_directory=cache_directory,
-        ),
         auth_header=config.auth.auth_header,
         cookie=config.auth.cookie,
+        index_path=_index_path(paths, cache_directory=cache_directory),
     )
 
 
@@ -127,19 +123,21 @@ def resolve_library_root(
         raise LibraryCompatibilityError(message) from error
 
 
-def resolve_cache_dir(
+def resolve_index_path(
     *,
-    username: str,
     config_path: Path = DEFAULT_CONFIG_PATH,
     cache_directory: Path | None = None,
-) -> Path:
-    """Where the creator's cache lives; no credentials needed to find it."""
-    return _cache_dir(
-        read_download_settings(config_path),
-        username=username,
-        destination_directory=None,
-        cache_directory=cache_directory,
-    )
+) -> Path | None:
+    """Find the library-wide index without credentials or startup writes."""
+    try:
+        paths = DownloadSettings()
+        if cache_directory is None:
+            paths = read_download_settings(config_path)
+        return _index_path(paths, cache_directory=cache_directory)
+    except (OSError, RuntimeError) as error:
+        source = cache_directory if cache_directory is not None else config_path
+        message = f'Cannot determine library index from {source}: {error}'
+        raise LibraryCompatibilityError(message) from error
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,8 +183,9 @@ async def open_app(
     request_delay_seconds: float,
     logger: RichLogger,
     retry_options: RetryOptionsBase = DEFAULT_RETRY_OPTIONS,
+    update_index: bool = False,
 ) -> AsyncGenerator[App]:
-    """Open network sessions and progress reporting without creating local files."""
+    """Open sessions and reporting; writable downloads explicitly enable indexing."""
     async with AsyncExitStack() as stack:
         api_session = await stack.enter_async_context(
             # Credentials live ONLY here: this session talks to the Boosty API.
@@ -226,6 +225,26 @@ async def open_app(
                 request_delay_seconds=request_delay_seconds,
             ),
             media_http=RetryClient(media_session, retry_options=retry_options),
-            post_store=JsonPostStore(settings.library_root),
+            post_store=_prepare_post_store(
+                settings, reporter, update_index=update_index
+            ),
             reporter=reporter,
         )
+
+
+def _prepare_post_store(
+    settings: AppSettings, reporter: ConsoleProgressReporter, *, update_index: bool
+) -> PostStore:
+    if not update_index:
+        return JsonPostStore(settings.library_root)
+
+    def warn(message: str) -> None:
+        reporter.warn(escape(message))
+
+    store = IndexedJsonPostStore(
+        settings.library_root,
+        index=LibraryIndex(settings.library_root, index_path=settings.index_path),
+        warn=warn,
+    )
+    store.prepare()
+    return store

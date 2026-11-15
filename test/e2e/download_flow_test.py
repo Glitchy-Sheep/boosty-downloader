@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
 import uuid
 from typing import TYPE_CHECKING, cast
 
@@ -114,6 +113,25 @@ class _QuietReporter:
         self.errors.append(message)
 
 
+class _MediaOverlap:
+    """Keep responses pending until every distinct post media request has arrived."""
+
+    def __init__(self, *, expected: int) -> None:
+        self.expected = expected
+        self.pending: set[str] = set()
+        self.all_started = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def hold(self, path: str) -> None:
+        self.pending.add(path)
+        if len(self.pending) == self.expected:
+            self.all_started.set()
+        try:
+            await self.release.wait()
+        finally:
+            self.pending.remove(path)
+
+
 def _blob_body(path: str) -> web.Response:
     """A few bytes of the right media type for every fixture link."""
     if any(part in path for part in ('/image/', '/preview/', '/teaser/')):
@@ -137,8 +155,8 @@ def _local_payload(text: str, host: str) -> dict[str, Any]:
 
 def _build_app(  # noqa: PLR0913 - independent fake-server failure modes
     served_media: list[str],
-    media_delay: float = 0.0,
     *,
+    media_overlap: _MediaOverlap | None = None,
     fail_first_file: bool = False,
     dead_images: bool = False,
     external_video_url: str | None = None,
@@ -173,8 +191,8 @@ def _build_app(  # noqa: PLR0913 - independent fake-server failure modes
     async def blob(request: web.Request) -> web.Response:
         nonlocal file_failures_left
         served_media.append(request.path)
-        if media_delay:
-            await asyncio.sleep(media_delay)
+        if media_overlap is not None:
+            await media_overlap.hold(request.path)
         if '/file/' in request.path and file_failures_left:
             file_failures_left -= 1
             return web.Response(status=first_file_status)
@@ -339,35 +357,30 @@ async def test_second_run_reuses_saved_media(tmp_path: Path) -> None:
 
 
 async def test_media_of_one_post_downloads_in_parallel(tmp_path: Path) -> None:
-    """Four media on a 0.4s-slow server must overlap: the sequential flow
-    needed at least 1.6s, the parallel one fits well under that."""
+    """All four post media requests arrive before any media response is released."""
     served_media: list[str] = []
-    server = TestServer(_build_app(served_media, media_delay=0.4))
-    await server.start_server()
-    try:
-        reporter = _QuietReporter()
-        started = time.monotonic()
-        await _run_download(tmp_path, server.make_url('/'), reporter)
-        duration = time.monotonic() - started
-
+    overlap = _MediaOverlap(expected=4)
+    reporter = _QuietReporter()
+    async with TestServer(_build_app(served_media, media_overlap=overlap)) as server:
+        download = asyncio.create_task(
+            _run_download(tmp_path, server.make_url('/'), reporter)
+        )
+        try:
+            # This timeout detects a stuck barrier; elapsed time is not the assertion.
+            await asyncio.wait_for(overlap.all_started.wait(), timeout=10)
+            assert len(overlap.pending) == overlap.expected
+        finally:
+            overlap.release.set()
+            await asyncio.wait_for(download, timeout=10)
         assert reporter.errors == []
-        media_requests = [p for p in served_media if p != '/']
-        assert len(media_requests) >= 4, 'the fixture post carries 4 media'
-        assert duration < 1.3, (
-            f'4 media x 0.4s must overlap, not queue (took {duration:.2f}s)'
-        )
 
-        html = (tmp_path / AUTHOR / POST_DIR_NAME / 'post.html').read_text(
-            encoding='utf-8'
-        )
-        image_at = html.index('images/')
-        video_at = html.index('boosty_videos/')
-        audio_at = html.index('audio/')
-        assert image_at < video_at < audio_at, (
-            'the page must keep the author chunk order despite parallel finishes'
-        )
-    finally:
-        await server.close()
+    html = (tmp_path / AUTHOR / POST_DIR_NAME / 'post.html').read_text(encoding='utf-8')
+    image_at = html.index('images/')
+    video_at = html.index('boosty_videos/')
+    audio_at = html.index('audio/')
+    assert image_at < video_at < audio_at, (
+        'the page must keep the author chunk order despite parallel finishes'
+    )
 
 
 async def _dry_run(
