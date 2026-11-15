@@ -17,7 +17,14 @@ import {
   scroller,
   tab,
 } from './media-fixtures'
-import { switchFrames, verifySwitch, type SwitchFrame, type TabAction } from './media-frames'
+import {
+  switchFrames,
+  verifySwitch,
+  type SwitchCaptureWindow,
+  type SwitchFrame,
+  type TabAction,
+} from './media-frames'
+import { requireFixture } from './required-fixture'
 
 // Measure frames without concurrent DOM capture or screencast encoding.
 test.use({ trace: 'off' })
@@ -144,7 +151,7 @@ test('slow Media moves its pill immediately and disables the outgoing post befor
     await delay(650)
     await route.continue()
   })
-  const recording = recordSwitch(page, 'media', info, 'slow-tab', 1100)
+  const recording = recordSwitch(page, 'media', info, 'slow-tab', { duration: 1100 })
   await expect.poll(() => requested).toBe(true)
   await expect(pane(page, 'posts')).toHaveAttribute('inert', '')
   const text = await pane(page, 'posts').innerText()
@@ -253,8 +260,19 @@ test('reduced motion reveals the destination in one frame and new author discard
 }, info) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await openPost(page, corpus)
-  const frames = await recordSwitch(page, 'media', info, 'reduced-motion', 180)
-  const appeared = frames.find((frame) => frame.panes.some((part) => part.tab === 'media'))!
+  const responseDelay = 300
+  await page.route(`**/api/authors/${AUTHOR}/media*`, async (route) => {
+    await delay(responseDelay)
+    await route.continue()
+  })
+  const frames = await recordSwitch(page, 'media', info, 'reduced-motion', {
+    duration: 5_000,
+    firstMountedPane: 'media',
+  })
+  const appeared = requireFixture(
+    frames.find((frame) => frame.panes.some((part) => part.tab === 'media')),
+  )
+  expect(appeared.time).toBeGreaterThanOrEqual(responseDelay)
   expect(appeared.panes.find((part) => part.tab === 'media')).toMatchObject({
     opacity: 1,
     x: 0,
@@ -271,9 +289,9 @@ async function recordSwitch(
   action: TabAction,
   info: TestInfo,
   name: string,
-  duration?: number,
+  capture: SwitchCaptureWindow = {},
 ): Promise<SwitchFrame[]> {
-  const { frames, diagnostics } = await switchFrames(page, action, duration)
+  const { frames, diagnostics } = await switchFrames(page, action, capture)
   await info.attach(`${name}-frames.json`, {
     body: JSON.stringify(frames),
     contentType: 'application/json',

@@ -10,7 +10,8 @@ export type SwitchFrame = {
   textLength: number
 }
 
-type SwitchCaptureOptions = { action: TabAction; duration: number }
+export type SwitchCaptureWindow = { duration?: number; firstMountedPane?: TabName }
+type SwitchCaptureOptions = SwitchCaptureWindow & { action: TabAction }
 type ObservedEntryType = 'longtask' | 'long-animation-frame'
 type SampleTiming = {
   frameIndex: number
@@ -100,7 +101,8 @@ export type SwitchRecording = { frames: SwitchFrame[]; diagnostics: SwitchDiagno
 /** Runs entirely in the page so the sampler and diagnostics share one performance clock. */
 export async function captureSwitch({
   action,
-  duration,
+  duration = 550,
+  firstMountedPane,
 }: SwitchCaptureOptions): Promise<SwitchRecording> {
   const limits = {
     entriesPerObserver: 128,
@@ -182,7 +184,11 @@ export async function captureSwitch({
       const tick = (rafTime: number): void => {
         try {
           read(rafTime)
-          if (performance.now() - began < duration) requestAnimationFrame(tick)
+          const destinationMounted =
+            firstMountedPane !== undefined &&
+            frames.at(-1)?.panes.some((pane) => pane.tab === firstMountedPane)
+          if (!destinationMounted && performance.now() - began < duration)
+            requestAnimationFrame(tick)
           else resolve()
         } catch (error: unknown) {
           reject(error)
