@@ -148,10 +148,10 @@ test('unsent search survives closing and docking while Clear discards the draft'
   page,
   corpus,
 }) => {
+  await page.clock.install({ time: new Date('2024-02-02T08:00:00Z') })
   await openPost(page, corpus, POSTS.reader)
   await openMobileSidebar(page)
-  await page.clock.install()
-  await page.clock.pauseAt(new Date())
+  await page.clock.pauseAt(new Date('2024-02-02T10:00:00Z'))
   const input = timeline(page).getByRole('textbox', { name: 'Search posts' })
   await input.fill('draft across placement')
   expect(new URL(page.url()).searchParams.has('q')).toBe(false)
