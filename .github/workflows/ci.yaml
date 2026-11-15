@@ -76,7 +76,7 @@ jobs:
         timeout-minutes: 20
 
   ui:
-    name: 🎨 Viewer
+    name: 🎨 Viewer quality
     runs-on: ubuntu-latest
     timeout-minutes: 25
     defaults:
@@ -125,15 +125,41 @@ jobs:
             viewer-ui/reports/
           retention-days: 7
           if-no-files-found: warn
+
+  ui-browser:
+    name: 🎭 Viewer browser / ${{ matrix.browser }}
+    needs: ui
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox]
+    defaults:
+      run:
+        working-directory: viewer-ui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Install Task, uv, Python and the dependencies
+        uses: ./.github/actions/setup
+      - name: Install Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: viewer-ui/package-lock.json
+      - name: Install locked dependencies
+        run: npm ci
       - name: Build viewer assets
         run: npm run build
       - name: Cache Playwright browsers
         uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('viewer-ui/package-lock.json') }}
+          key: ${{ runner.os }}-playwright-${{ matrix.browser }}-${{ hashFiles('viewer-ui/package-lock.json') }}
       - name: Install browser binaries and system dependencies
-        run: npx playwright install --with-deps chromium firefox
+        run: npx playwright install --with-deps ${{ matrix.browser }}
       - name: Configure virtual audio output
         run: |
           sudo apt-get install --yes pulseaudio pulseaudio-utils
@@ -142,12 +168,12 @@ jobs:
           pactl set-default-sink viewer_ci
           test "$(pactl get-default-sink)" = viewer_ci
       - name: Browser tests against the packaged viewer
-        run: npm run e2e
+        run: npm run e2e -- --project=${{ matrix.browser }}
       - name: Upload browser diagnostics
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: viewer-browser-results
+          name: viewer-browser-results-${{ matrix.browser }}
           path: |
             viewer-ui/playwright-report/
             viewer-ui/test-results/
