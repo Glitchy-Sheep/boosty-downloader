@@ -8,9 +8,10 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 
-import { expect, test as base, type Locator, type Page } from '@playwright/test'
+import { expect, type Locator, type Page } from '@playwright/test'
 
 import type { MediaItem, MediaPage, OpenerCapabilities, PostDetail } from '../src/lib/api.gen'
+import { test as base } from './browser-fixture'
 import { inventory, type MediaCorpus } from './media-fixtures'
 import { requireFixture } from './required-fixture'
 

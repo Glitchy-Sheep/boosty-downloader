@@ -1,6 +1,7 @@
-import { expect, test as base, type Locator, type Page } from '@playwright/test'
+import { expect, type Locator, type Page } from '@playwright/test'
 
 import type { Author, MediaStorage } from '../src/lib/api.gen'
+import { test as base } from './browser-fixture'
 import { requireFixture } from './required-fixture'
 
 export const KINDS = ['videos', 'images', 'files', 'audio'] as const
