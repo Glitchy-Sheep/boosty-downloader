@@ -95,7 +95,8 @@ async function fileSnapshot(
   const snapshot: Record<string, { sha256: string; mtime: number }> = {}
   for (const [destination, source] of Object.entries(sources)) {
     const bytes = await readFile(path.join(corpus.library, destination))
-    expect(bytes, destination).toEqual(await readFile(path.join(corpus.library, source)))
+    const sourceBytes = await readFile(path.join(corpus.library, source))
+    expect(bytes.equals(sourceBytes), destination).toBe(true)
     snapshot[destination] = {
       sha256: createHash('sha256').update(bytes).digest('hex'),
       mtime: (await stat(path.join(corpus.library, destination))).mtimeMs,
