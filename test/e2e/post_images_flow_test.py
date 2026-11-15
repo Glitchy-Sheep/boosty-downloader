@@ -6,6 +6,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from http import HTTPStatus
 from typing import TYPE_CHECKING
+from urllib.parse import quote
 
 import pytest
 from aiohttp import web
@@ -183,12 +184,17 @@ async def test_missing_preview_is_planned_read_only_and_restored_without_video(
     assert stats.media_deleted == 0
 
 
+@pytest.mark.parametrize(
+    'content_type',
+    [DownloadContentTypeFilter.post_content, DownloadContentTypeFilter.boosty_videos],
+)
 async def test_failed_preview_is_warned_and_retried_on_the_next_run(
     tmp_path: Path,
+    content_type: DownloadContentTypeFilter,
 ) -> None:
     primary: list[str] = []
     images = _AuxiliaryImages(failures={'/preview/full': 404})
-    filters = [DownloadContentTypeFilter.post_content]
+    filters = [content_type]
     async with TestServer(images.app(primary, _video_post())) as server:
         reporter = _QuietReporter()
         first = await _run_download(
@@ -197,6 +203,8 @@ async def test_failed_preview_is_warned_and_retried_on_the_next_run(
         located = _located(tmp_path)
         assert located.record is not None
         assert located.record.media[VIDEO_MEDIA_ID].preview_path is None
+        page = (tmp_path / located.folder / 'post.html').read_text(encoding='utf-8')
+        assert 'poster=' not in page
         assert first.posts_failed == 0
         assert reporter.warnings
         images.failures.clear()
@@ -206,9 +214,19 @@ async def test_failed_preview_is_warned_and_retried_on_the_next_run(
 
     located = _located(tmp_path)
     assert located.record is not None
-    assert located.record.media[VIDEO_MEDIA_ID].preview_path is not None
+    media = located.record.media[VIDEO_MEDIA_ID]
+    assert media.preview_path is not None
+    page = (tmp_path / located.folder / 'post.html').read_text(encoding='utf-8')
+    if content_type is DownloadContentTypeFilter.boosty_videos:
+        assert media.status is MediaStatus.downloaded
+        assert f'poster="{quote(media.preview_path, safe="/")}"' in page
+        assert 'preload="metadata"' in page
+        assert len(primary) == 1
+    else:
+        assert media.status is MediaStatus.pending
+        assert '<video' not in page
+        assert primary == []
     assert images.requests == ['/preview/full', '/preview/full']
-    assert primary == []
 
 
 @pytest.mark.parametrize('excluded', [False, True])
@@ -428,6 +446,11 @@ async def test_finished_preview_is_not_downloaded_again_by_post_retry(
     located = _located(tmp_path)
     assert located.record is not None
     assert located.record.media[VIDEO_MEDIA_ID].preview_path is not None
+    preview_path = located.record.media[VIDEO_MEDIA_ID].preview_path
+    assert preview_path is not None
+    page = (tmp_path / located.folder / 'post.html').read_text(encoding='utf-8')
+    assert f'poster="{quote(preview_path, safe="/")}"' in page
+    assert 'preload="metadata"' in page
     assert images.requests == ['/preview/full']
     assert stats.posts_failed == 0
     assert stats.posts_downloaded == 1

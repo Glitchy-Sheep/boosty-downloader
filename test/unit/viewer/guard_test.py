@@ -85,6 +85,22 @@ async def _ok(request: web.Request) -> web.Response:
     return web.json_response({'ok': True})
 
 
+@pytest.mark.parametrize('status', [200, 206, 304, 403, 404, 416, 500])
+async def test_media_policy_keeps_route_permission_only_for_successful_responses(
+    status: int,
+) -> None:
+    request = make_mocked_request('GET', '/media/alpha/post/image.png')
+    configured = web.Response(
+        status=status, headers={'Cross-Origin-Resource-Policy': 'cross-origin'}
+    )
+    await secure_response(request, configured)
+    expected = 'cross-origin' if status < 400 else 'same-origin'
+    assert configured.headers['Cross-Origin-Resource-Policy'] == expected
+    ordinary = web.Response(status=status)
+    await secure_response(request, ordinary)
+    assert ordinary.headers['Cross-Origin-Resource-Policy'] == 'same-origin'
+
+
 @pytest.fixture
 async def guard_client() -> AsyncIterator[TestClient[web.Request, web.Application]]:
     app = web.Application(middlewares=[guard_requests])
@@ -99,7 +115,9 @@ async def test_foreign_host_gets_json_refusal(
 ):
     response = await guard_client.get('/', headers={'Host': 'foreign.example'})
     assert response.status == 421
-    assert await response.json() == {'error': 'This Host is not allowed.'}
+    assert await response.json() == {
+        'error': {'code': 'host_not_allowed', 'message': 'This Host is not allowed.'}
+    }
     assert response.headers['X-Content-Type-Options'] == 'nosniff'
     assert response.headers['Referrer-Policy'] == 'no-referrer'
     assert response.headers['X-Frame-Options'] == 'DENY'
@@ -126,6 +144,12 @@ async def test_writes_require_json(
 ):
     response = await guard_client.request(method, '/', data='{}')
     assert response.status == 403
+    assert await response.json() == {
+        'error': {'code': 'write_not_allowed', 'message': 'This write is not allowed.'}
+    }
+    assert response.headers['X-Content-Type-Options'] == 'nosniff'
+    assert response.headers['Referrer-Policy'] == 'no-referrer'
+    assert response.headers['X-Frame-Options'] == 'DENY'
 
 
 @pytest.mark.parametrize(

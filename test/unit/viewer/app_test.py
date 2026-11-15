@@ -12,12 +12,18 @@ if TYPE_CHECKING:
     import pytest
     from aiohttp import web
 
-    from boosty_downloader.application.ports import LibraryReader
+    from boosty_downloader.application.ports import LibraryReader, PostBodyRenderer
 
 
 def test_factory_retains_the_injected_reader_without_calling_it(tmp_path: Path):
     reader = cast('LibraryReader', object())
-    app = create_app(reader=reader, static_directory=tmp_path)
+    renderer = cast('PostBodyRenderer', object())
+    app = create_app(
+        reader=reader,
+        library_root=tmp_path,
+        body_renderer=renderer,
+        static_directory=tmp_path,
+    )
     assert app[LIBRARY_READER] is reader
     assert list(tmp_path.iterdir()) == []
 
@@ -38,6 +44,10 @@ async def test_library_notice_replaces_the_ui_and_escapes_data(tmp_path: Path):
         assert response.headers['X-Frame-Options'] == 'DENY'
         unknown = await client.get('/api/authors')
         assert unknown.status == 404
+        assert await unknown.json() == {
+            'error': {'code': 'not_found', 'message': 'Not found.'}
+        }
+        assert unknown.headers['X-Content-Type-Options'] == 'nosniff'
 
 
 async def test_unexpected_error_retains_response_security_headers(

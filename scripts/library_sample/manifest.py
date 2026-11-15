@@ -43,7 +43,7 @@ class _Inventory(BaseModel):
 class _Manifest(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True, frozen=True)
     generator: Literal['boosty-viewer-sample']
-    version: int = Field(ge=1, le=1)
+    version: int = Field(ge=2, le=2)
     seed: int = Field(ge=0, le=0xFFFFFFFF)
     posts: int = Field(gt=0)
     backend: AssetBackend
@@ -126,7 +126,7 @@ def publish_manifest(description: SampleDescription) -> None:
     """Publish ownership only after the canonical sample and index are complete."""
     manifest = _Manifest(
         generator='boosty-viewer-sample',
-        version=1,
+        version=2,
         seed=description.config.seed,
         posts=description.posts,
         backend=description.backend,

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, TypeAlias, cast
 from sqlalchemy import bindparam, delete, func, select, text, update
 from sqlalchemy.dialects.sqlite import insert
 
-from boosty_downloader.domain.library import PostAccess
+from boosty_downloader.domain.library import PostAccess, PostIdentity
 from boosty_downloader.infrastructure.library._index_models import (
     IndexAuthor,
     IndexMedia,
@@ -29,14 +29,6 @@ if TYPE_CHECKING:
     from boosty_downloader.infrastructure.library.index_sources import SourceFingerprint
 
 SqlValues: TypeAlias = dict[str, object]
-
-
-@dataclass(frozen=True, slots=True)
-class PostIdentity:
-    """A full post key, independent of the index's internal row number."""
-
-    author: str
-    post_id: str
 
 
 def write_author(

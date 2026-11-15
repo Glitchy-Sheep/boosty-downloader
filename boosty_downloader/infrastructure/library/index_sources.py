@@ -188,6 +188,7 @@ def locked_post_source(root: Path, locked: LockedPost) -> PostSource:
     post = LibraryPost(
         PostOverview(deepcopy(locked.post), PostAccess.locked),
         teaser_path=locked.teaser_path,
+        teaser_thumbnail_path=locked.teaser_thumbnail_path,
     )
     return PostSource(post=post, cover_path=find_cover_path(root.resolve(), post))
 
@@ -292,6 +293,9 @@ def _library_post(
         record=record,
         folder=folder.relative_to(root).as_posix(),
         teaser_path=locked.teaser_path if locked is not None else None,
+        teaser_thumbnail_path=locked.teaser_thumbnail_path
+        if locked is not None
+        else None,
     )
 
 

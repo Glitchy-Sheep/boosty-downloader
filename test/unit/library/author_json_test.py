@@ -73,6 +73,13 @@ def _json_bytes(document: JsonObject) -> bytes:
     return (dumps(document, ensure_ascii=False, indent=2) + '\n').encode('utf-8')
 
 
+def _locked_v2_document() -> JsonObject:
+    document = deepcopy(LOCKED_DOCUMENT)
+    document['schema_version'] = 2
+    document['posts'][POST_ID]['teaser_thumbnail_path'] = None
+    return document
+
+
 def _decode_locked(data: bytes) -> dict[str, LockedPost]:
     return decode_locked_posts(data, author='author')
 
@@ -123,10 +130,11 @@ def test_author_matches_independent_readable_json(author: AuthorInfo) -> None:
 
 
 def test_locked_matches_independent_readable_json(locked: LockedPost) -> None:
-    expected = _json_bytes(LOCKED_DOCUMENT)
+    expected = _json_bytes(_locked_v2_document())
 
     assert encode_locked_posts('author', {POST_ID: locked}) == expected
     assert _decode_locked(expected) == {POST_ID: locked}
+    assert _decode_locked(_json_bytes(LOCKED_DOCUMENT)) == {POST_ID: locked}
 
 
 def test_empty_and_optional_fields_are_explicit() -> None:
@@ -144,7 +152,7 @@ def test_empty_and_optional_fields_are_explicit() -> None:
     assert all(document['author'][field] is None for field in optional_fields)
     assert decode_author_record(encode_author_record(author)) == author
     assert loads(encode_locked_posts('author', {})) == {
-        'schema_version': 1,
+        'schema_version': 2,
         'author': 'author',
         'posts': {},
     }
@@ -220,8 +228,15 @@ def test_schema_version_requires_an_exact_integer(
     assert not isinstance(error.value, UnsupportedAuthorSchemaError)
 
 
-@pytest.mark.parametrize('decoder', [decode_author_record, _decode_locked])
-@pytest.mark.parametrize('version', [0, 2])
+@pytest.mark.parametrize(
+    ('decoder', 'version'),
+    [
+        (decode_author_record, 0),
+        (decode_author_record, 2),
+        (_decode_locked, 0),
+        (_decode_locked, 3),
+    ],
+)
 def test_unsupported_schema_precedes_body_validation(
     decoder: Decoder,
     version: int,
@@ -431,5 +446,5 @@ def test_read_only_mapping_can_be_encoded(locked: LockedPost) -> None:
 
     encoded = encode_locked_posts('author', observations)
 
-    assert encoded == _json_bytes(LOCKED_DOCUMENT)
+    assert encoded == _json_bytes(_locked_v2_document())
     assert _decode_locked(encoded) == observations

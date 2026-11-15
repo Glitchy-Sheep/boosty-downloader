@@ -34,7 +34,7 @@ from boosty_downloader.infrastructure.library.json_store import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Collection, Iterator
     from os import stat_result
 
     from boosty_downloader.domain.stored_post import PostMetadata, StoredPost
@@ -78,8 +78,10 @@ class JsonPostRecords:
             ]
         return _unique_post(matches, author, post_id)
 
-    def choose_post_folder(self, post: PostMetadata) -> str:
-        """Suggest an unoccupied relative path without creating or reserving it."""
+    def choose_post_folder(
+        self, post: PostMetadata, *, reserved_folders: Collection[str] = ()
+    ) -> str:
+        """Suggest a free relative path, excluding reservations, without writes."""
         author_folder = get_author_folder(self._root, post.author)
         collision = 0
         while True:
@@ -87,9 +89,10 @@ class JsonPostRecords:
                 post.title, post.created_at, post.id, collision=collision
             )
             candidate = author_folder / name
-            if not _is_occupied(candidate):
+            relative = candidate.relative_to(self._root).as_posix()
+            if relative not in reserved_folders and not _is_occupied(candidate):
                 check_containment(self._root, candidate)
-                return candidate.relative_to(self._root).as_posix()
+                return relative
             collision += 1
 
     def save_post(self, folder: str, record: StoredPost) -> None:
@@ -169,7 +172,10 @@ class JsonPostRecords:
         if not _is_directory(folder):
             return None
         check_containment(self._root, folder / POST_RECORD_FILENAME)
-        record = read_post_record(folder)
+        data = _read_saved_bytes(self._root, folder / POST_RECORD_FILENAME)
+        record = None
+        if data is not None:
+            record = _decode_saved_record(data, folder / POST_RECORD_FILENAME)
         if record is None and not _is_directory(folder):
             return None
         return LocatedPost(folder.relative_to(self._root).as_posix(), record)
@@ -290,17 +296,21 @@ def _read_saved_post(root: Path, folder: Path) -> SavedPost | None:
     if data is None:
         return None
     validate_author_name(folder.parent.name)
-    try:
-        record = decode_post_record(data)
-    except InvalidPostRecordError as error:
-        message = f'{path}: {error}'
-        raise type(error)(message) from error
+    record = _decode_saved_record(data, path)
     if record.post.author != folder.parent.name or get_post_id_prefix(
         record.post.id
     ) != parse_post_folder_id(folder.name):
         message = f'Post record does not match its author and folder: {folder}'
         raise InvalidPostRecordError(message)
     return SavedPost(folder.relative_to(root).as_posix(), record)
+
+
+def _decode_saved_record(data: bytes, path: Path) -> StoredPost:
+    try:
+        return decode_post_record(data)
+    except InvalidPostRecordError as error:
+        message = f'{path}: {error}'
+        raise type(error)(message) from error
 
 
 def _read_saved_bytes(root: Path, path: Path) -> bytes | None:

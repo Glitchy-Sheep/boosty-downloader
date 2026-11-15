@@ -41,9 +41,11 @@ def convert_text_fragment(
     )
 
 
-def convert_video_to_html(src: str, title: str) -> HtmlGenVideo:
-    """Convert domain video chunk to HTML video model."""
-    return HtmlGenVideo(url=src, title=title)
+def convert_video_to_html(
+    src: str, title: str, *, poster_url: str | None = None
+) -> HtmlGenVideo:
+    """Convert a saved video source and optional preview to its HTML model."""
+    return HtmlGenVideo(url=src, title=title, poster_url=poster_url)
 
 
 def convert_list_to_html(chunk: PostDataChunkTextualList) -> HtmlGenList:

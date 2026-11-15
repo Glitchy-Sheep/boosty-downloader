@@ -18,6 +18,7 @@ from boosty_downloader.infrastructure.media_output_paths import (
     resolve_media_destination,
 )
 from boosty_downloader.infrastructure.media_transfer import MediaTarget
+from boosty_downloader.infrastructure.post_thumbnails import has_thumbnail
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -62,6 +63,9 @@ class PostDownloadState:
         self._disk = prepared.disk
         self._download_ids = frozenset(prepared.reconciliation.download_ids)
         self._preview_ids = frozenset(prepared.preview_download_ids)
+        self._thumbnail_ids = self._download_ids | frozenset(
+            prepared.thumbnail_download_ids
+        )
 
     @property
     def record(self) -> StoredPost:
@@ -128,6 +132,23 @@ class PostDownloadState:
         entry = self._record.media[media_id]
         self._save_entry(media_id, replace(entry, preview_path=path))
         self._disk = replace(self._disk, files={**self._disk.files, path: info.st_size})
+
+    def complete_thumbnail(self, media_id: str, path: str) -> None:
+        """Save an author-relative image thumbnail without changing page or media state."""
+        entry = self._record.media[media_id]
+        if (
+            media_id not in self._thumbnail_ids
+            or entry.kind is not MediaKind.image
+            or entry.status is not MediaStatus.downloaded
+            or entry.removed_at is not None
+        ):
+            message = 'The image thumbnail was not selected for this attempt'
+            raise ValueError(message)
+        if not has_thumbnail(self._root, self._record.post.author, path):
+            message = 'A published thumbnail must be a nonempty regular file'
+            raise ValueError(message)
+        media = {**self._record.media, media_id: replace(entry, thumbnail_path=path)}
+        self._save(replace(self._record, media=media))
 
     def fail(self, media_id: str, error: str, *, unavailable: bool = False) -> None:
         """Persist failure before any asynchronous logging or next retry."""

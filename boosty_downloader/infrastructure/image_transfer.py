@@ -37,11 +37,32 @@ def enter_image_workspace(stack: ExitStack, parent: Path, *, owner_id: str) -> P
 
 
 async def write_image_response(
-    response: ClientResponse, source: Path, filename: str
+    response: ClientResponse,
+    source: Path,
+    filename: str,
+    *,
+    max_bytes: int | None = None,
 ) -> None:
-    """Stream bounded response chunks and close the file before returning."""
+    """Stream response chunks, enforcing an optional total before each write."""
+    if max_bytes is not None:
+        _require_body_limit(response, response.content_length or 0, max_bytes)
     async with open_media_writer(source) as writer:
-        await copy_download_response(response, writer.write, filename=filename)
+        written = 0
+
+        async def write(data: bytes) -> None:
+            nonlocal written
+            written += len(data)
+            if max_bytes is not None:
+                _require_body_limit(response, written, max_bytes)
+            await writer.write(data)
+
+        await copy_download_response(response, write, filename=filename)
+
+
+def _require_body_limit(response: ClientResponse, size: int, maximum: int) -> None:
+    if size > maximum:
+        message = 'Image response exceeds the thumbnail byte limit'
+        raise DownloadError(message, file=None, resource_url=str(response.url))
 
 
 def require_image_bytes(source: Path, url: str) -> None:

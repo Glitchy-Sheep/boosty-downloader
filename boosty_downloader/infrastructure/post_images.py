@@ -46,7 +46,9 @@ _TEASER_DIRECTORY: Final = f'{AUTHOR_SERVICE_FOLDER}/teasers'
 
 
 @dataclass(frozen=True, slots=True)
-class _ImageLocation:
+class ImageLocation:
+    """An owned image location with collision-safe portable destinations."""
+
     library_root: Path
     folder: str
     directory: str
@@ -75,7 +77,7 @@ async def download_post_preview(  # noqa: PLR0913 - Transfer inputs and post-wid
     The caller ensures this preview needs downloading and excludes concurrent transfers of the same media ID. Occupied names and reserved post-relative paths are preserved, including the parent directories of missing files recorded for other media.
     """
     with image_errors(url, label='Post image'):
-        location = _ImageLocation(
+        location = ImageLocation(
             library_root,
             post_folder,
             _PREVIEW_DIRECTORY,
@@ -117,9 +119,9 @@ def has_locked_teaser(library_root: Path, author: str, path: str | None) -> bool
     return S_ISREG(info.st_mode) and not is_link(info) and info.st_size > 0
 
 
-def _teaser_location(library_root: Path, author: str, post_id: str) -> _ImageLocation:
+def _teaser_location(library_root: Path, author: str, post_id: str) -> ImageLocation:
     get_author_folder(library_root.resolve(), author)
-    return _ImageLocation(
+    return ImageLocation(
         library_root,
         author,
         _TEASER_DIRECTORY,
@@ -144,20 +146,20 @@ def _safe_identity(value: str) -> str:
 
 
 async def _download_image(
-    session: RetryClient, url: str, location: _ImageLocation
+    session: RetryClient, url: str, location: ImageLocation
 ) -> str:
     with ExitStack() as stack:
         location.resolve(location.stem)
         async with open_download_response(session, url) as response:
             filename = response_filename(response, location.stem)
-            destination = _create_destination(location, filename)
+            destination = create_image_destination(location, filename)
             directory = enter_image_workspace(
                 stack, destination.parent, owner_id=location.owner_id
             )
             source = directory / 'download.tmp'
             await write_image_response(response, source, filename)
         require_image_bytes(source, url)
-        published = _publish_image(source, destination, filename, location)
+        published = publish_image(source, destination, filename, location)
     return f'{location.directory}/{published.name}'
 
 
@@ -177,7 +179,7 @@ def _preview_reserved_keys(reserved_paths: Collection[str]) -> frozenset[str]:
     return frozenset(blocked)
 
 
-def _free_filename(location: _ImageLocation, filename: str) -> str:
+def _free_filename(location: ImageLocation, filename: str) -> str:
     source = PurePosixPath(filename)
     candidate = filename
     suffix = 0
@@ -194,7 +196,8 @@ def _free_filename(location: _ImageLocation, filename: str) -> str:
         )
 
 
-def _create_destination(location: _ImageLocation, filename: str) -> Path:
+def create_image_destination(location: ImageLocation, filename: str) -> Path:
+    """Create guarded image parents while preserving occupied names."""
     while True:
         free_name = _free_filename(location, filename)
         try:
@@ -207,9 +210,10 @@ def _create_destination(location: _ImageLocation, filename: str) -> Path:
             continue
 
 
-def _publish_image(
-    source: Path, destination: Path, filename: str, location: _ImageLocation
+def publish_image(
+    source: Path, destination: Path, filename: str, location: ImageLocation
 ) -> Path:
+    """Publish complete bytes after rechecking their owner and destination."""
     while True:
         current = location.resolve(destination.name)
         if current != destination or current.parent != source.parent.parent:
@@ -218,4 +222,4 @@ def _publish_image(
         try:
             return publish_completed_file(source, destination).path
         except FileExistsError:
-            destination = _create_destination(location, filename)
+            destination = create_image_destination(location, filename)

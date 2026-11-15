@@ -3,12 +3,14 @@
 # pyright: reportUnusedFunction=false
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING, Annotated
 
 import typer
 from rich.markup import escape
 from sqlalchemy.exc import SQLAlchemyError
 
+from boosty_downloader.application.post_body_renderer import StoredPostBodyRenderer
 from boosty_downloader.cli.cli_options import (
     CacheDirectoryOption,
     DestinationDirectoryOption,
@@ -21,6 +23,7 @@ from boosty_downloader.cli.composition_root import (
 from boosty_downloader.cli.error_reporting import report_command_errors
 from boosty_downloader.cli.views.viewer import (
     empty_library_message,
+    render_opener_recording,
     render_viewer_failure,
     render_viewer_started,
 )
@@ -32,6 +35,7 @@ from boosty_downloader.infrastructure.library.reader import JsonLibraryReader
 from boosty_downloader.infrastructure.loggers import logger_instances
 from boosty_downloader.infrastructure.loggers.debug_file import debug_logging
 from boosty_downloader.viewer.app import LibraryNotice, create_app
+from boosty_downloader.viewer.opener import RECORD_ENV, detect_opener
 from boosty_downloader.viewer.server import (
     MAX_PORT,
     ServerOptions,
@@ -82,13 +86,24 @@ def _blocked_library(root: Path) -> LibraryNotice | None:
 def _serve_library(root: Path, index_path: Path | None, server: ServerOptions) -> None:
     reader = JsonLibraryReader(root, index_path=index_path)
     reader.prepare()
+    opener = detect_opener()
+    if recording_path := os.environ.get(RECORD_ENV):
+        logger_instances.downloader_logger.info(render_opener_recording(recording_path))
     notice = None
     if not reader.authors():
         message = empty_library_message(root)
         logger_instances.downloader_logger.info(escape(message))
         notice = LibraryNotice(title='No library yet', message=message)
     serve(
-        create_app(reader=reader, notice=notice), options=server, on_started=_announce
+        create_app(
+            reader=reader,
+            library_root=root,
+            body_renderer=StoredPostBodyRenderer(),
+            notice=notice,
+            opener=opener,
+        ),
+        options=server,
+        on_started=_announce,
     )
 
 

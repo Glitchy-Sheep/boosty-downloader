@@ -38,9 +38,9 @@ def test_fallback_catalog_has_real_dimensions_and_duration_variants(
     assert len(catalog.images) == 18
     assert len(catalog.avatars) == len(catalog.covers) == 3
     assert {(image.width, image.height) for image in catalog.images} == {
-        (960, 540),
-        (640, 960),
-        (800, 800),
+        (2400, 1350),
+        (1600, 2400),
+        (2000, 2000),
     }
     for image in (
         *catalog.images,
@@ -63,6 +63,51 @@ def test_fallback_catalog_has_real_dimensions_and_duration_variants(
                 == track.duration.total_seconds()
             )
             assert any(audio.readframes(40))
+
+
+def test_fallback_photos_have_large_originals_and_matching_480px_thumbnails(
+    fallback_catalog: AssetCatalog,
+) -> None:
+    for image in fallback_catalog.images:
+        assert image.path.stat().st_size > 2_000_000
+        assert image.thumbnail_path is not None
+        assert image.thumbnail_path.suffix == '.png'
+        assert image.thumbnail_path.stat().st_size < image.path.stat().st_size
+        width, height, original = _png_pixels(image.path)
+        small_width, small_height, thumbnail = _png_pixels(image.thumbnail_path)
+        assert small_width == 480
+        assert small_height == round(height * small_width / width)
+        for x, y in (
+            (0, 0),
+            (small_width // 2, small_height // 2),
+            (small_width - 1, small_height - 1),
+            (73, 91),
+            (389, 142),
+        ):
+            source_x, source_y = x * width // small_width, y * height // small_height
+            assert _pixel(thumbnail, small_width, x, y) == _pixel(
+                original, width, source_x, source_y
+            )
+
+
+def _png_pixels(path: Path) -> tuple[int, int, bytes]:
+    chunks = list(_png_chunks(path))
+    assert chunks[0][0] == b'IHDR'
+    assert chunks[-1] == (b'IEND', b'')
+    width, height, bits, color, compression, filtering, interlace = struct.unpack(
+        '>IIBBBBB', chunks[0][1]
+    )
+    assert (bits, color, compression, filtering, interlace) == (8, 2, 0, 0, 0)
+    pixels = zlib.decompress(b''.join(data for kind, data in chunks if kind == b'IDAT'))
+    stride = 1 + width * 3
+    assert len(pixels) == height * stride
+    assert pixels[::stride] == bytes(height)
+    return width, height, pixels
+
+
+def _pixel(pixels: bytes, width: int, x: int, y: int) -> bytes:
+    offset = y * (1 + width * 3) + 1 + x * 3
+    return pixels[offset : offset + 3]
 
 
 def _png_chunks(path: Path) -> Iterator[tuple[bytes, bytes]]:

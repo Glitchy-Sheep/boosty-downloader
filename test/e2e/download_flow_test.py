@@ -10,12 +10,15 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
 import pytest
 from aiohttp import ClientSession, web
 from aiohttp.test_utils import TestServer
 from aiohttp_retry import ExponentialRetry, RetryClient
+from aiolimiter import AsyncLimiter
+from support.raster_images import png_bytes
 from support.synthetic_blog import BLOG_TITLE, OWNER_NAME, POST_COUNT, synthetic_blog
 from support.synthetic_post import (
     AUDIO_SIZE,
@@ -29,6 +32,7 @@ from support.synthetic_post import (
     synthetic_post,
 )
 
+from boosty_downloader.application import post_pages as post_pages_module
 from boosty_downloader.application import post_retry as post_retry_module
 from boosty_downloader.application.blog_overview import MediaCounts
 from boosty_downloader.application.download_context import DownloadContext
@@ -38,9 +42,6 @@ from boosty_downloader.application.filtering import (
 from boosty_downloader.application.post_download_state import PostDownloadState
 from boosty_downloader.application.post_preparation import PostPreparer
 from boosty_downloader.application.run_statistics import RunStatistics
-from boosty_downloader.application.use_cases import (
-    download_single_post as single_post_module,
-)
 from boosty_downloader.application.use_cases.download_all_posts import (
     DownloadAllPostUseCase,
 )
@@ -66,17 +67,18 @@ from boosty_downloader.infrastructure.loggers.failed_downloads_logger import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
     from pathlib import Path
     from typing import Any
 
     from yarl import URL
 
     from boosty_downloader.application.run_statistics import RunStatistics
-    from boosty_downloader.infrastructure.html_generator.models import HtmlGenChunk
     from boosty_downloader.infrastructure.media_publication import PublishedFile
 
 AUTHOR = 'example_author'
 POST_DIR_NAME = '2025-06-15 - Fixture post with every content type (00000000)'
+THUMBNAIL_PNG = png_bytes()
 
 
 class _QuietReporter:
@@ -153,6 +155,30 @@ def _local_payload(text: str, host: str) -> dict[str, Any]:
     return json.loads(text)
 
 
+@dataclass
+class _OptionalImageRequests:
+    thumbnails: list[str]
+    auxiliary: list[str]
+    thumbnail_status: int
+
+    @web.middleware
+    async def handle(
+        self,
+        request: web.Request,
+        handler: Callable[[web.Request], Awaitable[web.StreamResponse]],
+    ) -> web.StreamResponse:
+        if request.query.get('mw') == '480':
+            self.thumbnails.append(request.raw_path)
+            return web.Response(
+                status=self.thumbnail_status,
+                body=THUMBNAIL_PNG,
+                content_type='image/png',
+            )
+        if request.path.startswith(('/preview/', '/teaser/')):
+            self.auxiliary.append(request.path)
+        return await handler(request)
+
+
 def _build_app(  # noqa: PLR0913 - independent fake-server failure modes
     served_media: list[str],
     *,
@@ -164,8 +190,15 @@ def _build_app(  # noqa: PLR0913 - independent fake-server failure modes
     payload: dict[str, Any] | None = None,
     refreshed_payload: dict[str, Any] | None = None,
     first_file_status: int = 404,
+    served_thumbnails: list[str] | None = None,
+    served_auxiliary: list[str] | None = None,
+    thumbnail_status: int = 200,
 ) -> web.Application:
+    """Collect primary transfers separately from optional thumbnail and preview traffic."""
     fixture_text = json.dumps(payload if payload is not None else synthetic_post())
+    thumbnails = [] if served_thumbnails is None else served_thumbnails
+    auxiliary = [] if served_auxiliary is None else served_auxiliary
+
     file_failures_left = 1 if fail_first_file else 0
 
     async def listing(request: web.Request) -> web.Response:
@@ -208,7 +241,8 @@ def _build_app(  # noqa: PLR0913 - independent fake-server failure modes
         )
         return web.json_response(_local_payload(fresh, request.host))
 
-    app = web.Application()
+    optional_images = _OptionalImageRequests(thumbnails, auxiliary, thumbnail_status)
+    app = web.Application(middlewares=[optional_images.handle])
     app.router.add_get(f'/v1/blog/{AUTHOR}', blog_info)
     app.router.add_get(f'/v1/blog/{AUTHOR}/post/', listing)
     app.router.add_get(f'/v1/blog/{AUTHOR}/post/{POST_ID}', single_post)
@@ -262,6 +296,7 @@ async def _run_download(  # noqa: PLR0913 - isolated download scenarios
             filters=list(DownloadContentTypeFilter) if filters is None else filters,
             excluded_tags=excluded_tags,
             restore_missing=restore_missing,
+            thumbnail_requests=AsyncLimiter(1000, time_period=1),
             preferred_video_quality=BoostyOkVideoType.medium,
             progress_reporter=reporter,
             failed_logger=FailedDownloadsLogger(
@@ -713,13 +748,15 @@ async def test_page_is_rendered_once_after_all_retries(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     rendered: list[Path] = []
-    original = single_post_module.render_html_to_file
+    original = post_pages_module.write_html_page
 
-    def render(chunks: list[HtmlGenChunk], out_path: Path, page_title: str) -> None:
+    def render(
+        out_path: Path, content: bytes, *, only_if_changed: bool = False
+    ) -> bool:
         rendered.append(out_path)
-        original(chunks, out_path, page_title)
+        return original(out_path, content, only_if_changed=only_if_changed)
 
-    monkeypatch.setattr(single_post_module, 'render_html_to_file', render)
+    monkeypatch.setattr(post_pages_module, 'write_html_page', render)
     async with TestServer(_build_app([], fail_first_file=True)) as server:
         await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
     assert rendered == [tmp_path / AUTHOR / POST_DIR_NAME / 'post.html']
@@ -732,12 +769,12 @@ async def test_render_failure_preserves_completed_media_and_transfer_cause(
     *,
     dead_images: bool,
 ) -> None:
-    original = single_post_module.render_html_to_file
+    original = post_pages_module.write_html_page
 
     def broken_render(
-        chunks: list[HtmlGenChunk], out_path: Path, page_title: str
-    ) -> None:
-        del chunks, out_path, page_title
+        out_path: Path, content: bytes, *, only_if_changed: bool = False
+    ) -> bool:
+        del out_path, content, only_if_changed
         message = 'page cannot be written'
         raise OSError(message)
 
@@ -745,7 +782,7 @@ async def test_render_failure_preserves_completed_media_and_transfer_cause(
         del delay
 
     monkeypatch.setattr(post_retry_module.asyncio, 'sleep', no_sleep)
-    monkeypatch.setattr(single_post_module, 'render_html_to_file', broken_render)
+    monkeypatch.setattr(post_pages_module, 'write_html_page', broken_render)
     served: list[str] = []
     async with TestServer(_build_app(served, dead_images=dead_images)) as server:
         reporter = _QuietReporter()
@@ -760,7 +797,7 @@ async def test_render_failure_preserves_completed_media_and_transfer_cause(
         assert located.record.sync.page_template is None
         assert located.record.media[f'file:{FILE_ID}'].status is MediaStatus.downloaded
         served.clear()
-        monkeypatch.setattr(single_post_module, 'render_html_to_file', original)
+        monkeypatch.setattr(post_pages_module, 'write_html_page', original)
         await _run_download(tmp_path, server.make_url('/'), _QuietReporter())
         assert all('/image/' in path for path in served)
         assert len(served) == (5 if dead_images else 0)

@@ -2,7 +2,17 @@
 
 ### Added
 
-- `view` starts the local viewer server with the packaged shell, optional LAN access, and empty-library or compatibility pages. The `/api` and `/media` routes currently return 404; browsing, search, playback and mark editing are not connected yet.
+- Downloads save small thumbnails for post images and locked teasers. Later runs fill missing thumbnails without downloading originals again; thumbnail failures warn once and preserve primary download results. Viewer thumbnail URLs fall back to local originals when needed.
+
+- Authored links between saved posts open local copies. Downloads resolve links to posts saved later in the same run; `render` and later downloads refresh processed pages when more targets become available. Viewer body links use local post routes.
+
+- `view` starts the local viewer server with the packaged shell, optional LAN access, and empty-library or compatibility pages. Read APIs expose authors, filtered posts, search context and complete post bodies; local media support seeking with Range requests. Data screens and mark editing are not connected to the shell yet.
+
+- Viewer APIs save seen marks, favorites and playback positions across downloads, index rebuilds and library moves. Bulk marking respects the selected post filters and reports numerical progress. Playback near the end of a video or track counts as finished.
+
+- Viewer APIs list downloaded images, videos, audio and files with favorite and per-piece unseen filters. Lists keep retained copies from removed or locked posts, include view counts and report current missing media.
+
+- Viewer APIs can open saved files in their default applications, reveal them in the file manager and open post folders for a browser on the same computer. Remote browsers keep download access; local actions are unavailable over SSH and on Linux without a desktop opener.
 
 - `render [AUTHOR]` rebuilds saved post pages offline from complete records and current local media. It works without credentials or a search index and preserves media files and viewing marks.
 
@@ -21,6 +31,12 @@
 
 ### Changed
 
+- Dry-run includes page updates caused by local post links. Unchanged page bytes keep their modification time during downloads and offline rendering.
+
+- Saved video players show the stored preview when available and request metadata preload. The viewer body uses the same video markup.
+
+- Saved post pages use consistent spacing between paragraphs, including text inside lists. Line breaks within a paragraph remain distinct from paragraph boundaries.
+
 - Rebuilding the library search index is faster for large libraries.
 
 - BREAKING: v5 stores download state in each post's `post.json` and marks the library format. It refuses unmarked destinations containing older post folders before any download request or startup write. There is no automatic migration or adoption of v4 downloads or their cache; choose a separate destination and keep the old folder for posts no longer available on Boosty
@@ -31,6 +47,14 @@
 - Dry-run creates or changes no local files, including config samples, caches, failure logs and debug logs. A missing config is an error; `--debug` prints preview diagnostics on the console and keeps any existing log file unchanged
 
 ### Fixed
+
+- Interrupted downloads show partial results and pending page checks. Repeated post IDs in a blog listing are processed once in downloads and dry-run.
+
+- Saved post pages served by the viewer can load their own images, audio and video while keeping their sandbox isolation. Ordinary media URLs retain protection against embedding from unrelated sites.
+
+- The saved-page theme switcher works when browser storage is unavailable, including inside the viewer's sandbox. In that case the choice applies only to the current page.
+
+- Saved post pages and viewer body fragments discard unsafe link schemes while preserving their text. HTML and SVG attachments download through the viewer; confirmed generated post pages run in an opaque sandbox.
 
 - On Windows, saving a library record tolerates brief reader locks while preserving complete old or new contents
 - A failed media piece no longer causes completed pieces of the same type to download again. Each completion is saved separately, and an unavailable external video does not prevent retries for a different transient failure

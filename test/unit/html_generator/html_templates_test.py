@@ -217,6 +217,29 @@ def test_html_generator_templates(tmp_path: Path):
     assert len(data) > 0
 
 
+def test_video_requests_metadata_without_inventing_a_poster() -> None:
+    html = render_html_chunk(HtmlGenVideo(url='videos/lesson.webm', title='Lesson'))
+
+    assert '<video controls preload="metadata">' in html
+    assert 'poster=' not in html
+    assert '<source src="videos/lesson.webm" type="video/webm">' in html
+    assert '<div class="media-title">Lesson</div>' in html
+
+
+def test_video_poster_normalizes_separators_and_escapes_attribute_markup() -> None:
+    html = render_html_chunk(
+        HtmlGenVideo(
+            url='videos/lesson.mp4',
+            poster_url=r'previews\cover "<one>" & two.png',
+        )
+    )
+
+    assert 'preload="metadata"' in html
+    assert 'poster="previews/cover &#34;&lt;one&gt;&#34; &amp; two.png"' in html
+    assert '<source src="videos/lesson.mp4" type="video/mp4">' in html
+    assert '<one>' not in html
+
+
 @pytest.mark.parametrize(
     ('filename', 'icon'),
     [

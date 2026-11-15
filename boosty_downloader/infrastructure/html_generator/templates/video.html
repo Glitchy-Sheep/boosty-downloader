@@ -2,7 +2,7 @@
     {% if video.title %}
     <div class="media-title">{{ video.title }}</div>
     {% endif %}
-    <video controls>
+    <video controls preload="metadata"{% if poster_src %} poster="{{ poster_src }}"{% endif %}>
         <source src="{{ src }}"{% if mime_type %} type="{{ mime_type }}"{% endif %}>
         Your browser does not support the video tag.
     </video>

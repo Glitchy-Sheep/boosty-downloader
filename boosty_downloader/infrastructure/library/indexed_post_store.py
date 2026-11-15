@@ -8,7 +8,7 @@ from boosty_downloader.infrastructure.library.index_writer import LibraryIndexWr
 from boosty_downloader.infrastructure.library.post_store import JsonPostStore
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Collection
     from pathlib import Path
 
     from boosty_downloader.domain.library import LocatedPost
@@ -40,8 +40,10 @@ class IndexedJsonPostStore:
     def find_post(self, author: str, post_id: str) -> LocatedPost | None:
         return self._store.find_post(author, post_id)
 
-    def choose_post_folder(self, post: PostMetadata) -> str:
-        return self._store.choose_post_folder(post)
+    def choose_post_folder(
+        self, post: PostMetadata, *, reserved_folders: Collection[str] = ()
+    ) -> str:
+        return self._store.choose_post_folder(post, reserved_folders=reserved_folders)
 
     def save_post(self, folder: str, record: StoredPost) -> None:
         self._store.save_post(folder, record)

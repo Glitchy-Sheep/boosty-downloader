@@ -5,6 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from aiolimiter import AsyncLimiter
+
+from boosty_downloader.application.post_link_tracker import PostLinkTracker
+from boosty_downloader.application.post_locations import ReservedPostLocator
 from boosty_downloader.application.run_statistics import RunStatistics
 
 if TYPE_CHECKING:
@@ -26,6 +30,11 @@ if TYPE_CHECKING:
     )
 
 
+def _thumbnail_requests() -> AsyncLimiter:
+    """Allow one optional image-resizer request per second across a run."""
+    return AsyncLimiter(1, time_period=1)
+
+
 @dataclass
 class DownloadContext:
     """Aggregates dependencies and configuration for the download workflow."""
@@ -41,5 +50,13 @@ class DownloadContext:
     failed_logger: FailureLog
     # Counters of this run, filled by the use cases and shown at the end.
     run_statistics: RunStatistics = field(default_factory=RunStatistics)
+    page_links: PostLinkTracker = field(default_factory=PostLinkTracker)
     excluded_tags: tuple[str, ...] = ()
     restore_missing: bool = False
+    thumbnail_requests: AsyncLimiter = field(default_factory=_thumbnail_requests)
+    thumbnail_warning_reported: bool = False
+    post_locations: ReservedPostLocator = field(init=False)
+
+    def __post_init__(self) -> None:
+        """Share folder reservations across this run's posts and retries."""
+        self.post_locations = ReservedPostLocator(self.post_store)

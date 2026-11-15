@@ -8,7 +8,16 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 
+from boosty_downloader.domain.library_marks import PostMarks
 from boosty_downloader.domain.stored_post import AuthorInfo, PostMetadata, StoredPost
+
+
+@dataclass(frozen=True, slots=True)
+class PostIdentity:
+    """A full post key, independent of folder names and index row numbers."""
+
+    author: str
+    post_id: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,8 +37,16 @@ class SavedPost:
 
 
 @dataclass(frozen=True, slots=True)
+class SavedPage:
+    """A rendered page's recorded ownership, with library-relative folder and path."""
+
+    folder: str
+    path: str
+
+
+@dataclass(frozen=True, slots=True)
 class MediaCounts:
-    """Counts of current media, with both video sources combined."""
+    """Media counts for a selection, with both video sources combined."""
 
     images: int = 0
     videos: int = 0
@@ -172,10 +189,20 @@ class LibraryPost:
     """
     Current overview with an independently retained saved body.
 
-    A saved body has both record and folder; a locked-only post has neither. The overview may contain newer locked metadata than the saved record. The teaser path is relative to the author folder.
+    A saved body has both record and folder; a locked-only post has neither. The overview may contain newer locked metadata than the saved record. The teaser paths are relative to the author folder.
     """
 
     overview: PostOverview
     record: StoredPost | None = None
     folder: str | None = None
     teaser_path: str | None = None
+    teaser_thumbnail_path: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class LibraryPostDetails:
+    """Fresh content and marks from one source read; cover is library-relative."""
+
+    content: LibraryPost
+    marks: PostMarks
+    cover_path: str | None

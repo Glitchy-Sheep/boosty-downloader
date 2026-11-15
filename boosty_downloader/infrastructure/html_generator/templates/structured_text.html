@@ -2,7 +2,8 @@
 {%- for frag in block.fragments if is_line_break(frag) or frag.text %}
 {%- if is_line_break(frag) %}<br>
 {%- else %}
-{%- if frag.link_url %}<a href="{{ frag.link_url }}">{% endif -%}
+{%- set href = safe_href(frag.link_url) -%}
+{%- if href %}<a href="{{ href }}">{% endif -%}
 {%- if frag.style.bold %}<strong>{% endif -%}
 {%- if frag.style.italic %}<em>{% endif -%}
 {%- if frag.style.underline %}<u>{% endif -%}
@@ -10,7 +11,7 @@
 {%- if frag.style.underline %}</u>{% endif -%}
 {%- if frag.style.italic %}</em>{% endif -%}
 {%- if frag.style.bold %}</strong>{% endif -%}
-{%- if frag.link_url %}</a>{% endif -%}
+{%- if href %}</a>{% endif -%}
 {%- endif %}
 {%- else %}<br>
 {%- endfor %}</{{ tag }}>

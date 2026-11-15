@@ -377,3 +377,128 @@ def test_previous_preview_bytes_remain_occupied_after_its_path_changes(
         b'preview bytes'
     )
     assert attempt.progress.counted_media_ids == set()
+
+
+def _completed_image(attempt: Attempt) -> None:
+    target = attempt.state.reserve(IMAGE_ID, 'image.png')
+    attempt.state.complete(IMAGE_ID, _publish(target, b'original image'))
+    attempt.state.mark_rendered(7)
+
+
+def _publish_thumbnail(attempt: Attempt, content: bytes = b'thumbnail') -> str:
+    relative = '.boosty-downloader/thumbs/image.png'
+    path = attempt.root / AUTHOR / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(content)
+    return relative
+
+
+def test_thumbnail_completion_preserves_primary_and_page_state(
+    attempt: Attempt,
+) -> None:
+    _completed_image(attempt)
+    original = deepcopy(attempt.saved())
+    progress = deepcopy(attempt.progress)
+    path = _publish_thumbnail(attempt)
+
+    attempt.state.complete_thumbnail(IMAGE_ID, path)
+
+    expected = deepcopy(original)
+    expected.media[IMAGE_ID].thumbnail_path = path
+    assert attempt.saved() == expected
+    assert attempt.progress == progress
+    assert attempt.saved().sync.page_template == 7
+    assert (
+        attempt.root / attempt.state.folder / 'images/image.png'
+    ).read_bytes() == b'original image'
+
+
+@pytest.mark.parametrize('case', ['unselected', 'pending', 'removed', 'file'])
+def test_thumbnail_completion_requires_selected_current_downloaded_image(
+    attempt: Attempt, case: str
+) -> None:
+    _completed_image(attempt)
+    record = deepcopy(attempt.saved())
+    media_id = FILE_ID if case == 'file' else IMAGE_ID
+    if case == 'pending':
+        record.media[media_id].status = MediaStatus.pending
+    if case == 'removed':
+        record.media[media_id].removed_at = NOW
+    if case == 'file':
+        record.media[media_id].status = MediaStatus.downloaded
+    prepared = replace(
+        attempt.prepared,
+        reconciliation=ReconcileResult(record, []),
+        thumbnail_download_ids=() if case == 'unselected' else (media_id,),
+    )
+    state = PostDownloadState(attempt.root, attempt.store, prepared, attempt.progress)
+    path = _publish_thumbnail(attempt)
+
+    with pytest.raises(ValueError, match='not selected'):
+        state.complete_thumbnail(media_id, path)
+
+    assert state.record == record
+
+
+@pytest.mark.parametrize(
+    'path',
+    [
+        'image.png',
+        'images/image.png',
+        '../image.png',
+        '/absolute/image.png',
+        'fixture-author/.boosty-downloader/thumbs/image.png',
+    ],
+)
+def test_thumbnail_completion_requires_author_relative_thumbnail_path(
+    attempt: Attempt, path: str
+) -> None:
+    _completed_image(attempt)
+    before = attempt.saved()
+
+    with pytest.raises(ValueError, match=r'thumbnail|Thumbnail|link'):
+        attempt.state.complete_thumbnail(IMAGE_ID, path)
+
+    assert attempt.saved() == before
+
+
+@pytest.mark.parametrize('kind', ['missing', 'empty', 'directory', 'symlink'])
+def test_thumbnail_completion_requires_nonempty_regular_file(
+    attempt: Attempt, kind: str
+) -> None:
+    _completed_image(attempt)
+    path = _publish_thumbnail(attempt, b'')
+    destination = attempt.root / AUTHOR / path
+    if kind != 'empty':
+        destination.unlink()
+    if kind == 'directory':
+        destination.mkdir()
+    if kind == 'symlink':
+        try:
+            destination.symlink_to(
+                attempt.root / attempt.state.folder / 'images/image.png'
+            )
+        except OSError:
+            pytest.skip('Symlink creation unavailable')
+    before = attempt.saved()
+
+    with pytest.raises(ValueError, match=r'thumbnail|Thumbnail|link'):
+        attempt.state.complete_thumbnail(IMAGE_ID, path)
+
+    assert attempt.saved() == before
+
+
+def test_thumbnail_record_failure_preserves_published_bytes_and_previous_state(
+    attempt: Attempt, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _completed_image(attempt)
+    path = _publish_thumbnail(attempt)
+    before = attempt.saved()
+    monkeypatch.setattr(attempt.store, 'save_post', _deny_save)
+
+    with pytest.raises(OSError, match='Record save failed'):
+        attempt.state.complete_thumbnail(IMAGE_ID, path)
+
+    assert attempt.saved() == before
+    assert attempt.state.record == before
+    assert (attempt.root / AUTHOR / path).read_bytes() == b'thumbnail'
