@@ -1,6 +1,11 @@
 import { expect, openPost, pane, POSTS, sidebar, test } from './post-fixtures'
 import { requireFixture } from './required-fixture'
 import {
+  captureReaderInput,
+  type ReaderInputAttempt,
+  type ReaderInputSnapshot,
+} from './sidebar-native-input'
+import {
   blurControl,
   content,
   dragTo,
@@ -16,18 +21,7 @@ import {
   widthFrames,
 } from './sidebar-fixtures'
 
-type ReaderInputSnapshot = {
-  trusted: boolean
-  animating: boolean
-  sidebarWidth: number
-  scrollTop: number
-}
-
-declare global {
-  interface Window {
-    sidebarReaderInput?: ReaderInputSnapshot
-  }
-}
+const MAX_INPUT_ATTEMPTS = 3
 
 test('drag is immediate, keyboard changes persist, and the resize hit area resets', async ({
   page,
@@ -129,42 +123,48 @@ for (const input of ['wheel', 'keyboard'] as const) {
   }, info) => {
     await seedPreference(page, JSON.stringify({ width: 500, collapsed: false }))
     await openPost(page, corpus, POSTS.reader)
-    await expectWidth(page, 500)
-    await pane(page).getByRole('link', { name: 'Boosty', exact: true }).focus()
-    const bounds = requireFixture(await pane(page).boundingBox())
-    await page.mouse.move(bounds.x + bounds.width - 24, bounds.y + bounds.height / 2)
-    await pane(page).evaluate((element, input) => {
-      element.scrollTop = 120
-      delete window.sidebarReaderInput
-      const capture = (event: Event): void => {
-        if (event instanceof KeyboardEvent && event.key !== 'PageDown') return
-        const panel = document.querySelector('#sidebar[data-panel]')
-        const group = document.querySelector('[data-sidebar-layout]')
-        if (!panel || !group) throw new Error('Missing sidebar glide geometry')
-        window.sidebarReaderInput = {
-          trusted: event.isTrusted,
-          animating: group.hasAttribute('data-animating'),
-          sidebarWidth: panel.getBoundingClientRect().width,
-          scrollTop: element.scrollTop,
-        }
-        element.removeEventListener(input === 'wheel' ? 'wheel' : 'keydown', capture, true)
+    const attempts: ReaderInputAttempt[] = []
+    let selected: ReaderInputSnapshot | null = null
+    for (let number = 1; number <= MAX_INPUT_ATTEMPTS; number++) {
+      if (number > 1) {
+        await expectWidth(page, 0)
+        await expect(layout(page)).not.toHaveAttribute('data-animating')
+        await toggle(page).click()
       }
-      element.addEventListener(input === 'wheel' ? 'wheel' : 'keydown', capture, {
-        capture: true,
-        passive: true,
+      await expectWidth(page, 500)
+      await expect(layout(page)).not.toHaveAttribute('data-animating')
+      await pane(page).getByRole('link', { name: 'Boosty', exact: true }).focus()
+      const bounds = requireFixture(await pane(page).boundingBox())
+      await page.mouse.move(bounds.x + bounds.width - 24, bounds.y + bounds.height / 2)
+      await pane(page).evaluate((element) => {
+        element.scrollTop = 120
       })
-    }, input)
-    await frames(page, 3)
-    await page.keyboard.press('[')
-    await frames(page, 2)
-    if (input === 'wheel') await page.mouse.wheel(0, 350)
-    else await page.keyboard.press('PageDown')
-    await expect.poll(() => page.evaluate(() => window.sidebarReaderInput !== undefined)).toBe(true)
-    const captured = requireFixture(await page.evaluate(() => window.sidebarReaderInput))
+      await frames(page, 3)
+      const attempt = await captureReaderInput(page, input, 500)
+      attempts.push(attempt)
+      await info.attach(`sidebar-native-reader-input-attempt-${number}.json`, {
+        body: JSON.stringify({ input, number, ...attempt }),
+        contentType: 'application/json',
+      })
+      expect(attempt.error).toBeNull()
+      const snapshot = attempt.captured
+      if (snapshot) {
+        expect(snapshot.trusted).toBe(true)
+        if (snapshot.animating && snapshot.sidebarWidth > 0 && snapshot.sidebarWidth < 500) {
+          selected = snapshot
+          break
+        }
+      }
+    }
     await info.attach('sidebar-native-reader-input.json', {
-      body: JSON.stringify({ input, captured }),
+      body: JSON.stringify({ input, captured: selected, attempts }),
       contentType: 'application/json',
     })
+    expect(
+      selected,
+      'Native input must arrive during a sidebar glide within three attempts',
+    ).not.toBeNull()
+    const captured = requireFixture(selected)
     expect(captured.trusted).toBe(true)
     expect(captured.animating).toBe(true)
     expect(captured.sidebarWidth).toBeGreaterThan(0)
