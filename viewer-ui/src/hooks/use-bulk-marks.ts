@@ -10,7 +10,7 @@ import {
 import { getMarksProgress, setSeenMany } from '@/lib/api'
 import type { BulkMarksResult, PostFilters } from '@/lib/api.gen'
 import { markMutationKeys } from '@/lib/mark-keys'
-import type { MarkWriteContext } from '@/lib/mark-reads'
+import { settleActiveReads, type WriteContext } from '@/lib/mutation-reads'
 import { authorQuery, authorsQuery } from '@/lib/queries'
 
 export type BulkMarkSelection = {
@@ -79,9 +79,10 @@ export function useBulkMarks(author: string) {
     mutationKey,
     mutationFn: (selection: BulkMarkSelection) =>
       setSeenMany(selection.author, { filters: selection.filters, seen: selection.seen }),
-    onMutate: (): MarkWriteContext => ({ phase: 'writing' }),
+    onMutate: (): WriteContext => ({ phase: 'writing' }),
     onSettled: async (_data, _error, selection, context) => {
       if (context) context.phase = 'refreshing'
+      await settleActiveReads(client, authorQueries(selection.author))
       await refreshMarks(client, selection.author)
     },
   })

@@ -55,10 +55,15 @@ test.each<ReadKind>(['detail', 'list'])(
     const loader = loadRows(client, kind)
     await vi.waitFor(() => expect(reads).toBe(1))
     write.resolve(savedFavoriteResponse(false))
-    await vi.waitFor(() => expect(client.isMutating()).toBe(0))
+    await vi.waitFor(() =>
+      expect(client.getMutationCache().getAll()[0]?.state.context).toMatchObject({
+        phase: 'refreshing',
+      }),
+    )
     firstRead.resolve(Response.json(kind === 'detail' ? savedPost : savedList))
     await expect(loader).resolves.toMatchObject([{ favorite: false }])
-    expect(reads).toBe(2)
+    await vi.waitFor(() => expect(client.isMutating()).toBe(0))
+    expect(reads).toBe(3)
     expect(
       client.getQueryData(postQuery('studio', savedRow.id).queryKey)?.favorite ??
         client.getQueryData(postsQuery('studio', { order: 'oldest' }).queryKey)?.rows[0]?.favorite,
@@ -89,10 +94,15 @@ test('an initial loader already running when a row write starts is not cancelled
   togglePostMark(client, 'studio', savedRow.id, 'favorite')
   await vi.waitFor(() => expect(writes).toBe(1))
   write.resolve(savedFavoriteResponse(false))
-  await vi.waitFor(() => expect(client.isMutating()).toBe(0))
+  await vi.waitFor(() =>
+    expect(client.getMutationCache().getAll()[0]?.state.context).toMatchObject({
+      phase: 'refreshing',
+    }),
+  )
   firstRead.resolve(Response.json(savedPost))
   await expect(loader).resolves.toMatchObject([{ favorite: false }])
-  expect(reads).toBe(2)
+  await vi.waitFor(() => expect(client.isMutating()).toBe(0))
+  expect(reads).toBe(3)
   client.clear()
 })
 
@@ -119,9 +129,14 @@ test('a first list read retains a confirmed field while the next field is still 
   const loader = loadRows(client, 'list')
   await vi.waitFor(() => expect(reads).toBe(1))
   favorite.resolve(savedFavoriteResponse(false))
-  await vi.waitFor(() => expect(writes).toBe(2))
+  await vi.waitFor(() =>
+    expect(client.getMutationCache().getAll()[0]?.state.context).toMatchObject({
+      phase: 'refreshing',
+    }),
+  )
   firstRead.resolve(Response.json(savedList))
   await expect(loader).resolves.toMatchObject([{ favorite: false, seen: true }])
+  await vi.waitFor(() => expect(writes).toBe(2))
   seen.resolve(
     Response.json({
       post: { ...savedRow, favorite: false, seen: true },
@@ -159,10 +174,15 @@ test('a first read spanning a partial write failure checks the actual saved mark
       { status: 503 },
     ),
   )
-  await vi.waitFor(() => expect(client.isMutating()).toBe(0))
+  await vi.waitFor(() =>
+    expect(client.getMutationCache().getAll()[0]?.state.context).toMatchObject({
+      phase: 'refreshing',
+    }),
+  )
   firstRead.resolve(Response.json(savedPost))
   await expect(loader).resolves.toMatchObject([{ seen: true }])
-  expect(reads).toBe(2)
+  await vi.waitFor(() => expect(client.isMutating()).toBe(0))
+  expect(reads).toBe(3)
   client.clear()
 })
 
@@ -190,7 +210,11 @@ test('a cancelled read does not start another fetch after a mark settles', async
   await vi.waitFor(() => expect(reads).toBe(1))
   await client.cancelQueries({ queryKey: postQuery('studio', savedRow.id).queryKey })
   write.resolve(savedFavoriteResponse(false))
-  await vi.waitFor(() => expect(client.isMutating()).toBe(0))
+  await vi.waitFor(() =>
+    expect(client.getMutationCache().getAll()[0]?.state.context).toMatchObject({
+      phase: 'refreshing',
+    }),
+  )
   firstRead.resolve(Response.json(savedPost))
   await loader
   await Promise.resolve()

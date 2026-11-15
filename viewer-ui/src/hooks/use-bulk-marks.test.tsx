@@ -334,10 +334,15 @@ test.each([
         )
       : Response.json({ count: 2 })
     write.resolve(result)
-    await waitFor(() => expect(hook.result.current.pending).toBe(false))
+    await waitFor(() =>
+      expect(client.getMutationCache().getAll()[0]?.state.context).toMatchObject({
+        phase: 'refreshing',
+      }),
+    )
     staleRead.resolve(Response.json({ ...savedPost, seen: false }))
     await fulfilled
-    expect(reads).toBe(2)
+    await vi.waitFor(() => expect(client.isMutating()).toBe(0))
+    expect(reads).toBe(3)
     expect(client.getQueryData(query.queryKey)?.seen).toBe(true)
     expect(hook.result.current.operation?.status).toBe(failed ? 'error' : 'success')
     hook.unmount()

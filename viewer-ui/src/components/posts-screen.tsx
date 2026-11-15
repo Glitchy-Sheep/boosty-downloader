@@ -8,9 +8,8 @@ import { Sidebar } from '@/components/sidebar'
 import { usePostMarkActions, usePostMarks } from '@/hooks/use-post-marks'
 import { usePostShortcuts } from '@/hooks/use-post-shortcuts'
 import type { SavePosition } from '@/hooks/use-post-playback'
-import { savePlaybackPosition } from '@/lib/api'
 import { hasFilters, type Filters } from '@/lib/filters'
-import { acceptPosition } from '@/lib/playback-cache'
+import { saveMediaPosition } from '@/lib/playback-mutations'
 import { readPostShortcutContext } from '@/lib/post-shortcut-context'
 import { authorQuery, postQuery, tagsQuery, usePostList } from '@/lib/queries'
 import { stringifyViewerSearch } from '@/lib/url-search'
@@ -163,8 +162,7 @@ function PostReader({ author, postId }: { author: string; postId: string }) {
   const marks = usePostMarks(author, postId)
   const savePosition = useCallback<SavePosition>(
     async (media, position, options) => {
-      const saved = await savePlaybackPosition(author, media.id, position, options.keepalive)
-      acceptPosition(client, author, postId, saved)
+      await saveMediaPosition(client, author, postId, media, position, options.keepalive)
     },
     [client, author, postId],
   )
