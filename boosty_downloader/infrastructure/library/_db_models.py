@@ -30,6 +30,7 @@ from boosty_downloader.infrastructure.library._db_types import (
     SavedMetadata,
     UTCDateTime,
 )
+from boosty_downloader.infrastructure.library._post_text import fold_search_text
 
 if TYPE_CHECKING:
     from sqlalchemy import Connection
@@ -203,17 +204,6 @@ class DbMediaMarks(LibraryBase):
     media_id: Mapped[str] = mapped_column(primary_key=True)
     position: Mapped[float] = mapped_column(FiniteFloat)
     finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
-
-
-def fold_search_text(value: str) -> str:
-    """Preserve highlight offsets while folding Russian yo and reserved controls."""
-    return (
-        value.replace('\0', ' ')
-        .replace('\x02', ' ')
-        .replace('\x03', ' ')
-        .replace('ё', 'е')
-        .replace('Ё', 'Е')
-    )
 
 
 @event.listens_for(DbPost, 'before_insert')

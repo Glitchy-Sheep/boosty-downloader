@@ -8,13 +8,14 @@ from typing import TYPE_CHECKING, Final, Literal
 from boosty_downloader.domain.library_summary import latest_media_added_at
 from boosty_downloader.domain.media_thumbnails import media_thumbnail_path
 from boosty_downloader.domain.stored_post import (
-    LineBreak,
-    ListBlock,
     MediaBlock,
     MediaKind,
     MediaStatus,
-    ParagraphBreak,
-    TextBlock,
+)
+from boosty_downloader.infrastructure.library._post_text import (
+    fold_search_text,
+    post_body_text,
+    replace_search_controls,
 )
 
 if TYPE_CHECKING:
@@ -25,12 +26,9 @@ if TYPE_CHECKING:
     from boosty_downloader.domain.library_marks import PlaybackPosition, PostMarks
     from boosty_downloader.domain.stored_post import (
         AuthorInfo,
-        Block,
-        ListItem,
         MediaEntry,
         PostMetadata,
         StoredPost,
-        TextContent,
     )
     from boosty_downloader.infrastructure.library.index_sources import (
         AuthorSource,
@@ -101,8 +99,8 @@ def project_post(source: PostSource) -> PostProjection:
     """Build independent query values while retaining canonical media states and sizes."""
     record = source.post.record
     media = _project_media(source)
-    title = _replace_search_controls(source.post.overview.post.title)
-    text = _replace_search_controls(_body_text(record))
+    title = replace_search_controls(source.post.overview.post.title)
+    text = replace_search_controls(post_body_text(record))
     return PostProjection(
         metadata=_copy_metadata(source.post.overview.post),
         access=source.post.overview.access,
@@ -142,16 +140,6 @@ def _copy_marks(marks: PostMarks) -> PostMarks:
 
 def _copy_playback(playback: PlaybackPosition | None) -> PlaybackPosition | None:
     return replace(playback) if playback is not None else None
-
-
-def _replace_search_controls(text: str) -> str:
-    # NUL truncates SQLite highlights; marker controls are reserved for search hits.
-    return text.replace('\x00', ' ').replace('\x02', ' ').replace('\x03', ' ')
-
-
-def fold_search_text(text: str) -> str:
-    """Fold Russian yo without changing offsets; FTS handles case and Latin accents."""
-    return _replace_search_controls(text).replace('ё', 'е').replace('Ё', 'Е')
 
 
 def _project_media(source: PostSource) -> tuple[MediaProjection, ...]:
@@ -204,37 +192,3 @@ def _current_counts(
         ):
             counts[entry.kind] += 1
     return counts
-
-
-def _body_text(record: StoredPost | None) -> str:
-    if record is None:
-        return ''
-    return ''.join(_block_text(block) for block in record.blocks).strip()
-
-
-def _block_text(block: Block) -> str:
-    match block:
-        case TextBlock() | ParagraphBreak():
-            return _text_content(block)
-        case ListBlock():
-            return '\n'.join(_list_item_text(item) for item in block.items) + '\n'
-        case MediaBlock():
-            return '\n'
-
-
-def _text_content(block: TextContent) -> str:
-    match block:
-        case ParagraphBreak():
-            return '\n\n'
-        case TextBlock():
-            return ''.join(
-                '\n' if isinstance(fragment, LineBreak) else fragment.text
-                for fragment in block.fragments
-            )
-
-
-def _list_item_text(item: ListItem) -> str:
-    own_text = ''.join(_text_content(block) for block in item.data)
-    return '\n'.join(
-        [own_text, *(_list_item_text(nested) for nested in item.nested_items)]
-    )
