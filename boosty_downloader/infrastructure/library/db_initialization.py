@@ -177,16 +177,16 @@ def _require_empty(session: Session) -> None:
 
 def _require_known_tables(session: Session) -> None:
     known = {*LibraryBase.metadata.tables, _SEARCH_TABLE}
-    tables = session.scalars(
+    with session.scalars(
         text(
             "SELECT name FROM pragma_table_list WHERE schema = 'main' "
             "AND type IN ('table', 'virtual') AND name NOT GLOB 'sqlite_*'"
         )
-    )
-    for name in tables:
-        if name not in known:
-            message = f'Unfinished primary library contains an unknown table: {name}; preserve its existing state'
-            raise LibraryDatabaseError(message)
+    ) as tables:
+        for name in tables:
+            if name not in known:
+                message = f'Unfinished primary library contains an unknown table: {name}; preserve its existing state'
+                raise LibraryDatabaseError(message)
 
 
 def _record_bytes(record: DatabaseLibraryMarker) -> bytes:

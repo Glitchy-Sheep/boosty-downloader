@@ -7,6 +7,8 @@ from sqlite3 import connect
 from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy import ScalarResult, text
+from sqlalchemy.sql import Executable
 from support.library_db import previous_database
 
 from boosty_downloader.infrastructure import media_publication
@@ -153,6 +155,34 @@ def test_pending_database_refuses_unknown_tables_and_orphaned_search_rows(
     assert not paths.marker.exists()
     assert _files(tmp_path) == before
     assert {path: path.stat().st_mtime_ns for path in paths.root.rglob('*')} == modified
+
+
+@pytest.mark.parametrize('unknown_table', [False, True])
+def test_schema_validation_closes_its_cursor_before_leaving_the_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, unknown_table: bool
+) -> None:
+    results: list[ScalarResult[object]] = []
+    with (
+        LibraryDatabase.create(tmp_path.resolve() / 'library.db') as database,
+        database.transaction() as session,
+    ):
+        if unknown_table:
+            session.execute(text('CREATE TABLE unrelated (value TEXT)'))
+        scalars = session.scalars
+
+        def capture_result(statement: Executable) -> ScalarResult[object]:
+            result = scalars(statement)
+            results.append(result)
+            return result
+
+        monkeypatch.setattr(session, 'scalars', capture_result)
+        if unknown_table:
+            with pytest.raises(LibraryDatabaseError, match='unknown table'):
+                db_initialization._require_known_tables(session)
+        else:
+            db_initialization._require_known_tables(session)
+        assert len(results) == 1
+        assert results[0].closed
 
 
 @pytest.mark.parametrize(
