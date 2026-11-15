@@ -14,10 +14,13 @@ from boosty_downloader.infrastructure.library.author_records import (
     AUTHOR_RECORD_FILENAME,
     AUTHOR_SERVICE_FOLDER,
 )
+from boosty_downloader.infrastructure.library.db_post_store import DatabasePostStore
+from boosty_downloader.infrastructure.library.db_store import LibraryDatabase
 from boosty_downloader.infrastructure.library.errors import InvalidAuthorRecordError
 from boosty_downloader.infrastructure.library.post_store import JsonPostStore
 
 if TYPE_CHECKING:
+    from collections.abc import Generator
     from pathlib import Path
 
     from boosty_downloader.application.ports import PostStore
@@ -25,11 +28,17 @@ if TYPE_CHECKING:
 NOW = datetime(2026, 11, 9, tzinfo=timezone.utc)
 
 
-@pytest.fixture(params=['memory', 'json'])
-def store(request: pytest.FixtureRequest, tmp_path: Path) -> PostStore:
+@pytest.fixture(params=['memory', 'json', 'database'])
+def store(
+    request: pytest.FixtureRequest, tmp_path: Path
+) -> Generator[PostStore, None, None]:
     if request.param == 'memory':
-        return MemoryPostStore()
-    return JsonPostStore(tmp_path / 'library')
+        yield MemoryPostStore()
+    elif request.param == 'json':
+        yield JsonPostStore(tmp_path / 'library')
+    else:
+        with LibraryDatabase.create(tmp_path / 'library.db') as database:
+            yield DatabasePostStore(tmp_path / 'library', database)
 
 
 @pytest.fixture
@@ -85,6 +94,23 @@ def test_reading_and_updating_one_author_preserves_others(
     assert store.load_author('writer') == author
     assert store.load_author('another') == other
     assert store.load_author('unknown') is None
+
+
+def test_author_snapshot_can_explicitly_clear_metadata_and_image_references(
+    store: PostStore,
+    author: AuthorInfo,
+    tmp_path: Path,
+) -> None:
+    asset = tmp_path / 'library/writer/.boosty-downloader/avatar.jpg'
+    asset.parent.mkdir(parents=True)
+    asset.write_bytes(b'user avatar')
+    modified = asset.stat().st_mtime_ns
+    store.save_author(author)
+    replacement = AuthorInfo(author.author, NOW)
+    store.save_author(replacement)
+    assert store.load_author(author.author) == replacement
+    assert asset.read_bytes() == b'user avatar'
+    assert asset.stat().st_mtime_ns == modified
 
 
 @pytest.mark.parametrize(

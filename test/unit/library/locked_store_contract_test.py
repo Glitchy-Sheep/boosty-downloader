@@ -3,21 +3,31 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 import pytest
 from support.memory_post_store import MemoryPostStore
 
-from boosty_downloader.domain.stored_post import LockedPost, PostMetadata
+from boosty_downloader.domain.library import LocatedPost
+from boosty_downloader.domain.stored_post import (
+    LockedPost,
+    PostMetadata,
+    PostSync,
+    StoredPost,
+)
 from boosty_downloader.infrastructure.library.author_records import (
     AUTHOR_SERVICE_FOLDER,
     LOCKED_RECORD_FILENAME,
 )
+from boosty_downloader.infrastructure.library.db_post_store import DatabasePostStore
+from boosty_downloader.infrastructure.library.db_store import LibraryDatabase
 from boosty_downloader.infrastructure.library.errors import InvalidAuthorRecordError
 from boosty_downloader.infrastructure.library.post_store import JsonPostStore
 
 if TYPE_CHECKING:
+    from collections.abc import Generator
     from pathlib import Path
 
     from boosty_downloader.application.ports import PostStore
@@ -25,11 +35,17 @@ if TYPE_CHECKING:
 NOW = datetime(2026, 11, 9, tzinfo=timezone.utc)
 
 
-@pytest.fixture(params=['memory', 'json'])
-def store(request: pytest.FixtureRequest, tmp_path: Path) -> PostStore:
+@pytest.fixture(params=['memory', 'json', 'database'])
+def store(
+    request: pytest.FixtureRequest, tmp_path: Path
+) -> Generator[PostStore, None, None]:
     if request.param == 'memory':
-        return MemoryPostStore()
-    return JsonPostStore(tmp_path / 'library')
+        yield MemoryPostStore()
+    elif request.param == 'json':
+        yield JsonPostStore(tmp_path / 'library')
+    else:
+        with LibraryDatabase.create(tmp_path / 'library.db') as database:
+            yield DatabasePostStore(tmp_path / 'library', database)
 
 
 @pytest.fixture
@@ -94,6 +110,53 @@ def test_author_and_full_post_id_select_independent_observations(
     assert store.load_locked_post('writer', 'other-lesson') == other_post
     assert store.load_locked_post('unknown', 'lesson') is None
     assert store.load_locked_post('writer', 'unknown') is None
+
+
+def test_saved_body_updates_do_not_establish_restored_access(
+    store: PostStore,
+    locked: LockedPost,
+) -> None:
+    saved = StoredPost(
+        replace(locked.post, title='Saved overview', tags=['saved']), PostSync(NOW, NOW)
+    )
+    folder = store.choose_post_folder(saved.post)
+    store.save_post(folder, saved)
+    store.save_locked_post(locked)
+    saved.post.title = 'Offline update'
+    saved.post.tags = ['offline']
+    store.save_post(folder, saved)
+    assert store.load_locked_post('writer', 'lesson') == locked
+    assert store.find_post('writer', 'lesson') == LocatedPost(folder, saved)
+    store.clear_locked_post('writer', 'lesson')
+    assert store.load_locked_post('writer', 'lesson') is None
+    assert store.find_post('writer', 'lesson') == LocatedPost(folder, saved)
+
+
+@pytest.mark.parametrize('clear_first', [False, True])
+def test_locked_only_observation_becomes_accessible_in_either_save_order(
+    store: PostStore,
+    locked: LockedPost,
+    *,
+    clear_first: bool,
+) -> None:
+    store.save_locked_post(locked)
+    saved = StoredPost(replace(locked.post, title='Now accessible'), PostSync(NOW, NOW))
+    folder = store.choose_post_folder(saved.post)
+    if clear_first:
+        store.clear_locked_post('writer', 'lesson')
+    store.save_post(folder, saved)
+    if not clear_first:
+        assert store.load_locked_post('writer', 'lesson') == locked
+        store.clear_locked_post('writer', 'lesson')
+    assert store.load_locked_post('writer', 'lesson') is None
+    assert store.find_post('writer', 'lesson') == LocatedPost(folder, saved)
+
+
+def test_absent_clear_does_not_create_a_library(
+    store: PostStore, tmp_path: Path
+) -> None:
+    store.clear_locked_post('writer', 'lesson')
+    assert not (tmp_path / 'library').exists()
 
 
 @pytest.mark.parametrize(
