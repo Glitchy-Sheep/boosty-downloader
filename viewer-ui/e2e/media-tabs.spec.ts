@@ -19,10 +19,8 @@ import {
 } from './media-fixtures'
 import { switchFrames, verifySwitch, type SwitchFrame, type TabAction } from './media-frames'
 
-// DOM snapshot tracing copies image response bodies and distorts frame timings.
-test.use({
-  trace: { mode: 'retain-on-failure', snapshots: false, screenshots: true, sources: true },
-})
+// Measure frames without concurrent DOM capture or screencast encoding.
+test.use({ trace: 'off' })
 
 test('tabs retain the same DOM, post/list/grid scroll and independent filters through Back and Forward', async ({
   page,
