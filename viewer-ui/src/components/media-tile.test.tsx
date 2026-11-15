@@ -80,7 +80,7 @@ test('audio titles stay above dark cover art and use a clear fallback when unnam
   }
   const { rerender } = render(
     <MediaTile
-      author="studio"
+      author="studio !#"
       item={item}
       post={{ ...savedPost, cover_path: 'cover.png' }}
       active
@@ -91,7 +91,12 @@ test('audio titles stay above dark cover art and use a clear fallback when unnam
   const button = screen.getByRole('button', { name: 'Play A track' })
   expect(button).toHaveClass('bg-slate-900')
   expect(button.querySelector('img')).toHaveClass('opacity-40')
-  expect(button.querySelector('img')).toHaveAttribute('src', '/media/studio/cover.png')
+  expect(button.querySelector('img')).toHaveAttribute(
+    'src',
+    `/thumbs/studio%20%21%23/${item.post_id}`,
+  )
+  expect(button.querySelector('img')).toHaveAttribute('loading', 'lazy')
+  expect(button.querySelector('img')).toHaveAttribute('decoding', 'async')
   expect(screen.queryByTitle(/played/)).not.toBeInTheDocument()
   rerender(
     <MediaTile
@@ -104,6 +109,7 @@ test('audio titles stay above dark cover art and use a clear fallback when unnam
     />,
   )
   expect(screen.getByRole('button', { name: 'Play Untitled post' })).toBeVisible()
+  expect(button.querySelector('img')).toBeNull()
   expect(screen.getByText('0:00')).toBeVisible()
   expect(screen.queryByTitle(/played/)).not.toBeInTheDocument()
 })

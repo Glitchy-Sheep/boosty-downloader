@@ -119,6 +119,13 @@ test('audio shows artist, dates, played part, post heart and plays current filte
   const store = createPlayerStore()
   const { container } = render(<Harness data={data} store={store} />)
   await waitFor(() => expect(screen.getByText('Artist')).toBeVisible())
+  const artwork = container.querySelectorAll('[data-art] img')
+  expect(artwork).toHaveLength(2)
+  for (const image of artwork) {
+    expect(image).toHaveAttribute('src', '/thumbs/a%20%21%23/post')
+    expect(image).toHaveAttribute('loading', 'lazy')
+    expect(image).toHaveAttribute('decoding', 'async')
+  }
   expect(screen.getAllByText(/1 Nov 2026/)[0]).toBeDefined()
   expect(screen.getByTitle('50% played')).toBeInTheDocument()
   expect(screen.getByLabelText('Played to the end')).toBeInTheDocument()
@@ -187,6 +194,8 @@ test('locked audio omits heart, removed-only lists have no rule, and fallback co
   expect(screen.queryByRole('button', { name: 'Add to favorites' })).not.toBeInTheDocument()
   expect(container.querySelector('[data-removed-heading] .border-t')).toBeNull()
   expect(container.querySelector('[data-art]')).toHaveClass('opacity-35')
+  expect(container.querySelector('[data-art] img')).toBeNull()
+  expect(container.querySelector('[data-art] .lucide-audio-lines')).toBeInTheDocument()
 })
 
 test('audio retains scroll while hidden, ignores starts while inactive, resets for new filters and reports favorite failures visibly', async () => {

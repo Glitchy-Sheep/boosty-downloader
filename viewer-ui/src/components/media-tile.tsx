@@ -4,7 +4,7 @@ import { memo, type ReactNode } from 'react'
 
 import { REMOVED_MEDIA_ART, REMOVED_MEDIA_LABEL } from '@/components/removed-media'
 import type { MediaItem, MediaPost } from '@/lib/api.gen'
-import { mediaPath, mediaThumbnailPath } from '@/lib/media-paths'
+import { mediaThumbnailPath, postThumbnailPath } from '@/lib/media-paths'
 import { formatPlaybackTime } from '@/lib/playback-position'
 
 export type MediaTileProps = {
@@ -37,7 +37,7 @@ export const MediaTile = memo(function MediaTile({
 }: MediaTileProps) {
   const track = item.kind === 'audio'
   const art = track
-    ? post.cover_path && mediaPath(author, post.cover_path)
+    ? post.cover_path && postThumbnailPath(author, item.post_id)
     : mediaThumbnailPath(author, item)
   const title = titleOf(item, post)
   const action = track ? 'Play' : 'Open'
