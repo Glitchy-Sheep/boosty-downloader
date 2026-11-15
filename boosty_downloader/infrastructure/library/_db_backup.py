@@ -13,12 +13,16 @@ from typing import cast
 
 from boosty_downloader.infrastructure.library._db_engine import (
     BUSY_TIMEOUT_SECONDS,
+    DatabaseFileIdentity,
     backup_path,
     backup_sidecars,
     make_database_engine,
     validate_database_path,
 )
 from boosty_downloader.infrastructure.library._db_errors import LibraryDatabaseError
+from boosty_downloader.infrastructure.library._db_runtime import (
+    require_supported_sqlite,
+)
 from boosty_downloader.infrastructure.library._db_schema import (
     SchemaIdentity,
     inspect_schema,
@@ -32,9 +36,13 @@ class _BackupLockStatus(IntEnum):
     locked = 6
 
 
-def make_migration_backup(path: Path, identity: SchemaIdentity) -> None:
-    """Copy committed state while another connection reserves the migration write."""
+def make_library_backup(
+    path: Path, identity: SchemaIdentity, *, source_file: DatabaseFileIdentity
+) -> None:
+    """Copy committed state while another connection reserves the preparation write."""
+    require_supported_sqlite()
     validate_database_path(path)
+    source_file.require_unchanged(path)
     _require_idle_backup(path)
     descriptor, filename = mkstemp(
         prefix=f'.{path.name}.', suffix='.backup', dir=path.parent
@@ -42,11 +50,14 @@ def make_migration_backup(path: Path, identity: SchemaIdentity) -> None:
     close(descriptor)
     temporary = Path(filename)
     try:
-        _copy_database(path, temporary, identity)
+        source_file.require_unchanged(path)
+        _copy_database(path, temporary, identity, source_file=source_file)
+        source_file.require_unchanged(path)
         with temporary.open('r+b') as stream:
             fsync(stream.fileno())
         validate_database_path(path)
         _require_idle_backup(path)
+        source_file.require_unchanged(path)
         temporary.replace(backup_path(path))
     finally:
         temporary.unlink(missing_ok=True)
@@ -60,15 +71,23 @@ def _require_idle_backup(path: Path) -> None:
             raise LibraryDatabaseError(message)
 
 
-def _copy_database(source: Path, destination: Path, identity: SchemaIdentity) -> None:
+def _copy_database(
+    source: Path,
+    destination: Path,
+    identity: SchemaIdentity,
+    *,
+    source_file: DatabaseFileIdentity,
+) -> None:
+    source_file.require_unchanged(source)
     engine = make_database_engine(source, writable=False, identity=identity)
     try:
         with (
             engine.connect() as source_connection,
             closing(sqlite3.connect(destination)) as target,
         ):
+            source_file.require_unchanged(source)
             if inspect_schema(source_connection) != identity:
-                message = 'The primary library changed before its migration backup'
+                message = 'The primary library changed before its recovery backup'
                 raise LibraryDatabaseError(message)
             raw = cast(
                 'sqlite3.Connection', source_connection.connection.driver_connection

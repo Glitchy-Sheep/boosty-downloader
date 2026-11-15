@@ -9,6 +9,7 @@ from support.library_db import NOW, previous_database
 from boosty_downloader.domain.library import PostAccess
 from boosty_downloader.domain.stored_post import MediaStatus
 from boosty_downloader.infrastructure.library import _db_backup, db_store
+from boosty_downloader.infrastructure.library._db_engine import DatabaseFileIdentity
 from boosty_downloader.infrastructure.library._db_errors import (
     LibraryDatabaseError,
     UnsupportedLibraryDatabaseError,
@@ -128,9 +129,16 @@ def test_failed_backup_preserves_previous_recovery_copy_and_blocks_upgrade(
     backup.write_bytes(b'existing recovery copy')
     before = (backup.read_bytes(), backup.stat().st_mtime_ns)
 
-    def fail_backup(source: Path, destination: Path, identity: SchemaIdentity) -> None:
+    def fail_backup(
+        source: Path,
+        destination: Path,
+        identity: SchemaIdentity,
+        *,
+        source_file: DatabaseFileIdentity,
+    ) -> None:
         assert source == path
         assert identity.version == 1
+        source_file.require_unchanged(source)
         destination.write_bytes(b'incomplete backup')
         message = 'injected disk failure'
         raise OSError(message)
@@ -212,9 +220,13 @@ def test_backup_sidecar_created_during_copy_blocks_publication(
     original_copy = _db_backup._copy_database
 
     def copy_then_create_sidecar(
-        source: Path, destination: Path, identity: SchemaIdentity
+        source: Path,
+        destination: Path,
+        identity: SchemaIdentity,
+        *,
+        source_file: DatabaseFileIdentity,
     ) -> None:
-        original_copy(source, destination, identity)
+        original_copy(source, destination, identity, source_file=source_file)
         backup.with_name(backup.name + suffix).write_bytes(b'retained recovery state')
 
     monkeypatch.setattr(_db_backup, '_copy_database', copy_then_create_sidecar)
@@ -239,6 +251,11 @@ def test_backup_rejects_another_primary_identity(tmp_path: Path):
         connection.commit()
     before = path.read_bytes()
     with pytest.raises(UnsupportedLibraryDatabaseError, match='identity changed'):
-        _db_backup._copy_database(path, path.with_name('temporary.backup'), identity)
+        _db_backup._copy_database(
+            path,
+            path.with_name('temporary.backup'),
+            identity,
+            source_file=DatabaseFileIdentity.capture(path),
+        )
     assert path.read_bytes() == before
     assert not path.with_name('library.db.bak').exists()

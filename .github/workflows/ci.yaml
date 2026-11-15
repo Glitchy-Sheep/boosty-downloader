@@ -35,14 +35,14 @@ jobs:
       - name: Import layers
         run: task check:imports
 
-  # Unit and e2e tests on every supported Python and on Windows, one job per cell.
+  # Unit and e2e tests across supported Python versions and desktop platforms.
   test:
     name: 🧪 Test matrix / py${{ matrix.python }} / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}-latest
     timeout-minutes: 25
     # Cells: the oldest and the newest supported Python plus the pin on
-    # Ubuntu, and the pin on Windows (paths, line endings and the console
-    # differ there). fail-fast off: one red cell must not cancel the others.
+    # Ubuntu, and the pin on Windows and macOS. Each platform verifies its
+    # actual SQLite runtime. One red cell must not cancel the others.
     strategy:
       fail-fast: false
       matrix:
@@ -50,6 +50,8 @@ jobs:
         python: ['3.10', '3.12', '3.14']
         include:
           - os: windows
+            python: '3.12'
+          - os: macos
             python: '3.12'
     steps:
       - name: Checkout

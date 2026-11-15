@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from stat import S_ISDIR, S_ISREG
 from typing import TYPE_CHECKING, Final
 from urllib.parse import quote
@@ -12,6 +13,9 @@ from sqlalchemy.pool import NullPool
 from boosty_downloader.infrastructure.library._db_errors import (
     UnsafeLibraryDatabasePathError,
     UnsupportedLibraryDatabaseError,
+)
+from boosty_downloader.infrastructure.library._db_runtime import (
+    require_supported_sqlite,
 )
 from boosty_downloader.infrastructure.library._db_schema import (
     SchemaIdentity,
@@ -28,6 +32,31 @@ if TYPE_CHECKING:
 
 BUSY_TIMEOUT_SECONDS: Final = 2.0
 _SIDECAR_SUFFIXES: Final = ('-wal', '-shm', '-journal')
+
+
+@dataclass(frozen=True, slots=True)
+class DatabaseFileIdentity:
+    """Bind preparation connections to the same primary file generation."""
+
+    device: int
+    inode: int
+
+    @classmethod
+    def capture(cls, path: Path) -> DatabaseFileIdentity:
+        """Remember the ordinary primary file before acquiring its write lock."""
+        validate_database_path(path)
+        info = path.lstat()
+        return cls(info.st_dev, info.st_ino)
+
+    def require_unchanged(self, path: Path) -> None:
+        """Refuse replacement even when the replacement retains the same UUID."""
+        try:
+            current = self.capture(path)
+        except FileNotFoundError:
+            current = None
+        if current != self:
+            message = f'The primary library file changed during preparation: {path}'
+            raise UnsupportedLibraryDatabaseError(message)
 
 
 def validate_database_path(path: Path) -> None:
@@ -94,6 +123,7 @@ def make_database_engine(
     allow_schema_upgrade: bool = False,
 ) -> Engine:
     """Bind transactions to one primary identity without changing journal mode."""
+    require_supported_sqlite()
     database = f'file:{quote(path.as_posix(), safe="/:")}'
     engine = create_engine(
         URL.create(

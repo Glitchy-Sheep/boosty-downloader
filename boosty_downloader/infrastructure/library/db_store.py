@@ -10,8 +10,9 @@ from sqlalchemy import text
 from sqlalchemy.exc import DatabaseError
 from sqlalchemy.orm import Session
 
-from boosty_downloader.infrastructure.library._db_backup import make_migration_backup
+from boosty_downloader.infrastructure.library._db_backup import make_library_backup
 from boosty_downloader.infrastructure.library._db_engine import (
+    DatabaseFileIdentity,
     backup_path,
     make_database_engine,
     validate_database_path,
@@ -20,6 +21,9 @@ from boosty_downloader.infrastructure.library._db_engine import (
 from boosty_downloader.infrastructure.library._db_errors import (
     LibraryDatabaseError,
     UnsupportedLibraryDatabaseError,
+)
+from boosty_downloader.infrastructure.library._db_runtime import (
+    require_supported_sqlite,
 )
 from boosty_downloader.infrastructure.library._db_schema import (
     SCHEMA_VERSION,
@@ -55,6 +59,7 @@ class LibraryDatabase:
     @classmethod
     def create(cls, path: Path, *, library_id: UUID | None = None) -> LibraryDatabase:
         """Initialize a new file; an interrupted initialization remains an error."""
+        require_supported_sqlite()
         path = path.absolute()
         validate_new_database_path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -80,14 +85,31 @@ class LibraryDatabase:
         )
 
     @classmethod
-    def open(cls, path: Path, *, writable: bool = False) -> LibraryDatabase:
-        """Validate an existing library and back up before a forward migration."""
+    def open(
+        cls,
+        path: Path,
+        *,
+        writable: bool = False,
+        expected_library_id: UUID | None = None,
+        backup_before_write: bool = False,
+    ) -> LibraryDatabase:
+        """Bind an existing library before one optional run-start or migration backup."""
+        require_supported_sqlite()
+        if backup_before_write and not writable:
+            message = 'A run-start backup requires writable library preparation'
+            raise ValueError(message)
         path = path.absolute()
         validate_database_path(path)
         if not path.is_file():
             message = f'Primary library database is missing: {path}; restore {backup_path(path)}'
             raise LibraryDatabaseError(message)
         identity = _read_identity(path)
+        if (
+            expected_library_id is not None
+            and identity.library_id != expected_library_id
+        ):
+            message = f'Primary library identity does not match its marker: {path}'
+            raise UnsupportedLibraryDatabaseError(message)
         if not writable and identity.version != SCHEMA_VERSION:
             message = 'The primary library requires a writable schema upgrade'
             raise UnsupportedLibraryDatabaseError(message)
@@ -97,8 +119,10 @@ class LibraryDatabase:
         initialized = False
         try:
             if writable:
+                identity = _prepare_write(
+                    path, engine, backup_before_write=backup_before_write
+                )
                 _configure_wal(engine)
-                identity = _upgrade(path, engine)
             else:
                 with engine.connect() as connection:
                     identity = _validate_database(connection)
@@ -161,11 +185,16 @@ def _validate_database(connection: Connection) -> SchemaIdentity:
     return identity
 
 
-def _upgrade(path: Path, engine: Engine) -> SchemaIdentity:
+def _prepare_write(
+    path: Path, engine: Engine, *, backup_before_write: bool
+) -> SchemaIdentity:
+    source_file = DatabaseFileIdentity.capture(path)
     with engine.begin() as connection:
         identity = _validate_database(connection)
+        source_file.require_unchanged(path)
+        if backup_before_write or identity.version < SCHEMA_VERSION:
+            make_library_backup(path, identity, source_file=source_file)
         if identity.version < SCHEMA_VERSION:
-            make_migration_backup(path, identity)
             migrate_schema(connection, identity.version)
         return SchemaIdentity(SCHEMA_VERSION, identity.library_id)
 
@@ -179,7 +208,7 @@ def _configure_wal(engine: Engine) -> None:
 
 def _enable_wal_exclusively(engine: Engine) -> None:
     # Keep the validated database locked across the journal-mode transition.
-    # Closing this dedicated connection releases EXCLUSIVE mode before backup readers.
+    # Closing this dedicated connection releases EXCLUSIVE mode for later operations.
     with engine.connect().execution_options(primary_exclusive=True) as connection:
         raw = cast('sqlite3.Connection', connection.connection.driver_connection)
         raw.execute('PRAGMA locking_mode=EXCLUSIVE').close()

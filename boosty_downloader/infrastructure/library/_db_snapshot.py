@@ -11,6 +11,9 @@ from typing import TYPE_CHECKING, Final
 
 from boosty_downloader.infrastructure.library._db_engine import validate_database_path
 from boosty_downloader.infrastructure.library._db_errors import LibraryDatabaseError
+from boosty_downloader.infrastructure.library._db_runtime import (
+    require_supported_sqlite,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -41,6 +44,7 @@ def _file_version(path: Path) -> _FileVersion | None:
 @contextmanager
 def schema_snapshot(source: Path) -> Generator[Path, None, None]:
     """Inspect a stable private copy without creating sidecars beside the primary."""
+    require_supported_sqlite()
     for _ in range(_SNAPSHOT_ATTEMPTS):
         with TemporaryDirectory(prefix='boosty-db-check-') as directory:
             snapshot = Path(directory).resolve() / source.name

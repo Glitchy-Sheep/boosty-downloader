@@ -31,3 +31,7 @@ runs:
     - name: Install dependencies
       run: uv sync
       shell: bash
+
+    - name: Verify the primary-library SQLite runtime
+      run: uv run python scripts/check_sqlite_runtime.py
+      shell: bash
