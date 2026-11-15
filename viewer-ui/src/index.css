@@ -5,6 +5,7 @@
 @import './components/author-shell.css';
 @import './components/media-viewer.css';
 @import './components/player-bar.css';
+@import './components/file-actions.css';
 
 /* Dark is the default; the light palette follows the system setting. */
 @custom-variant dark {
