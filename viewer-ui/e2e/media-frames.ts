@@ -1,73 +1,23 @@
 import type { Page } from '@playwright/test'
 
 import { expect } from './media-fixtures'
+import {
+  captureSwitch,
+  type SwitchFrame,
+  type SwitchRecording,
+  type TabAction,
+  type TabName,
+} from './media-switch-recording'
 
-export type TabName = 'posts' | 'media'
-export type TabAction = TabName | 'back' | 'forward'
-type PaneFrame = { tab: string; opacity: number; x: number; visible: boolean; inert: boolean }
-export type SwitchFrame = {
-  time: number
-  logo: number
-  pill: number
-  panes: PaneFrame[]
-  articleOpacity: number | null
-  textLength: number
-}
+export type { SwitchFrame, SwitchRecording, TabAction, TabName } from './media-switch-recording'
 
 /** Record rendered frames, including the delayed response and the first mounted pane. */
 export async function switchFrames(
   page: Page,
   action: TabAction,
   duration = 550,
-): Promise<SwitchFrame[]> {
-  return page.evaluate(
-    async ({ action, duration }) => {
-      const frames: SwitchFrame[] = []
-      const began = performance.now()
-      const read = (): void => {
-        const article = document.querySelector('.author-pane[data-tab="posts"] article')
-        frames.push({
-          time: performance.now() - began,
-          logo: document.querySelector('a[aria-label="Boosty Library"]')!.getBoundingClientRect()
-            .left,
-          pill: document.querySelector('.author-tab-pill')!.getBoundingClientRect().left,
-          panes: [...document.querySelectorAll<HTMLElement>('.author-pane')].map((pane) => {
-            const style = getComputedStyle(pane)
-            return {
-              tab: pane.dataset.tab ?? '',
-              opacity: Number(style.opacity),
-              x: new DOMMatrix(style.transform).m41,
-              visible: style.visibility === 'visible',
-              inert: pane.inert,
-            }
-          }),
-          articleOpacity: article ? Number(getComputedStyle(article).opacity) : null,
-          textLength:
-            document.querySelector('.author-pane[data-tab="posts"] [aria-label="Selected post"]')
-              ?.textContent?.length ?? 0,
-        })
-      }
-      read()
-      if (action === 'back') history.back()
-      else if (action === 'forward') history.forward()
-      else
-        document
-          .querySelector<HTMLAnchorElement>(
-            `header a[aria-label="${action === 'posts' ? 'Posts' : 'Media'}"]`,
-          )!
-          .click()
-      await new Promise<void>((resolve) => {
-        const tick = (): void => {
-          read()
-          if (performance.now() - began < duration) requestAnimationFrame(tick)
-          else resolve()
-        }
-        requestAnimationFrame(tick)
-      })
-      return frames
-    },
-    { action, duration },
-  )
+): Promise<SwitchRecording> {
+  return page.evaluate(captureSwitch, { action, duration })
 }
 
 export function verifySwitch(frames: SwitchFrame[], destination: TabName): void {

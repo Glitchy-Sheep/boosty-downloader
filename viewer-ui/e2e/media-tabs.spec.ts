@@ -273,9 +273,13 @@ async function recordSwitch(
   name: string,
   duration?: number,
 ): Promise<SwitchFrame[]> {
-  const frames = await switchFrames(page, action, duration)
+  const { frames, diagnostics } = await switchFrames(page, action, duration)
   await info.attach(`${name}-frames.json`, {
     body: JSON.stringify(frames),
+    contentType: 'application/json',
+  })
+  await info.attach(`${name}-performance.json`, {
+    body: JSON.stringify(diagnostics),
     contentType: 'application/json',
   })
   return frames
