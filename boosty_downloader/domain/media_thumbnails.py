@@ -30,9 +30,11 @@ def media_thumbnail_path(author: str, folder: str, entry: MediaEntry) -> str | N
             return f'{author}/{entry.thumbnail_path}'
         if entry.status is MediaStatus.downloaded and entry.path is not None:
             return f'{folder}/{entry.path}'
-    elif entry.kind in {MediaKind.boosty_video, MediaKind.external_video}:
-        if entry.preview_path is not None:
-            return f'{folder}/{entry.preview_path}'
+    elif (
+        entry.kind in {MediaKind.boosty_video, MediaKind.external_video}
+        and entry.preview_path is not None
+    ):
+        return f'{folder}/{entry.preview_path}'
     return None
 
 
