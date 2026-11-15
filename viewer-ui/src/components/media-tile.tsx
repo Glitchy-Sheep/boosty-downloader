@@ -7,7 +7,7 @@ import { REMOVED_MEDIA_ART, REMOVED_MEDIA_LABEL } from '@/components/removed-med
 import { useMediaFileActions } from '@/hooks/use-file-actions'
 import type { MediaItem, MediaPost } from '@/lib/api.gen'
 import { displayFileName, fileNameOnDisk } from '@/lib/file-presentation'
-import { mediaPath, mediaThumbnailPath } from '@/lib/media-paths'
+import { mediaThumbnailPath, postThumbnailPath } from '@/lib/media-paths'
 import { formatPlaybackTime } from '@/lib/playback-position'
 import { usePlayerStore } from '@/lib/player'
 
@@ -47,7 +47,7 @@ export const MediaTile = memo(function MediaTile({
     },
   })
   const art = track
-    ? post.cover_path && mediaPath(author, post.cover_path)
+    ? post.cover_path && postThumbnailPath(author, item.post_id)
     : mediaThumbnailPath(author, item)
   const title = titleOf(item, post)
   const action = track ? 'Play' : 'Open'

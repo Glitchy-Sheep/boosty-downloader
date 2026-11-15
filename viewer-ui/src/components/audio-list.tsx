@@ -13,7 +13,7 @@ import type { MediaItem, MediaPost } from '@/lib/api.gen'
 import { formatDate } from '@/lib/dates'
 import { displayFileName, fileNameOnDisk } from '@/lib/file-presentation'
 import { NO_FILTERS } from '@/lib/filters'
-import { mediaPath } from '@/lib/media-paths'
+import { postThumbnailPath } from '@/lib/media-paths'
 import { formatPlaybackTime } from '@/lib/playback-position'
 import { currentTrack, usePlayerState, usePlayerStore } from '@/lib/player'
 
@@ -113,9 +113,10 @@ function AudioCard({ author, item, post, active, onStart }: AudioCardProps) {
           >
             {post.cover_path ? (
               <img
-                src={mediaPath(author, post.cover_path)}
+                src={postThumbnailPath(author, item.post_id)}
                 alt=""
                 loading="lazy"
+                decoding="async"
                 className="size-full object-cover"
               />
             ) : (

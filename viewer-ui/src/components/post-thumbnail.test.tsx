@@ -32,8 +32,11 @@ test.each(cases)(
     expect(container.querySelector('img')).toBeNull()
     expect(container.querySelector(`.${icon}`)).toHaveClass('opacity-40')
     expect(container.querySelector('.lucide-lock')).toBeInTheDocument()
-    rerender(<PostThumbnail author="another" post={{ ...savedRow, counts, access: 'open' }} />)
-    expect(container.querySelector('img')).toHaveAttribute('src', `/thumbs/another/${savedRow.id}`)
+    rerender(<PostThumbnail author="another !#" post={{ ...savedRow, counts, access: 'open' }} />)
+    expect(container.querySelector('img')).toHaveAttribute(
+      'src',
+      `/thumbs/another%20%21%23/${savedRow.id}`,
+    )
     expect(container.querySelector('.lucide-lock')).toBeNull()
   },
 )

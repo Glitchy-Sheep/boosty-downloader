@@ -18,6 +18,10 @@ export function mediaPath(author: string, path: string): string {
   return `/media/${pathComponent(author)}/${segments.map(pathComponent).join('/')}`
 }
 
+export function postThumbnailPath(author: string, postId: string): string {
+  return `/thumbs/${pathComponent(author)}/${pathComponent(postId)}`
+}
+
 export function mediaThumbnailPath(author: string, item: MediaItem): string | null {
   if (item.thumb_path) return mediaPath(author, item.thumb_path)
   if (item.kind === 'images') return mediaPath(author, item.path)

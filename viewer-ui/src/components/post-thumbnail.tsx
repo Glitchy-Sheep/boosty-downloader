@@ -11,6 +11,7 @@ import {
 import { createElement, useState } from 'react'
 
 import type { MediaCounts, PostRow } from '@/lib/api.gen'
+import { postThumbnailPath } from '@/lib/media-paths'
 
 function mainIcon(counts: MediaCounts): LucideIcon {
   if (counts.videos > 0) return Film
@@ -24,7 +25,7 @@ type ThumbnailProps = { author: string; post: PostRow; className?: string | unde
 
 /** The thumbnail endpoint selects a saved image, preview or locked teaser. */
 export function PostThumbnail({ author, post, className }: ThumbnailProps) {
-  const source = `/thumbs/${encodeURIComponent(author)}/${encodeURIComponent(post.id)}`
+  const source = postThumbnailPath(author, post.id)
   return <ThumbnailImage key={source} source={source} post={post} className={className} />
 }
 
