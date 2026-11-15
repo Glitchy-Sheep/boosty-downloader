@@ -1,4 +1,14 @@
-import { expect, API_PATH, AUTHOR, openPost, pane, POSTS, readyPlayer, test } from './post-fixtures'
+import {
+  expect,
+  API_PATH,
+  AUTHOR,
+  openPost,
+  pane,
+  POSTS,
+  readyPlayer,
+  sidebar,
+  test,
+} from './post-fixtures'
 import { expectFullMobilePost, sheet } from './mobile-sidebar-fixtures'
 import { requireFixture } from './required-fixture'
 import {
@@ -8,6 +18,7 @@ import {
   frames,
   layout,
   physicalBracket,
+  panel,
   savedPreference,
   seedPreference,
   separator,
@@ -233,4 +244,33 @@ test.describe('full-page mobile reader', () => {
       await session.detach()
     }
   })
+})
+
+test('short desktop windows retain vertical access to the sidebar controls', async ({
+  page,
+  corpus,
+}, info) => {
+  await page.setViewportSize({ width: 1440, height: 300 })
+  await seedPreference(page, JSON.stringify({ width: 260, collapsed: false }))
+  await openPost(page, corpus, POSTS.reader)
+  await expectWidth(page, 260)
+  const viewport = panel(page).locator(':scope > .docked-layout-panel')
+  await viewport.hover()
+  await page.mouse.wheel(0, 400)
+  await expect.poll(() => viewport.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+  const geometry = await viewport.evaluate((element) => ({
+    scrollTop: element.scrollTop,
+    scrollLeft: element.scrollLeft,
+    scrollHeight: element.scrollHeight,
+    clientHeight: element.clientHeight,
+    overflowX: getComputedStyle(element).overflowX,
+    overflowY: getComputedStyle(element).overflowY,
+  }))
+  await info.attach('short-sidebar-scroll.json', {
+    body: JSON.stringify(geometry),
+    contentType: 'application/json',
+  })
+  expect(geometry.scrollHeight).toBeGreaterThan(geometry.clientHeight)
+  expect(geometry.scrollLeft).toBe(0)
+  await expect(sidebar(page).getByRole('combobox', { name: 'Jump to month' })).toBeInViewport()
 })
