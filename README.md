@@ -30,6 +30,7 @@ This CLI tool downloads content from Boosty.to in bulk and saves complete post p
     - [Step 2: Paste the cookie and auth header into the config file](#step-2-paste-the-cookie-and-auth-header-into-the-config-file)
     - [Step 3: Run the utility](#step-3-run-the-utility)
   - [🔄 Continuing a download](#-continuing-a-download)
+  - [Browse the local library](#browse-the-local-library)
   - [🛡️ When downloads fail](#️-when-downloads-fail)
   - [💖 Contributing](#-contributing)
   - [📜 License](#-license)
@@ -176,47 +177,25 @@ Omit the creator to render the whole library. The command needs no credentials o
 
 ## Browse the local library
 
-Start the local viewer server for a v5 library:
+Browse a saved v5 library without Boosty credentials or an Internet connection. Keep the local server running while you use the viewer:
 
 ```bash
-boosty-downloader view -o ./downloads
-boosty-downloader view -o ./downloads --no-open --port 8314
-boosty-downloader view -o ./downloads --lan
+boosty-downloader view -o ./v5-downloads
+boosty-downloader view -o ./v5-downloads --no-open --port 8314
+boosty-downloader view -o ./v5-downloads --lan
 ```
 
-The viewer needs no Boosty credentials. Global `--config` selects the settings file; `view --cache-dir` overrides the disposable index location. By default it listens on localhost at port 8314, choosing the next available port if needed; an explicit busy `--port` fails. `--lan` also permits devices on your local network and prints their addresses. Stop it with Ctrl+C.
+The first command opens your browser at the printed localhost address. `--no-open` leaves browser launch to you; Ctrl+C stops the server. Global `--config PATH` selects path settings, and `view --cache-dir PATH` selects the disposable index location.
 
-The authors page shows saved artwork, post counts and recorded downloaded-media sizes. Bars and labels show videos, photos, audio and files from largest to smallest; retained downloaded copies count too. These totals exclude pages, records and auxiliary images, and do not scan the disk when opening the page. Windows uses 1024 bytes per KB; other devices use 1000, with three significant digits.
+**Posts** combines complete saved pages with search, a month timeline, filters and explicit seen/favorite marks. **Media** groups photos, videos, audio and files; a persistent audio queue follows your navigation. Resize or collapse the desktop sidebar, or open it over the post on a phone. Saved content remains readable after remote access closes.
 
-Opening an author selects its newest post and shows a virtual timeline with month headings and local thumbnails. Search titles and post text, combine filters for media kind, unseen, favorites, tag, locked or incomplete posts, and change the order. The address preserves these choices across reload and browser navigation. A selected post remains available when filters hide it from the list.
+![Library viewer showing a post timeline beside a saved post](docs/assets/library-viewer.png)
 
-The post pane shows its complete saved text and media in the author's order. Use tags to filter, Previous/Next to follow the filtered timeline, and the heart to save favorites. Search highlights have their own match navigation. Open a photo for a full-screen view with arrow keys and Escape. Saved content stays readable after access closes; locked posts have no editable heart. Opening or playing a post does not mark it seen.
+On the same computer, **Open in default app** and **Show in Finder/Explorer** use the available system tools. Open acts like opening the file in the file manager: a program can start and a script may execute. Read the [local-file guidance](docs/concepts/viewer.md#files-on-this-computer), including origin warnings and shared-computer trust.
 
-Use `j` for the next post, `k` for the previous post and `/` to focus and select the search text. Press `s` to toggle the open post's seen mark and `f` to toggle its heart. These shortcuts follow physical key positions, so they also work with the Russian layout. Fast navigation advances from the previous chosen post and preserves the current filters and order. Text fields, menus, dialogs and native audio/video controls keep their own keys; shortcuts with modifiers are ignored.
+Use `--lan` only on a trusted local network. The viewer uses plain HTTP with no login; anyone who can reach it can browse, download and change viewing marks. Do not expose it through port forwarding, a reverse proxy or a public tunnel. Remote browsers keep browser viewing and downloads, while native file actions stay on the server's own computer.
 
-Choose **Mark as seen** or press `s` to mark a post seen. New media added after you marked it seen brings back its unseen dot and an **Updated** badge; marking it seen again acknowledges the update. Hearts on list rows work without opening the post and stay available on touch screens. Marks and author counts update immediately; a failed save reports an error and refreshes the saved state.
-
-Use **Mark posts** beside the result count to mark the current filtered list seen or unseen. Confirmation states how many posts will change; locked posts keep their marks. While the operation runs, the viewer reports processed and changed counts. Closing the dialog or browsing another post does not cancel the operation. A failure preserves completed changes and lets you retry the same filters.
-
-Use **Jump to month** above the timeline to browse older posts. It lists the months present in the current filtered results, grouped by year, and follows manual scrolling. The adjacent **Jump to month start** button returns to the first post of the current month. These controls move the list while keeping the open post, filters and viewing marks unchanged.
-
-On desktop, drag the sidebar edge to resize it between 260 and 640 pixels; double-click the edge to return to 360 pixels. The focused edge supports arrow keys, Home/End and Enter to collapse or expand. The header button and physical `[` key also toggle the sidebar, including on the Russian keyboard layout; `/` opens it before focusing search. Width and collapse state are remembered in this browser. A narrow window temporarily compresses the sidebar while leaving room for the post, then restores the chosen width when space returns. Resizing and crossing the mobile breakpoint preserve the open post and its players.
-
-Video and audio resume from their saved position, with a Start over action. Playback saves every five seconds while playing and on pause, seeking while paused and leaving the page. A piece played into its last 10 seconds, or last 5 percent when shorter, starts from the beginning next time. Final page-close requests use browser keepalive; delivery still depends on the browser and the local server remaining available. A failed save is shown beside the player.
-
-Switch between **Posts** and **Media** in the header. Each tab keeps its filters and scroll position; Posts returns to the open post. Videos and audio inside a hidden tab pause. Media offers **All** (photos, videos and audio), **Photos**, **Videos**, **Audio** and **Files**, with view counts, oldest/newest order, Unseen and Favorites filters in the address. Unseen excludes finished pieces and media of seen posts, while keeping newly added content. Missing pieces are counted separately; downloaded copies removed by the author appear at the end and remain usable.
-
-Open a photo or video tile for fullscreen viewing. Arrow keys move between pieces, Escape or Back closes the viewer, and a focused video keeps its seeking keys. Closing returns focus to the last piece. Hearts share the post's favorite mark, and a post link opens that post with cleared filters.
-
-Start audio from All or Audio to create a queue from that filtered list, including retained tracks. The bottom player keeps playing while you browse posts, tabs or authors. It offers play/pause, previous/next, 15-second jumps, a position slider and playback speed. Tracks resume after switching; the next starts when one ends or cannot load. Starting another audio or video pauses the current player.
-
-Files and post attachments show their names on disk, file types and sizes. On the same computer, use **Open in default app**, **Show in Finder/Explorer**, **Copy path** or **Download a copy**. Clicking the name or row does nothing. Narrow views and touch devices put actions in **More**; files, audio and media tiles also support right-click or long press. Fullscreen media offers the same actions, and opening a video or audio file in another app pauses its viewer player. The folder button beside a post's title opens its saved folder when the system supports it.
-
-Remote browsers offer downloads and **View in a new tab** for browser-readable formats. Local actions follow the server's available system tools. Programs and scripts have a visible type label and an explanation beside Open. If copying a path fails, the full path stays visible for manual copying. System errors remain visible until dismissed, including inside fullscreen viewing.
-
-After the viewer stops, the operating system can keep a fixed port temporarily unavailable while connections close. The default mode chooses another free port; with `--port`, wait or choose another value.
-
-An empty library prints a download command. Older or unmarked downloads show an explanatory page without creating an index or changing their files; choose a separate destination for v5.
+See the [viewer guide](docs/concepts/viewer.md) for keyboard controls, playback, saved data, recovery and network access. Keep older downloads in their original folder and use a separate v5 destination; see [moving from v4](docs/concepts/library-storage.md#moving-from-v4).
 
 ## 🛡️ When downloads fail
 
