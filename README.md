@@ -202,6 +202,12 @@ Use **Jump to month** above the timeline to browse older posts. It lists the mon
 
 Video and audio resume from their saved position, with a Start over action. Playback saves every five seconds while playing and on pause, seeking while paused and leaving the page. A piece played into its last 10 seconds, or last 5 percent when shorter, starts from the beginning next time. Final page-close requests use browser keepalive; delivery still depends on the browser and the local server remaining available. A failed save is shown beside the player.
 
+Switch between **Posts** and **Media** in the header. Each tab keeps its filters and scroll position; Posts returns to the open post. Videos and audio inside a hidden tab pause. Media offers **All** (photos, videos and audio), **Photos**, **Videos**, **Audio** and **Files**, with view counts, oldest/newest order, Unseen and Favorites filters in the address. Unseen excludes finished pieces and media of seen posts, while keeping newly added content. Missing pieces are counted separately; downloaded copies removed by the author appear at the end and remain usable.
+
+Open a photo or video tile for fullscreen viewing. Arrow keys move between pieces, Escape or Back closes the viewer, and a focused video keeps its seeking keys. Closing returns focus to the last piece. Hearts share the post's favorite mark, and a post link opens that post with cleared filters.
+
+Start audio from All or Audio to create a queue from that filtered list, including retained tracks. The bottom player keeps playing while you browse posts, tabs or authors. It offers play/pause, previous/next, 15-second jumps, a position slider and playback speed. Tracks resume after switching; the next starts when one ends or cannot load. Starting another audio or video pauses the current player. Files have download links in their list.
+
 After the viewer stops, the operating system can keep a fixed port temporarily unavailable while connections close. The default mode chooses another free port; with `--port`, wait or choose another value.
 
 An empty library prints a download command. Older or unmarked downloads show an explanatory page without creating an index or changing their files; choose a separate destination for v5.

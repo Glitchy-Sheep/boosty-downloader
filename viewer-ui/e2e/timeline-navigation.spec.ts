@@ -1,3 +1,5 @@
+import type { Page } from '@playwright/test'
+
 import { requireFixture } from './required-fixture'
 import { expect, openAuthors, origin, test } from './fixtures'
 import {
@@ -13,6 +15,37 @@ import {
   rows,
   sidebar,
 } from './timeline-fixtures'
+
+async function expectSidebarArtwork(page: Page): Promise<void> {
+  await expect
+    .poll(() =>
+      sidebar(page)
+        .locator('[data-post-list]')
+        .evaluate((scroller) => {
+          const clip = scroller.getBoundingClientRect()
+          const images = [...scroller.querySelectorAll('img')].map((image) => {
+            const bounds = image.getBoundingClientRect()
+            const visible =
+              Math.max(0, clip.top, bounds.top) <
+                Math.min(innerHeight, clip.bottom, bounds.bottom) &&
+              Math.max(0, clip.left, bounds.left) < Math.min(innerWidth, clip.right, bounds.right)
+            return {
+              source: image.currentSrc || image.src,
+              visible,
+              required: visible || image.loading !== 'lazy',
+              decoded: image.complete && image.naturalWidth > 0,
+            }
+          })
+          return {
+            hasVisible: images.some((image) => image.visible),
+            pending: images
+              .filter((image) => image.required && !image.decoded)
+              .map((image) => image.source),
+          }
+        }),
+    )
+    .toEqual({ hasVisible: true, pending: [] })
+}
 
 for (const width of [1440, 390]) {
   for (const colorScheme of ['dark', 'light'] as const) {
@@ -40,18 +73,7 @@ for (const width of [1440, 390]) {
       const locked = posts.rows.find((post) => post.access === 'locked')!
       await expect(row(page, locked.id)).toContainText(locked.tier!)
       await expect(row(page, locked.id)).toContainText(/locked/i)
-      await expect
-        .poll(() =>
-          rows(page)
-            .locator('img')
-            .evaluateAll((images) =>
-              images.every((image) => {
-                const loaded = image as HTMLImageElement
-                return loaded.complete && loaded.naturalWidth > 0
-              }),
-            ),
-        )
-        .toBe(true)
+      await expectSidebarArtwork(page)
       const screenshot = testInfo.outputPath(`timeline-${width}-${colorScheme}.png`)
       await page.screenshot({ path: screenshot })
       await testInfo.attach(`timeline-${width}-${colorScheme}`, {

@@ -2,6 +2,9 @@
 
 ### Added
 
+- The viewer keeps Posts and Media in separate tabs with their own filters and scroll positions. Media offers All, Photos, Videos, Audio and Files views, missing-file counts, retained removed media and fullscreen photo/video navigation.
+- Audio plays in a persistent queue while browsing posts or authors, with resume, speed and seek controls. Files can be downloaded from their list; favorites and saved positions stay shared across the viewer.
+
 - The viewer supports explicit seen marks, Updated badges, row favorites and physical `s`/`f` shortcuts. Filtered bulk marking confirms the number of changes and shows progress; opening a post never marks it seen.
 
 - The viewer can jump to any month in the filtered post timeline without changing the open post, filters or viewing marks. The month selector follows manual scrolling and groups long histories by year.
