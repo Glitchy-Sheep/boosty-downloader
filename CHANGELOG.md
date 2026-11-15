@@ -48,6 +48,8 @@
 
 ### Fixed
 
+- Rapid Media filter changes preserve pending selections, including repeated toggles before loading finishes.
+
 - Interrupted downloads show partial results and pending page checks. Repeated post IDs in a blog listing are processed once in downloads and dry-run.
 
 - Saved post pages served by the viewer can load their own images, audio and video while keeping their sandbox isolation. Ordinary media URLs retain protection against embedding from unrelated sites.

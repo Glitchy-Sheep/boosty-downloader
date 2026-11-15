@@ -6,7 +6,7 @@ import { FavoriteButton } from '@/components/favorite-button'
 import { AudioList } from '@/components/audio-list'
 import { FileList } from '@/components/file-list'
 import { MediaGrid, type MediaGridHandle } from '@/components/media-grid'
-import { MediaToolbar } from '@/components/media-toolbar'
+import { MediaToolbar, type MediaFilterUpdate } from '@/components/media-toolbar'
 import { MediaViewer } from '@/components/media-viewer'
 import { LoadError } from '@/components/route-screens'
 import { useFavorite } from '@/hooks/use-favorite'
@@ -35,12 +35,16 @@ export function MediaScreen({ author, filters }: { author: string; filters: Medi
   const grid = useRef<MediaGridHandle>(null)
   const scope = mediaViewerScope(author, filters)
 
-  const changeFilters = (patch: MediaSearch): void => {
+  const changeFilters = (update: MediaFilterUpdate): void => {
     if (!active) return
     void router.navigate({
       to: '/a/$author/media',
       params: { author },
-      search: { ...filters, ...patch, open: undefined },
+      search: (previous) => ({
+        ...previous,
+        ...(typeof update === 'function' ? update(previous) : update),
+        open: undefined,
+      }),
     })
   }
   const show = (id: string): void => {

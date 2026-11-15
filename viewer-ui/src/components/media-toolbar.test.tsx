@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { expect, test, vi } from 'vitest'
 
-import { MediaToolbar } from '@/components/media-toolbar'
+import { MediaToolbar, type MediaFilterUpdate } from '@/components/media-toolbar'
+import type { MediaSearch } from '@/lib/media-filters'
 
 const counts = { all: 2030, images: 2000, videos: 20, audio: 10, files: 12 }
 
@@ -23,18 +24,22 @@ test('shows every canonical count and changes views without inventing filter val
 })
 
 test('toggles combined filters and exposes refresh state without replacing known counts', () => {
-  const change = vi.fn()
+  const change = vi.fn<(update: MediaFilterUpdate) => void>()
+  const patch = (previous: MediaSearch = {}) => {
+    const update = change.mock.lastCall![0]
+    return typeof update === 'function' ? update(previous) : update
+  }
   const { rerender } = render(
     <MediaToolbar filters={{ view: 'videos' }} counts={undefined} updating onChange={change} />,
   )
   expect(screen.getByRole('button', { name: 'Videos …' })).toHaveAttribute('aria-pressed', 'true')
   expect(screen.getByRole('status', { name: 'Updating media' })).toBeVisible()
   fireEvent.click(screen.getByRole('button', { name: 'Unseen' }))
-  expect(change).toHaveBeenLastCalledWith({ unseen: 1 })
+  expect(patch()).toEqual({ unseen: 1 })
   fireEvent.click(screen.getByRole('button', { name: 'Favorites only' }))
-  expect(change).toHaveBeenLastCalledWith({ fav: 1 })
+  expect(patch()).toEqual({ fav: 1 })
   fireEvent.click(screen.getByRole('button', { name: 'Oldest first' }))
-  expect(change).toHaveBeenLastCalledWith({ order: 'oldest' })
+  expect(patch()).toEqual({ order: 'oldest' })
   rerender(
     <MediaToolbar
       filters={{ unseen: 1, fav: 1, order: 'oldest' }}
@@ -47,9 +52,9 @@ test('toggles combined filters and exposes refresh state without replacing known
   for (const name of ['Unseen', 'Favorites only', 'Oldest first'])
     expect(screen.getByRole('button', { name })).toHaveAttribute('aria-pressed', 'true')
   fireEvent.click(screen.getByRole('button', { name: 'Unseen' }))
-  expect(change).toHaveBeenLastCalledWith({ unseen: undefined })
+  expect(patch({ unseen: 1 })).toEqual({ unseen: undefined })
   fireEvent.click(screen.getByRole('button', { name: 'Favorites only' }))
-  expect(change).toHaveBeenLastCalledWith({ fav: undefined })
+  expect(patch({ fav: 1 })).toEqual({ fav: undefined })
   fireEvent.click(screen.getByRole('button', { name: 'Oldest first' }))
-  expect(change).toHaveBeenLastCalledWith({ order: undefined })
+  expect(patch({ order: 'oldest' })).toEqual({ order: undefined })
 })

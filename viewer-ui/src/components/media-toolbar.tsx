@@ -5,11 +5,13 @@ import type { MediaViewCounts } from '@/lib/api.gen'
 import { formatCount } from '@/lib/format'
 import { MEDIA_VIEWS, type MediaSearch, type MediaView } from '@/lib/media-filters'
 
+export type MediaFilterUpdate = MediaSearch | ((previous: MediaSearch) => MediaSearch)
+
 type MediaToolbarProps = {
   filters: MediaSearch
   counts: MediaViewCounts | undefined
   updating: boolean
-  onChange: (patch: MediaSearch) => void
+  onChange: (update: MediaFilterUpdate) => void
 }
 
 const VIEW_LABELS: Record<MediaView, string> = {
@@ -62,7 +64,9 @@ export function MediaToolbar({ filters, counts, updating, onChange }: MediaToolb
           <button
             type="button"
             aria-pressed={filters.unseen === 1}
-            onClick={() => onChange({ unseen: filters.unseen === 1 ? undefined : 1 })}
+            onClick={() =>
+              onChange((previous) => ({ unseen: previous.unseen === 1 ? undefined : 1 }))
+            }
             title="Hide media of seen posts and media played to the end"
             className={cn(CHIP, filters.unseen === 1 && SELECTED)}
           >
@@ -74,7 +78,7 @@ export function MediaToolbar({ filters, counts, updating, onChange }: MediaToolb
             aria-pressed={filters.fav === 1}
             aria-label="Favorites only"
             title="Favorites only"
-            onClick={() => onChange({ fav: filters.fav === 1 ? undefined : 1 })}
+            onClick={() => onChange((previous) => ({ fav: previous.fav === 1 ? undefined : 1 }))}
             className={cn(
               CHIP,
               'px-2.5',
@@ -91,7 +95,11 @@ export function MediaToolbar({ filters, counts, updating, onChange }: MediaToolb
             type="button"
             aria-pressed={oldest}
             aria-label="Oldest first"
-            onClick={() => onChange({ order: oldest ? undefined : 'oldest' })}
+            onClick={() =>
+              onChange((previous) => ({
+                order: previous.order === 'oldest' ? undefined : 'oldest',
+              }))
+            }
             className={cn(CHIP, oldest && SELECTED)}
           >
             <OrderIcon aria-hidden="true" className="size-4" />

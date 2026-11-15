@@ -329,6 +329,103 @@ test('direct open link closes in place and post navigation clears the opening or
   client.clear()
 })
 
+test('Media combines filter changes while the preceding selection is still loading', async () => {
+  const request = serve(photos)
+  const original = request.getMockImplementation()!
+  const favorites = deferredResponse()
+  const combined = deferredResponse()
+  request.mockImplementation(async (input) => {
+    const { pathname, searchParams } = new URL(input, 'http://localhost')
+    if (pathname.endsWith('/media') && searchParams.has('fav'))
+      return searchParams.has('unseen') ? combined.promise : favorites.promise
+    return original(input)
+  })
+  const { client, router, unmount } = setup('/a/studio/media?view=images&order=oldest')
+  try {
+    await screen.findByRole('button', { name: 'Photos 3' })
+    fireEvent.click(screen.getByRole('button', { name: 'Favorites only' }))
+    await waitFor(() =>
+      expect(new URLSearchParams(router.history.location.search).get('fav')).toBe('1'),
+    )
+    expect(screen.getByRole('button', { name: 'Favorites only' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Unseen' }))
+    await waitFor(() =>
+      expect(Object.fromEntries(new URLSearchParams(router.history.location.search))).toEqual({
+        view: 'images',
+        order: 'oldest',
+        unseen: '1',
+        fav: '1',
+      }),
+    )
+    await waitFor(() =>
+      expect(request).toHaveBeenCalledWith(
+        '/api/authors/studio/media?view=images&order=oldest&unseen=1&fav=1',
+        expect.anything(),
+      ),
+    )
+    expect(screen.getByRole('button', { name: 'Photos 3' })).toHaveAttribute('aria-pressed', 'true')
+    combined.resolve(
+      Response.json({
+        ...photos,
+        items: photos.items.slice(0, 1),
+        counts: { ...photos.counts, all: 1, images: 1 },
+      }),
+    )
+    await screen.findByRole('button', { name: 'Photos 1' })
+    for (const name of ['Favorites only', 'Unseen', 'Oldest first', 'Photos 1'])
+      expect(screen.getByRole('button', { name })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('button', { name: 'Open two' })).not.toBeInTheDocument()
+  } finally {
+    unmount()
+    favorites.resolve(Response.json(photos))
+    combined.resolve(Response.json(photos))
+    client.clear()
+  }
+})
+
+test.each([
+  { name: 'Favorites only', key: 'fav', value: '1' },
+  { name: 'Unseen', key: 'unseen', value: '1' },
+  { name: 'Oldest first', key: 'order', value: 'oldest' },
+])(
+  'Media toggles $name off while its first selection is still loading',
+  async ({ name, key, value }) => {
+    const request = serve(photos)
+    const original = request.getMockImplementation()!
+    const pending = deferredResponse()
+    request.mockImplementation(async (input) => {
+      const { pathname, searchParams } = new URL(input, 'http://localhost')
+      if (pathname.endsWith('/media') && searchParams.get(key) === value) return pending.promise
+      return original(input)
+    })
+    const { client, router, unmount } = setup('/a/studio/media?view=images')
+    try {
+      await screen.findByRole('button', { name: 'Photos 3' })
+      fireEvent.click(screen.getByRole('button', { name }))
+      await waitFor(() =>
+        expect(new URLSearchParams(router.history.location.search).get(key)).toBe(value),
+      )
+      expect(screen.getByRole('button', { name })).toHaveAttribute('aria-pressed', 'false')
+      fireEvent.click(screen.getByRole('button', { name }))
+      await waitFor(() => expect(router.history.location.search).toBe('?view=images'))
+      pending.resolve(Response.json(emptyMedia))
+      await waitFor(() => expect(router.state.isLoading).toBe(false))
+      expect(screen.getByRole('button', { name })).toHaveAttribute('aria-pressed', 'false')
+      expect(screen.getByRole('button', { name: 'Photos 3' })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      )
+    } finally {
+      unmount()
+      pending.resolve(Response.json(emptyMedia))
+      client.clear()
+    }
+  },
+)
+
 test('all five views keep only Media filters and a hidden toolbar cannot navigate', async () => {
   const request = serve()
   const { client, router, container, unmount } = setup(
