@@ -1,0 +1,19 @@
+@layer components {
+  .media-viewer-player .resume-note {
+    margin-top: 0.5rem;
+    flex-shrink: 0;
+    color: rgb(255 255 255 / 80%);
+    font-size: 13px;
+  }
+  .media-viewer-player .resume-note button {
+    color: white;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .media-viewer-player .playback-save-error {
+    margin-top: 0.5rem;
+    flex-shrink: 0;
+    color: #fecdd3;
+    font-size: 13px;
+  }
+}
