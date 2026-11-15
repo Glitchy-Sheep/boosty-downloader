@@ -1,9 +1,10 @@
-import { createEvent, fireEvent, render, screen, within } from '@testing-library/react'
+import { createEvent, fireEvent, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { PostPage, type PostPageProps } from '@/components/post-page'
 import type { PostDetail } from '@/lib/api.gen'
 import { filtersSearchParams, type Filters } from '@/lib/filters'
+import { renderWithFileActions as render } from '@/test/file-actions'
 
 const post: PostDetail = {
   id: 'post-1',

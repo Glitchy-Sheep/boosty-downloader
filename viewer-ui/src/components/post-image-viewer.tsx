@@ -3,6 +3,7 @@ import { Dialog } from 'radix-ui'
 import { useEffect, useLayoutEffect, useRef, type KeyboardEvent } from 'react'
 
 import { useTabActive } from '@/lib/author-tab'
+import { useFileNoticeHost } from '@/hooks/use-file-actions'
 
 export type PostImage = { src: string; alt: string; trigger: HTMLImageElement }
 type PostImageViewerProps = {
@@ -21,6 +22,7 @@ export function PostImageViewer({ images, index, onShow, onClose }: PostImageVie
   }, [active])
   const image = index === null ? undefined : images[index]
   const content = useRef<HTMLDivElement>(null)
+  const noticeHost = useFileNoticeHost()
   const lastTrigger = useRef<HTMLImageElement | null>(null)
   const wasOpen = useRef(false)
   useEffect(() => {
@@ -89,6 +91,7 @@ export function PostImageViewer({ images, index, onShow, onClose }: PostImageVie
                 <ImageStep direction="next" onClick={() => onShow(index + 1)} />
               )}
             </div>
+            <div ref={noticeHost} />
           </Dialog.Content>
         )}
       </Dialog.Portal>

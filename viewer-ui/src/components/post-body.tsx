@@ -1,7 +1,9 @@
 import { ChevronDown, ChevronUp, Search, X } from 'lucide-react'
 import { memo, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 
+import { FileCard } from '@/components/file-card'
 import { PostImageViewer, type PostImage } from '@/components/post-image-viewer'
+import { usePostAttachments } from '@/hooks/use-post-attachments'
 import { usePostPlayback, type SavePosition } from '@/hooks/use-post-playback'
 import type { MediaItem } from '@/lib/api.gen'
 import { useTabActive } from '@/lib/author-tab'
@@ -40,6 +42,8 @@ export function PostBody({
   const [imageIndex, setImageIndex] = useState<number | null>(null)
 
   if (!active && imageIndex !== null) setImageIndex(null)
+
+  const { attachments, inventory } = usePostAttachments({ rootRef, author, postId, html, media })
 
   useLayoutEffect(() => {
     const root = rootRef.current
@@ -89,7 +93,7 @@ export function PostBody({
     const hits = markHits(root, searchWords(query))
     setSearch((previous) => ({ revision: previous.revision + 1, hits }))
     return () => unmarkHits(root)
-  }, [html, query, author, postId])
+  }, [html, query, author, postId, inventory])
 
   useEffect(() => {
     const root = rootRef.current
@@ -113,6 +117,13 @@ export function PostBody({
       )}
       {!html.trim() && <p className="text-muted-foreground">This post has no text or media.</p>}
       <SavedHtml html={html} rootRef={rootRef} />
+      {attachments.map((attachment, index) => (
+        <FileCard
+          key={JSON.stringify([author, postId, attachment.item.id, index])}
+          author={author}
+          attachment={attachment}
+        />
+      ))}
       <PostImageViewer
         images={images}
         index={imageIndex}

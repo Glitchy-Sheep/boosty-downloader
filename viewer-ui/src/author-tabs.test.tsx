@@ -8,6 +8,7 @@ import type { MediaGrid } from '@/components/media-grid'
 import type { MediaPage } from '@/lib/api.gen'
 import { createQueryClient, mediaQuery, postsQuery } from '@/lib/queries'
 import { createViewerRouter } from '@/router'
+import { remoteFileCapabilities } from '@/test/file-actions'
 import { savedMediaPost } from '@/test/media-fixtures'
 import { savedAuthor, savedList, savedPost, savedRow, savedVideo } from '@/test/post-fixtures'
 
@@ -65,6 +66,7 @@ const emptyMedia: MediaPage = {
 function serve(media = emptyMedia) {
   const request = vi.fn(async (input: string) => {
     const { pathname } = new URL(input, 'http://localhost')
+    if (pathname === '/api/opener') return Response.json(remoteFileCapabilities)
     if (pathname === '/api/authors/studio') return Response.json(savedAuthor)
     if (pathname.endsWith('/tags')) return Response.json([])
     if (pathname.endsWith('/posts')) return Response.json(savedList)

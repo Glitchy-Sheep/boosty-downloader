@@ -1,8 +1,21 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render as renderComponent,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
+import type { ReactElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PostBody } from '@/components/post-body'
 import { TabActive } from '@/lib/author-tab'
+import { createFileActionsTestApp } from '@/test/file-actions'
+
+function render(element: ReactElement) {
+  return renderComponent(element, { wrapper: createFileActionsTestApp().Wrapper })
+}
 
 vi.mock('@/hooks/use-post-playback', () => ({ usePostPlayback: vi.fn() }))
 const defaults = {

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { useState, type ReactNode } from 'react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
@@ -7,6 +7,7 @@ import { FileList } from '@/components/file-list'
 import type { MediaItem, MediaPage } from '@/lib/api.gen'
 import { NO_FILTERS } from '@/lib/filters'
 import { createPlayerStore, currentTrack, PlayerProvider, type PlayerStore } from '@/lib/player'
+import { renderWithFileActions as render } from '@/test/file-actions'
 import { playbackItem } from '@/test/playback-fixture'
 
 const marks = vi.hoisted(() => ({ pending: false, error: null as string | null, toggle: vi.fn() }))
@@ -210,10 +211,16 @@ test('audio retains scroll while hidden, ignores starts while inactive, resets f
 
 test('files provide encoded downloads and post links without row actions, and no heading rule', async () => {
   const files = [
-    playbackItem({ kind: 'files', filename: 'A file !#.pdf', path: 'post/A file !#.pdf' }),
+    playbackItem({
+      kind: 'files',
+      file_type: 'pdf',
+      filename: 'API title',
+      path: 'post/A file !#.pdf',
+    }),
     playbackItem({
       id: 'removed',
       kind: 'files',
+      file_type: 'archive',
       filename: null,
       path: 'post/retained.zip',
       removed: true,
@@ -222,13 +229,17 @@ test('files provide encoded downloads and post links without row actions, and no
   const { container } = render(
     <Harness data={page(files, 1)} store={createPlayerStore()} audio={false} />,
   )
-  const download = await screen.findByRole('link', { name: 'Download A file !#.pdf' })
+  const toolbar = await screen.findByRole('toolbar', { name: 'A file !#.pdf' })
+  const download = within(toolbar).getByRole('link', { name: 'Download a copy' })
   expect(download).toHaveAttribute('href', '/media/a%20%21%23/post/A%20file%20%21%23.pdf')
   expect(download).toHaveAttribute('download', 'A file !#.pdf')
   expect(
-    screen.getByRole('link', { name: 'Download retained.zip, removed by the author' }),
+    within(screen.getByRole('toolbar', { name: 'retained.zip' })).getByRole('link', {
+      name: 'Download a copy',
+    }),
   ).toHaveAttribute('download', 'retained.zip')
-  expect(screen.getAllByText('100 B')).toHaveLength(2)
+  expect(screen.getByText('PDF document · 100 B')).toBeVisible()
+  expect(screen.getByText('ZIP archive · 100 B')).toBeVisible()
   expect(container.querySelector('[data-removed-heading] .border-t')).toBeNull()
   expect(
     container

@@ -5,7 +5,9 @@ import { useEffect } from 'react'
 import { AppShell } from '@/components/app-shell'
 import { AuthorsPage } from '@/components/authors-page'
 import { PlayerBar } from '@/components/player-bar'
+import { FileNotice } from '@/components/file-notice'
 import { ApiError } from '@/lib/api'
+import { FileActionsProvider } from '@/lib/file-actions'
 import { authorsQuery } from '@/lib/queries'
 import { PlayerProvider } from '@/lib/player'
 
@@ -13,9 +15,12 @@ export function ViewerShell() {
   const pathname = useLocation({ select: (location) => location.pathname })
   return (
     <PlayerProvider>
-      <AppShell isAuthorsPage={pathname === '/'} footer={<PlayerBar />}>
-        <Outlet />
-      </AppShell>
+      <FileActionsProvider>
+        <AppShell isAuthorsPage={pathname === '/'} footer={<PlayerBar />}>
+          <Outlet />
+        </AppShell>
+        <FileNotice />
+      </FileActionsProvider>
     </PlayerProvider>
   )
 }
