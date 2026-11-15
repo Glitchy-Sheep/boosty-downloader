@@ -2,6 +2,8 @@
 
 ### Added
 
+- The viewer's desktop sidebar can be resized or collapsed, remembers its width and restores it after temporary window compression. A header button and physical `[` key toggle the sidebar; `/` opens it before focusing search. Resizing preserves the open post and playback.
+
 - The viewer can open saved files in their default apps, reveal them in Finder/Explorer, copy their paths and open post folders. Files and post attachments show their names on disk and type; compact menus, media context menus and fullscreen actions share the same behavior. Remote browsers retain downloads and supported browser previews.
 
 - The viewer keeps Posts and Media in separate tabs with their own filters and scroll positions. Media offers All, Photos, Videos, Audio and Files views, missing-file counts, retained removed media and fullscreen photo/video navigation.
